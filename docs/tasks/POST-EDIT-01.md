@@ -8,7 +8,7 @@
   - 2026-11-04 用户确认，本次编辑标题、正文和图片。标签编辑随标签功能接入，原有标签保留。
   - 2026-11-04 用户确认，同版先保存者生效。后保存的旧版输入留在页面，可复制文字，再主动载入新版继续编辑。按 DELETE-POST-01 与 MOD-TAKEDOWN-01，确认删除或下架则提示状态、关闭编辑并丢弃本次修改。
 - 更新日期：2026-11-04。
-- 状态：实现已完成；本地验证 PASS；合并未合并；发布未发布。
+- 状态：实现已完成；本地验证 PASS；产品 CI 13/14 PASS、应用回滚演练 FAIL；合并未合并；发布未发布。
 
 ## 目标与范围
 
@@ -57,3 +57,11 @@
 - PR #100 首轮产品 CI 发现旧契约检查固定 16 个操作；已纳入 4 个编辑操作并补版本必填、禁止改身份/通道及图片上限的负向回归。本地兼容性检查和 10 项回归 PASS，待新 head CI。
 - 完整 CI 补充发现主线日期函数签名整合漏项、三处旧 schema 模拟与表清单未同步 0029。已修正；Flutter analyze、编辑页/详情页 32 项测试与 Android Profile 构建 PASS。真实 PostgreSQL 复验中；此前聚焦验证不代表完整 CI 通过。
 - 旧能力 DTO 回归仍将 canEdit=true 视为非法，已改为接受真实编辑能力，继续拒绝非法类型和私有字段。本地整套 Flutter test PASS（4 项依赖外部 fixture 的用例 SKIP）；历史 schema/受限权限/运行时回归 PASS。Profile APK 已构建及原日常签名验证，vivo 未连接，未安装其他设备。
+
+### 最终 PR 检查与发布阻碍
+
+- [PR #100](https://github.com/zewbby/SpeechFUL/pull/100)，远端 head `d962cdb1b4651f5bb4fa17e77f02ac2bc97b30d1`；最新基线 `55663f020ff7cacad87c684544c42a3b7f8a341b`。13 个工作流 PASS；[Android prerelease](https://github.com/zewbby/SpeechFUL/actions/runs/41799921917) 的候选构建 PASS、rehearsal FAIL。
+- 失败发生在 `tools/prerelease/environment.py` 的 `self.start(prefix='rollback-')` 后严格就绪检查。此前候选启动、真实 HTTPS、数据库备份/新实例恢复、旧会话拒绝均 PASS。不能将此失败解释为测试夹具漏项：旧主线的帖子权限白名单不接受 0029 新增列权限；旧读取代码也不会读取新版编辑内容，直接退旧程序不满足内容一致性。
+- 2026-11-04 依仓库需求确认规则重新使用 grill-with-docs，询问分两次兼容发布（建议）或明确采用仅前向修复。结论待用户确认；当前不跳过或削弱回滚 CI，不合并、不执行部署。
+- 最终本地整套 Flutter `flutter test --no-pub --reporter expanded test`：1061 PASS、4 SKIP（依赖独立真实 fixture）；分析 0 问题。真实 PostgreSQL `post-edit-pr100-schema-check.sh` 的历史 schema、清单及运行时检查 PASS。开发 ARM64 Profile 包已构建并用原日常证书验签，242 个受检产品文件与最终 PR head 相同。包 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110402-profile.apk`，SHA-256 `99a0ac0ce38293058b7797714264deac075f4c4834a0ebf5011a7a7077400c82`；vivo 未连接，未安装其他设备。
+- 现有 WSL 日常环境只读预检：C28/V7，C/V Gate OPEN，严格 TLS ready PASS，现行证书有效至 2026-11-11。已在私有目录编译后端候选，尚未停服务、迁移或替换批准清单。候选与部署辅助脚本留在本机，不包含正式生产发布。
