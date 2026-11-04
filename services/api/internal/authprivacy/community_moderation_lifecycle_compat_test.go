@@ -144,7 +144,7 @@ func TestPostSchemaPreModerationNeedsNoCleanupGrantPostgres(t *testing.T) {
 		t.Fatal("partially removed 0018 passed startup")
 	}
 	mustExec(t, l.cp, `ALTER TABLE c_comments.tasks DROP COLUMN moderation_hidden`)
-	// The 0029 edit fence also references moderation; remove the later feature
+	// The 0030 edit fence also references moderation; remove the later feature
 	// when constructing this deliberately pre-moderation fixture.
 	mustExec(t, l.cp, `DROP TRIGGER fence_post_edit ON c_posts.posts;
 DROP FUNCTION c_posts.fence_post_edit();

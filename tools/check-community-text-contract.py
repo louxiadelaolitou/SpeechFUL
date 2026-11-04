@@ -121,7 +121,12 @@ def check_contract(spec, vectors, media_vectors):
                 if status.startswith("2"):
                     for name in ("Session-Expires-At", "Server-Time"):
                         assert resolve(spec, response["headers"][name])["required"] is True
-    assert len(operations) == len(set(operations)) == 20
+    assert len(operations) == len(set(operations)) == 23
+    for path, methods in (
+        ("/api/v1/post-search", {"post": "searchPosts"}),
+        ("/api/v1/me/post-search-history", {"get": "listPostSearchHistory", "post": "changePostSearchHistory"}),
+    ):
+        assert {method: op["operationId"] for method, op in spec["paths"][path].items()} == methods
     assert {'readPublishedPostEdit', 'readPostEditResult', 'savePublishedPostEdit',
             'stagePublishedPostEditImage'} <= set(operations)
     for path, method in (("/api/v1/post-commands/{commandId}", "put"), ("/api/v1/me/post-tasks/{taskId}/retry", "post")):

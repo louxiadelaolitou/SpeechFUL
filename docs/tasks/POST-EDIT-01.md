@@ -62,6 +62,6 @@
 
 - [PR #100](https://github.com/zewbby/SpeechFUL/pull/100)，远端 head `d962cdb1b4651f5bb4fa17e77f02ac2bc97b30d1`；最新基线 `55663f020ff7cacad87c684544c42a3b7f8a341b`。13 个工作流 PASS；[Android prerelease](https://github.com/zewbby/SpeechFUL/actions/runs/41799921917) 的候选构建 PASS、rehearsal FAIL。
 - 失败发生在 `tools/prerelease/environment.py` 的 `self.start(prefix='rollback-')` 后严格就绪检查。此前候选启动、真实 HTTPS、数据库备份/新实例恢复、旧会话拒绝均 PASS。不能将此失败解释为测试夹具漏项：旧主线的帖子权限白名单不接受 0029 新增列权限；旧读取代码也不会读取新版编辑内容，直接退旧程序不满足内容一致性。
-- 2026-11-04 依仓库需求确认规则重新使用 grill-with-docs，询问分两次兼容发布（建议）或明确采用仅前向修复。结论待用户确认；当前不跳过或削弱回滚 CI，不合并、不执行部署。
+- 2026-11-04 依仓库需求确认规则重新使用 grill-with-docs，询问分两次兼容发布（建议）或明确采用仅前向修复。用户确认两阶段发布。阶段一兼容 C29/C30 的读取，不开放编辑；阶段二迁移 C30 并开放编辑，回退目标是阶段一版本。两阶段均须各自通过 CI。
 - 最终本地整套 Flutter `flutter test --no-pub --reporter expanded test`：1061 PASS、4 SKIP（依赖独立真实 fixture）；分析 0 问题。真实 PostgreSQL `post-edit-pr100-schema-check.sh` 的历史 schema、清单及运行时检查 PASS。开发 ARM64 Profile 包已构建并用原日常证书验签，242 个受检产品文件与最终 PR head 相同。包 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110402-profile.apk`，SHA-256 `99a0ac0ce38293058b7797714264deac075f4c4834a0ebf5011a7a7077400c82`；vivo 未连接，未安装其他设备。
 - 现有 WSL 日常环境只读预检：C28/V7，C/V Gate OPEN，严格 TLS ready PASS，现行证书有效至 2026-11-11。已在私有目录编译后端候选，尚未停服务、迁移或替换批准清单。候选与部署辅助脚本留在本机，不包含正式生产发布。

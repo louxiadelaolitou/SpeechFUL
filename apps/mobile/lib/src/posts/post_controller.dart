@@ -18,6 +18,7 @@ import 'post_edit_api.dart';
 import 'feed_api.dart';
 import 'post_interactions_api.dart';
 import 'post_reposts_api.dart';
+import 'post_search_api.dart';
 import 'post_models.dart';
 import 'post_media_api.dart';
 
@@ -31,6 +32,7 @@ part 'feed_controller.dart';
 part 'post_interactions_controller.dart';
 part 'post_reposts_controller.dart';
 part 'post_edit_controller.dart';
+part 'post_search_controller.dart';
 
 typedef PostStoreFactory = Future<PostStore> Function(String accountId);
 

@@ -74,7 +74,7 @@ const securityIdentityTranslations = <String, UiTranslation>{
   '预计完成时间：{date}': (
     '預計完成時間：{date}',
     'Expected completion: {date}',
-    '完了予定：{date}',
+    '完了予定日時：{date}',
   ),
   '核对注销状态': ('核對註銷狀態', 'Check deletion status', '削除状況を確認'),
   '重试原注销申请': ('重試原註銷申請', 'Retry original deletion request', '元の削除申請を再試行'),

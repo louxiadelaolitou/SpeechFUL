@@ -151,7 +151,7 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil {
 		t.Fatal("common C startup accepted partially removed 0018")
 	}
-	// Remove 0029 before simulating an installation predating moderation.
+	// Remove 0030 before simulating an installation predating moderation.
 	exec(t, `DROP TRIGGER fence_post_edit ON c_posts.posts;
 DROP FUNCTION c_posts.fence_post_edit();
 DROP TABLE c_posts.post_edit_receipts,c_posts.post_edit_media;
