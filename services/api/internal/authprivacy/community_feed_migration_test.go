@@ -41,7 +41,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 				return exec.Command(tool, append([]string{"-dir", dir, "postgres", dsn, command}, args...)...).Run()
 			}
 			var before string
-			preserved := `SELECT md5(jsonb_build_object('posts',(SELECT jsonb_agg(to_jsonb(p)) FROM c_posts.posts p),'contents',(SELECT jsonb_agg(to_jsonb(x)) FROM c_posts.attempt_contents x),'tasks',(SELECT jsonb_agg(to_jsonb(t)) FROM c_posts.publication_tasks t),'channels',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM public.channels c))::text)`
+			preserved := `SELECT md5(jsonb_build_object('posts',(SELECT jsonb_agg(to_jsonb(p)-ARRAY['edit_revision','edited_at','edited_title','edited_body','edited_image_ids']) FROM c_posts.posts p),'contents',(SELECT jsonb_agg(to_jsonb(x)) FROM c_posts.attempt_contents x),'tasks',(SELECT jsonb_agg(to_jsonb(t)) FROM c_posts.publication_tasks t),'channels',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM public.channels c))::text)`
 			if mode != "fresh" {
 				base := "18"
 				if mode == "interactions" {
@@ -86,7 +86,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 30 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 29 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 31 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 30 {
 				t.Fatal("incomplete migration chain")
 			}
 			if e = checkPostSearchHistorySchema(ctx, pool, true); e != nil {
@@ -94,6 +94,11 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			}
 			if count(t, pool, `SELECT count(*) FROM c_posts.post_search_history`) != 0 {
 				t.Fatal("migration fabricated private search history")
+			}
+			if count(t, pool, `SELECT count(*) FROM c_posts.post_edit_receipts`) != 0 ||
+				count(t, pool, `SELECT count(*) FROM c_posts.post_edit_media`) != 0 ||
+				count(t, pool, `SELECT count(*) FROM c_posts.posts WHERE edit_revision IS NOT NULL OR edited_at IS NOT NULL OR edited_image_ids IS NOT NULL`) != 0 {
+				t.Fatal("migration fabricated edit history")
 			}
 			if e = checkFeedSchema(ctx, pool, true); e != nil {
 				t.Fatal(e)
@@ -135,7 +140,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("down"); e == nil {
 				t.Fatal("cumulative facts rolled back")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 29 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 30 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})

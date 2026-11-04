@@ -13,21 +13,24 @@ import '../messaging/direct_message_composer.dart';
 import '../messaging/direct_message_models.dart';
 import '../design_system/telegram_theme.dart';
 
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 
 import '../channels/channel.dart';
 import '../identity/identity_api.dart';
 import '../reports/report_screens.dart';
 import '../storage/post_store.dart';
 import 'post_controller.dart';
+import 'post_api.dart';
+import 'post_edit_api.dart';
 import 'post_reposts_widgets.dart';
 import 'post_models.dart';
 import 'post_images.dart';
 import 'post_protocol.dart';
+import 'post_photo_picker.dart';
 import 'post_theme.dart';
 import 'post_upload_models.dart';
 
@@ -35,6 +38,7 @@ import 'package:hnuhole_image_viewer/image_viewer.dart';
 
 part 'post_composer_photos.dart';
 part 'personal_profile.dart';
+part 'post_edit_screen.dart';
 
 class ChannelPostsScreen extends StatefulWidget {
   const ChannelPostsScreen({
@@ -1905,6 +1909,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   int? _commentCount;
   String? _deleteError;
   bool _loading = true, _canDelete = false, _deleting = false, _deleted = false;
+  bool _canEdit = false;
   bool _returnScheduled = false;
   @override
   void initState() {
@@ -1931,6 +1936,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       _deleted = true;
       _post = null;
       _canDelete = false;
+      _canEdit = false;
     });
     _returnScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1962,8 +1968,38 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       unawaited(
         widget.controller.loadInteractions([widget.postId], single: true),
       );
-      final canDelete = await widget.controller.canDelete(widget.postId);
-      if (mounted && _authority.current) setState(() => _canDelete = canDelete);
+      final caps = await widget.controller.postCapabilities(widget.postId);
+      if (mounted && _authority.current) {
+        setState(() {
+          _canDelete = caps?.canDelete ?? false;
+          _canEdit = caps?.canEdit ?? false;
+        });
+      }
+    }
+  }
+
+  Future<void> _edit() async {
+    if (!_authority.current || !_canEdit || _deleting) return;
+    final session = widget.controller.openPostEdit(widget.postId);
+    if (session == null) return;
+    final outcome = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => _PublishedPostEditScreen(
+          session: session,
+          controller: widget.controller,
+          loadImages: widget.loadImages,
+        ),
+      ),
+    );
+    if (!mounted || !_authority.current || outcome == null) return;
+    await _load();
+    if (!mounted || !_authority.current) return;
+    final post = _post;
+    if (outcome.isEmpty && post != null) {
+      widget.controller.refreshEditedPost(post);
+    } else if (outcome.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(outcome)));
     }
   }
 
@@ -2070,7 +2106,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _postMenu() =>
       !_authority.current ||
           _deleted ||
-          !(_canDelete || GovernanceScope.maybeOf(context) != null)
+          !(_canEdit || _canDelete || GovernanceScope.maybeOf(context) != null)
       ? const SizedBox(width: 48)
       : PopupMenuButton<String>(
           tooltip: hhText(context, '帖子操作'),
@@ -2081,6 +2117,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             size: 22,
           ),
           itemBuilder: (context) => [
+            if (_canEdit)
+              const PopupMenuItem(value: 'edit', child: Text('编辑帖子')),
             if (_post != null &&
                 GovernanceScope.maybeOf(context)?.available == true)
               PopupMenuItem(
@@ -2098,6 +2136,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
           ],
           onSelected: (action) {
+            if (action == 'edit') {
+              unawaited(_edit());
+              return;
+            }
             if (action == 'delete') {
               unawaited(_delete());
               return;
@@ -2192,6 +2234,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           if (widget.loadImages case final loader? when post.imageCount > 0)
             PostImagesSection(
+              key: ValueKey((post.postId, post.editedAt)),
               postId: post.postId,
               expectedCount: post.imageCount,
               loadImages: loader,
@@ -2210,6 +2253,38 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     text: '${_postDate(context, post.publishedAt)} · ',
                     style: detailType(context, 13.5, color: PostTheme.muted),
                   ),
+                  if (post.editedAt case final at?)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: InkWell(
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('最后修改时间'),
+                            content: Text(
+                              '${MaterialLocalizations.of(context).formatFullDate(at.toLocal())} ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(at.toLocal()), alwaysUse24HourFormat: true)}',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('关闭'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            '已编辑',
+                            style: detailType(
+                              context,
+                              13.5,
+                              color: PostTheme.muted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   TextSpan(
                     text:
                         '${(widget.controller.supportsFeed ? widget.controller.postViewCount(widget.postId) : null) ?? '—'}',

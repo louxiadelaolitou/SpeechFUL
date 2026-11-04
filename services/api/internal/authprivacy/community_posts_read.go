@@ -32,11 +32,12 @@ const (
 )
 
 type PostQuery struct {
-	Kind       PostReadKind
-	ID, Cursor string
-	IdentityID string
-	Limit      int
-	ImageSizes bool
+	Kind             PostReadKind
+	ID, Cursor       string
+	IdentityID       string
+	Limit            int
+	ImageSizes       bool
+	EditCapabilities bool
 }
 
 func readOwnPostTask(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string, at time.Time, mute restriction) (posts.OwnTaskDetail, error) {
@@ -141,6 +142,16 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 			}
 			return c.listPostTasks(ctx, tx, account, query, final.TrustedAt, mute)
 		case PostCapabilities:
+			if query.EditCapabilities && c.posts.editEnabled {
+				subject, err := readPostEditSubject(ctx, tx, account, query.ID, mute, final.TrustedAt)
+				if err != nil {
+					return nil, err
+				}
+				if subject.blocked == "POST_EDIT_DELETED" {
+					return nil, postError("POST_NOT_FOUND", 404)
+				}
+				return posts.OwnPostCapabilities{PostID: query.ID, CanDelete: true, CanEdit: subject.blocked == ""}, nil
+			}
 			var exists bool
 			err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND owner_account_id=$2 AND visibility='PUBLISHED')`, query.ID, account).Scan(&exists)
 			if err != nil {

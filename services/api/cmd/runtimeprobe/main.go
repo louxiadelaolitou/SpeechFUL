@@ -288,6 +288,13 @@ func (p *probe) run(ctx context.Context, phase string) error {
 		return p.save(s)
 	case "images-restart":
 		return p.imageSnapshot(ctx, s)
+	case "post-edit":
+		if err = p.editPublishedImagePost(ctx, &s); err != nil {
+			return err
+		}
+		return p.save(s)
+	case "post-edit-restart":
+		return p.editedPostSnapshot(ctx, s)
 	case "moderation":
 		if err = p.moderationFacts(ctx, &s); err != nil {
 			return err

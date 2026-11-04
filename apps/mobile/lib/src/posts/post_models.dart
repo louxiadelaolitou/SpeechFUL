@@ -112,9 +112,22 @@ class PostDetail extends PostCard {
     required super.publishedAt,
     required this.body,
     this.imageCount = 0,
+    this.editedAt,
   });
   final String body;
   final int imageCount;
+  final DateTime? editedAt;
+
+  PostDetail withEditedAt(DateTime at) => PostDetail(
+    postId: postId,
+    channelId: channelId,
+    title: title,
+    body: body,
+    author: author,
+    publishedAt: publishedAt,
+    imageCount: imageCount,
+    editedAt: at,
+  );
   static PostDetail fromJson(Object? raw) {
     final m = PostJson.record(
       raw,
@@ -316,13 +329,13 @@ class PostCapabilities {
   final bool canDelete, canEdit;
   static PostCapabilities fromJson(Object? raw) {
     final m = PostJson.record(raw, {'postId', 'canDelete', 'canEdit'});
-    if (m['canDelete'] != true || m['canEdit'] != false) {
+    if (m['canDelete'] != true || m['canEdit'] is! bool) {
       throw const FormatException('Invalid post capabilities');
     }
     return PostCapabilities(
       postId: PostJson.id(m, 'postId'),
       canDelete: true,
-      canEdit: false,
+      canEdit: m['canEdit'] as bool,
     );
   }
 }

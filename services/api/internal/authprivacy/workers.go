@@ -71,6 +71,7 @@ func NewCommunityWorker(c *Community, config WorkerConfig, sign Signer, receive 
 		{"posts", countTask(c.PublishAcceptedPosts)},
 		{"comments", countTask(c.PublishAcceptedComments)},
 		{"post_payload_cleanup", countTask(c.CleanupPostPayloads)},
+		{"post_edit_image_cleanup", countTask(c.cleanupPostEditImages)},
 		{"receipts", func(ctx context.Context, limit int) (int, error) {
 			jobs, err := c.ClaimReceiptJobs(ctx, limit, config.ReceiptLease)
 			if err != nil {
