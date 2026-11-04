@@ -8,7 +8,7 @@
   - 2026-11-04 用户确认，本次编辑标题、正文和图片。标签编辑随标签功能接入，原有标签保留。
   - 2026-11-04 用户确认，同版先保存者生效。后保存的旧版输入留在页面，可复制文字，再主动载入新版继续编辑。按 DELETE-POST-01 与 MOD-TAKEDOWN-01，确认删除或下架则提示状态、关闭编辑并丢弃本次修改。
 - 更新日期：2026-11-04。
-- 状态：实现已完成；本地验证 PASS；产品 CI 13/14 PASS、应用回滚演练 FAIL；合并未合并；发布未发布。
+- 状态：实现完成。阶段一 CI 11/11 PASS，阶段二 CI 14/14 PASS。两阶段已合并并部署到 WSL 日常开发环境，当前 C30/V7。真机与生产发布 NOT_RUN。
 
 ## 目标与范围
 
@@ -58,7 +58,7 @@
 - 完整 CI 补充发现主线日期函数签名整合漏项、三处旧 schema 模拟与表清单未同步 0029。已修正；Flutter analyze、编辑页/详情页 32 项测试与 Android Profile 构建 PASS。真实 PostgreSQL 复验中；此前聚焦验证不代表完整 CI 通过。
 - 旧能力 DTO 回归仍将 canEdit=true 视为非法，已改为接受真实编辑能力，继续拒绝非法类型和私有字段。本地整套 Flutter test PASS（4 项依赖外部 fixture 的用例 SKIP）；历史 schema/受限权限/运行时回归 PASS。Profile APK 已构建及原日常签名验证，vivo 未连接，未安装其他设备。
 
-### 最终 PR 检查与发布阻碍
+### 首轮 PR 检查与回滚阻碍
 
 - [PR #100](https://github.com/zewbby/SpeechFUL/pull/100)，远端 head `d962cdb1b4651f5bb4fa17e77f02ac2bc97b30d1`；最新基线 `55663f020ff7cacad87c684544c42a3b7f8a341b`。13 个工作流 PASS；[Android prerelease](https://github.com/zewbby/SpeechFUL/actions/runs/41799921917) 的候选构建 PASS、rehearsal FAIL。
 - 失败发生在 `tools/prerelease/environment.py` 的 `self.start(prefix='rollback-')` 后严格就绪检查。此前候选启动、真实 HTTPS、数据库备份/新实例恢复、旧会话拒绝均 PASS。不能将此失败解释为测试夹具漏项：旧主线的帖子权限白名单不接受 0029 新增列权限；旧读取代码也不会读取新版编辑内容，直接退旧程序不满足内容一致性。
@@ -73,3 +73,11 @@
 - WSL 隔离发布演练 PASS，功能版 `2a55ed3` 与兼容版 `fd0cf1d`。在 Linux 文件系统的私有一次性库执行 `tools/prerelease/environment.py init --rollback-sha <兼容版 SHA>` 及 `rehearse`。真实 HTTPS 编辑图片帖后，切换到兼容版仍可读取新标题、正文、修改时间及相同图片字节，再切回功能版也正常。
 - Windows Flutter `flutter analyze --no-pub` 无问题，`flutter test --no-pub --reporter expanded test/post_edit_screen_test.dart test/post_models_test.dart test/post_api_test.dart test/post_search_test.dart` 58 项 PASS。以仓库固定 Python 依赖运行完整 OpenAPI 校验及兼容性回归，12 份规范、23 个操作和 10 项测试 PASS。
 - 阶段一 PR #102 最终 head fd0cf1d 的 11 个工作流全部 PASS，合并 eaae589 并已部署到 WSL 日常环境。C29/V7，严格 TLS ready PASS，原数据与授权代次未变。阶段二等待最终 CI。
+
+### 最终合并与部署
+
+- [阶段一 PR #102](https://github.com/zewbby/SpeechFUL/pull/102) 合并 `eaae5899e932b531440fcece3a87dee4ccf6c040` 并在 C29/V7 部署。严格 TLS 就绪、原数据和授权代次核对 PASS。
+- [阶段二 PR #103](https://github.com/zewbby/SpeechFUL/pull/103) 接续 #100。GitHub 未为基线变更后的 #100 重新生成合并引用或 CI，建立 `codex/feat/post-edit-release` 并核对新 PR 的起始源码树完全一致后关闭 #100。最终被测 head `17f484f5fafc6d3360d6634c76d09ade27fa745d`，14/14 工作流 PASS。头像升级用例的最高版本断言由误填的 31 修正为 30，数据不变检查保留。
+- [远端发布演练](https://github.com/zewbby/SpeechFUL/actions/runs/41811241697) PASS。候选通过 HTTPS 编辑现有图片帖，回退到兼容程序仍能读取新标题、正文、修改时间和图片字节，再切回功能版也通过。回退保留 C30 数据库。
+- 合并 `8582593bb3f9b15240bcee9e8deb69caa34e2fa9`，与被测 head 的源码树相同。通过 `post-edit-pr100-deploy.py prepare/deploy <合并 SHA> 30` 从 C29 升级到 C30/V7。严格 TLS 就绪、恢复入口幂等复查、匿名编辑请求返回 401、原数据投影及授权代次核对均 PASS。回执 `E:/Hnuhole-env/post-edit-two-stage-release/backend-edit-receipt.json`。
+- Android ARM64 Profile 构建与原签名 PASS，版本 `2026110404`。文件 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110404-profile.apk`，SHA-256 `0f581a8510929cc296c8556f7dac8f222adae6818b20642dd1747c0c2e55504a`。vivo 未连接，设备安装与生产发布 NOT_RUN。
