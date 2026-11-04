@@ -32,11 +32,11 @@ const (
 )
 
 type PostQuery struct {
-	Kind             PostReadKind
-	ID, Cursor       string
-	IdentityID       string
-	Limit            int
-	ImageSizes       bool
+	Kind       PostReadKind
+	ID, Cursor string
+	IdentityID string
+	Limit      int
+	ImageSizes bool
 }
 
 func readOwnPostTask(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string, at time.Time, mute restriction) (posts.OwnTaskDetail, error) {
