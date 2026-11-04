@@ -39,8 +39,9 @@ CREATE DATABASE hnuhole_feed_upgrade OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_interactions OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_versions OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_reposts OWNER hnuhole_c;
-REVOKE CONNECT ON DATABASE hnuhole_feed_reposts FROM PUBLIC;
-GRANT CONNECT ON DATABASE hnuhole_feed_reposts TO hnuhole_c;
+CREATE DATABASE hnuhole_feed_history OWNER hnuhole_c;
+REVOKE CONNECT ON DATABASE hnuhole_feed_reposts,hnuhole_feed_history FROM PUBLIC;
+GRANT CONNECT ON DATABASE hnuhole_feed_reposts,hnuhole_feed_history TO hnuhole_c;
 REVOKE CONNECT ON DATABASE hnuhole_c,hnuhole_v,hnuhole_feed_fresh,hnuhole_feed_upgrade,hnuhole_feed_interactions,hnuhole_feed_versions FROM PUBLIC;
 GRANT CONNECT ON DATABASE hnuhole_c TO hnuhole_c,hnuhole_c_runtime;
 GRANT CONNECT ON DATABASE hnuhole_v TO hnuhole_v;
@@ -56,10 +57,11 @@ FEED_UPGRADE_DSN="postgresql://hnuhole_c@/hnuhole_feed_upgrade?host=$feed_dir/so
 FEED_INTERACTIONS_DSN="postgresql://hnuhole_c@/hnuhole_feed_interactions?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
 FEED_VERSIONS_DSN="postgresql://hnuhole_c@/hnuhole_feed_versions?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
 FEED_REPOSTS_DSN="postgresql://hnuhole_c@/hnuhole_feed_reposts?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
-export FEED_REPOSTS_DSN
+FEED_HISTORY_DSN="postgresql://hnuhole_c@/hnuhole_feed_history?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
+export FEED_REPOSTS_DSN FEED_HISTORY_DSN
 AUTHLAB_ALLOW_SCHEMA_RESET=1
 export AUTHLAB_RUNTIME_TAG AUTHLAB_C_DSN AUTHLAB_V_DSN AUTHLAB_POSTS_RUNTIME_DSN AUTHLAB_ALLOW_SCHEMA_RESET FEED_FRESH_DSN FEED_UPGRADE_DSN FEED_INTERACTIONS_DSN FEED_VERSIONS_DSN
 feed_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$feed_script_dir/.."
 go test -race -count=1 -p 1 ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime \
-    -run "${FEED_TEST_PATTERN:-^(TestFeed|TestRealHTTPSFeed(Views|Interactions)|TestPostSchema|TestPostAtomic|TestPostCeiling|TestPostGate|TestPostFormalClosure|TestRealHTTPSPost(Acceptance|Stops)|TestModerationLifecycleCommonCStartup|TestCommentText(Transactions|FailureRetryAbandon|FrozenGate|RuntimeAndSQLGuards|UnavailablePost|ClosureCleanupWithFeatureDisabled|HTTPS|NullableBoundary)|TestCommentBusiness(MediaDeleteLikesNotices|HTTPS))}" -v
+    -run "${FEED_TEST_PATTERN:-^(TestFeed|TestRealHTTPSFeed(Views|Interactions)|TestRealHTTPSPostSearchHistoryPostgres|TestPostSchema|TestPostAtomic|TestPostCeiling|TestPostGate|TestPostFormalClosure|TestRealHTTPSPost(Acceptance|Stops)|TestModerationLifecycleCommonCStartup|TestCommentText(Transactions|FailureRetryAbandon|FrozenGate|RuntimeAndSQLGuards|UnavailablePost|ClosureCleanupWithFeatureDisabled|HTTPS|NullableBoundary)|TestCommentBusiness(MediaDeleteLikesNotices|HTTPS))}" -v
