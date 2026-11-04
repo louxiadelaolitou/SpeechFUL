@@ -80,7 +80,7 @@
 - [阶段二 PR #103](https://github.com/zewbby/SpeechFUL/pull/103) 接续 #100。GitHub 未为基线变更后的 #100 重新生成合并引用或 CI，建立 `codex/feat/post-edit-release` 并核对新 PR 的起始源码树完全一致后关闭 #100。最终被测 head `17f484f5fafc6d3360d6634c76d09ade27fa745d`，14/14 工作流 PASS。头像升级用例的最高版本断言由误填的 31 修正为 30，数据不变检查保留。
 - [远端发布演练](https://github.com/zewbby/SpeechFUL/actions/runs/41811241697) PASS。候选通过 HTTPS 编辑现有图片帖，回退到兼容程序仍能读取新标题、正文、修改时间和图片字节，再切回功能版也通过。回退保留 C30 数据库。
 - 合并 `8582593bb3f9b15240bcee9e8deb69caa34e2fa9`，与被测 head 的源码树相同。通过 `post-edit-pr100-deploy.py prepare/deploy <合并 SHA> 30` 从 C29 升级到 C30/V7。严格 TLS 就绪、恢复入口幂等复查、匿名编辑请求返回 401、原数据投影及授权代次核对均 PASS。回执 `E:/Hnuhole-env/post-edit-two-stage-release/backend-edit-receipt.json`。
-- Android ARM64 Profile 构建与原签名 PASS，版本 `2026110404`。文件 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110404-profile.apk`，SHA-256 `0f581a8510929cc296c8556f7dac8f222adae6818b20642dd1747c0c2e55504a`。vivo 未连接，设备安装与生产发布 NOT_RUN。
+- Android ARM64 Profile 构建与原签名 PASS，版本 `2026110404`。文件 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110404-profile.apk`，SHA-256 `0f581a8510929cc296c8556f7dac8f222adae6818b20642dd1747c0c2e55504a`。真我安装与验收见下，生产发布 NOT_RUN。
 
 ### 真我覆盖安装与实测
 
@@ -91,3 +91,4 @@
 - 回包丢失 PASS。临时 HTTPS 转发收到服务端 200 后关闭连接，设备显示「保存结果待核对」。强制停止应用并重进编辑后返回最新详情，数据库中该帖成功回执仍为两条（正常保存一条、本次一条）。
 - 请求未到达 PASS。保留 USB 调试，移除设备的 Community reverse 转发后点保存。设备显示「保存结果待核对」，数据库仍为原公开版、回执数未变。恢复转发后强制停止并重进编辑，原输入仍在；点击「重试本次提交」后，核对和保存使用同一命令，详情及下拉刷新读到新版，数据库回执仅增加一条。
 - 证据为 `E:/Hnuhole-env/post-edit-realme-20261104` 内真机截图及 `realme-evidence.json`。实测结束退出合成账号，恢复 `51245→51245` 和 `49747→54948` 原转发，日常严格 TLS 两端返回 200。临时服务已停止，保留原应用和数据。
+- 2026-11-04 已将真我保存刷新、回包丢失和断网重试结果同步到 [PR #103](https://github.com/zewbby/SpeechFUL/pull/103) 的「真机验收」，复核 PR 已合并。本任务按用户要求收尾。
