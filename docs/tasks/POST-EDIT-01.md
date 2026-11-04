@@ -62,6 +62,13 @@
 
 - [PR #100](https://github.com/zewbby/SpeechFUL/pull/100)，远端 head `d962cdb1b4651f5bb4fa17e77f02ac2bc97b30d1`；最新基线 `55663f020ff7cacad87c684544c42a3b7f8a341b`。13 个工作流 PASS；[Android prerelease](https://github.com/zewbby/SpeechFUL/actions/runs/41799921917) 的候选构建 PASS、rehearsal FAIL。
 - 失败发生在 `tools/prerelease/environment.py` 的 `self.start(prefix='rollback-')` 后严格就绪检查。此前候选启动、真实 HTTPS、数据库备份/新实例恢复、旧会话拒绝均 PASS。不能将此失败解释为测试夹具漏项：旧主线的帖子权限白名单不接受 0029 新增列权限；旧读取代码也不会读取新版编辑内容，直接退旧程序不满足内容一致性。
-- 2026-11-04 依仓库需求确认规则重新使用 grill-with-docs，询问分两次兼容发布（建议）或明确采用仅前向修复。用户确认两阶段发布。阶段一兼容 C29/C30 的读取，不开放编辑；阶段二迁移 C30 并开放编辑，回退目标是阶段一版本。两阶段均须各自通过 CI。
+- 2026-11-04 依仓库需求确认规则重新使用 grill-with-docs，询问分两次兼容发布（建议）或明确采用仅前向修复。用户确认两阶段发布。阶段一兼容 C29/C30 的读取，不开放编辑。阶段二迁移 C30 并开放编辑，回退时保留 C30 数据库并使用阶段一程序。两阶段均须各自通过 CI。
 - 最终本地整套 Flutter `flutter test --no-pub --reporter expanded test`：1061 PASS、4 SKIP（依赖独立真实 fixture）；分析 0 问题。真实 PostgreSQL `post-edit-pr100-schema-check.sh` 的历史 schema、清单及运行时检查 PASS。开发 ARM64 Profile 包已构建并用原日常证书验签，242 个受检产品文件与最终 PR head 相同。包 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110402-profile.apk`，SHA-256 `99a0ac0ce38293058b7797714264deac075f4c4834a0ebf5011a7a7077400c82`；vivo 未连接，未安装其他设备。
 - 现有 WSL 日常环境只读预检：C28/V7，C/V Gate OPEN，严格 TLS ready PASS，现行证书有效至 2026-11-11。已在私有目录编译后端候选，尚未停服务、迁移或替换批准清单。候选与部署辅助脚本留在本机，不包含正式生产发布。
+
+### 两阶段发布实施
+
+- 已同步搜索合并后的主线 `67de30c`。C29 保留为搜索历史迁移，帖子编辑迁移为 C30。搜索按当前公开标题和正文匹配，结果显示当前标题。
+- 阶段一 [PR #102](https://github.com/zewbby/SpeechFUL/pull/102)，分支 `codex/fix/post-edit-rollback-compat`。将读取、已编辑时间、图片和举报证据投影，以及 C30 权限识别提前上线。阶段一保留 C29 迁移链，不提供编辑路由或菜单。阶段二保留 [PR #100](https://github.com/zewbby/SpeechFUL/pull/100) 并以上线后的阶段一为回退目标。
+- WSL 隔离发布演练 PASS，功能版 `2a55ed3` 与兼容版 `fd0cf1d`。在 Linux 文件系统的私有一次性库执行 `tools/prerelease/environment.py init --rollback-sha <兼容版 SHA>` 及 `rehearse`。真实 HTTPS 编辑图片帖后，切换到兼容版仍可读取新标题、正文、修改时间及相同图片字节，再切回功能版也正常。
+- Windows Flutter `flutter analyze --no-pub` 无问题，`flutter test --no-pub --reporter expanded test/post_edit_screen_test.dart test/post_models_test.dart test/post_api_test.dart test/post_search_test.dart` 58 项 PASS。以仓库固定 Python 依赖运行完整 OpenAPI 校验及兼容性回归，12 份规范、23 个操作和 10 项测试 PASS。
