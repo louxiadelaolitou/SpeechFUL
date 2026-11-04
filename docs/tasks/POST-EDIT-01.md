@@ -56,3 +56,4 @@
 - 已整合最新 origin/main 55663f0（设置与四语言），无冲突。当前产品 CI 待执行，尚未合并和部署。
 - PR #100 首轮产品 CI 发现旧契约检查固定 16 个操作；已纳入 4 个编辑操作并补版本必填、禁止改身份/通道及图片上限的负向回归。本地兼容性检查和 10 项回归 PASS，待新 head CI。
 - 完整 CI 补充发现主线日期函数签名整合漏项、三处旧 schema 模拟与表清单未同步 0029。已修正；Flutter analyze、编辑页/详情页 32 项测试与 Android Profile 构建 PASS。真实 PostgreSQL 复验中；此前聚焦验证不代表完整 CI 通过。
+- 旧能力 DTO 回归仍将 canEdit=true 视为非法，已改为接受真实编辑能力，继续拒绝非法类型和私有字段。本地整套 Flutter test PASS（4 项依赖外部 fixture 的用例 SKIP）；历史 schema/受限权限/运行时回归 PASS。Profile APK 已构建及原日常签名验证，vivo 未连接，未安装其他设备。
