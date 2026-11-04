@@ -100,16 +100,15 @@ func (c *Community) SubmitReport(ctx context.Context, bearer [32]byte, request s
 		}
 		var target, identity uuid.UUID
 		var evidence moderation.Evidence
-		var task string
-		var version int
 		var expectedImages int
+		var imagesEdited bool
 		if input.CommentID != nil {
 			target, identity, evidence, e = commentReportEvidence(ctx, tx, input.PostID, *input.CommentID)
 			if e != nil {
 				return nil, e
 			}
 		} else {
-			e = tx.QueryRow(ctx, `SELECT p.owner_account_id,t.identity_id,x.title,x.body,t.task_id,p.published_attempt_version,COALESCE((to_jsonb(x)->>'image_count')::int,0) FROM c_posts.posts p JOIN c_posts.publication_tasks t USING(post_id) JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden FOR SHARE OF p`, input.PostID).Scan(&target, &identity, &evidence.Title, &evidence.Body, &task, &version, &expectedImages)
+			e = tx.QueryRow(ctx, `SELECT p.owner_account_id,t.identity_id,COALESCE(to_jsonb(p)->>'edited_title',x.title),COALESCE(to_jsonb(p)->>'edited_body',x.body),`+publicPostImageCount+`,to_jsonb(p)->>'edited_image_ids' IS NOT NULL FROM c_posts.posts p JOIN c_posts.publication_tasks t USING(post_id) JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND x.erased_at IS NULL FOR SHARE OF p`, input.PostID).Scan(&target, &identity, &evidence.Title, &evidence.Body, &expectedImages, &imagesEdited)
 			if errors.Is(e, pgx.ErrNoRows) {
 				return nil, postError("POST_NOT_FOUND", 404)
 			}
@@ -117,12 +116,8 @@ func (c *Community) SubmitReport(ctx context.Context, bearer [32]byte, request s
 				return nil, e
 			}
 			evidence.Images = []moderation.Image{}
-			var mediaSchema bool
-			if e = tx.QueryRow(ctx, `SELECT to_regclass('c_posts.images') IS NOT NULL`).Scan(&mediaSchema); e != nil {
-				return nil, e
-			}
-			if mediaSchema {
-				rows, e := tx.Query(ctx, `SELECT mime_type,payload FROM c_posts.images WHERE task_id=$1 AND version=$2 AND verified_at IS NOT NULL AND erased_at IS NULL ORDER BY position`, task, version)
+			if expectedImages > 0 {
+				rows, e := tx.Query(ctx, `SELECT mime_type,payload FROM (`+currentPostImageRows(imagesEdited)+`) m ORDER BY position`, input.PostID)
 				if e != nil {
 					return nil, e
 				}

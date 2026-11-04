@@ -209,13 +209,15 @@ type PublicPostCard struct {
 }
 
 type PublicPost struct {
-	PostID      string       `json:"postId"`
-	ChannelID   string       `json:"channelId"`
-	Title       string       `json:"title"`
-	Body        string       `json:"body"`
-	ImageCount  int          `json:"imageCount,omitempty"`
-	Author      PublicAuthor `json:"author"`
-	PublishedAt time.Time    `json:"publishedAt"`
+	PostID       string       `json:"postId"`
+	ChannelID    string       `json:"channelId"`
+	Title        string       `json:"title"`
+	Body         string       `json:"body"`
+	ImageCount   int          `json:"imageCount,omitempty"`
+	Author       PublicAuthor `json:"author"`
+	PublishedAt  time.Time    `json:"publishedAt"`
+	EditedAt     *time.Time   `json:"-"`
+	ImagesEdited bool         `json:"-"`
 }
 
 type PostView struct {
