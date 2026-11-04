@@ -329,10 +329,27 @@ void main() {
         isTrue,
       );
       expect(
+        PostCapabilities.fromJson({
+          'postId': _id,
+          'canDelete': true,
+          'canEdit': true,
+        }).canEdit,
+        isTrue,
+      );
+      expect(
+        () => PostCapabilities.fromJson({
+          'postId': _id,
+          'canDelete': true,
+          'canEdit': 'true',
+        }),
+        throwsFormatException,
+      );
+      expect(
         () => PostCapabilities.fromJson({
           'postId': _id,
           'canDelete': true,
           'canEdit': true,
+          'ownerAccountId': _id,
         }),
         throwsFormatException,
       );

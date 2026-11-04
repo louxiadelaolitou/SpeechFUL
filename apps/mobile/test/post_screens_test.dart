@@ -121,6 +121,11 @@ class _WidgetPosts extends ChangeNotifier implements PostController {
   @override
   Future<bool> canDelete(String postId) async => deleteAllowed;
   @override
+  Future<PostCapabilities?> postCapabilities(String postId) async =>
+      deleteAllowed
+      ? PostCapabilities(postId: postId, canDelete: true, canEdit: false)
+      : null;
+  @override
   Future<bool> deletePost(String postId) async {
     deletions++;
     if (deleted) {

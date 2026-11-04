@@ -373,10 +373,36 @@ class PostStore {
     await _checkActive();
     final rows = await _db
         .customSelect(
-          "SELECT id,revision,state,payload FROM post_entries WHERE state NOT IN ('mediaChunk','mediaRoot') ORDER BY id",
+          "SELECT id,revision,state,payload FROM post_entries WHERE state NOT IN ('mediaChunk','mediaRoot','postEdit') ORDER BY id",
         )
         .get();
     return Future.wait(rows.map(_decodeRow));
+  });
+
+  Future<String> _postEditRowId(String postId) async {
+    final bytes = await _key.extractBytes();
+    final tag = hashes.Hmac(
+      hashes.sha256,
+      bytes,
+    ).convert(utf8.encode(jsonEncode(['post-edit-v1', scope, postId])));
+    return 'edit-$tag';
+  }
+
+  Future<StoredPostEntry?> readPostEdit(String postId) async =>
+      get(await _postEditRowId(postId));
+
+  Future<void> clearPostEdit(String postId, int revision) => _run(() async {
+    final id = await _postEditRowId(postId);
+    await _db.transaction(() async {
+      await _checkActive();
+      final current = await _get(id);
+      if (current == null) return;
+      if (current.state != 'postEdit' || current.revision != revision) {
+        throw const PostStorageConflict();
+      }
+      await _db.customStatement('DELETE FROM post_entries WHERE id=?', [id]);
+      await _collectMedia(this);
+    });
   });
 
   /// Private task/version association is compared only after decryption; it
@@ -783,7 +809,7 @@ class PostStore {
         )
         .toList();
     if (intents.map((i) => i.commandId).toSet().length != intents.length ||
-        {'draft', 'mediaChunk', 'mediaRoot'}.contains(state) !=
+        {'draft', 'mediaChunk', 'mediaRoot', 'postEdit'}.contains(state) !=
             intents.isEmpty) {
       throw const PostStorageFailure();
     }

@@ -320,6 +320,9 @@ func (b *boundary) wrap(internal bool, next http.HandlerFunc) http.Handler {
 				if route, e := parsePostRoute(r.URL.Path); b.service == CommunityService && e == nil && isPostInteractionKind(route.kind) && route.kind != authprivacy.PostInteractionBatch {
 					w.Header().Set("Access-Control-Expose-Headers", "Session-Expires-At, Server-Time, X-Request-ID, Retry-After, Interaction-Version")
 				}
+				if route, e := parsePostRoute(r.URL.Path); b.service == CommunityService && e == nil && route.kind == authprivacy.PostDetail {
+					w.Header().Set("Access-Control-Expose-Headers", "Session-Expires-At, Server-Time, X-Request-ID, Retry-After, Post-Edited-At")
+				}
 				w.Header().Set("Vary", "Origin")
 			}
 		}
@@ -358,6 +361,9 @@ func (b *boundary) preflight(w http.ResponseWriter, r *http.Request) {
 			allowed["x-post-preview"] = true
 		}
 		if method == http.MethodGet {
+			if route, e := parsePostRoute(r.URL.Path); e == nil && route.kind == authprivacy.PostCapabilities {
+				allowed["x-post-edit"] = true
+			}
 			if route, e := parseCommentRoute(r.URL.Path); e == nil && (route.kind == "main" || route.kind == "replies") {
 				allowed["x-comment-snapshot-request"] = true
 			}

@@ -31,18 +31,22 @@ type FeedPreferenceBackend interface {
 }
 
 type postRoute struct {
-	repostIdentity string
-	kind           authprivacy.PostReadKind
-	id             string
-	operation      posts.Operation
-	command        bool
-	seal           bool
-	methods        string
-	preview        bool
-	limit          int
-	version        int32
-	ids            []string
-	enabled        *bool
+	edit             string
+	editCommand      string
+	editImage        string
+	editCapabilities bool
+	repostIdentity   string
+	kind             authprivacy.PostReadKind
+	id               string
+	operation        posts.Operation
+	command          bool
+	seal             bool
+	methods          string
+	preview          bool
+	limit            int
+	version          int32
+	ids              []string
+	enabled          *bool
 }
 
 func (route postRoute) allows(method string) bool {
@@ -142,6 +146,9 @@ func parsePostRoute(path string) (postRoute, error) {
 		}
 		return postRoute{kind: authprivacy.PostCapabilities, id: parts[2], methods: "GET"}, nil
 	}
+	if len(parts) >= 4 && parts[0] == "me" && parts[1] == "posts" {
+		return parsePostEditRoute(parts)
+	}
 	if len(parts) == 3 && parts[0] == "channels" && parts[2] == "posts" {
 		if _, err := posts.ParseResourceID(parts[1]); err != nil {
 			return postRoute{}, errMalformed
@@ -229,6 +236,19 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 		}
 		b.postFail(w, 401, "AUTHENTICATION_FAILED", 0)
 		return
+	}
+	if route.edit != "" {
+		edit, _ := backend.(PostEditBackend)
+		b.communityPostEdit(w, r, edit, bearer, route)
+		return
+	}
+	if hasHeader(r.Header, "X-Post-Edit") {
+		version, err := singleHeader(r.Header, "X-Post-Edit")
+		if err != nil || route.kind != authprivacy.PostCapabilities || version != "v1" {
+			b.postBad(w, errMalformed)
+			return
+		}
+		route.editCapabilities = true
 	}
 	command := ""
 	if route.command || route.seal || r.Method == http.MethodGet || isPostSearchKind(route.kind) || route.kind == authprivacy.PostViewRecord || route.kind == authprivacy.PostFeedPreferences || isPostInteractionKind(route.kind) || isRepostKind(route.kind) {
@@ -373,7 +393,7 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 }
 
 func postReadQuery(r *http.Request, route postRoute) (authprivacy.PostQuery, error) {
-	query := authprivacy.PostQuery{Kind: route.kind, ID: route.id, Limit: 20}
+	query := authprivacy.PostQuery{Kind: route.kind, ID: route.id, Limit: 20, EditCapabilities: route.editCapabilities}
 	if r.Body != nil {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1))
 		if err != nil || len(body) != 0 {
@@ -653,6 +673,8 @@ func (b *boundary) postFailure(w http.ResponseWriter, err error) {
 				status = 503
 			case "POSTING_RESTRICTED":
 				status = 409
+			case "POST_EDIT_DELETED", "POST_EDIT_HIDDEN", "POST_EDIT_CONFLICT", "POST_EDIT_MEDIA_LIMIT":
+				status = 409
 			case "INTERACTION_VERSION_CONFLICT":
 				status = 412
 			}
@@ -744,6 +766,9 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 
 // 先限定实际 DTO 类型再校验内容，不能把 backend 的任意 row/map 直接序列化。
 func strictPostValue(value any, route postRoute) (any, error) {
+	if route.edit != "" {
+		return strictPostEditValue(value, route)
+	}
 	if isRepostKind(route.kind) {
 		return strictRepostValue(value, route)
 	}
@@ -906,7 +931,7 @@ func strictPostValue(value any, route postRoute) (any, error) {
 		if p, yes := value.(*posts.OwnPostCapabilities); yes && p != nil {
 			result, ok = *p, true
 		}
-		if !ok || result.PostID != route.id || !postValidID(result.PostID) || !result.CanDelete || result.CanEdit {
+		if !ok || result.PostID != route.id || !postValidID(result.PostID) || !result.CanDelete || result.CanEdit && !route.editCapabilities {
 			return nil, errMalformed
 		}
 		return result, nil
