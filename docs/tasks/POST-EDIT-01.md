@@ -81,3 +81,9 @@
 - [远端发布演练](https://github.com/zewbby/SpeechFUL/actions/runs/41811241697) PASS。候选通过 HTTPS 编辑现有图片帖，回退到兼容程序仍能读取新标题、正文、修改时间和图片字节，再切回功能版也通过。回退保留 C30 数据库。
 - 合并 `8582593bb3f9b15240bcee9e8deb69caa34e2fa9`，与被测 head 的源码树相同。通过 `post-edit-pr100-deploy.py prepare/deploy <合并 SHA> 30` 从 C29 升级到 C30/V7。严格 TLS 就绪、恢复入口幂等复查、匿名编辑请求返回 401、原数据投影及授权代次核对均 PASS。回执 `E:/Hnuhole-env/post-edit-two-stage-release/backend-edit-receipt.json`。
 - Android ARM64 Profile 构建与原签名 PASS，版本 `2026110404`。文件 `E:/Hnuhole-env/deliveries/SpeechFUL-post-edit-2026110404-profile.apk`，SHA-256 `0f581a8510929cc296c8556f7dac8f222adae6818b20642dd1747c0c2e55504a`。vivo 未连接，设备安装与生产发布 NOT_RUN。
+
+### 真我覆盖安装与实测
+
+- 2026-11-04，realme RMX3366，ADB `7e0660f1`。核对开发 APK 摘要及原版和新版签名，`adb -s 7e0660f1 install -r --user 0 <APK>` PASS。版本 `2026102501` → `2026110404`，appId 10287 和原安装时间未变。旧版登记在访客用户下，升级保留其安装状态，在当前用户启用新版。未卸载或清除应用数据。安装证据在 `E:/Hnuhole-env/post-edit-realme-20261104`。
+- 真机启动、合成账号登录、打开测试帖详情并从本人菜单进入编辑 PASS。标题与正文显示原公开内容，编辑读取真实 HTTPS 返回 200。用一次性 C30 PostgreSQL 测试库，设备通过专用 USB 转发接入。日常数据库和既有账号未用于写入测试。
+- 保存、刷新、断网恢复 BLOCKED。设备在输入阶段断开 USB，最后仅检测到 vivo，未点击保存。临时测试服务已停止。真我接回后先核对 USB 转发，再继续实测并退出合成账号，恢复原日常转发。
