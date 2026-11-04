@@ -168,6 +168,99 @@ Matcher _failure(PostFailureKind kind, {int? status, String? code}) =>
         .having((e) => e.code, 'code', code);
 
 void main() {
+  test(
+    'published edit uses private routes, exact image bytes and revision',
+    () async {
+      final endpoint = await _Endpoint.start();
+      final api = HttpPostApi(
+        communityBaseUri: endpoint.uri,
+        client: endpoint.client(),
+      );
+      addTearDown(endpoint.close);
+      final post = {..._card(), 'body': '原始正文'};
+      const root = '/api/v1/me/posts/$_id';
+      final command = '$root/edit-commands/$_key';
+      endpoint.respond = (r) {
+        final path = r.uri.path;
+        if (path.endsWith('/capabilities')) {
+          return _json(r, 200, {
+            'postId': _id,
+            'canDelete': true,
+            'canEdit': true,
+          });
+        }
+        if (path == '$root/edit') {
+          return _json(r, 200, {
+            'post': post,
+            'revision': _other,
+            'imageIds': [],
+          });
+        }
+        if (path == '$command/images/$_id') return _json(r, 200, {});
+        if (path == command && r.method == 'GET') {
+          return _json(r, 200, {'state': 'PENDING'});
+        }
+        if (path == command) {
+          return _json(r, 200, {'state': 'SAVED', 'revision': _id});
+        }
+        r.response.headers.set('Post-Edited-At', _time);
+        return _json(r, 200, {'post': post});
+      };
+      expect(
+        (await api.capabilities(
+          sessionToken: _token,
+          postId: _id,
+        )).value.canEdit,
+        isTrue,
+      );
+      final edit = (await api.readEdit(
+        sessionToken: _token,
+        postId: _id,
+      )).value;
+      expect(edit.revision, _other);
+      expect(edit.imageIds, isEmpty);
+      expect(
+        (await api.editResult(
+          sessionToken: _token,
+          postId: _id,
+          commandId: _key,
+        )).value.state,
+        'PENDING',
+      );
+      final bytes = Uint8List.fromList([0, 1, 254, 255]);
+      await api.stageEditImage(
+        sessionToken: _token,
+        postId: _id,
+        commandId: _key,
+        imageId: _id,
+        mimeType: 'image/gif',
+        bytes: bytes,
+      );
+      final result = await api.saveEdit(
+        sessionToken: _token,
+        postId: _id,
+        commandId: _key,
+        revision: edit.revision,
+        title: '新标题',
+        body: '',
+        imageIds: [_id],
+      );
+      expect(result.value.state, 'SAVED');
+      expect(
+        (await api.detail(sessionToken: _token, postId: _id)).value.editedAt,
+        DateTime.parse(_time),
+      );
+      expect(endpoint.requests.first.headers['x-post-edit'], ['v1']);
+      expect(endpoint.requests[3].bytes, bytes);
+      expect(endpoint.requests[3].headers['content-type'], ['image/gif']);
+      expect(jsonDecode(endpoint.requests[4].body), {
+        'revision': _other,
+        'title': '新标题',
+        'body': '',
+        'imageIds': [_id],
+      });
+    },
+  );
   late LoopbackTlsFixture tls;
   setUpAll(() async {
     tls = await LoopbackTlsFixture.create();

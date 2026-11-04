@@ -10,7 +10,7 @@ import 'post_controller.dart';
 import 'post_images.dart';
 import 'post_media_api.dart';
 
-typedef _MediaKey = (String?, int, String);
+typedef _MediaKey = (String?, int, String, int);
 
 /// Shares protected bytes within their verified authorization deadline. Idle
 /// resources use a bounded LRU; displayed resources remain owned by consumers.
@@ -70,12 +70,18 @@ class PostMediaRepository {
   }
 
   Future<PostImages> load(String postId) async {
-    final key = (posts.accountId, posts.authorityVersion, postId);
+    final key = (
+      posts.accountId,
+      posts.authorityVersion,
+      postId,
+      posts.postMediaRevision(postId),
+    );
     bool current() =>
         !_disposed &&
         posts.available &&
         posts.accountId == key.$1 &&
         posts.authorityVersion == key.$2 &&
+        posts.postMediaRevision(postId) == key.$4 &&
         !posts.isPostDeleted(postId);
     if (!current()) throw const PostFailure(kind: PostFailureKind.unauthorized);
     final cached = _entries[key];

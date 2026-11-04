@@ -161,6 +161,28 @@ WHERE n.nspname='c_posts' AND c.relname IN ('publication_ordinal_seq','acceptanc
 	if moderationColumn {
 		writable["posts"] = append(writable["posts"], "moderation_hidden")
 	}
+	var editSchema bool
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('c_posts.post_edit_receipts') IS NOT NULL`).Scan(&editSchema); err != nil {
+		return errPostSchema
+	}
+	if editSchema {
+		writable["posts"] = append(writable["posts"], "edit_revision", "edited_at", "edited_title", "edited_body", "edited_image_ids")
+		if err := pool.QueryRow(ctx, `SELECT has_table_privilege(current_user,'c_posts.post_edit_receipts','SELECT')
+ AND has_table_privilege(current_user,'c_posts.post_edit_receipts','INSERT')
+ AND NOT has_any_column_privilege(current_user,'c_posts.post_edit_receipts','UPDATE')
+ AND NOT has_table_privilege(current_user,'c_posts.post_edit_receipts','DELETE,TRUNCATE,TRIGGER')
+ AND has_table_privilege(current_user,'c_posts.post_edit_media','SELECT')
+ AND has_table_privilege(current_user,'c_posts.post_edit_media','INSERT')
+ AND has_table_privilege(current_user,'c_posts.post_edit_media','DELETE')
+ AND has_column_privilege(current_user,'c_posts.post_edit_media','command_digest','UPDATE')
+ AND NOT has_table_privilege(current_user,'c_posts.post_edit_media','UPDATE,TRUNCATE,TRIGGER')
+ AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid='c_posts.post_edit_media'::regclass
+   AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'command_digest'
+   AND has_column_privilege(current_user,a.attrelid,a.attname,'UPDATE'))
+ AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='c_posts.posts'::regclass AND tgname='fence_post_edit' AND tgenabled='O')`).Scan(&valid); err != nil || !valid {
+			return errPostSchema
+		}
+	}
 	for table, names := range writable {
 		if err := pool.QueryRow(ctx, `SELECT NOT EXISTS(SELECT 1 FROM unnest($2::text[]) AS required(name)
 WHERE NOT has_column_privilege(current_user,'c_posts.'||$1,required.name,'UPDATE'))

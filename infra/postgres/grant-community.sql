@@ -83,6 +83,14 @@ GRANT UPDATE(owner_account_id,outcome,task_id,post_id,attempt_version,task_state
 GRANT UPDATE(state) ON c_posts.payload_cleanup TO hnuhole_c_runtime;
 GRANT USAGE ON SEQUENCE c_posts.publication_ordinal_seq,c_posts.acceptance_ordinal_seq TO hnuhole_c_runtime;
 GRANT EXECUTE ON FUNCTION c_posts.allocate_identity_label(uuid) TO hnuhole_c_runtime;
+DO $$ BEGIN
+ IF to_regclass('c_posts.post_edit_receipts') IS NOT NULL THEN
+  GRANT SELECT,INSERT ON c_posts.post_edit_receipts TO hnuhole_c_runtime;
+  GRANT UPDATE(edit_revision,edited_at,edited_title,edited_body,edited_image_ids) ON c_posts.posts TO hnuhole_c_runtime;
+  GRANT SELECT,INSERT,DELETE ON c_posts.post_edit_media TO hnuhole_c_runtime;
+  GRANT UPDATE(command_digest) ON c_posts.post_edit_media TO hnuhole_c_runtime;
+ END IF;
+END $$;
 
 -- 0020: account-private interactions, including closure with HTTP disabled.
 DO $$ BEGIN

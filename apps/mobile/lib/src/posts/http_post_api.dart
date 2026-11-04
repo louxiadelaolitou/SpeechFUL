@@ -10,6 +10,7 @@ import '../messaging/dm_protocol.dart';
 
 import '../auth/auth_crypto.dart';
 import 'post_api.dart';
+import 'post_edit_api.dart';
 import 'feed_api.dart';
 import 'post_interactions_api.dart';
 import 'post_reposts_api.dart';
@@ -31,6 +32,7 @@ class HttpPostApi
     implements
         PersonalCollectionsApi,
         PostApi,
+        PostEditApi,
         PostMediaApi,
         FeedApi,
         PostInteractionsApi,
@@ -531,11 +533,17 @@ class HttpPostApi
     required String sessionToken,
     required String postId,
   }) => _input(
-    () => _send(
+    () => _send<PostDetail>(
       sessionToken,
       'GET',
       '/api/v1/posts/${PostProtocol.resourceId(postId)}',
       maxResponseBytes: 512 * 1024,
+      withEditedAt: (post, at) {
+        if (at.isBefore(post.publishedAt)) {
+          throw const FormatException('Invalid last modification time');
+        }
+        return post.withEditedAt(at);
+      },
       decode: (raw) {
         final post = PostDetail.fromJson(
           PostJson.record(raw, {'post'})['post'],
@@ -544,6 +552,97 @@ class HttpPostApi
           throw const FormatException('Mismatched post resource');
         }
         return post;
+      },
+    ),
+  );
+
+  String _postEditPath(String id) =>
+      '/api/v1/me/posts/${PostProtocol.resourceId(id)}';
+
+  String _postEditCommand(String postId, String commandId) {
+    AuthCrypto.decode(commandId, bytes: 16);
+    return '${_postEditPath(postId)}/edit-commands/$commandId';
+  }
+
+  @override
+  Future<PostResponse<PublishedPostEdit>> readEdit({
+    required String sessionToken,
+    required String postId,
+  }) => _input(
+    () => _send(
+      sessionToken,
+      'GET',
+      '${_postEditPath(postId)}/edit',
+      maxResponseBytes: 512 * 1024,
+      decode: (raw) {
+        final edit = PublishedPostEdit.fromJson(raw);
+        if (edit.post.postId != postId) {
+          throw const FormatException('Mismatched post edit resource');
+        }
+        return edit;
+      },
+    ),
+  );
+
+  @override
+  Future<PostResponse<PostEditResult>> editResult({
+    required String sessionToken,
+    required String postId,
+    required String commandId,
+  }) => _input(
+    () => _send(
+      sessionToken,
+      'GET',
+      _postEditCommand(postId, commandId),
+      decode: PostEditResult.fromJson,
+    ),
+  );
+
+  @override
+  Future<PostResponse<PostEditResult>> saveEdit({
+    required String sessionToken,
+    required String postId,
+    required String commandId,
+    required String revision,
+    required String title,
+    required String body,
+    List<String>? imageIds,
+  }) => _input(
+    () => _send(
+      sessionToken,
+      'PUT',
+      _postEditCommand(postId, commandId),
+      maxRequestBytes: 256 * 1024,
+      body: {
+        'revision': PostProtocol.resourceId(revision),
+        'title': title,
+        'body': body,
+        if (imageIds != null)
+          'imageIds': imageIds.map(PostProtocol.resourceId).toList(),
+      },
+      decode: PostEditResult.fromJson,
+    ),
+  );
+
+  @override
+  Future<PostResponse<bool>> stageEditImage({
+    required String sessionToken,
+    required String postId,
+    required String commandId,
+    required String imageId,
+    required String mimeType,
+    required Uint8List bytes,
+  }) => _input(
+    () => _send(
+      sessionToken,
+      'PUT',
+      '${_postEditCommand(postId, commandId)}/images/${PostProtocol.resourceId(imageId)}',
+      uploadBytes: bytes,
+      uploadMime: mimeType,
+      maxRequestBytes: PostMediaImage.maxBytes,
+      decode: (raw) {
+        PostJson.record(raw, {});
+        return true;
       },
     ),
   );
@@ -605,6 +704,7 @@ class HttpPostApi
       sessionToken,
       'GET',
       '/api/v1/me/posts/${PostProtocol.resourceId(postId)}/capabilities',
+      headers: const {'X-Post-Edit': 'v1'},
       decode: (raw) {
         final caps = PostCapabilities.fromJson(raw);
         if (caps.postId != postId) {
@@ -716,9 +816,12 @@ class HttpPostApi
     int maxResponseBytes = 32768,
     PostMediaImage? binaryImage,
     bool readInteractionVersion = false,
+    T Function(T, DateTime)? withEditedAt,
+    Uint8List? uploadBytes,
+    String? uploadMime,
   }) async {
     AuthCrypto.decode(token, bytes: 32);
-    final bytes = body == null ? null : utf8.encode(jsonEncode(body));
+    final bytes = body == null ? uploadBytes : utf8.encode(jsonEncode(body));
     if (bytes != null && bytes.length > maxRequestBytes) {
       throw const FormatException('Post request too large');
     }
@@ -750,7 +853,7 @@ class HttpPostApi
         if (bytes != null) {
           request.headers.set(
             HttpHeaders.contentTypeHeader,
-            'application/json; charset=utf-8',
+            uploadMime ?? 'application/json; charset=utf-8',
           );
           request.contentLength = bytes.length;
           request.add(bytes);
@@ -813,8 +916,16 @@ class HttpPostApi
             !_validInteractionVersion(interactionVersion)) {
           throw const FormatException('Invalid interaction version');
         }
+        var value = decode(payload);
+        if (withEditedAt != null && h['post-edited-at'] != null) {
+          final editedAt = PostJson.utc(_single(h, 'post-edited-at'));
+          if (editedAt.isAfter(serverTime)) {
+            throw const FormatException('Invalid last modification time');
+          }
+          value = withEditedAt(value, editedAt);
+        }
         return PostResponse<T>(
-          value: decode(payload),
+          value: value,
           serverTime: serverTime,
           sessionExpiresAt: sessionExpiry,
           requestId: requestId,
@@ -893,6 +1004,10 @@ class HttpPostApi
         'RESULT_EXPIRED',
         ...PostJson.businessRejections,
         'MEDIA_UPLOAD_CLOSED',
+        'POST_EDIT_DELETED',
+        'POST_EDIT_HIDDEN',
+        'POST_EDIT_CONFLICT',
+        'POST_EDIT_MEDIA_LIMIT',
       },
       413 => {'PAYLOAD_TOO_LARGE'},
       412 => {'INTERACTION_VERSION_CONFLICT'},

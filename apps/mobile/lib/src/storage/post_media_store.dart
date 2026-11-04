@@ -13,6 +13,27 @@ extension PostMediaStorage on PostStore {
     int? revision,
     Map<String, dynamic> data,
     Map<String, Uint8List> originals,
+  ) => _saveMediaEntry(id, revision, data, originals, 'draft');
+
+  Future<StoredPostEntry> writePostEdit(
+    String postId,
+    int? revision,
+    Map<String, dynamic> data,
+    Map<String, Uint8List> originals,
+  ) async => _saveMediaEntry(
+    await _postEditRowId(postId),
+    revision,
+    data,
+    originals,
+    'postEdit',
+  );
+
+  Future<StoredPostEntry> _saveMediaEntry(
+    String id,
+    int? revision,
+    Map<String, dynamic> data,
+    Map<String, Uint8List> originals,
+    String state,
   ) => _run(() async {
     _validId(id);
     return _db.transaction(() async {
@@ -22,7 +43,7 @@ extension PostMediaStorage on PostStore {
           ? old != null
           : old == null ||
                 old.revision != revision ||
-                !old.isDraft ||
+                old.state != state ||
                 old.intents.isNotEmpty) {
         throw const PostStorageConflict();
       }
@@ -88,14 +109,14 @@ extension PostMediaStorage on PostStore {
       final next = StoredPostEntry(
         id: id,
         revision: (old?.revision ?? 0) + 1,
-        state: 'draft',
+        state: state,
         data: data,
         intents: [],
       );
       if (old == null) {
         await _db.customStatement(
           'INSERT INTO post_entries(id,revision,state,payload) VALUES (?,?,?,?)',
-          [id, next.revision, 'draft', await _entryPayload(next)],
+          [id, next.revision, state, await _entryPayload(next)],
         );
       } else {
         await _update(next, revision!);

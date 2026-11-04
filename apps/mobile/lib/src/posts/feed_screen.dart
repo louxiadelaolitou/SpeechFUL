@@ -481,7 +481,12 @@ class _FeedScreenState extends State<FeedScreen> {
                       mediaSection:
                           post.imageCount > 0 && widget.loadImages != null
                           ? PostImagesSection(
-                              key: ValueKey('feed-images:${post.postId}'),
+                              key: c.postMediaRevision(post.postId) == 0
+                                  ? ValueKey('feed-images:${post.postId}')
+                                  : ValueKey((
+                                      post.postId,
+                                      c.postMediaRevision(post.postId),
+                                    )),
                               postId: post.postId,
                               feedPreview: true,
                               initialSizes:

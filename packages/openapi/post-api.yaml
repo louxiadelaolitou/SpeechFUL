@@ -462,11 +462,17 @@ paths:
       summary: Return minimal private capabilities for an owned visible published post
       description: Unknown/nonvisible/foreign posts return identical POST_NOT_FOUND. The original account
         may delete its post even after the speaking identity was deleted; new accounts, including those
-        using the same email, never inherit ownership. canEdit is false in this text slice. This DTO is
-        never embedded in public posts. The returned capability is a view, not a reusable authorization
-        grant; DELETE checks final Gate/session/resource permissions again.
+        using the same email, never inherit ownership. Clients requesting X-Post-Edit v1 receive
+        current edit eligibility. Requests without the header receive canEdit false for legacy clients.
+        Every mutation checks final Gate, session, and resource permissions.
       security:
       - bearerAuth: []
+      parameters:
+      - name: X-Post-Edit
+        in: header
+        schema:
+          type: string
+          enum: [v1]
       responses:
         '200':
           $ref: '#/components/responses/CapabilitiesRead'
@@ -478,6 +484,156 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/me/posts/{postId}/edit:
+    parameters:
+    - $ref: '#/components/parameters/PostID'
+    get:
+      operationId: readPublishedPostEdit
+      summary: Read the author's current published post and edit revision
+      description: Only the original account may edit, using the original posting identity.
+        The private snapshot binds the current text and ordered image references to a revision.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/PostEditRead'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/me/posts/{postId}/edit-commands/{commandId}:
+    parameters:
+    - $ref: '#/components/parameters/PostID'
+    - $ref: '#/components/parameters/CommandID'
+    get:
+      operationId: readPostEditResult
+      summary: Reconcile the same save attempt
+      description: PENDING means no terminal result has been observed. Reuse the original command
+        and exact submitted content when retrying a pending attempt.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/PostEditReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    put:
+      operationId: savePublishedPostEdit
+      summary: Save one revision-conditional edit of the existing post
+      description: The title, body, image selection and save receipt commit together. The original
+        publication time, author, channel, interactions and submitted report evidence are preserved.
+        Replaying the same command returns the stored result. A new command from a stale revision
+        receives a terminal POST_EDIT_CONFLICT receipt.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostEditInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/PostEditReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/me/posts/{postId}/edit-commands/{commandId}/images/{imageId}:
+    parameters:
+    - $ref: '#/components/parameters/PostID'
+    - $ref: '#/components/parameters/CommandID'
+    - name: imageId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceID'
+    put:
+      operationId: stagePublishedPostEditImage
+      summary: Validate and stage one private image for a save attempt
+      description: At most 10 MiB per original. The staged image can only be published by this
+        post's matching authorized save. Repeating the same image ID and bytes is idempotent.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema: {type: string, format: binary}
+          image/png:
+            schema: {type: string, format: binary}
+          image/webp:
+            schema: {type: string, format: binary}
+          image/gif:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          $ref: '#/components/responses/PostEditImageStaged'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          description: The complete bytes failed image validation.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
         '429':
           $ref: '#/components/responses/RateLimited'
         '503':
@@ -1235,8 +1391,68 @@ components:
           - true
         canEdit:
           type: boolean
-          enum:
-          - false
+    PostEditInput:
+      type: object
+      additionalProperties: false
+      required: [revision, title, body]
+      properties:
+        revision:
+          $ref: '#/components/schemas/ResourceID'
+        title:
+          type: string
+          description: Required visible title, at most 15 Unicode 16 grapheme clusters.
+          maxLength: 4096
+        body:
+          type: string
+          description: At most 3000 Unicode 16 grapheme clusters. May be empty when images remain.
+          maxLength: 65536
+        imageIds:
+          type: array
+          maxItems: 9
+          uniqueItems: true
+          description: Ordered current and staged image references. Omit to keep the current images.
+            An empty array removes every image.
+          items:
+            $ref: '#/components/schemas/ResourceID'
+    PostEditSnapshot:
+      type: object
+      additionalProperties: false
+      required: [post, revision]
+      properties:
+        post:
+          $ref: '#/components/schemas/PublicPost'
+        revision:
+          $ref: '#/components/schemas/ResourceID'
+        imageIds:
+          type: array
+          maxItems: 9
+          uniqueItems: true
+          description: Present when image editing is enabled, in current public order.
+          items:
+            $ref: '#/components/schemas/ResourceID'
+    PostEditResult:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required: [state, revision]
+        properties:
+          state: {type: string, enum: [SAVED]}
+          revision:
+            $ref: '#/components/schemas/ResourceID'
+      - type: object
+        additionalProperties: false
+        required: [state]
+        properties:
+          state: {type: string, enum: [PENDING]}
+      - type: object
+        additionalProperties: false
+        required: [state, code]
+        properties:
+          state: {type: string, enum: [REJECTED]}
+          code:
+            type: string
+            enum: [POST_EDIT_CONFLICT, POST_EDIT_DELETED, POST_EDIT_HIDDEN, POST_IDENTITY_UNAVAILABLE,
+              POSTING_RESTRICTED, POST_CONTENT_INVALID, POST_EDIT_MEDIA_MISSING]
     ErrorBody:
       type: object
       additionalProperties: false
@@ -1412,6 +1628,10 @@ components:
           $ref: '#/components/headers/NoStore'
         Server-Time:
           $ref: '#/components/headers/ServerTime'
+        Post-Edited-At:
+          description: UTC time of the last successful edit, when the post has been edited.
+          schema:
+            $ref: '#/components/schemas/UTCDateTime'
       content:
         application/json:
           schema:
@@ -1432,6 +1652,52 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/OwnPostCapabilities'
+    PostEditRead:
+      description: Final-authorized private edit snapshot.
+      headers:
+        Session-Expires-At:
+          $ref: '#/components/headers/SessionExpiresAt'
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+        Server-Time:
+          $ref: '#/components/headers/ServerTime'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostEditSnapshot'
+    PostEditReceipt:
+      description: Exact authoritative save result, or PENDING when no terminal result is observed.
+      headers:
+        Session-Expires-At:
+          $ref: '#/components/headers/SessionExpiresAt'
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+        Server-Time:
+          $ref: '#/components/headers/ServerTime'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PostEditResult'
+    PostEditImageStaged:
+      description: Image staged and available for the matching edit save.
+      headers:
+        Session-Expires-At:
+          $ref: '#/components/headers/SessionExpiresAt'
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+        Server-Time:
+          $ref: '#/components/headers/ServerTime'
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
     BadRequest:
       description: Invalid boundary input or cursor; no authoritative conclusion about an earlier in-flight
         original command.

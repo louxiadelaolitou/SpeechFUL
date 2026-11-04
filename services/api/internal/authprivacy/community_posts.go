@@ -22,6 +22,7 @@ type postServices struct {
 	commands                   *posts.CommandCodec
 	cursors                    *posts.CursorCodec
 	commandTag, fingerprintTag [32]byte
+	editEnabled                bool
 }
 type PostResponse struct {
 	Value                 any
@@ -56,6 +57,9 @@ func (c *Community) WithPosts(ctx context.Context, config PostConfig) (*Communit
 	}
 	clone := *c
 	clone.posts = &postServices{commands: commands, cursors: cursors}
+	if err = c.pool.QueryRow(ctx, `SELECT to_regclass('c_posts.post_edit_receipts') IS NOT NULL`).Scan(&clone.posts.editEnabled); err != nil {
+		return nil, err
+	}
 	clone.posts.commandTag = postKeyCommitment("HNUHOLE/POST-COMMAND-KEY-COMMITMENT/V1", config.KeyKey)
 	clone.posts.fingerprintTag = postKeyCommitment("HNUHOLE/POST-FINGERPRINT-KEY-COMMITMENT/V1", config.FingerprintKey)
 	if err = clone.checkPostProtocolKeys(ctx, nil); err != nil {

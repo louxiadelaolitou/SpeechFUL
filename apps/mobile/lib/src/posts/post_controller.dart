@@ -14,6 +14,7 @@ import '../identity/identity_api.dart';
 import '../identity/active_identity_controller.dart';
 import '../storage/post_store.dart';
 import 'post_api.dart';
+import 'post_edit_api.dart';
 import 'feed_api.dart';
 import 'post_interactions_api.dart';
 import 'post_reposts_api.dart';
@@ -29,6 +30,7 @@ part 'post_composer_media.dart';
 part 'feed_controller.dart';
 part 'post_interactions_controller.dart';
 part 'post_reposts_controller.dart';
+part 'post_edit_controller.dart';
 
 typedef PostStoreFactory = Future<PostStore> Function(String accountId);
 
@@ -198,6 +200,7 @@ class PostController extends ChangeNotifier {
   final _publishing = <String>{};
   final _deleting = <String, Future<bool>>{};
   final _deletedPostIds = <String>{};
+  final _postMediaRevisions = <String, int>{};
   final _saving = <String, Future<bool>>{};
   final _sending = <String>{};
   final _retired = <String, Future<void>>{};
@@ -313,6 +316,7 @@ class PostController extends ChangeNotifier {
     _own = [];
     _remoteTasks.clear();
     _deletedPostIds.clear();
+    _postMediaRevisions.clear();
     _latestPublicationNotice = null;
     _imageProgress.clear();
     personalItems = [];
@@ -646,19 +650,21 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<bool> canDelete(String postId) async {
+  Future<bool> canDelete(String postId) async =>
+      (await postCapabilities(postId))?.canDelete ?? false;
+
+  Future<PostCapabilities?> postCapabilities(String postId) async {
     _PostAuthority? a;
     try {
       a = await _authority();
-      if (_deletedPostIds.contains(postId)) return false;
-      final result = await _accept(
+      if (_deletedPostIds.contains(postId)) return null;
+      return await _accept(
         a,
         await _api.capabilities(sessionToken: a.token, postId: postId),
       );
-      return result.canDelete;
     } catch (error) {
       if (error is! PostFailure || error.statusCode != 404) _failure(error, a);
-      return false;
+      return null;
     }
   }
 

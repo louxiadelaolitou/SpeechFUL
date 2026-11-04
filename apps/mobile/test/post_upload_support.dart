@@ -270,22 +270,23 @@ class ComposerApi implements PostApi, PostUploadApi {
 }
 
 class MediaComposerFixture {
-  MediaComposerFixture(this.auth, this.root);
+  MediaComposerFixture(this.auth, this.root, this.api);
   final IdentityTestFixture auth;
   final Directory root;
-  final api = ComposerApi();
+  final ComposerApi api;
   final picker = ComposerPicker();
   final vault = TestBusinessVault();
   final stores = <PostStore>[];
   late PostController posts;
   PostStore? current;
-  static Future<MediaComposerFixture> create() async {
+  static Future<MediaComposerFixture> create({ComposerApi? api}) async {
     final auth = await IdentityTestFixture.create(
       api: IdentityTestApi()..items = [identityTestItem()],
     );
     final value = MediaComposerFixture(
       auth,
       await Directory.systemTemp.createTemp('hnuhole-composer-media-'),
+      api ?? ComposerApi(),
     );
     value.start();
     await value.until(() => value.current != null);
