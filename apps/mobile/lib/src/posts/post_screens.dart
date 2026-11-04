@@ -2262,7 +2262,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           builder: (context) => AlertDialog(
                             title: const Text('最后修改时间'),
                             content: Text(
-                              '${at.toLocal().year}年${_postDate(at)}',
+                              '${MaterialLocalizations.of(context).formatFullDate(at.toLocal())} ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(at.toLocal()), alwaysUse24HourFormat: true)}',
                             ),
                             actions: [
                               TextButton(

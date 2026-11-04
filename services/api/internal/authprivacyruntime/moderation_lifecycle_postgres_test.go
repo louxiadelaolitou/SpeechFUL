@@ -151,7 +151,13 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil {
 		t.Fatal("common C startup accepted partially removed 0018")
 	}
-	exec(t, `ALTER TABLE c_comments.tasks DROP COLUMN moderation_hidden;
+	// Remove 0029 before simulating an installation predating moderation.
+	exec(t, `DROP TRIGGER fence_post_edit ON c_posts.posts;
+DROP FUNCTION c_posts.fence_post_edit();
+DROP TABLE c_posts.post_edit_receipts,c_posts.post_edit_media;
+ALTER TABLE c_posts.posts DROP COLUMN edit_revision,DROP COLUMN edited_at,
+DROP COLUMN edited_title,DROP COLUMN edited_body,DROP COLUMN edited_image_ids;
+ALTER TABLE c_comments.tasks DROP COLUMN moderation_hidden;
 ALTER TABLE c_posts.posts DROP COLUMN moderation_hidden;
 ALTER TABLE public.community_identities DROP COLUMN moderation_rename_required;
 UPDATE public.goose_db_version SET version_id=14`)

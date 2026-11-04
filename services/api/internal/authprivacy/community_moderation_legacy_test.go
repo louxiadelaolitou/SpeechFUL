@@ -214,6 +214,12 @@ func TestModerationLegacyRestrictionMinimalPrivilegesPostgres(t *testing.T) {
 func TestModerationLegacyRestrictionBefore0015Postgres(t *testing.T) {
 	l := newPostLab(t)
 	mustExec(t, l.cp, `DROP SCHEMA c_moderation CASCADE`)
+	// Remove the later 0029 edit feature before modeling a pre-0015 database.
+	mustExec(t, l.cp, `DROP TRIGGER fence_post_edit ON c_posts.posts;
+DROP FUNCTION c_posts.fence_post_edit();
+DROP TABLE c_posts.post_edit_receipts,c_posts.post_edit_media;
+ALTER TABLE c_posts.posts DROP COLUMN edit_revision,DROP COLUMN edited_at,
+DROP COLUMN edited_title,DROP COLUMN edited_body,DROP COLUMN edited_image_ids`)
 	mustExec(t, l.cp, `ALTER TABLE c_posts.posts DROP COLUMN moderation_hidden`)
 	mustExec(t, l.cp, `ALTER TABLE public.community_identities DROP COLUMN moderation_rename_required`)
 	if err := CheckModerationLegacyRestrictionSchema(context.Background(), l.cp); err != nil {
