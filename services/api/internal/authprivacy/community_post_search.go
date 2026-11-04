@@ -112,8 +112,8 @@ WITH matched AS (
 	JOIN c_posts.publication_tasks t ON t.post_id = p.post_id
 	JOIN c_posts.attempt_contents x ON x.task_id = t.task_id AND x.version = p.published_attempt_version
 	CROSS JOIN LATERAL (
-		SELECT lower(x.title COLLATE pg_catalog."und-x-icu") AS title,
-			lower(x.body COLLATE pg_catalog."und-x-icu") AS body,
+		SELECT lower(COALESCE(to_jsonb(p)->>'edited_title',x.title) COLLATE pg_catalog."und-x-icu") AS title,
+			lower(COALESCE(to_jsonb(p)->>'edited_body',x.body) COLLATE pg_catalog."und-x-icu") AS body,
 			lower($2::text COLLATE pg_catalog."und-x-icu") AS keyword
 	) words
 	WHERE p.visibility = 'PUBLISHED' AND NOT p.moderation_hidden AND x.erased_at IS NULL
@@ -222,7 +222,7 @@ const projectSearchCandidatesSQL = `
 SELECT card.*
 FROM unnest($1::uuid[]) WITH ORDINALITY AS candidate(post_id, ord)
 JOIN LATERAL (
-	SELECT p.post_id, p.channel_id, x.title, p.published_at, a.state, i.deleted_at, i.nickname, i.avatar, l.short_code
+	SELECT p.post_id, p.channel_id, COALESCE(to_jsonb(p)->>'edited_title',x.title), p.published_at, a.state, i.deleted_at, i.nickname, i.avatar, l.short_code
 	FROM c_posts.posts p
 	JOIN c_posts.publication_tasks t ON t.post_id = p.post_id
 	JOIN c_posts.attempt_contents x ON x.task_id = t.task_id AND x.version = p.published_attempt_version

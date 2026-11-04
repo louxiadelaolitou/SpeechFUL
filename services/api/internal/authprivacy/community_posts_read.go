@@ -32,11 +32,11 @@ const (
 )
 
 type PostQuery struct {
-	Kind       PostReadKind
-	ID, Cursor string
-	IdentityID string
-	Limit      int
-	ImageSizes bool
+	Kind             PostReadKind
+	ID, Cursor       string
+	IdentityID       string
+	Limit            int
+	ImageSizes       bool
 }
 
 func readOwnPostTask(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string, at time.Time, mute restriction) (posts.OwnTaskDetail, error) {
@@ -204,6 +204,8 @@ func readPostComposerContext(ctx context.Context, tx pgx.Tx, account uuid.UUID) 
 }
 
 // 投影只读取当前公开状态。没有账号ID、身份ID或本人权能进入公共DTO。
+const publicPostImageCount = `COALESCE(jsonb_array_length(NULLIF(to_jsonb(p)->'edited_image_ids','null'::jsonb)),(to_jsonb(x)->>'image_count')::int,0)`
+
 func readPublicPost(ctx context.Context, tx pgx.Tx, id string) (posts.PublicPost, int64, error) {
 	var r posts.PublicPost
 	var ordinal int64
@@ -211,14 +213,18 @@ func readPublicPost(ctx context.Context, tx pgx.Tx, id string) (posts.PublicPost
 	var deleted *time.Time
 	var nickname, avatar *string
 	var short string
-	err := tx.QueryRow(ctx, `SELECT p.post_id,p.channel_id,x.title,x.body,p.published_at,p.publication_ordinal,a.state,i.deleted_at,i.nickname,i.avatar,l.short_code,COALESCE((to_jsonb(x)->>'image_count')::int,0)
+	err := tx.QueryRow(ctx, `SELECT p.post_id,p.channel_id,COALESCE(to_jsonb(p)->>'edited_title',x.title),COALESCE(to_jsonb(p)->>'edited_body',x.body),p.published_at,p.publication_ordinal,a.state,i.deleted_at,i.nickname,i.avatar,l.short_code,`+publicPostImageCount+`,(to_jsonb(p)->>'edited_at')::timestamptz,to_jsonb(p)->>'edited_image_ids' IS NOT NULL
  FROM c_posts.posts p JOIN c_posts.publication_tasks t ON t.post_id=p.post_id JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version
  JOIN public.community_identities i ON i.identity_id=t.identity_id JOIN c_auth.accounts a ON a.account_id=p.owner_account_id JOIN c_posts.identity_public_labels l ON l.identity_id=i.identity_id
- WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) AND x.erased_at IS NULL`, id).Scan(&r.PostID, &r.ChannelID, &r.Title, &r.Body, &r.PublishedAt, &ordinal, &accountState, &deleted, &nickname, &avatar, &short, &r.ImageCount)
+ WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) AND x.erased_at IS NULL`, id).Scan(&r.PostID, &r.ChannelID, &r.Title, &r.Body, &r.PublishedAt, &ordinal, &accountState, &deleted, &nickname, &avatar, &short, &r.ImageCount, &r.EditedAt, &r.ImagesEdited)
 	if err != nil {
 		return r, 0, err
 	}
 	r.PublishedAt = r.PublishedAt.UTC()
+	if r.EditedAt != nil {
+		at := r.EditedAt.UTC()
+		r.EditedAt = &at
+	}
 	r.Author, err = projectPublicPostAuthor(accountState, deleted, nickname, avatar, short)
 	if err != nil {
 		return r, 0, err
@@ -361,10 +367,7 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 			}
 			projection := posts.FeedPost{PublicPost: item, ViewCount: views}
 			if query.ImageSizes && item.ImageCount > 0 {
-				images, err := tx.Query(ctx, `SELECT m.display_width,m.display_height FROM c_posts.images m
-                  JOIN c_posts.publication_tasks t USING(task_id) JOIN c_posts.posts p USING(post_id)
-                  WHERE p.post_id=$1 AND m.version=p.published_attempt_version AND m.erased_at IS NULL
-                    AND m.verified_at IS NOT NULL AND m.payload IS NOT NULL ORDER BY m.position`, id)
+				images, err := tx.Query(ctx, `SELECT display_width,display_height FROM (`+currentPostImageRows(item.ImagesEdited)+`) m ORDER BY position`, id)
 				if err != nil {
 					return nil, err
 				}

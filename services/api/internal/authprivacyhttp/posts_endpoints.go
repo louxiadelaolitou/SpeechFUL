@@ -728,6 +728,14 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 		}
 		w.Header().Set("Interaction-Version", response.InteractionVersion)
 	}
+	if detail, ok := value.(posts.PublicPostResponse); ok && detail.Post.EditedAt != nil {
+		at := *detail.Post.EditedAt
+		if !validPostTime(at) || at.Before(detail.Post.PublishedAt) || at.After(response.ServerTime) {
+			b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
+			return
+		}
+		w.Header().Set("Post-Edited-At", utc(at))
+	}
 	w.Header().Set("Session-Expires-At", utc(response.ExpiresAt))
 	w.Header().Set("Server-Time", utc(response.ServerTime))
 	w.WriteHeader(status)

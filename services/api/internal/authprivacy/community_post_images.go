@@ -268,57 +268,28 @@ func (c *Community) ReadPostImages(ctx context.Context, bearer [32]byte, post, c
 	response, e := c.withPostSession(ctx, bearer, func(tx pgx.Tx, _ uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 		// Serialize the resource visibility check with deletion. No author
 		// account lock is acquired after the caller's account lock.
-		var published string
-		if e := tx.QueryRow(ctx, `SELECT visibility FROM c_posts.posts p WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) FOR SHARE`, post).Scan(&published); errors.Is(e, pgx.ErrNoRows) {
+		var edited bool
+		if e := tx.QueryRow(ctx, `SELECT to_jsonb(p)->>'edited_image_ids' IS NOT NULL FROM c_posts.posts p
+ WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false)
+ FOR SHARE`, post).Scan(&edited); errors.Is(e, pgx.ErrNoRows) {
 			return nil, postError("MEDIA_NOT_FOUND", 404)
 		} else if e != nil {
 			return nil, e
 		}
 		if content != "" {
 			var b ImageBytes
-			e := tx.QueryRow(ctx, `SELECT m.payload,m.mime_type FROM c_posts.images m JOIN c_posts.publication_tasks t USING(task_id) JOIN c_posts.posts p USING(post_id)
-    WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND m.version=p.published_attempt_version AND m.content_version_id=$2 AND m.erased_at IS NULL AND m.verified_at IS NOT NULL AND m.payload IS NOT NULL`, post, content).Scan(&b.Bytes, &b.MIME)
+			e := tx.QueryRow(ctx, `SELECT payload,mime_type FROM (`+currentPostImageRows(edited)+`) m WHERE content_version_id=$2`, post, content).Scan(&b.Bytes, &b.MIME)
 			if errors.Is(e, pgx.ErrNoRows) {
 				return nil, postError("MEDIA_NOT_FOUND", 404)
 			}
 			return b, e
 		}
-		group := postmedia.Group{PostID: post, Images: []postmedia.Image{}, AccessValidUntil: final.TrustedAt.Add(time.Minute).UTC().Format(time.RFC3339Nano)}
-		rows, e := tx.Query(ctx, `SELECT m.media_id,m.content_version_id,m.position,m.width,m.height,m.display_width,m.display_height,m.frames,m.mime_type,m.byte_length
-   FROM c_posts.images m JOIN c_posts.publication_tasks t USING(task_id) JOIN c_posts.posts p USING(post_id)
-   WHERE p.post_id=$1 AND m.version=p.published_attempt_version AND m.erased_at IS NULL AND m.verified_at IS NOT NULL AND m.payload IS NOT NULL ORDER BY position`, post)
-		if e != nil {
-			return nil, e
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var item postmedia.Image
-			var mime string
-			var size int
-			if e = rows.Scan(&item.MediaID, &item.ContentVersionID, &item.Position, &item.Width, &item.Height, &item.PixelWidth, &item.PixelHeight, &item.Frames, &mime, &size); e != nil {
-				return nil, e
-			}
-			item.Animated = item.Frames > 1
-			item.SaveAllowed = true
-			// v1 reuses the full original as a preview source: explicit, lossless and
-			// animation-preserving. It makes no bandwidth-saving derivative claim.
-			source := postmedia.Source{Path: "/api/v1/posts/" + post + "/images/" + item.ContentVersionID + "/original", MIME: mime, ByteLength: size}
-			item.Thumbnail = source
-			item.Full = source
-			item.Original = source
-			group.Images = append(group.Images, item)
-		}
-		if e = rows.Err(); e != nil {
-			return nil, e
-		}
 		var expected int
-		if e = tx.QueryRow(ctx, `SELECT x.image_count FROM c_posts.posts p JOIN c_posts.publication_tasks t USING(post_id) JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version WHERE p.post_id=$1`, post).Scan(&expected); e != nil {
-			return nil, e
+		if err := tx.QueryRow(ctx, `SELECT `+publicPostImageCount+` FROM c_posts.posts p JOIN c_posts.publication_tasks t USING(post_id) JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version WHERE p.post_id=$1`, post).Scan(&expected); err != nil {
+			return nil, err
 		}
-		if expected != len(group.Images) {
-			return nil, ErrAuthorizationUnavailable
-		}
-		return group, nil
+		items, err := readPostImageItems(ctx, tx, post, edited, expected)
+		return postmedia.Group{PostID: post, Images: items, AccessValidUntil: final.TrustedAt.Add(time.Minute).UTC().Format(time.RFC3339Nano)}, err
 	})
 	if e == nil {
 		if group, ok := response.Value.(postmedia.Group); ok {
@@ -389,6 +360,15 @@ func (c *Community) ReadPostThumbnail(ctx context.Context, bearer [32]byte, post
 	if e != nil {
 		return PostResponse{}, e
 	}
-	final.Value = ImageBytes{Bytes: data, MIME: "image/webp"}
-	return final, nil
+	group, ok := final.Value.(postmedia.Group)
+	if !ok {
+		return PostResponse{}, ErrAuthorizationUnavailable
+	}
+	for _, item := range group.Images {
+		if item.ContentVersionID == content {
+			final.Value = ImageBytes{Bytes: data, MIME: "image/webp"}
+			return final, nil
+		}
+	}
+	return PostResponse{}, postError("MEDIA_NOT_FOUND", 404)
 }
