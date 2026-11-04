@@ -570,6 +570,8 @@ class Lab:
             self.probe('images-restart')
             self.probe('moderation-restart')
             passed('restore-old-session-rejected-fresh-login-reads-original-text-and-image')
+            self.probe('post-edit')
+            passed('candidate-edits-published-text-and-image-over-https')
             # Failed deployment uses actual candidate startup with a wrong
             # validator fingerprint; it must fail before accepting traffic.
             self.quiesce()
@@ -585,12 +587,14 @@ class Lab:
             self.health()
             self.probe('images-restart')
             self.probe('moderation-restart')
+            self.probe('post-edit-restart')
             passed('previous-main-binaries-run-on-current-restored-schema')
             self.quiesce()
             self.start()
             self.health()
             self.probe('images-restart')
             self.probe('moderation-restart')
+            self.probe('post-edit-restart')
             passed('candidate-redeploy-after-application-rollback')
             evidence['binarySha256'] = {p.name: sha(p) for p in (self.root / 'bin').iterdir()}
             evidence['result'] = 'PASS'

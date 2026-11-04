@@ -71,4 +71,3 @@ func readPostImageItems(ctx context.Context, tx pgx.Tx, post string, edited bool
 	}
 	return items, nil
 }
-
