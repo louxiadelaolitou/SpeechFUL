@@ -72,3 +72,4 @@
 - 阶段一 [PR #102](https://github.com/zewbby/SpeechFUL/pull/102)，分支 `codex/fix/post-edit-rollback-compat`。将读取、已编辑时间、图片和举报证据投影，以及 C30 权限识别提前上线。阶段一保留 C29 迁移链，不提供编辑路由或菜单。阶段二保留 [PR #100](https://github.com/zewbby/SpeechFUL/pull/100) 并以上线后的阶段一为回退目标。
 - WSL 隔离发布演练 PASS，功能版 `2a55ed3` 与兼容版 `fd0cf1d`。在 Linux 文件系统的私有一次性库执行 `tools/prerelease/environment.py init --rollback-sha <兼容版 SHA>` 及 `rehearse`。真实 HTTPS 编辑图片帖后，切换到兼容版仍可读取新标题、正文、修改时间及相同图片字节，再切回功能版也正常。
 - Windows Flutter `flutter analyze --no-pub` 无问题，`flutter test --no-pub --reporter expanded test/post_edit_screen_test.dart test/post_models_test.dart test/post_api_test.dart test/post_search_test.dart` 58 项 PASS。以仓库固定 Python 依赖运行完整 OpenAPI 校验及兼容性回归，12 份规范、23 个操作和 10 项测试 PASS。
+- 阶段一 PR #102 最终 head fd0cf1d 的 11 个工作流全部 PASS，合并 eaae589 并已部署到 WSL 日常环境。C29/V7，严格 TLS ready PASS，原数据与授权代次未变。阶段二等待最终 CI。
