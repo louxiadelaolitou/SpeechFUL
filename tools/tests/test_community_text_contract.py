@@ -27,7 +27,22 @@ class CommunityTextContractTests(unittest.TestCase):
         return CHECKER.check_contract(self.spec, self.text, self.media)
 
     def test_current_text_and_image_contract_and_shared_goldens(self):
-        self.assertEqual(self.check(), (16, 9, 2))
+        self.assertEqual(self.check(), (20, 9, 2))
+
+    def test_edit_requires_revision_and_cannot_change_identity_or_channel(self):
+        original = copy.deepcopy(self.spec)
+        for kind in ('revision', 'identityId', 'channelId', 'images'):
+            with self.subTest(kind=kind):
+                self.spec = copy.deepcopy(original)
+                edit = self.spec['components']['schemas']['PostEditInput']
+                if kind == 'revision':
+                    edit['required'].remove('revision')
+                elif kind == 'images':
+                    edit['properties']['imageIds']['maxItems'] = 10
+                else:
+                    edit['properties'][kind] = {'type': 'string'}
+                with self.assertRaises(AssertionError):
+                    self.check()
 
     def test_public_account_leak_and_open_dto_are_rejected(self):
         original = copy.deepcopy(self.spec)

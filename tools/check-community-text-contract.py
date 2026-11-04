@@ -121,10 +121,19 @@ def check_contract(spec, vectors, media_vectors):
                 if status.startswith("2"):
                     for name in ("Session-Expires-At", "Server-Time"):
                         assert resolve(spec, response["headers"][name])["required"] is True
-    assert len(operations) == len(set(operations)) == 16
+    assert len(operations) == len(set(operations)) == 20
+    assert {'readPublishedPostEdit', 'readPostEditResult', 'savePublishedPostEdit',
+            'stagePublishedPostEditImage'} <= set(operations)
     for path, method in (("/api/v1/post-commands/{commandId}", "put"), ("/api/v1/me/post-tasks/{taskId}/retry", "post")):
         assert spec["paths"][path][method]["requestBody"]["x-max-bytes"] == 262144
     schemas = spec["components"]["schemas"]
+    edit = schemas['PostEditInput']
+    assert edit['additionalProperties'] is False
+    assert set(edit['required']) == {'revision', 'title', 'body'}
+    assert set(edit['properties']) == {'revision', 'title', 'body', 'imageIds'}
+    assert edit['properties']['revision'] == {'$ref': '#/components/schemas/ResourceID'}
+    assert edit['properties']['imageIds']['maxItems'] == 9
+    assert edit['properties']['imageIds']['uniqueItems'] is True
     forbidden = {"accountId", "ownerId", "ownerAccountId", "identityId", "slot", "slotId", "isOriginal", "createdCount", "otherIdentities", "canDelete", "canEdit", "body"}
     card = public_fields(spec, schemas["PublicPostCard"])
     assert not card.intersection(forbidden), card.intersection(forbidden)
