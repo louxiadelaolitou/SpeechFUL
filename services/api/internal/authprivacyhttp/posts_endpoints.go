@@ -80,8 +80,8 @@ func parsePostRoute(path string) (postRoute, error) {
 		return postRoute{kind: postTagSuggestionsRoute, methods: "POST"}, nil
 	case postLinkResolvePath:
 		return postRoute{kind: postLinkResolveRoute, methods: "POST"}, nil
-	case "/api/v1/feed/channel-order":
-		return postRoute{kind: channelOrderRoute, methods: "GET"}, nil
+	case "/api/v1/feed/hot-posts":
+		return postRoute{kind: hotPostsRoute, methods: "GET"}, nil
 	case postSearchPath:
 		return postRoute{kind: postSearchRoute, methods: "POST"}, nil
 	case postSearchHistoryPath:
@@ -99,12 +99,6 @@ func parsePostRoute(path string) (postRoute, error) {
 			return postRoute{}, errMalformed
 		}
 		return postRoute{kind: postShareRoute, id: parts[1], methods: "GET"}, nil
-	}
-	if len(parts) == 3 && parts[0] == "channels" && parts[2] == "hot-posts" {
-		if _, err := posts.ParseResourceID(parts[1]); err != nil {
-			return postRoute{}, errMalformed
-		}
-		return postRoute{kind: hotPostsRoute, id: parts[1], methods: "GET"}, nil
 	}
 	if len(parts) == 3 && parts[0] == "posts" && parts[2] == "repost" {
 		if _, err := posts.ParseResourceID(parts[1]); err != nil {
@@ -310,7 +304,7 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 		b.communityPostSearch(w, r, backend, bearer, route)
 		return
 	}
-	if route.kind == channelOrderRoute || route.kind == hotPostsRoute {
+	if route.kind == hotPostsRoute {
 		b.communityRankings(w, r, backend, bearer, route)
 		return
 	}
@@ -833,7 +827,7 @@ func strictPostValue(value any, route postRoute) (any, error) {
 	if isRepostKind(route.kind) {
 		return strictRepostValue(value, route)
 	}
-	if route.kind == channelOrderRoute || route.kind == hotPostsRoute {
+	if route.kind == hotPostsRoute {
 		return strictRankings(value, route)
 	}
 	if route.command || route.seal || route.operation.Valid() {

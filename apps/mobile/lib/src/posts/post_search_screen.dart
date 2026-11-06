@@ -83,10 +83,7 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
       _controller.authorityVersion == _epoch;
   String get _scopeName => hhText(context, _channels[_channelId] ?? '全部分类');
   bool get _hasRanking =>
-      _channelId != null &&
-      _controller.supportsPostRankings &&
-      widget.onOpenRankedPost != null &&
-      !_controller.blockedChannelIds.contains(_channelId);
+      _controller.supportsPostRankings && widget.onOpenRankedPost != null;
   bool get _discovering =>
       _keyword == null && trimPostSearchKeyword(_input.text).isEmpty;
 
@@ -194,7 +191,6 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
       _history = const [];
       _historyLoading = _historyError = _historyExpanded = false;
       _channelId = channelId;
-      _clearRanking();
     });
     if (_keyword != null) {
       unawaited(_loadResults());
@@ -212,21 +208,19 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   void _loadDiscovery() {
     if (_discoveryScroll.hasClients) _discoveryScroll.jumpTo(0);
     unawaited(_readHistory());
-    unawaited(_readRanking());
+    if (_ranking == null) unawaited(_readRanking());
   }
 
   Future<void> _readRanking() async {
     if (!_current || !_hasRanking || !_discovering || _rankingLoading) return;
-    final channel = _channelId!;
     final request = ++_rankingRequest;
     setState(() {
       _rankingLoading = true;
       _rankingError = false;
     });
-    bool current() =>
-        _current && request == _rankingRequest && _channelId == channel;
+    bool current() => _current && request == _rankingRequest;
     try {
-      final value = await _controller.hotPosts(channel);
+      final value = await _controller.hotPosts();
       if (current()) setState(() => _ranking = value);
     } on Object {
       if (current()) setState(() => _rankingError = true);
@@ -236,22 +230,21 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   }
 
   Future<void> _openRankedPost(RankedPost post) async {
-    final channel = _channelId;
     if (!_current ||
         !_hasRanking ||
         _rankedPostOpen ||
-        channel == null ||
+        _controller.blockedChannelIds.contains(post.channelId) ||
         _controller.isPostDeleted(post.postId)) {
       return;
     }
     _rankedPostOpen = true;
     try {
       _focus.unfocus();
-      await widget.onOpenRankedPost!(context, post.postId, channel);
+      await widget.onOpenRankedPost!(context, post.postId, post.channelId);
     } finally {
       _rankedPostOpen = false;
     }
-    if (!_current || _channelId != channel || !_discovering) return;
+    if (!_current || !_discovering) return;
     if (_discoveryScroll.hasClients) _discoveryScroll.jumpTo(0);
     if (_rankingLoading) {
       ++_rankingRequest;
@@ -461,90 +454,94 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSearchField(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      PopupMenuButton<String>(
-                        key: const ValueKey('post-search-scope'),
-                        enabled: !_historyChanging,
-                        tooltip: hhText(context, '搜索分类'),
-                        initialValue: _channelId ?? '',
-                        onSelected: (value) =>
-                            _selectScope(value.isEmpty ? null : value),
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: '',
-                            child: Text(hhText(context, '全部分类')),
-                          ),
-                          for (final channel in widget.channels)
+                if (!_discovering)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        PopupMenuButton<String>(
+                          key: const ValueKey('post-search-scope'),
+                          enabled: !_historyChanging,
+                          tooltip: hhText(context, '搜索分类'),
+                          initialValue: _channelId ?? '',
+                          onSelected: (value) =>
+                              _selectScope(value.isEmpty ? null : value),
+                          itemBuilder: (context) => [
                             PopupMenuItem(
-                              value: channel.id,
-                              child: Text(hhText(context, channel.name)),
+                              value: '',
+                              child: Text(hhText(context, '全部分类')),
                             ),
-                        ],
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          constraints: const BoxConstraints(minHeight: 44),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: HhTelegramPalette.of(context).selection,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.tag_rounded,
-                                size: 17,
-                                color: HhTelegramPalette.of(context).accent,
+                            for (final channel in widget.channels)
+                              PopupMenuItem(
+                                value: channel.id,
+                                child: Text(hhText(context, channel.name)),
                               ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  _scopeName,
-                                  style: TextStyle(
-                                    color: HhTelegramPalette.of(context).accent,
-                                    fontWeight: FontWeight.w600,
+                          ],
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: HhTelegramPalette.of(context).selection,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.tag_rounded,
+                                  size: 17,
+                                  color: HhTelegramPalette.of(context).accent,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _scopeName,
+                                    style: TextStyle(
+                                      color: HhTelegramPalette.of(context)
+                                          .accent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 18,
-                                color: HhTelegramPalette.of(context).accent,
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 18,
+                                  color: HhTelegramPalette.of(context).accent,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      if (_keyword != null)
-                        for (final sort in PostSearchSort.values)
-                          ChoiceChip(
-                            key: ValueKey('post-search-sort:${sort.name}'),
-                            showCheckmark: false,
-                            side: BorderSide.none,
-                            shape: const StadiumBorder(),
-                            selectedColor: HhTelegramPalette.of(context)
-                                .selection,
-                            backgroundColor: HhTelegramPalette.of(context)
-                                .background,
-                            label: Text(
-                              hhText(
-                                context,
-                                sort == PostSearchSort.relevance ? '相关度' : '最新',
+                        if (_keyword != null)
+                          for (final sort in PostSearchSort.values)
+                            ChoiceChip(
+                              key: ValueKey('post-search-sort:${sort.name}'),
+                              showCheckmark: false,
+                              side: BorderSide.none,
+                              shape: const StadiumBorder(),
+                              selectedColor: HhTelegramPalette.of(context)
+                                  .selection,
+                              backgroundColor: HhTelegramPalette.of(context)
+                                  .background,
+                              label: Text(
+                                hhText(
+                                  context,
+                                  sort == PostSearchSort.relevance
+                                      ? '相关度'
+                                      : '最新',
+                                ),
                               ),
+                              selected: _sort == sort,
+                              onSelected: (_) => _selectSort(sort),
                             ),
-                            selected: _sort == sort,
-                            onSelected: (_) => _selectSort(sort),
-                          ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
                 Expanded(
                   child: _keyword != null
                       ? _buildResults()
@@ -761,7 +758,12 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   Widget _buildDiscovery() {
     final rows = _hasRanking
         ? _ranking?.items
-              .where((post) => !_controller.isPostDeleted(post.postId))
+              .where(
+                (post) =>
+                    !_controller.isPostDeleted(post.postId) &&
+                    !_controller.blockedChannelIds.contains(post.channelId) &&
+                    _channels.containsKey(post.channelId),
+              )
               .toList(growable: false)
         : null;
     final scroll = CustomScrollView(
@@ -797,7 +799,7 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   }
 
   Widget _rankingHeader(List<RankedPost>? rows) => _reveal(
-    ValueKey('post-search-hot-heading:$_channelId'),
+    const ValueKey('post-search-hot-heading:global'),
     SizedBox(
       width: double.infinity,
       child: Column(
@@ -811,6 +813,14 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
               hhText(context, '大家都在看'),
               style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hhText(context, '全站热榜'),
+            style: TextStyle(
+              fontSize: 12,
+              color: HhTelegramPalette.of(context).secondary,
             ),
           ),
           const SizedBox(height: 14),

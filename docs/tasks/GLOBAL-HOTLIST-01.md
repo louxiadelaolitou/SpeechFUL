@@ -1,0 +1,73 @@
+# GLOBAL-HOTLIST-01 — 分类术语与搜索全站热榜
+
+- 模式：常规；负责人／状态维护人：当前 Session。
+- 分支／Worktree：`codex/refactor/categories-global-hotlist`，`E:/Hnuhole-env/source/SpeechFUL-global-hotlist`；实际 main 基线 `e9bfa80595cd05621ff86bd9da8fade284150110`。
+- 授权依据与边界：2026-11-06 用户同意将产品中的“通道”统一为“分类”，要求搜索只维护全站总榜，并明确指定 GPT 6-Astra／xhigh 独立审查算法、实现及性能优化收益。本轮授权本地实现、隔离验证和独立 AI 审查；未授权本任务合并或正式部署。
+- 需求确认：用户分别确认两项具体场景：任何分类搜索的空输入展示同一全站“大家都在看”并注明全站范围，关键词结果仍限定选中分类，榜单点击按帖子的真实分类进入详情，个人屏蔽及当前可见性仍生效；分类选择器固定目录顺序，推荐第一，取消分类活跃度统计和动态排序。无未决产品取舍。
+- 模型：当前 Session 负责实现；独立只读审查指定 `gpt-6-astra`、`xhigh`。
+- 更新日期：2026-11-06。
+- 本轮追加授权：用户要求继续解决持续流量下算榜停滞，并明确确认以32个持续请求客户端、逐级探测64并发、正式持续压测至少30分钟验收；同一固定请求速率比较搜索P95增幅≤5%，同时记录错误率、完成吞吐和实际并发。真实五分钟更新，每轮一分钟内完成，榜单年龄小于六分钟。沿用本分支／记录，本轮基线 `06ca6fa0380abdfcfd3d31bcac71cbbb14cb41bc`，保留最终C Safety Gate。授权本地实现、一次性合成数据压测及沿用GPT 6-Astra／xhigh只读审查；不合并、不部署。
+- 状态：业务修复 `072234c`、RAW验收工具 `8af7b08` 已本地提交。用户追加“只做30分钟长测及搜索增幅≤5%”后完成有效长测：RAW后台1800.845秒，时长PASS；整场搜索P95增幅4.80%，但实际计算重叠窗口增幅77.83%，搜索目标FAIL；另有2个热榜503、40次容量丢弃，本轮整体FAIL。未继续修改业务或重跑。既有安全回归结果保留；产品CI／本轮真机 NOT_RUN；未合并、未发布。
+- 暂停／恢复：用户要求停止后端及WSL供其使用电脑，已停止并核对无运行发行版；用户随后明确“继续”，恢复本任务所需隔离验收。没有恢复其他历史延期业务。
+- 搜索界面追加修正：用户反馈打开搜索页看到“全部／各分类”标签，要求热榜直接展示所有分类统一比较的帖子。事实核对：全站榜接口／行顺序已经统一，误导来源是关键词搜索分类菜单在空输入热榜状态仍常驻。沿用本分支 `257db99` 修正为空输入（含清空返回）隐藏筛选整行；输入关键词后仍按此前已确认规则显示搜索范围／排序，历史范围和真实分类详情保留。未更改榜单算法或重做性能验收。
+- 安装追加授权：用户要求安装，核对当前vivo为已部署C33的自定义标签版后，发现手机／日常后端尚不包含本分支全站接口；用户明确答复“一并升级后端并安装”，授权保留日常现有数据、标签及手机数据，整合主线后前向升级日常开发服务并覆盖装机。此前“标签来自自定义标签版”归因不准确，当前源码实际为分类菜单；不因此删除帖子自定义标签。合入主线标签、分享、动效后，全站新增迁移顺延为0034，避免在已到C33的库补入旧序号；正式生产不在范围。
+
+## 目标与范围
+
+统一首页、发帖、设置、搜索及相关多语言界面的分类用语；搜索空输入显示纯文字全站帖子热榜，切换搜索分类不重新维护分类帖子榜。分类导航固定顺序。保留既有帖子归属、搜索历史范围、关键词搜索、会话及最终 C Safety Gate。
+
+审查现有算法和 PostgreSQL／Redis 实现，分别记录已确认问题、规模风险、优化建议与测量范围。旧任务 [CHANNEL-RANKINGS-01](CHANNEL-RANKINGS-01.md) 的性能数据只证明其原始低并发负载，不外推本次总榜或高并发收益。
+
+## 接口与依赖
+
+- 依赖已合并的 PR #106 排名、搜索和最终可见性校验链路。
+- `GET /api/v1/feed/hot-posts` 返回 `{asOf,items:[{postId,channelId,title,viewCount}]}`，最多20条。`channelId` 为各帖真实分类；旧的分类帖子榜及热度顺序接口撤下，OpenAPI升至0.4.0，客户端与服务端同步升级。
+- 对外只维护一个帖子榜单。内部保留七个失效分片以复用未变数据，64项不可变块保留完整排序键；单个全站Redis排序集合合并各片首64，最多448个候选。常态先取精确全站前64；不足时验证分片覆盖并深块补位。
+- 当前整合版部署应用0034（历史独立分支曾用0032），重跑对应最小权限grant，Redis ACL允许 `~hnuhole:channel-rankings:v2:<environment>:*`；滚动兼容期保留v1授权及旧表。新版本不再生成旧分类榜；正式生产不在本任务范围。
+- 后台优先等待20ms空闲，但每次让行最多100ms，启动及七个脏片合计显式让行最多约800ms；私有快照提交前不再等待前台清空，消除持续流量导致的无限推迟。单连接worker及跨进程事务锁仍限制同时计算；脏片完整重算和主库资源竞争仍需实测，不把64项存储块冒充计算微批。初始独立审查见[审查与性能证据](evidence/global-hotlist-astra-review-20261106.md)。
+- 搜索候选准备使用已识别C PostgreSQL Gate的签名、锚点、代次、可信时间及冻结校验后回滚，避免准备阶段写授权检查点；未知Gate保留原Snapshot。最终CommitAuthorized、会话代次／状态、当前内容可见性、历史写入和续期均保留，最终游标同时校验过期和完整TTL上界。
+
+## 验收标准
+
+- 用户可见“通道”统一为“分类”，四种界面语言含义一致。
+- 所有分类的空输入均展示全站范围的同一排序来源；关键词结果仍服从当前分类；点击异分类榜单帖子进入其正确详情。
+- 榜单仅含文字；个人屏蔽、删除、下架、到期和会话变化均生效，并按总榜顺序补位。
+- 分类选择器采用稳定目录顺序，推荐第一；不再请求活跃度顺序。
+- 无变化时避免重算；Redis 故障的已有顺序兜底、最终 Gate 和版本发布竞态有适用验证。
+- 性能报告标注数据量、负载、被测版本、计算是否真正完成和快照年龄；估算和实测分别列出。
+- 追加验收：持续流量下后台取得进展，不以无限推迟换前台P95；真实RunRankings及真实五分钟周期在正式30分钟长测产出新版本，持续互动进入新榜。每轮≤60s、运行中榜龄<6min；同固定到达率的基线／后台搜索P95增幅≤5%，报告原始样本、错误／超时／丢弃和实际并发。容量探测及短周期诊断不代替长测。
+
+## 当前进度与证据
+
+| 项目 | 被测版本／环境 | 结果与证据 |
+| --- | --- | --- |
+| 需求与基线 | main `e9bfa80`；用户两项明确答复 | PASS，需求如上，分支初始无已有改动。 |
+| 实现 | `b41482e8c0d44e5c521c587df6d943b72e9c7df8`，基于main `e9bfa80` | 分类术语、固定导航、全站总榜、分片精确合并及分块补位完成。 |
+| 独立审查 | GPT 6-Astra／xhigh，两轮；原始main及本轮产品差异 | PASS（静态范围）。修复前缀失效掩盖深处高分帖、权限任意／全部语义及缺块检测，静态复核无新增阻塞问题。详见[审查证据](evidence/global-hotlist-astra-review-20261106.md)；不计GitHub成员批准。 |
+| Go host | WSL2 Linux文件系统、Go1.22，`go test ./...`、`go build ./...`、`go vet ./...` | PASS，外部 `go-host-final.log`。 |
+| 真实SQL／Redis／HTTPS | 一次性PG16双库及独立Redis，`FEED_RANKINGS_REDIS=1 sh authlab/run-feed-isolated.sh`，含race | PASS，`go-sql-final.log`。覆盖作者排除、讨论去重、复用、未来／到期边界、深块补位、全站排序反例、屏蔽、删帖、Gate冻结／恢复、迁移白名单、最小权限及v2 ACL升级。 |
+| Dart真实协议联调 | 编译生产HttpPostApi探针，实际C HTTPS＋PG＋Redis，同一隔离runner，`TestRealHTTPSFeedRankingsDartPostgres` | PASS，`dart-live-build.log`、`dart-live-sql.log`。覆盖全站榜解析、实际分类详情、分类／全站关键词搜索、历史及账户游标边界。首次fixture将旧服务地址与新证书配对，修正初始化顺序后PASS。 |
+| Flutter | 锁定依赖，`flutter analyze --no-pub`，六个受影响test文件 | PASS，118项；`flutter-analyze-final.log`、`flutter-tests-final.log`。包括固定分类、搜索范围、单次全站请求、跨分类详情、迟到响应、弱网、纯文字、小屏大字、深色及减少动态效果。依赖锁无变化。 |
+| 契约／协作 | `python packages/openapi/check-specs.py`、`python tools/check-community-text-contract.py`，差异检查 | PASS，12份OpenAPI及既有保护契约；协作检查随实现提交记录。 |
+| Android构建 | Windows Flutter，Profile ARM64，`flutter build apk --profile --target-platform android-arm64 --no-pub` | PASS，`android-build.log`；APK SHA256 `79461403468fe6eee3293c7f8200789e6644dfd70cea97c8d377ef81ed268a80`。本轮未装机，不能复用旧包真机752ms结论。 |
+| 真实接口负载 | 30,001帖／3,000赞／3,000藏；64组交替，最大2请求在途；每环境512详情／256搜索 | PASS，`performance-global.log`。热榜P95 12.57ms；搜索154.53→153.25ms（−0.8%），详情25.80→24.52ms（−5.0%）。每次刷新有25s预算且实际完成；不是持续高并发验证。 |
+| 分块SQL与规模对照 | 实际rankBlockSQL、3万帖；另独立简化SQL模型1万／10万／100万候选，0%／80%失效 | PASS，真实查询0.476ms，主键索引7次、FunctionScan 64×7＝448项。简化模型10万无失效161.76→0.307ms；只证明候选查询形状收益，不等同接口加速。详见[证据及边界](evidence/global-hotlist-astra-review-20261106.md)。 |
+| 未覆盖（历史版本） | `b41482e` 未覆盖持续30min高负载；远程产品CI、真机、公网、多进程及生产容量仍未验 | 历史低并发数据不外推；本轮 `8af7b08` 持续负载已实际完成但FAIL，见下列证据。 |
+| 热榜不展示分类筛选入口 | `257db99`＋本轮UI差异，Windows Flutter | PASS：`flutter test --no-pub test/post_search_test.dart` 21项、`flutter analyze --no-pub` 无问题。覆盖初开／清空无分类入口、跨分类混排顺序、旧榜迟到响应、关键词搜索范围、多语言、历史异步栅栏、小屏／大字／深色及减少动画。日志 `search-ui-no-category-test.log`、`search-ui-no-category-analyze.log` 位于外部持续负载证据目录。未构建／安装新包，手机端生效仍待更新安装包；远程产品CI NOT_RUN。 |
+
+上述外部日志、探针、独立fixture脚本、EXPLAIN JSON与构建产物保存在 `E:/Hnuhole-env/global-hotlist-validation-20261106`；逐文件核对22个变更产品文件，被测Linux副本与实现提交 `b41482e` 字节一致。该提交新增Dart探针／联调回归另有真实PASS。仅证据文档更新不改变被测产品；Android包未包含独立探针文件，本轮未装机。
+
+## 阻碍与下一步
+
+### 日常开发升级与装机（2026-11-06）
+
+- 用户明确授权“一并升级后端并安装”；随后授权“可以了，推送合并吧”。应用整合提交 `b46244d023cb0c3a2b847ef0855082c0cade9a01` 合入当前主线的自定义标签、分享和动效，保留标签业务；全站榜迁移编号为0034。
+- PASS：整合版 Flutter analyze、搜索／标签／API测试66项；Go host测试与vet；一次性真实PG／Redis／HTTPS相关race回归；13份OpenAPI和受保护文本契约。最终整合日志 `sql-integrated-final.log`、`go-host-integrated-final.log`、`go-vet-integrated-final.log` 位于外部持续负载证据目录。Dart可执行探针本次整合环境SKIP，不复用历史PASS冒充本次结果。
+- PASS：日常开发后端前向升级为C34/V7，双库备份完成，已有行、序列及Gate代次核对不变，未调用recover。首次启动因复制后operator相对路径失效而中断；前向修复引用路径后严格TLS就绪、幂等恢复均通过，未重置数据库。独立排名Redis通过可选`rankingRedis`纳入恢复器的文件摘要与归属检查，WSL单元测试11项PASS。
+- PASS_INSTALL_AND_LAUNCH：vivo V2323A（设备`10CEAG17RY003M7`）覆盖安装 `2026110605 / 0.1.0-global-hotlist`，签名保持原手机证书，未清数据，启动成功；USB转发及双端TLS就绪通过。APK SHA256 `4adf8531e23b69637da99b2b3bf1a578212860557f28c33e43235ad952d10230`。真机登录后完整业务验收NOT_RUN，不将安装启动当作业务验收。
+- 外部权威回执：`E:/Hnuhole-env/global-hotlist-release-20261106/backend-receipt.json`、`phone-install-receipt.json`、`android-package-receipt.json`；Windows日常后端／包指针已备份并更新，Linux恢复manifest已更新。应用源码绑定上述b462提交，后续恢复器和本文提交不改变已装应用代码。正式生产未部署。
+- 此次安装不重启性能优化或长测；下述30分钟持续负载FAIL结论保持不变，合并不代表搜索增幅≤5%达标。
+- 送审PR [#112](https://github.com/zewbby/SpeechFUL/pull/112)：追加整合主线分享客户端后，`a150be4` Flutter analyze及搜索／标签／API／分享78项PASS；手机已装b462包未随此次主线整合重装。首次CI发现共享隐私权限审计遗漏0034四表，补齐与grant一致的最小白名单，保留其他角色及UPDATE／候选DELETE拒绝；`a150be4`＋该审计和越权测试差异在WSL一次性双PG集群15项PASS（`premerge-role-audit.log`，外部装机证据目录）。最终head的远程CI与合并状态以PR实时记录为准。
+- CI后续修复（`07e95de`＋本条差异）：私信／头像／信息流迁移断言更新为C34，三项真实独立fixture全部PASS（`migration-dm.log`、`migration-avatar.log`、`migration-feed.log`）。分类词条数量变化暴露List.sort对同优先级翻译模板排序不稳定，新增目录顺序作为次级排序键；保留既有用户名模板和多行参数原样传递，搜索／翻译27项PASS（`premerge-localization.log`）。这些追加修复未重新部署或装机。
+
+本轮按用户限定只执行长测和增幅验收，已完成并记录FAIL，不自动优化或再跑。48事件／秒的基线出现掉队，保留失败记录；正式对照与后台均固定16事件／RAW秒、32逻辑客户端。后台实际平均在途2.25、峰值32，不称为持续32在途。算榜在真实周期持续发布六版，未以停算换延迟；≤5%仍未达到，不能用整场平均稀释计算时尖峰。完整数值、环境、版本和原始证据见[持续负载证据](evidence/global-hotlist-sustained-20261106.md)。
