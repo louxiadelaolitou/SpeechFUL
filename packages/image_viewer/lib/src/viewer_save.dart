@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
+import 'package:hnuhole_native_media/hnuhole_native_media.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Original formats accepted by the adapter; no conversion is performed.
@@ -61,20 +62,21 @@ abstract interface class ViewerGalleryWriter {
   Future<void> putImage(String originalPath);
 }
 
-/// Opt-in gal adapter, requiring Android/iOS build and device validation.
-///
-/// Plugin completion, file integrity and actual gallery playback are separate
-/// evidence. gal 2.3.3's iOS file-import force unwrap remains an unverified native
-/// risk, especially for formats unsupported by Photos. No fallback conversion
-/// or native bridge is introduced here. gal may also request access internally.
+/// Android uses gal; iOS imports the original file through Photos without
+/// gal's force-unwrapped creation request or a fallback image conversion.
+/// Plugin completion and actual gallery playback remain separate evidence.
 class GalViewerGalleryWriter implements ViewerGalleryWriter {
   const GalViewerGalleryWriter();
+  static const _ios = IosNativeMedia();
+  bool get _useIos => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
   @override
-  Future<bool> hasAccess() => Gal.hasAccess();
+  Future<bool> hasAccess() => _useIos ? _ios.hasAccess() : Gal.hasAccess();
   @override
-  Future<bool> requestAccess() => Gal.requestAccess();
+  Future<bool> requestAccess() =>
+      _useIos ? _ios.requestAccess() : Gal.requestAccess();
   @override
-  Future<void> putImage(String originalPath) => Gal.putImage(originalPath);
+  Future<void> putImage(String originalPath) =>
+      _useIos ? _ios.putImage(originalPath) : Gal.putImage(originalPath);
 }
 
 enum ViewerSaveStatus {
@@ -337,6 +339,17 @@ class ViewerSaveCoordinator {
         GalExceptionType.notSupportedFormat =>
           ViewerSaveStatus.formatUnsupported,
         GalExceptionType.unexpected =>
+          started
+              ? ViewerSaveStatus.outcomeUnknown
+              : ViewerSaveStatus.permissionFailed,
+      };
+    } on PlatformException catch (error) {
+      status = switch (error.code) {
+        'MEDIA_ACCESS_DENIED' => ViewerSaveStatus.permissionDenied,
+        'MEDIA_UNSUPPORTED' => ViewerSaveStatus.formatUnsupported,
+        'MEDIA_NO_SPACE' => ViewerSaveStatus.notEnoughSpace,
+        'MEDIA_INVALID_SOURCE' => ViewerSaveStatus.invalidSource,
+        _ =>
           started
               ? ViewerSaveStatus.outcomeUnknown
               : ViewerSaveStatus.permissionFailed,

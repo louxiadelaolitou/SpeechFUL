@@ -120,12 +120,14 @@ void main() {
     TargetPlatform.windows,
   ]) {
     testWidgets(
-      '$platform default saving is Android only and never requests access on view',
+      '$platform default saving supports mobile and never requests access on view',
       (tester) async {
         debugDefaultTargetPlatformOverride = platform;
         addTearDown(() => debugDefaultTargetPlatformOverride = null);
         final calls = <String>[];
-        const channel = MethodChannel('gal');
+        final channel = MethodChannel(
+          platform == TargetPlatform.iOS ? 'speechful/native_media' : 'gal',
+        );
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           channel,
           (call) async {
@@ -161,7 +163,7 @@ void main() {
         final button = tester.widget<IconButton>(
           find.byKey(const ValueKey('viewer-save')),
         );
-        expect(button.onPressed != null, platform == TargetPlatform.android);
+        expect(button.onPressed != null, platform != TargetPlatform.windows);
         expect(calls, isEmpty);
         await tester.pumpWidget(const SizedBox());
         controller.dispose();

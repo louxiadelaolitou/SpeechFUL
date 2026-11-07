@@ -19,6 +19,8 @@ dependencies:
   drift: 2.35.2
   sqlite3: 3.7.0
   image_picker: 1.2.4
+  hnuhole_native_media:
+    path: ../../packages/native_media
   hnuhole_auth_vault:
     path: ../../packages/auth_vault
   hnuhole_auth_passkey:

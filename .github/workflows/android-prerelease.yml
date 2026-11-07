@@ -10,6 +10,7 @@ on:
       - 'packages/auth_vault/**'
       - 'packages/auth_passkey/**'
       - 'packages/image_viewer/**'
+      - 'packages/native_media/**'
       - '.github/workflows/android-prerelease.yml'
   workflow_dispatch:
     inputs:

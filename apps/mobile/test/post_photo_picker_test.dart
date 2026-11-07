@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as hashes;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 
@@ -10,6 +10,53 @@ import 'post_upload_support.dart' show pickedBytes;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'iOS selection uses original byte bridge and releases rejected originals',
+    () async {
+      const channel = MethodChannel('speechful/native_media');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final bytes = await File(
+        '../../packages/image_viewer/example/assets/fixtures/animation.gif',
+      ).readAsBytes();
+      final methods = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        methods.add(call.method);
+        if (call.method == 'pick') {
+          return [
+            {'id': 'gif', 'length': bytes.length},
+          ];
+        }
+        if (call.method == 'read') return bytes;
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final picker = NativePostPhotoPicker(platform: TargetPlatform.iOS);
+      final result = await inspectPostPhoto(
+        (await picker.pick(1)).single,
+        newPostMediaId(),
+      );
+      expect(result.bytes, bytes);
+      expect(result.selection.mimeType, 'image/gif');
+      expect(methods, ['pick', 'read', 'release']);
+      var released = false;
+      await expectLater(
+        inspectPostPhoto(
+          PostPickedFile(
+            length: () async => 10 * 1024 * 1024 + 1,
+            openRead: () =>
+                throw StateError('oversized original must not be loaded'),
+            release: () async {
+              released = true;
+            },
+          ),
+          newPostMediaId(),
+        ),
+        throwsFormatException,
+      );
+      expect(released, isTrue);
+    },
+  );
   test('Flutter preflight retains original PNG/GIF/WebP bytes and JPEG encoded EXIF geometry', () async {
     final golden = jsonDecode(
       File('test/fixtures/post-media-v1.json').readAsStringSync(),

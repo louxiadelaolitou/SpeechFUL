@@ -3,14 +3,17 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart' as hashes;
+import 'package:flutter/foundation.dart';
+import 'package:hnuhole_native_media/hnuhole_native_media.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'post_upload_models.dart';
 
 class PostPickedFile {
-  PostPickedFile({required this.length, required this.openRead});
+  PostPickedFile({required this.length, required this.openRead, this.release});
   final Future<int> Function() length;
   final Stream<List<int>> Function() openRead;
+  final Future<void> Function()? release;
 }
 
 abstract interface class PostPhotoPicker {
@@ -19,13 +22,28 @@ abstract interface class PostPhotoPicker {
 }
 
 class NativePostPhotoPicker implements PostPhotoPicker {
+  NativePostPhotoPicker({TargetPlatform? platform, IosNativeMedia? ios})
+    : _platform = platform ?? defaultTargetPlatform,
+      _ios = ios ?? const IosNativeMedia();
+  final TargetPlatform _platform;
+  final IosNativeMedia _ios;
   final _picker = ImagePicker();
   @override
   Future<List<PostPickedFile>> pick(int limit) async {
-    // The locked iOS adapter re-encodes via UIImage/CGImageDestination (including
-    // GIF timing/loop changes). Keep that platform gated instead of silently
-    // violating the original-format contract. No native fork is introduced.
-    if (!Platform.isAndroid) throw const PostPhotoSelectionUnavailable();
+    if (limit < 1 || limit > 9) throw RangeError.range(limit, 1, 9);
+    if (!kIsWeb && _platform == TargetPlatform.iOS) {
+      return [
+        for (final original in await _ios.pick(limit))
+          PostPickedFile(
+            length: () async => original.length,
+            openRead: () => Stream.fromFuture(original.read()),
+            release: original.release,
+          ),
+      ];
+    }
+    if (kIsWeb || _platform != TargetPlatform.android) {
+      throw const PostPhotoSelectionUnavailable();
+    }
     if (limit == 1) {
       final file = await _picker.pickImage(
         source: ImageSource.gallery,
@@ -61,6 +79,17 @@ class PostPhotoSelectionUnavailable implements Exception {
 /// Bounded preflight with Flutter's existing decoder. Originals are untouched;
 /// server-side whole-container validation remains authoritative.
 Future<({PostImageSelection selection, Uint8List bytes})> inspectPostPhoto(
+  PostPickedFile file,
+  String mediaId,
+) async {
+  try {
+    return await _inspectPostPhoto(file, mediaId);
+  } finally {
+    await file.release?.call();
+  }
+}
+
+Future<({PostImageSelection selection, Uint8List bytes})> _inspectPostPhoto(
   PostPickedFile file,
   String mediaId,
 ) async {

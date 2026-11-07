@@ -1,0 +1,50 @@
+name: iOS build
+
+on:
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/auth_passkey/**'
+      - 'packages/auth_vault/**'
+      - 'packages/image_viewer/**'
+      - 'packages/native_media/**'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          lfs: true
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Native media bridge checks
+        working-directory: packages/native_media
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-pub
+          flutter test --no-pub
+      - name: Mobile checks and unsigned iOS compilation
+        working-directory: apps/mobile
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-pub
+          flutter test --no-pub test/post_photo_picker_test.dart test/dm_governance_test.dart test/dm_notification_navigation_test.dart test/messaging_localization_test.dart
+          flutter build ios --simulator --debug --no-codesign --no-pub
+      - name: Preserve dependency locks
+        run: git diff --exit-code -- '**/pubspec.lock'
+      # Compilation only: does not claim simulator interaction or device acceptance.

@@ -4,12 +4,14 @@ import Foundation
 import UIKit
 
 public class AuthPasskeyPlugin: NSObject, FlutterPlugin {
-    private weak var viewController: UIViewController?
+    // Implicit engines can register before their Flutter view is attached.
+    // Resolve the presentation window at the user's action, not at registration.
+    private let registrar: FlutterPluginRegistrar
     private var active: NSObject?
-    private init(viewController: UIViewController?) { self.viewController = viewController; super.init() }
+    private init(registrar: FlutterPluginRegistrar) { self.registrar = registrar; super.init() }
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "hnuhole/auth_passkey", binaryMessenger: registrar.messenger())
-        registrar.addMethodCallDelegate(AuthPasskeyPlugin(viewController: registrar.viewController()), channel: channel)
+        registrar.addMethodCallDelegate(AuthPasskeyPlugin(registrar: registrar), channel: channel)
     }
     public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
         if #available(iOS 16.0, *), let operation = active as? PasskeyAuthorization { operation.cancel() }
@@ -24,7 +26,10 @@ public class AuthPasskeyPlugin: NSObject, FlutterPlugin {
             result(nil); return
         }
         guard call.method == "create" || call.method == "get" else { result(FlutterMethodNotImplemented); return }
-        guard #available(iOS 16.0, *), let window = viewController?.viewIfLoaded?.window,
+        let presentationWindow = registrar.viewController?.viewIfLoaded?.window ?? UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }.filter { $0.activationState == .foregroundActive }
+            .flatMap { $0.windows }.first { $0.isKeyWindow }
+        guard #available(iOS 16.0, *), let window = presentationWindow,
               window.windowScene?.activationState == .foregroundActive else {
             result(Self.failure("PASSKEY_UNAVAILABLE")); return
         }

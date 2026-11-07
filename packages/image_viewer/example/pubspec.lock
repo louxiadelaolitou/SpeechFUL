@@ -148,6 +148,13 @@ packages:
       relative: true
     source: path
     version: "0.0.0"
+  hnuhole_native_media:
+    dependency: transitive
+    description:
+      path: "../../native_media"
+      relative: true
+    source: path
+    version: "0.1.0"
   hooks:
     dependency: transitive
     description:

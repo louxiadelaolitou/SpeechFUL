@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "hnuhole_auth_vault",
-    platforms: [.iOS("13.0")],
+    platforms: [.iOS("15.0")],
     products: [.library(name: "hnuhole-auth-vault", targets: ["hnuhole_auth_vault"])],
     dependencies: [.package(name: "FlutterFramework", path: "../FlutterFramework")],
     targets: [

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gal/gal.dart';
@@ -82,6 +83,48 @@ void main() {
 
   Future<ViewerOriginal> original() async =>
       ViewerOriginal.bytes(webp, ViewerOriginalFormat.webp);
+
+  for (final error in <String?, ViewerSaveStatus>{
+    null: ViewerSaveStatus.saved,
+    'MEDIA_ACCESS_DENIED': ViewerSaveStatus.permissionDenied,
+    'MEDIA_UNSUPPORTED': ViewerSaveStatus.formatUnsupported,
+    'MEDIA_NO_SPACE': ViewerSaveStatus.notEnoughSpace,
+    'MEDIA_SAVE_UNKNOWN': ViewerSaveStatus.outcomeUnknown,
+  }.entries) {
+    test(
+      'iOS original import maps ${error.key} without converting or retrying',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        const channel = MethodChannel('speechful/native_media');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        final calls = <String>[];
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          calls.add(call.method);
+          if (call.method == 'hasAccess' || call.method == 'requestAccess') {
+            return true;
+          }
+          expect(await File(call.arguments as String).readAsBytes(), webp);
+          if (error.key != null) throw PlatformException(code: error.key!);
+          return null;
+        });
+        addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+        final saver = ViewerSaveCoordinator(
+          gallery: const GalViewerGalleryWriter(),
+          createTemporaryDirectory: () => temporary.createTemp('ios-'),
+        );
+        addTearDown(saver.dispose);
+        final result = await saver.save(
+          itemId: 'ios-original',
+          resolveOriginal: original,
+        );
+        expect(result.status, error.value);
+        expect(calls, ['hasAccess', 'putImage']);
+        expect(await temporary.list().toList(), isEmpty);
+      },
+    );
+  }
 
   test(
     'forbidden, inactive, invalid IDs and stale leases read nothing',

@@ -70,7 +70,7 @@ class DmNotifications {
     try {
       await channel.invokeMethod('setLanguage', {'language': language.code});
     } catch (_) {
-      // Non-Android and unavailable native channels keep the in-app preference.
+      // Unavailable native channels keep the in-app preference.
     }
   }
 
@@ -285,7 +285,7 @@ class _DmNotificationSettingsState extends State<DmNotificationSettings> {
         ),
         ListTile(
           title: Text(hhText(context, '允许系统通知')),
-          subtitle: Text(hhText(context, _status ?? '由 Android 系统控制通知权限')),
+          subtitle: Text(hhText(context, _status ?? '由系统控制通知权限')),
           onTap: !widget.current()
               ? null
               : () async {

@@ -77,6 +77,7 @@ class HnuImageViewer extends StatefulWidget {
     required this.controller,
     this.saveCoordinator,
     this.enableAndroidSaving = true,
+    this.enableIosSaving = true,
     this.onChanged,
     this.onClosed,
     this.backgroundColor = Colors.black,
@@ -87,9 +88,12 @@ class HnuImageViewer extends StatefulWidget {
   final ViewerSaveCoordinator? saveCoordinator;
 
   /// Uses an internally owned gal coordinator on Android when none is supplied.
-  /// Other platforms require an explicit coordinator. Item permissions and the
-  /// complete original resolver remain mandatory; viewing never requests access.
+  /// Item permissions and the complete original resolver remain mandatory;
+  /// viewing never requests access. Desktop requires an explicit coordinator.
   final bool enableAndroidSaving;
+
+  /// Uses the original-file Photos importer, with add-only authorization.
+  final bool enableIosSaving;
   final ValueChanged<ViewerSnapshot>? onChanged;
   final ValueChanged<ViewerCloseReason>? onClosed;
   final Color backgroundColor;
@@ -112,9 +116,11 @@ class _HnuImageViewerState extends State<HnuImageViewer>
   void _configureSaving() {
     final useDefault =
         widget.saveCoordinator == null &&
-        widget.enableAndroidSaving &&
         !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android;
+        ((widget.enableAndroidSaving &&
+                defaultTargetPlatform == TargetPlatform.android) ||
+            (widget.enableIosSaving &&
+                defaultTargetPlatform == TargetPlatform.iOS));
     if (useDefault) {
       _ownedSaver ??= ViewerSaveCoordinator(
         gallery: const GalViewerGalleryWriter(),

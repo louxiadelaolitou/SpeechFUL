@@ -13,6 +13,8 @@ dependencies:
   extended_image: 10.1.0
   gal: 2.3.3
   path_provider: 2.1.5
+  hnuhole_native_media:
+    path: ../native_media
 
 dev_dependencies:
   flutter_test:

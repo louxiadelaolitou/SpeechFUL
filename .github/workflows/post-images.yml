@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/image_viewer/**'
+      - 'packages/native_media/**'
       - 'packages/auth_vault/**'
       - 'packages/auth_passkey/**'
       - 'services/api/**'

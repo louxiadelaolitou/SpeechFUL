@@ -306,10 +306,10 @@ const messagingNotificationTranslations = <String, UiTranslation>{
     '設定を保存できませんでした。再試行してください',
   ),
   '允许系统通知': ('允許系統通知', 'Allow system notifications', 'システム通知を許可'),
-  '由 Android 系统控制通知权限': (
-    '由 Android 系統控制通知許可權',
-    'Notification permission is controlled by Android',
-    '通知権限はAndroidで管理されます',
+  '由系统控制通知权限': (
+    '由系統控制通知許可權',
+    'Notification permission is controlled by the system',
+    '通知権限はシステムで管理されます',
   ),
   '系统通知已允许': ('系統通知已允許', 'System notifications are allowed', 'システム通知は許可されています'),
   '请在系统授权面板或应用通知设置中开启': (
