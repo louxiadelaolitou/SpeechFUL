@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/mobile/**'
+      - 'packages/auth_passkey/**'
       - '.github/workflows/auth-feedback.yml'
 
 permissions:
@@ -37,6 +38,10 @@ jobs:
         run: >-
           flutter test --no-pub --reporter expanded
           test/auth_flows_test.dart
+          ../../packages/auth_passkey/test/native_passkey_client_test.dart
+          test/passkey_recovery_flow_test.dart
+          test/security_management_controller_test.dart
+          test/security_management_screen_test.dart
           test/auth_screen_test.dart
           test/email_login_test.dart
           test/auth_session_controller_test.dart

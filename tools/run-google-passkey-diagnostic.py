@@ -25,8 +25,8 @@ MAIN_APK = 'ac66d81ffb760e17aca0770906b93c18b031bf8ffb9e0733974ef8b65abe5871'
 IDENTITY_MODE = 'legacy'
 ADMISSION = 'no_backup/google-fido-diagnostic-admission.json'
 GOOGLE_REGISTRATION_ACTIVITY = 'com.google.android.gms/.auth.api.credentials.fido.registration.ui.RegistrationActivity'
-DIAGNOSTIC_CORE = ('apps/mobile/android/app/src/debug/java/org/hnuhole/hnuhole_mobile/GoogleFidoDiagnosticActivity.java',
-    'apps/mobile/android/app/src/debug/java/org/hnuhole/hnuhole_mobile/GoogleFidoDiagnosticPolicy.java',
+DIAGNOSTIC_CORE = ('tools/android-passkey-diagnostic/legacy/GoogleFidoDiagnosticActivity.java',
+    'tools/android-passkey-diagnostic/legacy/GoogleFidoDiagnosticPolicy.java',
     'apps/mobile/android/app/src/debug/AndroidManifest.xml',
     'apps/mobile/android/app/src/debug/res/values/passkey_associations.xml')
 HOST_GUARD_SOURCES = ('tools/run-google-passkey-diagnostic.py', 'tools/tests/test_google_fido_diagnostic_runner.py')

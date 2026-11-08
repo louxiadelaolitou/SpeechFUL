@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_auth_passkey/hnuhole_auth_passkey.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
@@ -91,6 +93,20 @@ class _Passkey implements CancellablePasskeyClient {
   Future<void> cancel() async { cancels++; }
 }
 
+class _OptionalPasskey extends _Passkey
+    with ChangeNotifier
+    implements PasskeyAvailability {
+  bool supported = false;
+  @override
+  bool get passkeyAvailable => supported;
+  @override
+  Future<bool> refreshAvailability() async => supported;
+  void setSupported(bool value) {
+    supported = value;
+    notifyListeners();
+  }
+}
+
 class _Channels implements ChannelRepository {
   @override
   Future<ChannelDirectoryResult> loadChannels({required String sessionToken}) async =>
@@ -121,6 +137,27 @@ void main() {
     await store.read(); flows = makeFlows();
   });
   tearDown(() { flows.dispose(); sessions?.dispose(); directory?.dispose(); store.dispose(); });
+
+  test('unsupported device cannot request a passkey challenge and restores optional support without adopting a session', () async {
+    flows.dispose();
+    final optional = _OptionalPasskey();
+    passkey = optional;
+    flows = makeFlows();
+    var updates = 0;
+    flows.addListener(() => updates++);
+    expect(flows.supportsPasskeyRecovery, isFalse);
+    await flows.beginPasskeyReset();
+    expect(api.optionsStarted.isCompleted, isFalse);
+    expect(api.proofs, 0);
+    expect(optional.gets, 0);
+    expect(store.current?.session, isNull);
+    optional.setSupported(true);
+    expect(flows.supportsPasskeyRecovery, isTrue);
+    expect(updates, greaterThan(0));
+    await flows.beginPasskeyReset();
+    expect(flows.status, AuthFlowStatus.resetCodeShown);
+    expect(adopted, 0);
+  });
 
   test('discoverable proof enters hidden/full-code reset without automatic login', () async {
     await flows.beginPasskeyReset();

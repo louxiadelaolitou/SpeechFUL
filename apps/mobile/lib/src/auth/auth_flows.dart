@@ -55,13 +55,19 @@ class AuthFlows extends ChangeNotifier {
   }) : _sessionAuthorityVersion = sessionAuthorityVersion ?? (() => 0),
        _clock = clock ?? DateTime.now {
     _sessionAuthority?.addListener(_sessionAuthorityChanged);
+    final availability = _passkey;
+    if (availability is PasskeyAvailability) {
+      (availability as PasskeyAvailability).addListener(_notify);
+    }
   }
 
   final AuthApi _api;
   final AuthStore _store;
   final PasskeyRecoveryApi? _passkeyApi;
   final PasskeyClient? _passkey;
-  bool get supportsPasskeyRecovery => _passkeyApi != null && _passkey != null;
+  bool get supportsPasskeyRecovery =>
+      _passkeyApi != null && isPasskeyAvailable(_passkey);
+  Future<bool> refreshPasskeySupport() => refreshPasskeyAvailability(_passkey);
   bool _passkeyRecoveryActive = false;
   int? _passkeyAuthorityVersion, _nativeRecoveryEpoch;
   final int Function() _sessionAuthorityVersion;
@@ -915,7 +921,9 @@ class AuthFlows extends ChangeNotifier {
       try {
         final recovery = _passkeyApi;
         final client = _passkey;
-        if (recovery == null || client == null) {
+        if (recovery == null ||
+            client == null ||
+            !await refreshPasskeySupport()) {
           throw const AuthFailure(
             kind: AuthFailureKind.rejected,
             code: 'PASSKEY_UNAVAILABLE',
@@ -1617,6 +1625,10 @@ class AuthFlows extends ChangeNotifier {
   @override
   void dispose() {
     cancelPasskeyRecovery();
+    final availability = _passkey;
+    if (availability is PasskeyAvailability) {
+      (availability as PasskeyAvailability).removeListener(_notify);
+    }
     _sessionAuthority?.removeListener(_sessionAuthorityChanged);
     _disposed = true;
     _epoch++;

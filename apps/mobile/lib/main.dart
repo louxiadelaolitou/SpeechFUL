@@ -221,6 +221,7 @@ void _runHnuholeApp(
     ),
   );
   final passkey = NativePasskeyClient();
+  unawaited(passkey.refreshAvailability());
   final management = SecurityManagementController(
     api: api,
     store: store,
@@ -763,6 +764,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      unawaited(widget.flows.refreshPasskeySupport());
       unawaited(widget.sessions.onActivity());
       unawaited(widget.dm?.controller.sync());
     }

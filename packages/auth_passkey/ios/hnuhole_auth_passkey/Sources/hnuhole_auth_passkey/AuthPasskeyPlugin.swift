@@ -25,6 +25,10 @@ public class AuthPasskeyPlugin: NSObject, FlutterPlugin {
             if #available(iOS 16.0, *), let operation = active as? PasskeyAuthorization { operation.cancel() }
             result(nil); return
         }
+        if call.method == "available" {
+            if #available(iOS 16.0, *) { result(true) } else { result(false) }
+            return
+        }
         guard call.method == "create" || call.method == "get" else { result(FlutterMethodNotImplemented); return }
         let presentationWindow = registrar.viewController?.viewIfLoaded?.window ?? UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }.filter { $0.activationState == .foregroundActive }

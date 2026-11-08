@@ -34,7 +34,8 @@ this observer does not retroactively validate them.
 ## Public Google FIDO contrast probe
 
 `GoogleFidoDiagnosticActivity` and `GoogleFidoDiagnosticPolicy` live only in
-`apps/mobile/android/app/src/debug/java/org/hnuhole/hnuhole_mobile`. The product
+`tools/android-passkey-diagnostic/legacy`. Ordinary App builds do not include
+these archived sources or Google dependencies. The product
 Passkey plugin and C API are unchanged. Cached Google FIDO 21.0.0 public APIs
 provide `isUserVerifyingPlatformAuthenticatorAvailable()` and
 `getRegisterPendingIntent(PublicKeyCredentialCreationOptions)`; the probe does

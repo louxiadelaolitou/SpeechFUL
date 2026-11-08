@@ -276,7 +276,10 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
       const SizedBox(height: 24),
       Text('Passkey', style: Theme.of(context).textTheme.titleMedium),
       _notice('Passkey 可选，只用于账号恢复。系统或同步服务商可能知道你保存了本应用的凭据；恢复码仍可独立使用。'),
-      _action('绑定新的 Passkey', () => _withPassword(controller.bindPasskey)),
+      if (controller.supportsPasskeyBinding)
+        _action('绑定新的 Passkey', () => _withPassword(controller.bindPasskey))
+      else
+        _notice('此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。'),
       if (credentials != null && credentials.passkeys.isEmpty)
         _notice('尚未绑定 Passkey。'),
       for (final item in credentials?.passkeys ?? const <PasskeySummary>[]) ...[

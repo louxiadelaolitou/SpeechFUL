@@ -42,6 +42,9 @@ class SecurityManagementController extends ChangeNotifier {
     _observedToken = _activeRecord()?.token;
     _store.addListener(_authorityChanged);
     _sessions.addListener(_authorityChanged);
+    if (_passkey is PasskeyAvailability) {
+      (_passkey as PasskeyAvailability).addListener(_notify);
+    }
   }
 
   final CredentialManagementApi _api;
@@ -62,6 +65,7 @@ class SecurityManagementController extends ChangeNotifier {
 
   SecurityManagementStatus get status => _status;
   bool get busy => _busy;
+  bool get supportsPasskeyBinding => isPasskeyAvailable(_passkey);
   AuthFailure? get error => _error;
   String? get errorMessage => _errorMessage;
   DeviceDirectory? get devices => _devices;
@@ -240,6 +244,10 @@ class SecurityManagementController extends ChangeNotifier {
 
   Future<void> bindPasskey(String password) => _run((epoch, record) async {
     _requireNoPending();
+    if (!await refreshPasskeyAvailability(_passkey)) {
+      throw const PasskeyFailure('PASSKEY_UNAVAILABLE');
+    }
+    if (!_current(epoch, record)) return;
     _clearEphemeral();
     final options = await _api.createPasskeyCreationOptions(
       sessionToken: record.token,
@@ -697,6 +705,9 @@ class SecurityManagementController extends ChangeNotifier {
     _clearEphemeral();
     _store.removeListener(_authorityChanged);
     _sessions.removeListener(_authorityChanged);
+    if (_passkey is PasskeyAvailability) {
+      (_passkey as PasskeyAvailability).removeListener(_notify);
+    }
     super.dispose();
   }
 }

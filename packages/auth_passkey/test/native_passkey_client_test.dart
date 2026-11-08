@@ -32,12 +32,16 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('hnuhole/auth_passkey_test');
   late NativePasskeyClient client;
+  void mock(Future<Object?> Function(MethodCall)? handler) {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,
+      handler == null ? null : (call) async => call.method == 'available' ? true : handler(call));
+  }
   setUp(() { client = NativePasskeyClient(channel: channel, platform: TargetPlatform.android); });
-  tearDown(() { TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null); });
+  tearDown(() { mock(null); client.dispose(); });
 
   test('create passes fixed server policy and preserves signed fields', () async {
     final options = createOptions();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+    mock((call) async {
       expect(call.method, 'create');
       expect(jsonDecode((call.arguments as Map)['publicKey'] as String), options);
       return jsonEncode(credential(create: true));
@@ -45,7 +49,7 @@ void main() {
     expect(await client.create(options), credential(create: true));
   });
   test('get discovers a credential without a username or allow list', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+    mock((call) async {
       final options = jsonDecode((call.arguments as Map)['publicKey'] as String) as Map;
       expect(options.containsKey('allowCredentials'), isFalse);
       expect(options.containsKey('user'), isFalse);
@@ -55,7 +59,7 @@ void main() {
   });
   test('unsafe creation policy fails before native work starts', () async {
     var calls = 0;
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) async { ++calls; return null; });
+    mock((_) async { ++calls; return null; });
     final mutations = <void Function(Map<String, dynamic>)>[
       (value) => value['origin'] = 'https://auth.example.invalid',
       (value) => value['attestation'] = 'direct',
@@ -88,43 +92,120 @@ void main() {
     ];
     for (final mutate in mutations) {
       final response = credential(); mutate(response);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) async => jsonEncode(response));
+      mock((_) async => jsonEncode(response));
       await expectLater(client.get(getOptions()), fails('PASSKEY_INVALID_RESPONSE'));
     }
   });
   test('cancel suppresses late success and does not expose its credential', () async {
     final completion = Completer<String>();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+    final started = Completer<void>();
+    mock((call) async {
       if (call.method == 'cancel') return null;
+      started.complete();
       return completion.future;
     });
     final first = client.get(getOptions());
     final assertion = expectLater(first, fails('PASSKEY_CANCELLED'));
+    await started.future;
     await client.cancel();
     completion.complete(jsonEncode(credential()));
     await assertion;
   });
   test('a second operation is busy until the first has settled', () async {
     final completion = Completer<String>();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) => completion.future);
+    mock((_) => completion.future);
     final first = client.get(getOptions());
     await expectLater(client.create(createOptions()), fails('PASSKEY_BUSY'));
     completion.complete(jsonEncode(credential()));
     await first;
   });
   test('known cancellation is retained and provider details are discarded', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) async {
+    mock((_) async {
       throw PlatformException(code: 'PASSKEY_CANCELLED', message: 'synthetic private data', details: 'synthetic assertion');
     });
     await expectLater(client.get(getOptions()), fails('PASSKEY_CANCELLED'));
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (_) async {
+    mock((_) async {
       throw PlatformException(code: 'PROVIDER_SECRET', details: 'synthetic private data');
     });
     await expectLater(client.get(getOptions()), fails('PASSKEY_FAILED'));
   });
   test('a missing plugin and unsupported platform fail closed', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
+    mock(null);
     await expectLater(client.get(getOptions()), fails('PASSKEY_UNAVAILABLE'));
     await expectLater(NativePasskeyClient(channel: channel, platform: TargetPlatform.linux).get(getOptions()), fails('PASSKEY_UNAVAILABLE'));
   });
+
+  test('provider removed after preflight invalidates the optional UI capability', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'available') return true;
+      throw PlatformException(code: 'PASSKEY_UNAVAILABLE');
+    });
+    await expectLater(client.get(getOptions()), fails('PASSKEY_UNAVAILABLE'));
+    expect(client.passkeyAvailable, isFalse);
+  });
+  test(
+    'unavailable device never opens a native ceremony or asks for another app',
+    () async {
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call.method);
+            return false;
+          });
+      expect(client.passkeyAvailable, isFalse);
+      await expectLater(
+        client.create(createOptions()),
+        fails('PASSKEY_UNAVAILABLE'),
+      );
+      await expectLater(client.get(getOptions()), fails('PASSKEY_UNAVAILABLE'));
+      expect(calls, ['available', 'available']);
+    },
+  );
+
+  test(
+    'capability refresh follows system changes and failed queries fail closed',
+    () async {
+      var supported = true;
+      var failed = false;
+      var changes = 0;
+      client.addListener(() => changes++);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'available');
+            if (failed) throw PlatformException(code: 'unsupported');
+            return supported;
+          });
+      expect(await client.refreshAvailability(), isTrue);
+      expect(client.passkeyAvailable, isTrue);
+      supported = false;
+      expect(await client.refreshAvailability(), isFalse);
+      supported = true;
+      await client.refreshAvailability();
+      failed = true;
+      expect(await client.refreshAvailability(), isFalse);
+      expect(changes, 4);
+    },
+  );
+
+  test(
+    'cancelling while capability query is pending cannot open a system sheet',
+    () async {
+      final availability = Completer<bool>();
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call.method);
+            if (call.method == 'available') return availability.future;
+            return null;
+          });
+      final operation = expectLater(
+        client.get(getOptions()),
+        fails('PASSKEY_CANCELLED'),
+      );
+      await client.cancel();
+      availability.complete(true);
+      await operation;
+      expect(calls, ['available', 'cancel']);
+    },
+  );
 }

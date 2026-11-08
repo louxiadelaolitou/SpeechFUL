@@ -34,7 +34,7 @@ CONFIG_CHANGES_MASK = 0xEA0
 CERT = 'fd26b276cb170bf084a932d3b3919bd3aa44874395809968bdd74ddab87389dc'
 AAPT2 = 'com.android.tools.build:aapt2:9.1.0-14792394:linux'
 DEBUG = 'apps/mobile/android/app/src/debug'
-JAVA = DEBUG + '/java/org/hnuhole/hnuhole_mobile/'
+JAVA = 'tools/android-passkey-diagnostic/legacy/'
 NEW_FILES = [JAVA + 'GoogleFidoDiagnosticActivity.java', JAVA + 'GoogleFidoDiagnosticPolicy.java',
              DEBUG + '/AndroidManifest.xml', 'apps/mobile/android/app/build.gradle.kts']
 

@@ -21,18 +21,68 @@ abstract interface class CancellablePasskeyClient implements PasskeyClient {
   Future<void> cancel();
 }
 
-class NativePasskeyClient implements CancellablePasskeyClient {
+abstract interface class PasskeyAvailability implements Listenable {
+  bool get passkeyAvailable;
+  Future<bool> refreshAvailability();
+}
+
+bool isPasskeyAvailable(PasskeyClient? client) =>
+    client != null &&
+    (client is! PasskeyAvailability ||
+        (client as PasskeyAvailability).passkeyAvailable);
+
+Future<bool> refreshPasskeyAvailability(PasskeyClient? client) =>
+    client is PasskeyAvailability
+    ? (client as PasskeyAvailability).refreshAvailability()
+    : Future.value(client != null);
+
+class NativePasskeyClient extends ChangeNotifier
+    implements CancellablePasskeyClient, PasskeyAvailability {
   NativePasskeyClient({MethodChannel? channel, TargetPlatform? platform})
-      : _channel = channel ?? const MethodChannel('hnuhole/auth_passkey'),
-        _platform = platform ?? defaultTargetPlatform;
+    : _channel = channel ?? const MethodChannel('hnuhole/auth_passkey'),
+      _platform = platform ?? defaultTargetPlatform;
 
   final MethodChannel _channel;
   final TargetPlatform _platform;
   bool _busy = false;
   int _version = 0;
+  int _availabilityVersion = 0;
+  bool _available = false, _disposed = false;
+  @override
+  bool get passkeyAvailable => _available && !_disposed;
+
+  @override
+  Future<bool> refreshAvailability() async {
+    final version = ++_availabilityVersion;
+    var available = false;
+    if (!kIsWeb &&
+        (_platform == TargetPlatform.android ||
+            _platform == TargetPlatform.iOS)) {
+      try {
+        available =
+            await _channel
+                .invokeMethod<bool>('available')
+                .timeout(const Duration(seconds: 3)) ==
+            true;
+      } catch (_) {
+        /* Missing native support stays optional and unavailable. */
+      }
+    }
+    if (_disposed || version != _availabilityVersion) return passkeyAvailable;
+    if (_available != available) {
+      _available = available;
+      notifyListeners();
+    }
+    return passkeyAvailable;
+  }
+
   static const _codes = {
-    'PASSKEY_CANCELLED', 'PASSKEY_UNAVAILABLE', 'PASSKEY_NOT_FOUND',
-    'PASSKEY_BUSY', 'PASSKEY_INVALID_OPTIONS', 'PASSKEY_INVALID_RESPONSE',
+    'PASSKEY_CANCELLED',
+    'PASSKEY_UNAVAILABLE',
+    'PASSKEY_NOT_FOUND',
+    'PASSKEY_BUSY',
+    'PASSKEY_INVALID_OPTIONS',
+    'PASSKEY_INVALID_RESPONSE',
     'PASSKEY_FAILED',
   };
 
@@ -58,9 +108,12 @@ class NativePasskeyClient implements CancellablePasskeyClient {
   }
 
   Future<Map<String, dynamic>> _perform(
-      String method, Map<String, dynamic> publicKey) async {
-    if (kIsWeb || (_platform != TargetPlatform.android &&
-        _platform != TargetPlatform.iOS)) {
+    String method,
+    Map<String, dynamic> publicKey,
+  ) async {
+    if (kIsWeb ||
+        (_platform != TargetPlatform.android &&
+            _platform != TargetPlatform.iOS)) {
       throw const PasskeyFailure('PASSKEY_UNAVAILABLE');
     }
     if (_busy) throw const PasskeyFailure('PASSKEY_BUSY');
@@ -76,7 +129,14 @@ class NativePasskeyClient implements CancellablePasskeyClient {
     _busy = true;
     final version = ++_version;
     try {
-      final raw = await _channel.invokeMethod<String>(method, {'publicKey': json});
+      final available = await refreshAvailability();
+      if (_disposed || version != _version) {
+        throw const PasskeyFailure('PASSKEY_CANCELLED');
+      }
+      if (!available) throw const PasskeyFailure('PASSKEY_UNAVAILABLE');
+      final raw = await _channel.invokeMethod<String>(method, {
+        'publicKey': json,
+      });
       if (version != _version) throw const PasskeyFailure('PASSKEY_CANCELLED');
       try {
         if (raw == null || utf8.encode(raw).length > 32768) {
@@ -89,8 +149,17 @@ class NativePasskeyClient implements CancellablePasskeyClient {
         throw const PasskeyFailure('PASSKEY_INVALID_RESPONSE');
       }
     } on PlatformException catch (error) {
-      throw PasskeyFailure(version != _version ? 'PASSKEY_CANCELLED' :
-          (_codes.contains(error.code) ? error.code : 'PASSKEY_FAILED'));
+      if (error.code == 'PASSKEY_UNAVAILABLE' &&
+          !_disposed && _available && version == _version) {
+        ++_availabilityVersion;
+        _available = false;
+        notifyListeners();
+      }
+      throw PasskeyFailure(
+        version != _version
+            ? 'PASSKEY_CANCELLED'
+            : (_codes.contains(error.code) ? error.code : 'PASSKEY_FAILED'),
+      );
     } on MissingPluginException {
       throw const PasskeyFailure('PASSKEY_UNAVAILABLE');
     } on PasskeyFailure {
@@ -100,6 +169,14 @@ class NativePasskeyClient implements CancellablePasskeyClient {
     } finally {
       _busy = false;
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    ++_availabilityVersion;
+    ++_version;
+    super.dispose();
   }
 }
 

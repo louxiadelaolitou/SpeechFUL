@@ -9,18 +9,24 @@ import android.os.CancellationSignal
 import android.os.Handler
 import android.os.Looper
 import androidx.credentials.CreateCredentialResponse
+import androidx.credentials.CreateCustomCredentialRequest
 import androidx.credentials.CreatePublicKeyCredentialRequest
 import androidx.credentials.CreatePublicKeyCredentialResponse
 import androidx.credentials.CredentialManager
 import androidx.credentials.CredentialManagerCallback
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
+import androidx.credentials.GetCustomCredentialOption
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialCancellationException
 import androidx.credentials.exceptions.CreateCredentialException
+import androidx.credentials.exceptions.CreateCredentialProviderConfigurationException
+import androidx.credentials.exceptions.CreateCredentialUnsupportedException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -89,6 +95,9 @@ class AuthPasskeyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activi
     override fun onDetachedFromActivity() { observeAcceptance("activityDetached"); cancel(); activity = null }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method == "available") {
+            result.success(activity?.let { SystemPasskeySupport.available(it) } == true); return
+        }
         if (call.method == "acceptanceCreationLabel" && acceptanceContext != null && activity != null &&
             acceptancePhase in setOf("ni-c01", "ni-d01", "ni-d02", "ni-d03", "ni-d05")) {
             val label = call.arguments as? String
@@ -118,7 +127,7 @@ class AuthPasskeyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activi
             acceptanceContext != null && acceptancePhase in setOf("ni-c01", "ni-d05") && activity != null
         if (call.method != "create" && call.method != "get" && !selectedAcceptance) { result.notImplemented(); return }
         val host = activity
-        if (Build.VERSION.SDK_INT < 28 || host == null || host.isFinishing || host.isDestroyed) {
+        if (host == null || host.isFinishing || host.isDestroyed || !SystemPasskeySupport.available(host)) {
             error(result, "PASSKEY_UNAVAILABLE"); return
         }
         val create = call.method == "create"
@@ -148,8 +157,11 @@ class AuthPasskeyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activi
             val manager = CredentialManager.create(host.applicationContext)
             if (create) {
                 // origin/clientDataHash remain unset: only the OS chooses them.
-                val request = CreatePublicKeyCredentialRequest(requestJson = raw,
+                val original = CreatePublicKeyCredentialRequest(requestJson = raw,
                     preferImmediatelyAvailableCredentials = false)
+                val request = CreateCustomCredentialRequest(type = original.type,
+                    credentialData = original.credentialData, candidateQueryData = original.candidateQueryData,
+                    isSystemProviderRequired = true, displayInfo = original.displayInfo)
                 manager.createCredentialAsync(operation.context, request, operation.signal, executor,
                     object : CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException> {
                         override fun onResult(response: CreateCredentialResponse) {
@@ -166,11 +178,18 @@ class AuthPasskeyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activi
                                     observeAcceptance("actualAssociationRejected")
                                 } else observeAcceptance("actualOtherCreateError")
                             }
-                            finishError(operation, if (e is CreateCredentialCancellationException) "PASSKEY_CANCELLED" else "PASSKEY_FAILED")
+                            finishError(operation, when (e) {
+                                is CreateCredentialCancellationException -> "PASSKEY_CANCELLED"
+                                is CreateCredentialProviderConfigurationException, is CreateCredentialUnsupportedException -> "PASSKEY_UNAVAILABLE"
+                                else -> "PASSKEY_FAILED"
+                            })
                         }
                     })
             } else {
-                val request = GetCredentialRequest(listOf(GetPublicKeyCredentialOption(requestJson = raw)))
+                val original = GetPublicKeyCredentialOption(requestJson = raw)
+                val option = GetCustomCredentialOption(type = original.type, requestData = original.requestData,
+                    candidateQueryData = original.candidateQueryData, isSystemProviderRequired = true)
+                val request = GetCredentialRequest(listOf(option))
                 manager.getCredentialAsync(operation.context, request, operation.signal, executor,
                     object : CredentialManagerCallback<GetCredentialResponse, GetCredentialException> {
                         override fun onResult(response: GetCredentialResponse) {
@@ -188,6 +207,7 @@ class AuthPasskeyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Activi
                             finishError(operation, when (e) {
                                 is GetCredentialCancellationException -> "PASSKEY_CANCELLED"
                                 is NoCredentialException -> "PASSKEY_NOT_FOUND"
+                                is GetCredentialProviderConfigurationException, is GetCredentialUnsupportedException -> "PASSKEY_UNAVAILABLE"
                                 else -> "PASSKEY_FAILED"
                             })
                         }

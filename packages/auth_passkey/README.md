@@ -20,7 +20,8 @@ final assertion = await passkeys.get(serverRecoveryOptions.publicKey);
 
 ## 平台边界与打包
 
-- Android 插件兼容 minSdk 23，原生 Passkey 操作要求 API 28+、可用系统／Play Services 提供方及屏幕锁。两条 AndroidX Credential Manager 依赖锁 `1.6.0`，采用 async callback + CancellationSignal，Activity／engine 脱离或 60 秒到期时取消。不会请求 SET_ORIGIN 或使用浏览器权限。[官方创建指南](https://developer.android.com/identity/passkeys/create-passkeys)、[稳定版发布记录](https://developer.android.com/jetpack/androidx/releases/credentials)（2026-10-02 查阅）。
+- Android 插件兼容 minSdk 23；可选 Passkey 走 Android 14+ 系统凭据接口，只保留 AndroidX `credentials:1.6.0` 核心库，移除 Google Play 适配器。绑定与恢复均显式要求系统提供方，不引导安装第三方 App 或 Google 服务。Activity／engine 脱离或 60 秒到期时取消；不设置 origin／clientDataHash，不使用浏览器特权。
+- 本机能力查询检查 API／FEATURE_CREDENTIALS／屏幕锁、预装系统服务及其公钥能力声明；服务须有系统标记与 BIND_CREDENTIAL_PROVIDER_SERVICE 保护。检测失败、无系统提供方、仅有第三方 App 或存在 Google 系统候选时关闭可选入口。创建接口不能按单个组件 allowlist，故 Google 与 OEM 系统候选并存时保守关闭，不向用户弹出 Google 选择。能力检测不代表 RP 关联或真实系统仪式已通过，各国产机型须分别验证。[系统提供方限制](https://developer.android.com/reference/android/credentials/CreateCredentialRequest.Builder#setIsSystemProviderRequired(boolean))、[可选 Play 适配依赖说明](https://developer.android.com/identity/sign-in/credential-manager-faq)。
 - iOS 插件可链接 iOS 13+，运行 Passkey 要求 iOS 16+。排除列表非空时需要 iOS 17.4+；旧系统明确返回不可用，不忽略排除列表。使用当前 Flutter engine 的前台 window 呈现；进入后台、engine 脱离、显式取消或 60 秒超时后旧 delegate 回调失效。系统生成 clientData，桥不伪造 HTTPS origin。[Apple Passkey 文档](https://developer.apple.com/documentation/authenticationservices/supporting-passkeys)、[排除列表接口](https://developer.apple.com/documentation/authenticationservices/asauthorizationwebbrowserplatformpublickeycredentialregistrationrequest/excludedcredentials)、[取消接口](https://developer.apple.com/documentation/authenticationservices/asauthorizationcontroller/cancel%28%29)。
 - iOS 提供 CocoaPods 和 SwiftPM，同一份源位于 `ios/hnuhole_auth_passkey/Sources/hnuhole_auth_passkey`；SwiftPM 产品名 `hnuhole-auth-passkey`，模块名 `hnuhole_auth_passkey`。Flutter 生成本地 FlutterFramework 依赖，未把 engine 二进制入库。[Flutter 插件迁移说明](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-plugin-authors)。
 
@@ -65,10 +66,10 @@ flutter analyze
 flutter test test/native_passkey_client_test.dart --reporter expanded
 ```
 
-Dart 9 项测试是 MethodChannel contract／错误／取消替身，不证明设备 Passkey。Android 5 项 instrumentation 检验真实 Android Base64/JSON codec 和 ownership fence，仍不弹系统 Passkey UI。宿主完成标准 Flutter debug 构建并产生 wrapper 后，在 `apps/mobile/android`：
+Dart 13 项测试是 MethodChannel contract／能力检测／错误／取消替身，不证明设备 Passkey。Android 3 项 JVM 测试覆盖系统服务能力与拒绝 Google／第三方候选的策略；5 项 instrumentation 检验真实 Android Base64/JSON codec 和 ownership fence，仍不弹系统 Passkey UI。宿主完成标准 Flutter debug 构建并产生 wrapper 后，在 `apps/mobile/android`：
 
 ```sh
-./gradlew --no-daemon :hnuhole_auth_passkey:assembleDebugAndroidTest
+./gradlew --no-daemon :hnuhole_auth_passkey:testDebugUnitTest :hnuhole_auth_passkey:assembleDebugAndroidTest
 ```
 
 安装本轮目标／测试 APK 后，在专用设备：

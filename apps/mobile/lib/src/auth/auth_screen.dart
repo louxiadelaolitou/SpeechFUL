@@ -1260,6 +1260,8 @@ class _AuthScreenState extends State<AuthScreen> {
     ),
     if (widget.flows.supportsPasskeyRecovery)
       _secondary('使用 Passkey 恢复', widget.flows.beginPasskeyReset),
+    if (!widget.flows.supportsPasskeyRecovery)
+      const _Notice('此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。'),
     const _Notice('Passkey 只用于找回旧号。验证后仍需设置新密码、保存并完整确认新恢复码，不会自动登录。'),
     const SizedBox(height: 16),
     const _AuthText('密码、恢复码和全部备用 Passkey 都丢失后，旧号无法找回。不会按邮箱人工重置。'),

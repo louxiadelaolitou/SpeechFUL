@@ -18,6 +18,7 @@ class _Vault implements AuthVault {
 
 class _Api implements AuthApi, CredentialManagementApi {
   int commits = 0;
+  bool hasPasskey = false;
   bool lost = false;
   @override
   Future<CurrentSession> currentSession(String token) async => CurrentSession(
@@ -36,7 +37,19 @@ class _Api implements AuthApi, CredentialManagementApi {
   );
   @override
   Future<RecoveryCredentialSummary> recoveryCredentials(String token) async =>
-      RecoveryCredentialSummary(passkeys: const [], sessionExpiresAt: _expiry);
+      RecoveryCredentialSummary(
+        passkeys: hasPasskey
+            ? [
+                PasskeySummary(
+                  credentialId: AuthCrypto.encode(List<int>.filled(16, 4)),
+                  createdAt: DateTime.utc(2026, 10, 1),
+                  backupEligible: true,
+                  backedUp: false,
+                ),
+              ]
+            : const [],
+        sessionExpiresAt: _expiry,
+      );
   @override
   Future<RecoveryCodeRotation> createRecoveryCodeRotation({
     required String sessionToken,
@@ -98,6 +111,20 @@ class _Passkey implements PasskeyClient {
   @override
   Future<Map<String, dynamic>> get(Map<String, dynamic> options) async =>
       throw UnimplementedError();
+}
+
+class _OptionalPasskey extends _Passkey
+    with ChangeNotifier
+    implements PasskeyAvailability {
+  bool supported = false;
+  @override
+  bool get passkeyAvailable => supported;
+  @override
+  Future<bool> refreshAvailability() async => supported;
+  void setSupported(bool value) {
+    supported = value;
+    notifyListeners();
+  }
 }
 
 void main() {
@@ -197,6 +224,37 @@ void main() {
       await tap(tester, '轮换恢复码');
       expect(find.text('请输入当前密码'), findsOneWidget);
       expect(api.commits, 0);
+    },
+  );
+
+  testWidgets(
+    'unsupported system hides binding but preserves existing removal and recovery-code rotation',
+    (tester) async {
+      manager.dispose();
+      final passkey = _OptionalPasskey();
+      api.hasPasskey = true;
+      manager = SecurityManagementController(
+        api: api,
+        store: store,
+        sessions: sessions,
+        passkey: passkey,
+      );
+      await open(tester);
+      expect(find.text('绑定新的 Passkey'), findsNothing);
+      expect(find.text('移除此 Passkey'), findsOneWidget);
+      expect(find.text('轮换恢复码'), findsOneWidget);
+      expect(find.text('此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。'), findsOneWidget);
+      await tester.runAsync(() => manager.bindPasskey('current password'));
+      expect(manager.status, SecurityManagementStatus.ready);
+      expect(api.commits, 0);
+      passkey.setSupported(true);
+      await tester.pump();
+      expect(find.text('绑定新的 Passkey'), findsOneWidget);
+      expect(find.text('移除此 Passkey'), findsOneWidget);
+      passkey.setSupported(false);
+      await tester.pump();
+      await rotate(tester);
+      expect(manager.status, SecurityManagementStatus.rotationCodeShown);
     },
   );
 

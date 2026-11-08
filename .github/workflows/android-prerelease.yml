@@ -103,6 +103,14 @@ jobs:
       - name: Build and verify actual candidate
         run: |
           python tools/prerelease/candidate.py --source "$GITHUB_WORKSPACE" --source-sha "$SOURCE_SHA" --workflow-sha "$WORKFLOW_SHA" --out "$RUNNER_TEMP/android-candidate" --build-number "$BUILD_NUMBER"
+      - name: System passkey policy and Google-free runtime
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew --no-daemon --max-workers=2 :hnuhole_auth_passkey:testDebugUnitTest :app:dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/passkey-runtime.txt"
+          if grep -E 'com\.google\.android\.gms:|androidx\.credentials:credentials-play-services-auth:' "$RUNNER_TEMP/passkey-runtime.txt"; then
+            echo 'Unexpected Google identity runtime dependency'
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: android-candidate-${{ env.SOURCE_SHA }}
