@@ -85,7 +85,8 @@ class _AuthScreenState extends State<AuthScreen> {
     _countdown = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted &&
           (widget.flows.otpWaitUntil != null ||
-              widget.flows.emailLoginWaitUntil != null)) {
+              widget.flows.emailLoginWaitUntil != null ||
+              widget.flows.emailResetWaitUntil != null)) {
         setState(() {});
       }
     });
@@ -411,7 +412,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     if (flow == AuthFlowStatus.resetUnknown && !_explicitResetLogin) {
       return [
-        const _Title('正在核对密码重设结果', '请求结果尚未确定。请核对原结果，不要重新使用旧恢复码。'),
+        const _Title('正在核对密码重设结果', '请求结果尚未确定，请先核对原请求。'),
         const _Notice('若账号在注销缓冲期，主动登录会撤销注销申请；这里的结果核对不会登录。'),
         _button('核对重设结果', widget.flows.reconcileReset),
         if (widget.flows.error?.resultsExpired == true)
@@ -423,7 +424,12 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     if (flow == AuthFlowStatus.resetCommitted) {
       return [
-        const _Title('密码已重设', '新恢复码已生效，全部旧恢复码、Passkey 和会话已失效。'),
+        _Title(
+          '密码已重设',
+          widget.flows.legacyRecoveryEnabled
+              ? '新恢复码已生效，全部旧恢复码、Passkey 和会话已失效。'
+              : '新密码已生效，所有旧会话已失效。请返回登录页登录。',
+        ),
         const _Notice('密码重设不会自动登录，也不会撤销注销申请。缓冲期内使用新密码登录会撤销注销。'),
         _button('前往登录', () async {
           await widget.flows.acknowledgeResetResult();
@@ -447,6 +453,10 @@ class _AuthScreenState extends State<AuthScreen> {
     if (flow == AuthFlowStatus.registrationCodeShown ||
         flow == AuthFlowStatus.resetCodeShown) {
       return _showRecoveryCode(isReset: flow == AuthFlowStatus.resetCodeShown);
+    }
+    if (flow == AuthFlowStatus.resetCodeConfirmation &&
+        !widget.flows.legacyRecoveryEnabled) {
+      return _emailNewPassword();
     }
     if (flow == AuthFlowStatus.registrationCodeConfirmation ||
         flow == AuthFlowStatus.resetCodeConfirmation) {
@@ -767,6 +777,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _registrationProgress(AuthFlowStatus flow) {
+    final totalSteps = widget.flows.legacyRecoveryEnabled ? 3 : 2;
     final step =
         _registrationFinishing ||
             {
@@ -775,14 +786,14 @@ class _AuthScreenState extends State<AuthScreen> {
               AuthFlowStatus.registrationUnknown,
               AuthFlowStatus.registrationComplete,
             }.contains(flow)
-        ? 3
+        ? totalSteps
         : flow == AuthFlowStatus.eligibilityReady
         ? 2
         : 1;
     final labels = [
       _text('邮箱验证', 'Email verification'),
       _text('账号设置', 'Account setup'),
-      _text('账号安全', 'Account security'),
+      if (widget.flows.legacyRecoveryEnabled) _text('账号安全', 'Account security'),
     ];
     return Column(
       key: const ValueKey('registration-progress'),
@@ -790,9 +801,9 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         Semantics(
           label: _text('注册进度', 'Registration progress'),
-          value: '$step / 3',
+          value: '$step / $totalSteps',
           child: LinearProgressIndicator(
-            value: step / 3,
+            value: step / totalSteps,
             minHeight: 10,
             borderRadius: BorderRadius.circular(8),
             color: const Color(0xFF0088CC),
@@ -809,7 +820,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   '${i + 1} ${labels[i]}',
                   textAlign: i == 0
                       ? TextAlign.start
-                      : i == 2
+                      : i == labels.length - 1
                       ? TextAlign.end
                       : TextAlign.center,
                   style: TextStyle(
@@ -881,7 +892,7 @@ class _AuthScreenState extends State<AuthScreen> {
           placeholder: '输入密码',
         ),
         _registrationNext(
-          '生成并保存恢复码',
+          widget.flows.legacyRecoveryEnabled ? '生成并保存恢复码' : '创建账号',
           () => _submit(() async {
             _copyFeedback = null;
             await widget.flows.createRegistration(
@@ -1200,47 +1211,61 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  List<Widget> _registrationComplete() => [
-    ConstrainedBox(
-      constraints: BoxConstraints(
-        minHeight: (_minimumBodyHeight - 100).clamp(0, double.infinity),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _Title('保护你的账号', ''),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: _theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _text('恢复码已保存并确认', 'Recovery code saved and confirmed'),
-                      style: TextStyle(color: _theme.colorScheme.primary),
+  List<Widget> _registrationComplete() => !widget.flows.legacyRecoveryEnabled
+      ? [
+          _Title(
+            _text('注册完成', 'Registration complete'),
+            _text(
+              '请妥善保管密码，忘记密码时可通过校邮重置。',
+              'Keep your password safe. Reset it using your campus email if needed.',
+            ),
+          ),
+          _button('完成注册', () async => _finishRegistration()),
+        ]
+      : [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (_minimumBodyHeight - 100).clamp(0, double.infinity),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _Title('保护你的账号', ''),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: _theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _text(
+                              '恢复码已保存并确认',
+                              'Recovery code saved and confirmed',
+                            ),
+                            style: TextStyle(color: _theme.colorScheme.primary),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              _passkeySetup(enabled: true),
-            ],
+                    _passkeySetup(enabled: true),
+                  ],
+                ),
+                _registrationNext(
+                  '完成注册',
+                  () async => _finishRegistration(),
+                  key: 'registration-finish',
+                ),
+              ],
+            ),
           ),
-          _registrationNext(
-            '完成注册',
-            () async => _finishRegistration(),
-            key: 'registration-finish',
-          ),
-        ],
-      ),
-    ),
-  ];
+        ];
 
   void _finishRegistration() {
     if (_busy || !widget.sessions.isAuthenticated) return;
@@ -1251,21 +1276,85 @@ class _AuthScreenState extends State<AuthScreen> {
     widget.onAuthenticated?.call();
   }
 
-  List<Widget> _recovery() => [
-    const _Title('用恢复码找回旧号', '忘记用户名也可以恢复。校邮验证码不能找回已有账号。'),
-    _field('已保存的恢复码', _recoveryCode, key: 'recovery-code'),
-    _button(
-      '验证恢复码',
-      () => _submit(() => widget.flows.beginCodeReset(_recoveryCode.text)),
+  List<Widget> _emailRecovery() {
+    final operation = widget.flows.emailReset;
+    final wait =
+        widget.flows.emailResetWaitUntil
+            ?.difference(DateTime.now())
+            .inSeconds
+            .clamp(0, 3600) ??
+        0;
+    final address = _campusEmail(_email.text);
+    return [
+      const _Title('通过校邮重置密码', '使用原账号绑定的海南大学校邮验证，不会创建新账号。'),
+      _field('校邮', _email, key: 'reset-email', email: true),
+      _button(
+        operation?['sendState'] == 'UNKNOWN'
+            ? '核对原取码请求'
+            : wait > 0
+            ? '$wait 秒后可重新发送'
+            : '发送重置验证码',
+        wait > 0 && operation?['sendState'] != 'UNKNOWN'
+            ? null
+            : () => _submit(
+                () => widget.flows.requestEmailReset(_campusEmail(_email.text)),
+              ),
+      ),
+      if (operation?['intentId'] != null)
+        _secondary('继续设置新密码', widget.flows.restorePending),
+      if (operation?['flowId'] != null &&
+          operation?['email'] == address &&
+          operation?['intentId'] == null) ...[
+        _field('校邮验证码', _otp, key: 'reset-otp', otp: true),
+        _button(
+          '验证校邮',
+          () => _submit(() => widget.flows.completeEmailReset(_otp.text)),
+        ),
+      ],
+      if (operation?['unregistered'] == true)
+        const _Notice('该校邮没有可恢复的账号，请确认邮箱或前往注册。'),
+      if (operation != null && operation['email'] != address)
+        _Notice('当前验证码发送至：${operation['email']}。请确认邮箱后继续。'),
+      const _Notice('验证码仅用于本次密码重置。完成后返回登录页；密码重置不会自动登录或撤销注销申请。'),
+    ];
+  }
+
+  List<Widget> _emailNewPassword() => [
+    const _Title('设置新密码', '校邮验证已通过。重置后所有旧会话失效。'),
+    if (widget.flows.resetUsername != null)
+      _AuthText('私有用户名：${widget.flows.resetUsername}'),
+    _field(
+      '新密码',
+      _newPassword,
+      key: 'reset-new-password',
+      password: true,
+      newPassword: true,
     ),
-    if (widget.flows.supportsPasskeyRecovery)
-      _secondary('使用 Passkey 恢复', widget.flows.beginPasskeyReset),
-    if (!widget.flows.supportsPasskeyRecovery)
-      const _Notice('此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。'),
-    const _Notice('Passkey 只用于找回旧号。验证后仍需设置新密码、保存并完整确认新恢复码，不会自动登录。'),
-    const SizedBox(height: 16),
-    const _AuthText('密码、恢复码和全部备用 Passkey 都丢失后，旧号无法找回。不会按邮箱人工重置。'),
+    _button(
+      '重置密码',
+      () => _submit(() => widget.flows.commitReset(_newPassword.text, '')),
+    ),
+    _secondary('重新验证校邮', widget.flows.clearEmailReset),
   ];
+
+  List<Widget> _recovery() => !widget.flows.legacyRecoveryEnabled
+      ? _emailRecovery()
+      : [
+          const _Title('用恢复码找回旧号', '忘记用户名也可以恢复。校邮验证码不能找回已有账号。'),
+          _field('已保存的恢复码', _recoveryCode, key: 'recovery-code'),
+          _button(
+            '验证恢复码',
+            () =>
+                _submit(() => widget.flows.beginCodeReset(_recoveryCode.text)),
+          ),
+          if (widget.flows.supportsPasskeyRecovery)
+            _secondary('使用 Passkey 恢复', widget.flows.beginPasskeyReset),
+          if (!widget.flows.supportsPasskeyRecovery)
+            const _Notice('此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。'),
+          const _Notice('Passkey 只用于找回旧号。验证后仍需设置新密码、保存并完整确认新恢复码，不会自动登录。'),
+          const SizedBox(height: 16),
+          const _AuthText('密码、恢复码和全部备用 Passkey 都丢失后，旧号无法找回。不会按邮箱人工重置。'),
+        ];
 
   List<Widget> _showRecoveryCode({required bool isReset}) => !isReset
       ? _registrationSecurity()
@@ -1340,7 +1429,12 @@ class _AuthScreenState extends State<AuthScreen> {
         ];
 
   List<Widget> _account() => [
-    const _Title('账号已登录', '本账号只保持一个有效移动会话。恢复码原文不能再次查看。'),
+    _Title(
+      '账号已登录',
+      widget.flows.legacyRecoveryEnabled
+          ? '本账号只保持一个有效移动会话。恢复码原文不能再次查看。'
+          : '本账号只保持一个有效移动会话。忘记密码时可以通过校邮重置。',
+    ),
     if (widget.sessions.username != null)
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -1352,7 +1446,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _secondary('已确认取消，清除上次状态', widget.flows.forgetClosureStatus),
       const SizedBox(height: 16),
     ],
-    if (widget.onManageSecurity != null)
+    if (widget.onManageSecurity != null && widget.flows.legacyRecoveryEnabled)
       _secondary('恢复凭据与 Passkey', () async => widget.onManageSecurity!()),
     _button('退出本机', widget.sessions.logout),
   ];

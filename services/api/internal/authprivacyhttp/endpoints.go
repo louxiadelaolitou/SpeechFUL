@@ -457,14 +457,14 @@ func publicMethodAllowed(service Service, path, method string) bool {
 func publicMethod(service Service, path string) string {
 	if service == VerifierService {
 		switch path {
-		case "/api/v1/eligibility/otp-requests", "/api/v1/eligibility/otp-confirmations", "/api/v1/email-login/otp-requests", "/api/v1/email-login/otp-confirmations":
+		case "/api/v1/eligibility/otp-requests", "/api/v1/eligibility/otp-confirmations", "/api/v1/email-login/otp-requests", "/api/v1/email-login/otp-confirmations", "/api/v1/email-reset/otp-requests", "/api/v1/email-reset/otp-confirmations":
 			return http.MethodPost
 		case "/api/v1/eligibility/otp-request-result", "/api/v1/eligibility/otp-confirmation-result":
 			return http.MethodGet
 		}
 	} else {
 		switch path {
-		case "/api/v1/auth/registration-intents", "/api/v1/auth/registrations", "/api/v1/auth/email-sessions",
+		case "/api/v1/auth/registration-intents", "/api/v1/auth/registrations", "/api/v1/auth/email-sessions", "/api/v1/auth/email-reset-intents",
 			"/api/v1/moderation-access/sessions", "/api/v1/moderation-access/session-revocations",
 			"/api/v1/auth/sessions", "/api/v1/auth/session-renewals",
 			"/api/v1/auth/session-revocations", "/api/v1/auth/recovery-code-reset-intents",
@@ -601,11 +601,15 @@ func (b *boundary) verifierPublic(w http.ResponseWriter, r *http.Request, backen
 	}
 	var key [32]byte
 	copy(key[:], keyRaw)
+	if r.URL.Path == "/api/v1/email-reset/otp-confirmations" {
+		b.emailResetConfirmation(w, r, backend, key, installation)
+		return
+	}
 	if r.URL.Path == "/api/v1/email-login/otp-confirmations" {
 		b.emailLoginConfirmation(w, r, backend, key, installation)
 		return
 	}
-	if r.URL.Path == "/api/v1/eligibility/otp-requests" || r.URL.Path == "/api/v1/email-login/otp-requests" {
+	if r.URL.Path == "/api/v1/eligibility/otp-requests" || r.URL.Path == "/api/v1/email-login/otp-requests" || r.URL.Path == "/api/v1/email-reset/otp-requests" {
 		object, err := readRequestObject(r, 1024, []string{"email"}, nil)
 		if err != nil {
 			b.bad(w, err)
@@ -617,6 +621,9 @@ func (b *boundary) verifierPublic(w http.ResponseWriter, r *http.Request, backen
 			return
 		}
 		result, err := backend.RequestOTP(r.Context(), authprivacy.OTPRequest{Key: key, InstallationID: installation, Email: email, Purpose: func() string {
+			if r.URL.Path == "/api/v1/email-reset/otp-requests" {
+				return "RESET"
+			}
 			if r.URL.Path == "/api/v1/email-login/otp-requests" {
 				return "LOGIN"
 			}
@@ -867,6 +874,10 @@ func (b *boundary) communityPublic(w http.ResponseWriter, r *http.Request, backe
 		b.communityCredentialPublic(w, r, credentials, passwords)
 		return
 	}
+	if r.URL.Path == "/api/v1/auth/email-reset-intents" {
+		b.emailResetIntent(w, r, recovery)
+		return
+	}
 	if r.URL.Path == "/api/v1/auth/recovery-code-reset-intents" || r.URL.Path == "/api/v1/auth/password-resets" || r.URL.Path == "/api/v1/auth/password-reset-result" {
 		b.communityRecoveryPublic(w, r, recovery, passwords)
 		return
@@ -931,11 +942,15 @@ func (b *boundary) communityPublic(w http.ResponseWriter, r *http.Request, backe
 			b.communityFailure(w, err, false)
 			return
 		}
-		if result.ID == (protocol.IntentID{}) || result.Challenge == (protocol.Challenge{}) || result.ExpiresAt.IsZero() || !validRecoveryCode(result.RecoveryCode, true) {
+		if result.ID == (protocol.IntentID{}) || result.Challenge == (protocol.Challenge{}) || result.ExpiresAt.IsZero() || (!legacyRecoveryPaused(backend) && !validRecoveryCode(result.RecoveryCode, true)) {
 			b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)
 			return
 		}
-		writeJSON(w, 201, map[string]string{"intentId": protocol.EncodeCanonicalBase64url(result.ID[:]), "challenge": protocol.EncodeCanonicalBase64url(result.Challenge[:]), "expiresAt": utc(result.ExpiresAt), "recoveryCode": result.RecoveryCode})
+		response := map[string]string{"intentId": protocol.EncodeCanonicalBase64url(result.ID[:]), "challenge": protocol.EncodeCanonicalBase64url(result.Challenge[:]), "expiresAt": utc(result.ExpiresAt)}
+		if !legacyRecoveryPaused(backend) {
+			response["recoveryCode"] = result.RecoveryCode
+		}
+		writeJSON(w, 201, response)
 		return
 	}
 	keyRaw, err := headerBytes(r.Header, "Idempotency-Key", 32)
@@ -943,15 +958,19 @@ func (b *boundary) communityPublic(w http.ResponseWriter, r *http.Request, backe
 		b.bad(w, err)
 		return
 	}
-	object, err := readRequestObject(r, 8192, []string{"intentId", "bootstrapSignature", "recoveryCodeConfirmation"}, nil)
+	object, err := readRequestObject(r, 8192, []string{"intentId", "bootstrapSignature"}, []string{"recoveryCodeConfirmation"})
 	if err != nil {
 		b.bad(w, err)
 		return
 	}
 	intent, e1 := stringField(object, "intentId")
 	proof, e2 := stringField(object, "bootstrapSignature")
-	code, e3 := stringField(object, "recoveryCodeConfirmation")
-	if e1 != nil || e2 != nil || e3 != nil || !validRecoveryCode(code, false) {
+	code := ""
+	var e3 error
+	if _, supplied := object["recoveryCodeConfirmation"]; supplied {
+		code, e3 = stringField(object, "recoveryCodeConfirmation")
+	}
+	if e1 != nil || e2 != nil || e3 != nil || (legacyRecoveryPaused(backend) && code != "") || (!legacyRecoveryPaused(backend) && !validRecoveryCode(code, false)) {
 		b.bad(w, errMalformed)
 		return
 	}
@@ -1095,4 +1114,9 @@ func (b *boundary) communityInternal(w http.ResponseWriter, r *http.Request, bac
 		return
 	}
 	writeJSON(w, 200, map[string]string{"retirementReceipt": result.Receipt})
+}
+
+func legacyRecoveryPaused(backend any) bool {
+	p, ok := backend.(interface{ LegacyRecoveryPaused() bool })
+	return ok && p.LegacyRecoveryPaused()
 }

@@ -475,7 +475,7 @@ func (v *Verifier) lookup(purpose Purpose, epoch uint32) (PublicKey, error) {
 }
 
 func validPurpose(purpose Purpose) bool {
-	return purpose == PurposeEmailLogin || purpose == PurposeRegister || purpose == PurposeRetireAuth || purpose == PurposeRetired || purpose == PurposeReleased
+	return purpose == PurposeEmailReset || purpose == PurposeEmailLogin || purpose == PurposeRegister || purpose == PurposeRetireAuth || purpose == PurposeRetired || purpose == PurposeReleased
 }
 
 func scope(purpose Purpose) []byte {

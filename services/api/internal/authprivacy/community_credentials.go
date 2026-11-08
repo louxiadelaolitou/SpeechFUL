@@ -254,6 +254,9 @@ func (c *Community) GetRecoveryCredentials(ctx context.Context, bearer [32]byte)
 	return r, nil
 }
 func (c *Community) CreateRecoveryCodeRotation(ctx context.Context, bearer [32]byte, password string, verifier PasswordVerifier) (CodeRotationIntent, error) {
+	if c.recoveryPaused {
+		return CodeRotationIntent{}, ErrCredentialIntentInvalid
+	}
 	var r CodeRotationIntent
 	d, err := c.gate.Snapshot(ctx)
 	if err != nil {
@@ -394,6 +397,9 @@ func credentialConflict(err error) error {
 	return err
 }
 func (c *Community) ConfirmRecoveryCodeRotation(ctx context.Context, bearer [32]byte, r CodeRotationConfirmation) (time.Time, error) {
+	if c.recoveryPaused {
+		return time.Time{}, ErrCredentialIntentInvalid
+	}
 	d, err := c.gate.Snapshot(ctx)
 	if err != nil {
 		return time.Time{}, err
@@ -479,7 +485,7 @@ func (c *Community) ConfirmRecoveryCodeRotation(ctx context.Context, bearer [32]
 	return expires, credentialConflict(err)
 }
 func (c *Community) webAuthnPolicy() ([32]byte, error) {
-	if c.webauthn == nil {
+	if c.recoveryPaused || c.webauthn == nil {
 		return [32]byte{}, ErrAuthorizationUnavailable
 	}
 	b, err := json.Marshal(c.webauthnConfig)

@@ -38,6 +38,7 @@ class SecurityManagementController extends ChangeNotifier {
     required this._store,
     required this._passkey,
     required this._sessions,
+    this.legacyRecoveryEnabled = true,
   }) {
     _observedToken = _activeRecord()?.token;
     _store.addListener(_authorityChanged);
@@ -47,6 +48,7 @@ class SecurityManagementController extends ChangeNotifier {
     }
   }
 
+  final bool legacyRecoveryEnabled;
   final CredentialManagementApi _api;
   final AuthStore _store;
   final PasskeyClient _passkey;
@@ -65,7 +67,8 @@ class SecurityManagementController extends ChangeNotifier {
 
   SecurityManagementStatus get status => _status;
   bool get busy => _busy;
-  bool get supportsPasskeyBinding => isPasskeyAvailable(_passkey);
+  bool get supportsPasskeyBinding =>
+      legacyRecoveryEnabled && isPasskeyAvailable(_passkey);
   AuthFailure? get error => _error;
   String? get errorMessage => _errorMessage;
   DeviceDirectory? get devices => _devices;
@@ -132,6 +135,7 @@ class SecurityManagementController extends ChangeNotifier {
     _credentials = null;
     _status = SecurityManagementStatus.loading;
     _notify();
+    if (!legacyRecoveryEnabled) { _status = SecurityManagementStatus.ready; return; }
     final pending = _store.current!.pendingCredentialChange;
     if (pending != null) {
       if (!_belongs(pending, record)) {
@@ -150,6 +154,10 @@ class SecurityManagementController extends ChangeNotifier {
 
   Future<void> _loadDirectory(int epoch, SessionRecord record) async {
     if (!_current(epoch, record)) return;
+    if (!legacyRecoveryEnabled) {
+      _status = SecurityManagementStatus.ready;
+      return;
+    }
     final credentials = await _api.recoveryCredentials(record.token);
     if (!await _metadata(epoch, record, credentials.sessionExpiresAt)) return;
     if (!_current(epoch, record)) return;

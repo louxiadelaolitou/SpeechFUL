@@ -419,6 +419,7 @@ func (p *probe) lifecycle(ctx context.Context) (state, error) {
 	if err != nil {
 		return s, err
 	}
+	otpNotBefore := time.Now().Add(time.Minute + time.Second)
 	code, err := p.otp(ctx, email)
 	if err != nil {
 		return s, err
@@ -461,9 +462,12 @@ func (p *probe) lifecycle(ctx context.Context) (state, error) {
 	if err != nil {
 		return s, err
 	}
-	recoveryCode, err := field(intent, "recoveryCode")
-	if err != nil {
-		return s, err
+	recoveryCode := ""
+	if _, legacy := intent["recoveryCode"]; legacy {
+		recoveryCode, err = field(intent, "recoveryCode")
+		if err != nil {
+			return s, err
+		}
 	}
 	idBytes, err := protocol.DecodeCanonicalBase64url(idText, 32)
 	if err != nil {
@@ -486,7 +490,11 @@ func (p *probe) lifecycle(ctx context.Context) (state, error) {
 	if err != nil {
 		return s, err
 	}
-	registered, _, err := p.request(ctx, "POST", p.c, "/api/v1/auth/registrations", map[string]string{"intentId": idText, "bootstrapSignature": protocol.EncodeCanonicalBase64url(ed25519.Sign(private, proof[:])), "recoveryCodeConfirmation": recoveryCode}, map[string]string{"Idempotency-Key": signupKey}, 201)
+	signup := map[string]string{"intentId": idText, "bootstrapSignature": protocol.EncodeCanonicalBase64url(ed25519.Sign(private, proof[:]))}
+	if recoveryCode != "" {
+		signup["recoveryCodeConfirmation"] = recoveryCode
+	}
+	registered, _, err := p.request(ctx, "POST", p.c, "/api/v1/auth/registrations", signup, map[string]string{"Idempotency-Key": signupKey}, 201)
 	if err != nil {
 		return s, err
 	}
@@ -522,6 +530,10 @@ func (p *probe) lifecycle(ctx context.Context) (state, error) {
 		return s, err
 	}
 	beforeReset := s.Token
+	if recoveryCode == "" {
+		return p.emailPasswordReset(ctx, s, installation, cInstallation, code, otpNotBefore)
+	}
+	// Retain the previous-main recovery check for isolated rollback binaries.
 	reset, _, err := p.request(ctx, "POST", p.c, "/api/v1/auth/recovery-code-reset-intents", map[string]string{"recoveryCode": recoveryCode}, nil, 201)
 	if err != nil {
 		return s, err
@@ -547,7 +559,7 @@ func (p *probe) lifecycle(ctx context.Context) (state, error) {
 	}
 	return p.login(ctx, s)
 }
-func (p *probe) otp(ctx context.Context, email string) (string, error) {
+func (p *probe) otp(ctx context.Context, email string, exclude ...string) (string, error) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(30 * time.Second)
@@ -569,7 +581,7 @@ func (p *probe) otp(ctx context.Context, email string) (string, error) {
 					if parseErr == nil && to.Address == email {
 						body, bodyErr := io.ReadAll(io.LimitReader(message.Body, 4096))
 						match := pattern.FindSubmatch(body)
-						if bodyErr == nil && len(match) == 2 {
+						if bodyErr == nil && len(match) == 2 && (len(exclude) == 0 || string(match[1]) != exclude[0]) {
 							return string(match[1]), nil
 						}
 					}

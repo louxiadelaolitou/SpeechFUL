@@ -126,6 +126,7 @@ class AuthState {
     this.logouts = const [],
     this.registration,
     this.emailLogin,
+    this.emailReset,
     this.pendingReset,
     this.pendingClosure,
     this.pendingCredentialChange,
@@ -137,7 +138,7 @@ class AuthState {
   final SessionRecord? session;
   final List<LogoutTask> logouts;
   final Map<String, dynamic>? registration, pendingReset, pendingClosure;
-  final Map<String, dynamic>? emailLogin;
+  final Map<String, dynamic>? emailLogin, emailReset;
   final Map<String, dynamic>? pendingCredentialChange;
 
   /// Origin-scoped, per-account immutable operation anchors survive logout.
@@ -152,6 +153,8 @@ class AuthState {
     bool clearRegistration = false,
     Map<String, dynamic>? emailLogin,
     bool clearEmailLogin = false,
+    Map<String, dynamic>? emailReset,
+    bool clearEmailReset = false,
     Map<String, dynamic>? pendingReset,
     bool clearPendingReset = false,
     Map<String, dynamic>? pendingClosure,
@@ -167,6 +170,7 @@ class AuthState {
     logouts: logouts ?? this.logouts,
     registration: clearRegistration ? null : registration ?? this.registration,
     emailLogin: clearEmailLogin ? null : emailLogin ?? this.emailLogin,
+    emailReset: clearEmailReset ? null : emailReset ?? this.emailReset,
     pendingReset: clearPendingReset ? null : pendingReset ?? this.pendingReset,
     pendingClosure: clearPendingClosure
         ? null
@@ -186,6 +190,7 @@ class AuthState {
     'logouts': logouts.map((e) => e.toJson()).toList(),
     'registration': registration,
     'emailLogin': emailLogin,
+    'emailReset': emailReset,
     'pendingReset': pendingReset,
     'pendingClosure': pendingClosure,
     'pendingCredentialChange': pendingCredentialChange,
@@ -194,7 +199,10 @@ class AuthState {
     'cInstallationId': cInstallationId,
     'vInstallationId': vInstallationId,
   };
-  static void _validateEmailLogin(Map<String, dynamic>? m) {
+  static void _validateEmailOperation(
+    Map<String, dynamic>? m, {
+    bool reset = false,
+  }) {
     if (m == null) return;
     _fields(m, {
       'email',
@@ -207,6 +215,7 @@ class AuthState {
       'waitUntil',
       'sendState',
       'unregistered',
+      if (reset) ...['intentId', 'intentExpiresAt', 'username'],
     });
     for (final key in ['sendKey', 'cKey']) {
       AuthCrypto.decode(_string(m, key), bytes: 32);
@@ -223,6 +232,15 @@ class AuthState {
       throw const FormatException('Invalid email code');
     }
     if (m['proof'] != null) AuthCrypto.decode(_string(m, 'proof'), bytes: 227);
+    if (m['intentId'] != null) {
+      AuthCrypto.decode(_string(m, 'intentId'), bytes: 32);
+      DateTime.parse(_string(m, 'intentExpiresAt'));
+      if (!RegExp(r'^[a-z][a-z0-9_]{5,23}$').hasMatch(_string(m, 'username'))) {
+        throw const FormatException('Invalid reset capability');
+      }
+    } else if (m['intentExpiresAt'] != null || m['username'] != null) {
+      throw const FormatException('Incomplete reset capability');
+    }
     if (m['unregistered'] != null && m['unregistered'] is! bool) {
       throw const FormatException('Invalid email state');
     }
@@ -240,6 +258,7 @@ class AuthState {
       'logouts',
       'registration',
       'emailLogin',
+      'emailReset',
       'pendingReset',
       'pendingClosure',
       'pendingCredentialChange',
@@ -278,7 +297,9 @@ class AuthState {
     }
     final registration = _optionalObject(m['registration']);
     final emailLogin = _optionalObject(m['emailLogin']);
-    _validateEmailLogin(emailLogin);
+    _validateEmailOperation(emailLogin);
+    final emailReset = _optionalObject(m['emailReset']);
+    _validateEmailOperation(emailReset, reset: true);
     final pendingReset = _optionalObject(m['pendingReset']);
     final pendingClosure = _optionalObject(m['pendingClosure']);
     final pendingCredentialChange = _optionalObject(
@@ -305,6 +326,7 @@ class AuthState {
       logouts: List.unmodifiable(tasks),
       registration: _frozenMap(registration),
       emailLogin: _frozenMap(emailLogin),
+      emailReset: _frozenMap(emailReset),
       pendingReset: _frozenMap(pendingReset),
       pendingClosure: _frozenMap(pendingClosure),
       pendingCredentialChange: _frozenMap(pendingCredentialChange),

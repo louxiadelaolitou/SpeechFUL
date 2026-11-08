@@ -578,6 +578,111 @@ paths:
                       type: string
                       enum:
                       - UNREGISTERED
+  /api/v1/email-reset/otp-requests:
+    post:
+      operationId: requestEmailResetOtp
+      tags:
+      - Eligibility
+      summary: Campus email password reset OTP
+      description: RESET purpose only. Shares address/device cooldowns and budgets with LOGIN and REGISTER. Proof is EMAIL-RESET/V1, bound to C installation and original reset key using EMAIL-RESET-BINDING/V1. Valid for 120 seconds; never grants a session or registration. Unknown sends and confirmations retry the original key.
+      security: []
+      x-max-request-body-bytes: 1024
+      parameters:
+      - $ref: '#/components/parameters/VInstallationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpRequest'
+      responses:
+        '202':
+          description: 原发送请求已持久受理；不证明到达收件箱，空闲和占用地址同形。
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-ID:
+              $ref: '#/components/headers/VRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpRequestAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '410':
+          $ref: '#/components/responses/ResultExpired'
+        '422':
+          $ref: '#/components/responses/EmailInvalid'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/email-reset/otp-confirmations:
+    post:
+      operationId: confirmEmailResetOtp
+      tags:
+      - Eligibility
+      summary: Campus email password reset OTP
+      description: RESET purpose only. Shares address/device cooldowns and budgets with LOGIN and REGISTER. Proof is EMAIL-RESET/V1, bound to C installation and original reset key using EMAIL-RESET-BINDING/V1. Valid for 120 seconds; never grants a session or registration. Unknown sends and confirmations retry the original key.
+      security: []
+      x-max-request-body-bytes: 2048
+      parameters:
+      - $ref: '#/components/parameters/VInstallationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailResetConfirmation'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/ConfirmationConflict'
+        '410':
+          $ref: '#/components/responses/ResultExpired'
+        '422':
+          $ref: '#/components/responses/ConfirmationInvalid'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '200':
+          description: 邮箱验证通过，返回证明或未注册分流；不建立C会话
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-ID:
+              $ref: '#/components/headers/VRequestId'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - type: object
+                  additionalProperties: false
+                  required:
+                  - state
+                  - proof
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                      - PROOF_AVAILABLE
+                    proof:
+                      $ref: '#/components/schemas/EmailResetProof'
+                - type: object
+                  additionalProperties: false
+                  required:
+                  - state
+                  properties:
+                    state:
+                      type: string
+                      enum:
+                      - UNREGISTERED
 components:
   securitySchemes:
     otpRequestResultAuth:
@@ -640,7 +745,30 @@ components:
       maxLength: 303
       pattern: ^[A-Za-z0-9_-]{302}[AEIMQUYcgkosw048]$
       description: 227字节固定EMAIL-LOGIN/V1签名证明，含环境、槽位、C原操作绑定、随机nonce和UTC截止；不含邮箱或OTP。
+    EmailResetProof:
+      type: string
+      minLength: 303
+      maxLength: 303
+      pattern: ^[A-Za-z0-9_-]{302}[AEIMQUYcgkosw048]$
+      description: 227字节固定EMAIL-RESET/V1签名证明，含环境、槽位、C原操作绑定、随机nonce和UTC截止；不含邮箱或OTP。
     EmailLoginConfirmation:
+      type: object
+      additionalProperties: false
+      required:
+      - flowId
+      - otp
+      - binding
+      properties:
+        flowId:
+          $ref: '#/components/schemas/Random32'
+        otp:
+          type: string
+          pattern: ^[0-9]{6}$
+          minLength: 6
+          maxLength: 6
+        binding:
+          $ref: '#/components/schemas/Random32'
+    EmailResetConfirmation:
       type: object
       additionalProperties: false
       required:

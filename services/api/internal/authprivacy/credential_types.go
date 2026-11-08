@@ -35,6 +35,7 @@ type CodeRotationConfirmation struct {
 	IdempotencyKey              [32]byte
 	NewRecoveryCodeConfirmation string
 }
+
 // CredentialChangeResult contains no recovery code or WebAuthn proof. The
 // original authenticated session, intent/challenge and opaque key identify it.
 type CredentialChangeResult struct {
@@ -66,6 +67,16 @@ type PasskeyResetProof struct {
 	ChallengeID [32]byte
 	Response    AssertionResponse
 }
+
+// WithRecoveryPaused disables legacy recovery without deleting stored credentials.
+// Runtime enables it for the email-only recovery release; low-level legacy
+// fixtures may still exercise the retained implementation independently.
+func (c *Community) WithRecoveryPaused() *Community {
+	copy := *c
+	copy.recoveryPaused = true
+	return &copy
+}
+func (c *Community) LegacyRecoveryPaused() bool { return c.recoveryPaused }
 
 // WithWebAuthn returns an independent immutable configuration view. Existing
 // callers remain fail closed for WebAuthn until they explicitly supply trusted

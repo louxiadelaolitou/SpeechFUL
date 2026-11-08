@@ -29,6 +29,10 @@ func encoded32Field(object map[string]any, field string) ([32]byte, error) {
 }
 
 func (b *boundary) communityRecoveryPublic(w http.ResponseWriter, r *http.Request, backend RecoveryBackend, passwords PasswordPreparer) {
+	if r.URL.Path == "/api/v1/auth/recovery-code-reset-intents" && legacyRecoveryPaused(backend) {
+		b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)
+		return
+	}
 	if backend == nil {
 		b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)
 		return
@@ -103,15 +107,22 @@ func (b *boundary) communityRecoveryPublic(w http.ResponseWriter, r *http.Reques
 		b.bad(w, err)
 		return
 	}
-	object, err := readRequestObject(r, 8192, []string{"resetIntentId", "newPassword", "newRecoveryCodeConfirmation"}, nil)
+	object, err := readRequestObject(r, 8192, []string{"resetIntentId", "newPassword"}, []string{"newRecoveryCodeConfirmation"})
 	if err != nil {
 		b.bad(w, err)
 		return
 	}
 	intent, e1 := encoded32Field(object, "resetIntentId")
 	password, e2 := stringField(object, "newPassword")
-	code, e3 := stringField(object, "newRecoveryCodeConfirmation")
-	if e1 != nil || e2 != nil || e3 != nil || !validPasswordInput(password) || !validRecoveryCode(code, false) {
+	var code string
+	var e3 error
+	if _, supplied := object["newRecoveryCodeConfirmation"]; supplied {
+		code, e3 = stringField(object, "newRecoveryCodeConfirmation")
+		if e3 == nil && !validRecoveryCode(code, false) {
+			e3 = errMalformed
+		}
+	}
+	if e1 != nil || e2 != nil || e3 != nil || !validPasswordInput(password) {
 		b.bad(w, errMalformed)
 		return
 	}

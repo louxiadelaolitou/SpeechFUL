@@ -163,6 +163,7 @@ func newLab(t *testing.T) *lab {
 		keys = append(keys, protocol.TrustedKey{Environment: "lab", Purpose: spec.purpose, Epoch: spec.epoch, PublicKey: key})
 		if spec.purpose == protocol.PurposeRegister {
 			keys = append(keys, protocol.TrustedKey{Environment: "lab", Purpose: protocol.PurposeEmailLogin, Epoch: 1, PublicKey: key})
+			keys = append(keys, protocol.TrustedKey{Environment: "lab", Purpose: protocol.PurposeEmailReset, Epoch: 1, PublicKey: key})
 			keys = append(keys, protocol.TrustedKey{Environment: "lab", Purpose: protocol.PurposeRetireAuth, Epoch: 1, PublicKey: key})
 		}
 		if spec.purpose == protocol.PurposeRetired {

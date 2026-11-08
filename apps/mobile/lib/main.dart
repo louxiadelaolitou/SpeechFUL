@@ -221,8 +221,9 @@ void _runHnuholeApp(
     ),
   );
   final passkey = NativePasskeyClient();
-  unawaited(passkey.refreshAvailability());
+  // Legacy credentials remain stored while all recovery ceremonies are paused.
   final management = SecurityManagementController(
+    legacyRecoveryEnabled: false,
     api: api,
     store: store,
     passkey: passkey,
@@ -276,6 +277,7 @@ void _runHnuholeApp(
     ),
   );
   final flows = AuthFlows(
+    legacyRecoveryEnabled: false,
     api: api,
     store: store,
     acceptRegistrationSession: sessions.acceptSession,

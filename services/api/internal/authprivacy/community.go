@@ -22,6 +22,7 @@ import (
 )
 
 type Community struct {
+	recoveryPaused    bool
 	sharedRate        *communityRate
 	pool              *pgxpool.Pool
 	verifier          *protocol.Verifier
@@ -142,6 +143,9 @@ func (c *Community) CreateSignupIntent(ctx context.Context, encodedTicket, usern
 	}); err != nil {
 		return result, err
 	}
+	if c.recoveryPaused {
+		code = ""
+	}
 	return SignupIntent{ID: protocol.IntentID(id), Challenge: protocol.Challenge(challenge), ExpiresAt: at.Add(10 * time.Minute), RecoveryCode: code}, nil
 }
 
@@ -167,9 +171,16 @@ func (c *Community) CommitSignup(ctx context.Context, request SignupRequest) (Si
 	if err != nil {
 		return result, err
 	}
-	confirmed, err := recoveryDigest(request.RecoveryCode)
-	if err != nil {
-		return result, err
+	var confirmed [32]byte
+	if c.recoveryPaused {
+		if request.RecoveryCode != "" {
+			return result, ErrIntentInvalid
+		}
+	} else {
+		confirmed, err = recoveryDigest(request.RecoveryCode)
+		if err != nil {
+			return result, err
+		}
 	}
 	if request.IdempotencyKey == ([32]byte{}) {
 		return result, ErrIntentInvalid
@@ -244,7 +255,7 @@ func (c *Community) CommitSignup(ctx context.Context, request SignupRequest) (Si
 	}
 	expectedGeneration := uint64(generation)
 	at := decision.TrustedAt
-	if !at.Before(expires) || !hmac.Equal(confirmed[:], recovery) || len(challengeBytes) != 32 {
+	if !at.Before(expires) || (!c.recoveryPaused && !hmac.Equal(confirmed[:], recovery)) || len(challengeBytes) != 32 {
 		return result, ErrIntentInvalid
 	}
 	ticket, err := c.verifier.VerifyRegistrationTicket(protocol.EncodeCanonicalBase64url(ticketBytes), at)

@@ -46,6 +46,7 @@ class AuthFlows extends ChangeNotifier {
     required this._store,
     required this._acceptRegistrationSession,
     required this._clearCommunityAccess,
+    this.legacyRecoveryEnabled = true,
     this._passkeyApi,
     this._passkey,
     int Function()? sessionAuthorityVersion,
@@ -61,13 +62,17 @@ class AuthFlows extends ChangeNotifier {
     }
   }
 
+  final bool legacyRecoveryEnabled;
   final AuthApi _api;
   final AuthStore _store;
   final PasskeyRecoveryApi? _passkeyApi;
   final PasskeyClient? _passkey;
   bool get supportsPasskeyRecovery =>
-      _passkeyApi != null && isPasskeyAvailable(_passkey);
-  Future<bool> refreshPasskeySupport() => refreshPasskeyAvailability(_passkey);
+      legacyRecoveryEnabled &&
+      _passkeyApi != null &&
+      isPasskeyAvailable(_passkey);
+  Future<bool> refreshPasskeySupport() async =>
+      legacyRecoveryEnabled && await refreshPasskeyAvailability(_passkey);
   bool _passkeyRecoveryActive = false;
   int? _passkeyAuthorityVersion, _nativeRecoveryEpoch;
   final int Function() _sessionAuthorityVersion;
@@ -90,6 +95,7 @@ class AuthFlows extends ChangeNotifier {
   String? _username;
   RegistrationIntent? _registrationIntent;
   PasswordResetIntent? _resetIntent;
+  int? _emailResetAuthorityVersion;
   ClosureStatus? _closureStatus;
   DateTime? _otpWaitUntil;
   String? _originalOtp;
@@ -138,7 +144,9 @@ class AuthFlows extends ChangeNotifier {
     final changingEmail = m != null && m['email'] != email;
     // An unconfirmed mail request cannot create a community session. It can be
     // replaced after its cooldown, but an unresolved C submission must survive.
-    if (m?['proof'] != null || (!changingEmail && m?['confirmKey'] != null)) {
+    if (m?['proof'] != null ||
+        m?['intentId'] != null ||
+        (!changingEmail && m?['confirmKey'] != null)) {
       throw const AuthFailure(
         kind: AuthFailureKind.rejected,
         code: 'PENDING_CHECK_REQUIRED',
@@ -324,6 +332,227 @@ class AuthFlows extends ChangeNotifier {
     await _store.update((s) => s.copyWith(clearEmailLogin: true));
   });
 
+  bool get supportsEmailReset => _api is EmailResetApi;
+  Map<String, dynamic>? get emailReset => _store.current?.emailReset;
+  DateTime? get emailResetWaitUntil => emailReset == null
+      ? null
+      : DateTime.parse(emailReset!['waitUntil'] as String);
+  bool get emailResetUnregistered => emailReset?['unregistered'] == true;
+  Future<void> clearEmailReset() => _run((epoch) async {
+    // Before the password commit there is no unknown credential mutation.
+    // Retain the final reset anchor once that mutation has been submitted.
+    if ((_store.current ?? await _store.read()).pendingReset != null) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'PENDING_CHECK_REQUIRED',
+      );
+    }
+    await _store.update((s) => s.copyWith(clearEmailReset: true));
+    _resetIntent = null;
+    _username = null;
+    _status = AuthFlowStatus.idle;
+  });
+  Future<void> requestEmailReset(String email) => _run((epoch) async {
+    if (_api is! EmailResetApi) {
+      throw const AuthFailure(kind: AuthFailureKind.unavailable);
+    }
+    if (!RegExp(r'^[^\s@]+@hainanu\.edu\.cn$').hasMatch(email)) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'EMAIL_INVALID',
+      );
+    }
+    var state = await _store.read();
+    _requireEmailResetAllowed(state);
+    var m = state.emailReset;
+    final changingEmail = m != null && m['email'] != email;
+    // An unconfirmed mail request cannot create a community session. It can be
+    // replaced after its cooldown, but an unresolved C submission must survive.
+    if (m?['proof'] != null ||
+        m?['intentId'] != null ||
+        (!changingEmail && m?['confirmKey'] != null)) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'PENDING_CHECK_REQUIRED',
+      );
+    }
+    if (m != null &&
+        (m['sendState'] == 'ACCEPTED' || changingEmail) &&
+        _clock().isBefore(DateTime.parse(m['waitUntil'] as String))) {
+      throw const AuthFailure(kind: AuthFailureKind.rejected, code: 'OTP_WAIT');
+    }
+    if (m == null || m['sendState'] == 'ACCEPTED' || changingEmail) {
+      m = {
+        'email': email,
+        'sendKey': AuthCrypto.randomEncoded(32),
+        'cKey': AuthCrypto.randomEncoded(32),
+        'sendState': 'UNKNOWN',
+        'waitUntil': _clock()
+            .toUtc()
+            .add(const Duration(seconds: 60))
+            .toIso8601String(),
+      };
+      state = await _store.update(
+        (s) => s.copyWith(
+          emailReset: m,
+          cInstallationId: s.cInstallationId ?? AuthCrypto.randomEncoded(16),
+          vInstallationId: s.vInstallationId ?? AuthCrypto.randomEncoded(16),
+        ),
+      );
+    }
+    final original = m;
+    final result = await (_api as EmailResetApi).requestEmailResetOtp(
+      email: email,
+      installationId: state.vInstallationId!,
+      idempotencyKey: original['sendKey'] as String,
+    );
+    if (!_current(epoch)) return;
+    await _store.update(
+      (s) => s.emailReset?['sendKey'] == original['sendKey']
+          ? s.copyWith(
+              emailReset: {
+                ...original,
+                'flowId': result.flowId,
+                'sendState': 'ACCEPTED',
+                'waitUntil': _clock()
+                    .toUtc()
+                    .add(Duration(seconds: result.retryAfterSeconds))
+                    .toIso8601String(),
+              },
+            )
+          : s,
+    );
+  });
+  Future<void> completeEmailReset(String otp) => _run((epoch) async {
+    if (_api is! EmailResetApi) {
+      throw const AuthFailure(kind: AuthFailureKind.unavailable);
+    }
+    final authority = _sessionAuthorityVersion();
+    var state = await _store.read();
+    _requireEmailResetAllowed(state);
+    var m = state.emailReset;
+    if (m == null || m['flowId'] == null) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'OTP_FLOW_INVALID',
+      );
+    }
+    if (m['intentId'] != null) {
+      if (!_clock().isBefore(DateTime.parse(m['intentExpiresAt'] as String))) {
+        await _store.update((s) => s.copyWith(clearEmailReset: true));
+        throw const AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: 'RESET_INTENT_EXPIRED',
+        );
+      }
+      _resetIntent = PasswordResetIntent(
+        resetIntentId: m['intentId'] as String,
+        expiresAt: DateTime.parse(m['intentExpiresAt'] as String),
+        username: m['username'] as String,
+        newRecoveryCode: '',
+      );
+      _emailResetAuthorityVersion = authority;
+      _username = _resetIntent!.username;
+      _status = AuthFlowStatus.resetCodeConfirmation;
+      return;
+    }
+    if (m['proof'] == null) {
+      if (m['confirmKey'] == null) {
+        if (!RegExp(r'^\d{6}$').hasMatch(otp)) {
+          throw const AuthFailure(
+            kind: AuthFailureKind.rejected,
+            code: 'OTP_INVALID',
+          );
+        }
+        m = {...m, 'confirmKey': AuthCrypto.randomEncoded(32), 'otp': otp};
+        state = await _store.update((s) => s.copyWith(emailReset: m));
+      }
+      final binding = AuthCrypto.encode(
+        hashes.sha256.convert([
+          ...utf8.encode('HNUHOLE/EMAIL-RESET-BINDING/V1\x00'),
+          ...AuthCrypto.decode(state.cInstallationId!, bytes: 16),
+          ...AuthCrypto.decode(m['cKey'] as String, bytes: 32),
+        ]).bytes,
+      );
+      String? proof;
+      try {
+        proof = await (_api as EmailResetApi).confirmEmailResetOtp(
+          flowId: m['flowId'] as String,
+          otp: m['otp'] as String,
+          binding: binding,
+          installationId: state.vInstallationId!,
+          idempotencyKey: m['confirmKey'] as String,
+        );
+      } on AuthFailure catch (e) {
+        if (e.code == 'OTP_EXPIRED' ||
+            e.code == 'OTP_REPLACED' ||
+            e.code == 'OTP_FLOW_INVALID' ||
+            e.resultsExpired) {
+          await _store.update((s) => s.copyWith(clearEmailReset: true));
+        } else if (!e.uncertain) {
+          await _store.update(
+            (s) => s.copyWith(
+              emailReset: {...m!}
+                ..remove('confirmKey')
+                ..remove('otp'),
+            ),
+          );
+        }
+        rethrow;
+      }
+      if (!_current(epoch)) return;
+      if (proof == null) {
+        await _store.update(
+          (s) => s.copyWith(
+            emailReset: {...m!, 'unregistered': true}
+              ..remove('otp')
+              ..remove('confirmKey'),
+          ),
+        );
+        return;
+      }
+      m = {...m, 'proof': proof};
+      state = await _store.update((s) => s.copyWith(emailReset: m));
+    }
+    if (!_current(epoch) || authority != _sessionAuthorityVersion()) {
+      return;
+    }
+    try {
+      final intent = await (_api as EmailResetApi).createEmailResetIntent(
+        proof: m['proof'] as String,
+        installationId: state.cInstallationId!,
+        idempotencyKey: m['cKey'] as String,
+      );
+      if (!_current(epoch) || authority != _sessionAuthorityVersion()) return;
+      await _store.update(
+        (s) => s.copyWith(
+          emailReset:
+              {
+                  ...m!,
+                  'intentId': intent.resetIntentId,
+                  'intentExpiresAt': intent.expiresAt.toUtc().toIso8601String(),
+                  'username': intent.username,
+                }
+                ..remove('otp')
+                ..remove('proof')
+                ..remove('confirmKey'),
+        ),
+      );
+      _resetIntent = intent;
+      _emailResetAuthorityVersion = authority;
+      _username = intent.username;
+      _status = AuthFlowStatus.resetCodeConfirmation;
+    } on AuthFailure catch (e) {
+      if (e.code == 'EMAIL_PROOF_INVALID' ||
+          e.code == 'EMAIL_UNREGISTERED' ||
+          e.code == 'RESET_INTENT_EXPIRED' ||
+          e.code == 'RESET_INTENT_INVALID') {
+        await _store.update((s) => s.copyWith(clearEmailReset: true));
+      }
+      rethrow;
+    }
+  });
+
   /// Exact address of the existing OTP operation, including after restoration.
   String? get registrationEmail =>
       _map(_store.current?.registration?['request'])?['email'] as String?;
@@ -353,6 +582,24 @@ class AuthFlows extends ChangeNotifier {
     if (reset != null) {
       _status = _resetStatus(reset['state'] as String);
       return;
+    }
+    final emailReset = state.emailReset;
+    if (emailReset?['intentId'] != null) {
+      if (_clock().isBefore(
+        DateTime.parse(emailReset!['intentExpiresAt'] as String),
+      )) {
+        _resetIntent = PasswordResetIntent(
+          resetIntentId: emailReset['intentId'] as String,
+          expiresAt: DateTime.parse(emailReset['intentExpiresAt'] as String),
+          username: emailReset['username'] as String,
+          newRecoveryCode: '',
+        );
+        _emailResetAuthorityVersion = _sessionAuthorityVersion();
+        _username = _resetIntent!.username;
+        _status = AuthFlowStatus.resetCodeConfirmation;
+        return;
+      }
+      await _store.update((s) => s.copyWith(clearEmailReset: true));
     }
     if (closure != null) {
       _restoreClosure(closure);
@@ -741,10 +988,21 @@ class AuthFlows extends ChangeNotifier {
       return;
     }
     _requireSameRegistration(await _store.read(), registration);
+    if (!legacyRecoveryEnabled && result.recoveryCode.isNotEmpty) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.unavailable,
+        code: 'SERVICE_UNAVAILABLE',
+      );
+    }
     _registrationIntent = result;
     _username = username.toLowerCase();
     _recoveryCode = result.recoveryCode;
-    _status = AuthFlowStatus.registrationCodeShown;
+    if (result.recoveryCode.isEmpty) {
+      _status = AuthFlowStatus.registrationCodeConfirmation;
+      await _commitRegistration(epoch, '');
+    } else {
+      _status = AuthFlowStatus.registrationCodeShown;
+    }
   });
 
   /// Drops the original code before accepting confirmation. Neither the store
@@ -782,7 +1040,9 @@ class AuthFlows extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> commitRegistration(String confirmation) => _run((epoch) async {
+  Future<void> commitRegistration(String confirmation) =>
+      _run((epoch) => _commitRegistration(epoch, confirmation));
+  Future<void> _commitRegistration(int epoch, String confirmation) async {
     if (_status != AuthFlowStatus.registrationCodeConfirmation ||
         _registrationIntent == null) {
       throw const AuthFailure(
@@ -885,9 +1145,15 @@ class AuthFlows extends ChangeNotifier {
     _recoveryCode = null;
     _username = null;
     _status = AuthFlowStatus.registrationComplete;
-  });
+  }
 
   Future<void> beginCodeReset(String recoveryCode) => _run((epoch) async {
+    if (!legacyRecoveryEnabled) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'RECOVERY_PAUSED',
+      );
+    }
     final state = await _store.read();
     _validateState(state);
     if (state.pendingReset != null || state.registration?['commit'] != null) {
@@ -1038,8 +1304,26 @@ class AuthFlows extends ChangeNotifier {
           );
         }
         final intent = _resetIntent!;
+        if (!legacyRecoveryEnabled) {
+          _requireEmailResetAllowed(await _store.read());
+          if (_emailResetAuthorityVersion != _sessionAuthorityVersion()) {
+            throw const AuthFailure(
+              kind: AuthFailureKind.rejected,
+              code: 'CREDENTIAL_STATE_CHANGED',
+            );
+          }
+          if (_store.current?.emailReset?['intentId'] != intent.resetIntentId) {
+            throw const AuthFailure(
+              kind: AuthFailureKind.rejected,
+              code: 'CREDENTIAL_STATE_CHANGED',
+            );
+          }
+        }
         final key = AuthCrypto.randomEncoded(32);
         await _store.update((latest) {
+          if (!legacyRecoveryEnabled) {
+            _requireEmailResetAllowed(latest);
+          }
           if (latest.pendingReset != null) {
             throw const AuthFailure(
               kind: AuthFailureKind.rejected,
@@ -1047,6 +1331,7 @@ class AuthFlows extends ChangeNotifier {
             );
           }
           return latest.copyWith(
+            clearEmailReset: true,
             pendingReset: <String, dynamic>{
               'v': 1,
               'intentId': intent.resetIntentId,
@@ -1545,6 +1830,19 @@ class AuthFlows extends ChangeNotifier {
         _busy = false;
         _notify();
       }
+    }
+  }
+
+  void _requireEmailResetAllowed(AuthState state) {
+    if (state.pendingReset != null ||
+        state.session != null ||
+        state.registration?['commit'] != null ||
+        state.pendingClosure?['state'] == 'UNKNOWN' ||
+        state.emailLogin?['proof'] != null) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'PENDING_CHECK_REQUIRED',
+      );
     }
   }
 

@@ -226,9 +226,12 @@ func (p *probe) identityClosureReturn(ctx context.Context, pool *pgxpool.Pool, b
 	if err != nil {
 		return err
 	}
-	recoveryCode, err := field(intent, "recoveryCode")
-	if err != nil {
-		return err
+	recoveryCode := ""
+	if _, legacy := intent["recoveryCode"]; legacy {
+		recoveryCode, err = field(intent, "recoveryCode")
+		if err != nil {
+			return err
+		}
 	}
 	idRaw, err := protocol.DecodeCanonicalBase64url(idText, 32)
 	if err != nil {
@@ -251,7 +254,11 @@ func (p *probe) identityClosureReturn(ctx context.Context, pool *pgxpool.Pool, b
 	if err != nil {
 		return err
 	}
-	registered, _, err := p.request(ctx, "POST", p.c, "/api/v1/auth/registrations", map[string]string{"intentId": idText, "bootstrapSignature": protocol.EncodeCanonicalBase64url(ed25519.Sign(private, proof[:])), "recoveryCodeConfirmation": recoveryCode}, map[string]string{"Idempotency-Key": signupKey}, 201)
+	signup := map[string]string{"intentId": idText, "bootstrapSignature": protocol.EncodeCanonicalBase64url(ed25519.Sign(private, proof[:]))}
+	if recoveryCode != "" {
+		signup["recoveryCodeConfirmation"] = recoveryCode
+	}
+	registered, _, err := p.request(ctx, "POST", p.c, "/api/v1/auth/registrations", signup, map[string]string{"Idempotency-Key": signupKey}, 201)
 	if err != nil {
 		return err
 	}

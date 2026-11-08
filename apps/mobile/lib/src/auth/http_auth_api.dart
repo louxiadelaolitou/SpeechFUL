@@ -17,6 +17,7 @@ class HttpAuthApi
     implements
         AuthApi,
         EmailLoginApi,
+        EmailResetApi,
         CredentialManagementApi,
         PasskeyRecoveryApi,
         IdentityApi,
@@ -489,6 +490,106 @@ class HttpAuthApi
   }
 
   @override
+  Future<OtpRequestAccepted> requestEmailResetOtp({
+    required String email,
+    required String installationId,
+    required String idempotencyKey,
+  }) async {
+    if (!RegExp(r'^[^\s@]+@hainanu\.edu\.cn$').hasMatch(email)) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'EMAIL_INVALID',
+      );
+    }
+    final r = await _send(
+      true,
+      'POST',
+      '/api/v1/email-reset/otp-requests',
+      body: {'email': email},
+      headers: {
+        ..._keyHeader(idempotencyKey),
+        'V-Installation-ID': _bytes(installationId, 16),
+      },
+      expected: {202},
+    );
+    return _model(() {
+      final m = _record(r.body, {'flowId', 'retryAfterSeconds'});
+      return OtpRequestAccepted(
+        flowId: _encoded(m, 'flowId', 32),
+        retryAfterSeconds: _integer(m, 'retryAfterSeconds', 0, 60),
+      );
+    });
+  }
+
+  @override
+  Future<String?> confirmEmailResetOtp({
+    required String flowId,
+    required String otp,
+    required String binding,
+    required String installationId,
+    required String idempotencyKey,
+  }) async {
+    if (!RegExp(r'^\d{6}$').hasMatch(otp)) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'OTP_INVALID',
+      );
+    }
+    final r = await _send(
+      true,
+      'POST',
+      '/api/v1/email-reset/otp-confirmations',
+      body: {
+        'flowId': _bytes(flowId, 32),
+        'otp': otp,
+        'binding': _bytes(binding, 32),
+      },
+      headers: {
+        ..._keyHeader(idempotencyKey),
+        'V-Installation-ID': _bytes(installationId, 16),
+      },
+      expected: {200},
+    );
+    return _model(() {
+      final m = _record(r.body, {'state'}, optional: {'proof'});
+      final state = _text(m, 'state');
+      if (state == 'UNREGISTERED' && !m.containsKey('proof')) return null;
+      if (state != 'PROOF_AVAILABLE') {
+        throw const FormatException('Invalid email login result');
+      }
+      return _encoded(m, 'proof', 227);
+    });
+  }
+
+  @override
+  Future<PasswordResetIntent> createEmailResetIntent({
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
+  }) async {
+    final r = await _send(
+      false,
+      'POST',
+      '/api/v1/auth/email-reset-intents',
+      body: {
+        'proof': _bytes(proof, 227),
+        'installationId': _bytes(installationId, 16),
+      },
+      headers: _keyHeader(idempotencyKey),
+      expected: {201},
+    );
+    return _model(() {
+      final m = _record(r.body, {'resetIntentId', 'expiresAt', 'username'});
+      return PasswordResetIntent(
+        resetIntentId: _encoded(m, 'resetIntentId', 32),
+        expiresAt: _date(m, 'expiresAt'),
+        username: _username(m),
+        newRecoveryCode: '',
+      );
+    });
+  }
+
+  @override
   Future<AuthSession> login({
     required String username,
     required String password,
@@ -755,17 +856,18 @@ class HttpAuthApi
       expected: {201},
     );
     return _model(() {
-      final m = _record(r.body, {
-        'intentId',
-        'challenge',
-        'expiresAt',
-        'recoveryCode',
-      });
+      final m = _record(
+        r.body,
+        {'intentId', 'challenge', 'expiresAt'},
+        optional: {'recoveryCode'},
+      );
       return RegistrationIntent(
         intentId: _encoded(m, 'intentId', 32),
         challenge: _encoded(m, 'challenge', 32),
         expiresAt: _date(m, 'expiresAt'),
-        recoveryCode: _recoveryCode(m, 'recoveryCode'),
+        recoveryCode: m.containsKey('recoveryCode')
+            ? _recoveryCode(m, 'recoveryCode')
+            : '',
       );
     });
   }
@@ -777,7 +879,9 @@ class HttpAuthApi
     required String recoveryCodeConfirmation,
     required String idempotencyKey,
   }) async {
-    _recoveryInput(recoveryCodeConfirmation);
+    if (recoveryCodeConfirmation.isNotEmpty) {
+      _recoveryInput(recoveryCodeConfirmation);
+    }
     final r = await _send(
       false,
       'POST',
@@ -785,7 +889,8 @@ class HttpAuthApi
       body: {
         'intentId': _bytes(intentId, 32),
         'bootstrapSignature': _bytes(bootstrapSignature, 64),
-        'recoveryCodeConfirmation': recoveryCodeConfirmation,
+        if (recoveryCodeConfirmation.isNotEmpty)
+          'recoveryCodeConfirmation': recoveryCodeConfirmation,
       },
       headers: _keyHeader(idempotencyKey),
       expected: {201},
@@ -827,7 +932,9 @@ class HttpAuthApi
     required String idempotencyKey,
   }) async {
     _passwordInput(newPassword);
-    _recoveryInput(newRecoveryCodeConfirmation);
+    if (newRecoveryCodeConfirmation.isNotEmpty) {
+      _recoveryInput(newRecoveryCodeConfirmation);
+    }
     await _send(
       false,
       'POST',
@@ -835,7 +942,8 @@ class HttpAuthApi
       body: {
         'resetIntentId': _bytes(resetIntentId, 32),
         'newPassword': newPassword,
-        'newRecoveryCodeConfirmation': newRecoveryCodeConfirmation,
+        if (newRecoveryCodeConfirmation.isNotEmpty)
+          'newRecoveryCodeConfirmation': newRecoveryCodeConfirmation,
       },
       headers: _keyHeader(idempotencyKey),
       expected: {204},

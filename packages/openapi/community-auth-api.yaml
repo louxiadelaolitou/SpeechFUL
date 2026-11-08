@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Hnuhole Community Authentication API
   version: 1.0.0-draft
-  description: 社区认证方C的生产契约评审稿（2026-09-28），未实现、未经过独立安全审计或上线批准。日常认证支持用户名密码及独立校邮验证码登录证明；学校邮箱原文、OTP、V
+  description: 本轮新增独立EMAIL-RESET/V1校邮密码重置；默认运行入口暂停全部Passkey和恢复码用户流程，保留旧实现及数据，注册不要求恢复码。重置只更新密码及撤销旧会话，完成后返回登录，不解除封禁或取消注销；C迁移至少37、V至少8。社区认证方C的生产契约评审稿（2026-09-28），未实现、未经过独立安全审计或上线批准。日常认证支持用户名密码及独立校邮验证码登录证明；学校邮箱原文、OTP、V
     flowId/安装ID/幂等键不允许进入任何C请求。REGISTER签名资格只给新账号准入；新增EMAIL-LOGIN/V1证明可进入已有账号，不授予密码重设或凭据管理权限。本文件与verifier-auth-api.yaml使用不同受信主机、独立权限/密钥/库/日志/编号。所有JSON对象拒绝额外字段、重复键、null替代必填项、非法UTF-8/错误类型和超大体；本版不支持无文档字段或未知版本，所有base64url严格解码、查长度并规范重编码。所有成功/错误/204响应Cache-Control:no-store、C自生成X-Request-ID；不使用认证cookie，CORS只允许固定受信客户端origin，不记录Authorization或秘密请求体。认证类型严格互斥且仅在其专属路径有效，拒绝重复Authorization头、混用方案、query凭据或未声明body。403/401/429不公开账号存在性/邮箱/槽位/其他面具，用户名占用只在有效注册PoP后受限公开。全部截止在权威库最终取得锁后用clock_timestamp()取实际UTC裁决并连续转换，不用事务开始时间。从旧备份恢复/时钟回退/钥撤销状态不明须冻结全部认证与受保护读写，外部可信证据重建后撤旧会话。所有有副作用幂等操作同键同负载原子认领，HMAC绑定值用数据库外独立密钥；并发在途键409
     OPERATION_PENDING并有界重试，终态保留超过声明的重试窗口。已提交注册/登录只给无秘密错误，重设/凭据管理可无秘密204；令牌及恢复原码绝不重发。request_results首次受理即以(operation,key_digest)建立唯一锚点，key_digest=SHA-256(ASCII("HNUHOLE/C-REQUEST-TOMBSTONE/V1")||0x00||原32字节幂等键)。完整结果到期后原行同事务原位变EXPIRED，清空除operation/key_digest/EXPIRED之外所有字段，永久保留该无身份唯一锚点，不删除后重插。本方key_digest另设唯一约束，拒同原键跨操作复用；EXPIRED只核对规范原键摘要，不再核对已清理的设备/意图绑定，不作原提交结论。closure申请首次提交同事务建立CLOSURE锚点，closureId用独立域HNUHOLE/C-CLOSURE-TOMBSTONE/V1；状态记录有界清理后仅留此锚点。EXPIRED锚点无原ID、时间、账号、slot、安装ID、请求HMAC或原提交结论；迟到原POST仅410
     RESULT_EXPIRED，绝不能当新请求重执行或重建七天申请。同键首次认领、完成与清理按operation/key_digest串行，取得键锁后复核live/EXPIRED；在途未有持久终态不能按TTL清理。
@@ -1050,6 +1050,56 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
       x-retry-semantics: same-key-no-token-replay-new-key-explicit-login
+  /api/v1/auth/email-reset-intents:
+    post:
+      operationId: createEmailPasswordResetIntent
+      summary: Create restricted password reset intent from verified campus email
+      description: Accepts only EMAIL-RESET/V1 signed proof bound by SHA-256(HNUHOLE/EMAIL-RESET-BINDING/V1 followed by NUL, C installation 16 bytes, original intent key 32 bytes). No email or OTP reaches C. Returns a ten minute restricted intent without a recovery code. Same unconsumed proof retries the same intent; consumed proof cannot create another intent. Does not create a session, cancel closure, or change bans. Final C Gate, active slot, credential version and closure deadline remain authoritative.
+      tags:
+      - Session
+      security: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        x-max-bytes: 2048
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailResetCreate'
+      responses:
+        '201':
+          description: Restricted reset intent; no session is issued.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailResetIntentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+      x-retry-semantics: same-proof-same-active-intent-no-session
 components:
   securitySchemes:
     bearerAuth:
@@ -1145,6 +1195,12 @@ components:
       maxLength: 303
       pattern: ^[A-Za-z0-9_-]{302}[AEIMQUYcgkosw048]$
       description: 227字节固定EMAIL-LOGIN/V1签名证明，含环境、槽位、C原操作绑定、随机nonce和UTC截止；不含邮箱或OTP。
+    EmailResetProof:
+      type: string
+      minLength: 303
+      maxLength: 303
+      pattern: ^[A-Za-z0-9_-]{302}[AEIMQUYcgkosw048]$
+      description: 227字节固定EMAIL-RESET/V1签名证明，含环境、槽位、C原操作绑定、随机nonce和UTC截止；不含邮箱或OTP。
     EmailSessionCreate:
       type: object
       additionalProperties: false
@@ -1154,6 +1210,20 @@ components:
       properties:
         proof:
           $ref: '#/components/schemas/EmailLoginProof'
+        installationId:
+          type: string
+          minLength: 22
+          maxLength: 22
+          pattern: ^[A-Za-z0-9_-]{21}[AQgw]$
+    EmailResetCreate:
+      type: object
+      additionalProperties: false
+      required:
+      - proof
+      - installationId
+      properties:
+        proof:
+          $ref: '#/components/schemas/EmailResetProof'
         installationId:
           type: string
           minLength: 22
@@ -1257,6 +1327,7 @@ components:
       - password
       - installationId
     RegistrationIntentResponse:
+      description: Legacy recovery is paused in the email reset release. Recovery fields are omitted; legacy code confirmation is rejected by the paused runtime. Password reset omission is accepted only for an EMAIL intent.
       type: object
       additionalProperties: false
       properties:
@@ -1274,6 +1345,7 @@ components:
       - expiresAt
       - recoveryCode
     RegistrationRequest:
+      description: Legacy recovery is paused in the email reset release. Recovery fields are omitted; legacy code confirmation is rejected by the paused runtime. Password reset omission is accepted only for an EMAIL intent.
       type: object
       additionalProperties: false
       properties:
@@ -1402,7 +1474,19 @@ components:
       - expiresAt
       - username
       - newRecoveryCode
+    EmailResetIntentResponse:
+      type: object
+      additionalProperties: false
+      required: [resetIntentId, expiresAt, username]
+      properties:
+        resetIntentId:
+          $ref: '#/components/schemas/Base64url32'
+        expiresAt:
+          $ref: '#/components/schemas/DateTime'
+        username:
+          $ref: '#/components/schemas/Username'
     PasswordResetRequest:
+      description: Legacy recovery is paused in the email reset release. Recovery fields are omitted; legacy code confirmation is rejected by the paused runtime. Password reset omission is accepted only for an EMAIL intent.
       type: object
       additionalProperties: false
       properties:

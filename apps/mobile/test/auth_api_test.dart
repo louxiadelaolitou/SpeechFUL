@@ -236,6 +236,61 @@ void main() {
     },
   );
   test(
+    'email reset keeps the proof at C and omits legacy code fields',
+    () async {
+      final proof = AuthCrypto.encode(List<int>.filled(227, 3));
+      verifier.respond = (r) => r.uri.path.endsWith('otp-requests')
+          ? _json(r, 202, {'flowId': _flow, 'retryAfterSeconds': 60})
+          : _json(r, 200, {'state': 'PROOF_AVAILABLE', 'proof': proof});
+      community.respond = (r) => r.uri.path.endsWith('email-reset-intents')
+          ? _json(r, 201, {
+              'resetIntentId': _flow,
+              'expiresAt': _expiry,
+              'username': 'private_user',
+            })
+          : _json(r, 204, {});
+      await api.requestEmailResetOtp(
+        email: 'owned@hainanu.edu.cn',
+        installationId: _vInstallation,
+        idempotencyKey: _key,
+      );
+      final confirmed = await api.confirmEmailResetOtp(
+        flowId: _flow,
+        otp: '123456',
+        binding: _key,
+        installationId: _vInstallation,
+        idempotencyKey: _key,
+      );
+      final intent = await api.createEmailResetIntent(
+        proof: confirmed!,
+        installationId: _cInstallation,
+        idempotencyKey: _key,
+      );
+      expect(intent.newRecoveryCode, isEmpty);
+      await api.commitPasswordReset(
+        resetIntentId: intent.resetIntentId,
+        newPassword: 'NewIndependentPassword123!',
+        newRecoveryCodeConfirmation: '',
+        idempotencyKey: _key,
+      );
+      expect(verifier.requests.map((r) => r.path), [
+        '/api/v1/email-reset/otp-requests',
+        '/api/v1/email-reset/otp-confirmations',
+      ]);
+      expect(community.requests.map((r) => r.path), [
+        '/api/v1/auth/email-reset-intents',
+        '/api/v1/auth/password-resets',
+      ]);
+      expect(jsonDecode(community.requests.last.body), {
+        'resetIntentId': _flow,
+        'newPassword': 'NewIndependentPassword123!',
+      });
+      expect(community.requests.first.body, isNot(contains('owned@')));
+      expect(community.requests.first.body, isNot(contains('123456')));
+      expect(verifier.requests.last.body, isNot(contains(_cInstallation)));
+    },
+  );
+  test(
     'email login rejects old 225-byte response before C submission',
     () async {
       verifier.respond = (r) => _json(r, 200, {

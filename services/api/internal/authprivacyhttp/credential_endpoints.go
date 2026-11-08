@@ -168,7 +168,7 @@ func (b *boundary) credentialExpiry(w http.ResponseWriter, expires time.Time) bo
 }
 
 func (b *boundary) communityCredentialPublic(w http.ResponseWriter, r *http.Request, backend authprivacy.CredentialBackend, passwords PasswordPreparer) {
-	if backend == nil {
+	if backend == nil || legacyRecoveryPaused(backend) {
 		b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)
 		return
 	}

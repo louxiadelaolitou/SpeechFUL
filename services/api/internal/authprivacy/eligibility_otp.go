@@ -178,7 +178,7 @@ func (e *Eligibility) RequestOTP(ctx context.Context, req OTPRequest) (OTPReques
 	if req.Purpose == "" {
 		req.Purpose = "REGISTER"
 	}
-	if req.Purpose != "REGISTER" && req.Purpose != "LOGIN" {
+	if req.Purpose != "REGISTER" && req.Purpose != "LOGIN" && req.Purpose != "RESET" {
 		return OTPRequestResult{}, ErrBadRequest
 	}
 	result, err := e.queueOTP(ctx, req)
@@ -207,7 +207,7 @@ func (e *Eligibility) queueOTP(ctx context.Context, req OTPRequest) (OTPRequestR
 	if req.Purpose == "" {
 		req.Purpose = "REGISTER"
 	}
-	if req.Purpose != "REGISTER" && req.Purpose != "LOGIN" {
+	if req.Purpose != "REGISTER" && req.Purpose != "LOGIN" && req.Purpose != "RESET" {
 		return OTPRequestResult{}, ErrBadRequest
 	}
 	if err := validateCampusEmail(req.Email); err != nil {
@@ -217,9 +217,11 @@ func (e *Eligibility) queueOTP(ctx context.Context, req OTPRequest) (OTPRequestR
 	operationName := otpRequestOperation
 	if req.Purpose == "LOGIN" {
 		operationName = "LOGIN_OTP_REQUEST"
+	} else if req.Purpose == "RESET" {
+		operationName = "RESET_OTP_REQUEST"
 	}
 	mac := requestMAC(e.config.RequestHMACKey, []byte("HNUHOLE/V-OTP-REQUEST/V1"), []byte(req.Email), req.InstallationID[:])
-	if req.Purpose == "LOGIN" {
+	if req.Purpose == "LOGIN" || req.Purpose == "RESET" {
 		mac = requestMAC(e.config.RequestHMACKey, []byte(operationName), []byte(req.Email), req.InstallationID[:])
 	}
 	tx, err := e.store.beginAuthorized(ctx)
@@ -479,7 +481,7 @@ func (e *Eligibility) GetOTPRequestResult(ctx context.Context, keyBytes [32]byte
 	if state == "EXPIRED" {
 		return OTPRequestResult{}, ErrExpired
 	}
-	if (op != otpRequestOperation && op != "LOGIN_OTP_REQUEST") || !hmac.Equal(storedInstallation, installation[:]) {
+	if (op != otpRequestOperation && op != "LOGIN_OTP_REQUEST" && op != "RESET_OTP_REQUEST") || !hmac.Equal(storedInstallation, installation[:]) {
 		return OTPRequestResult{}, ErrResultAuthentication
 	}
 	row, err := readOTPMail(ctx, tx, key, true)
@@ -986,7 +988,7 @@ func (e *Eligibility) CleanupOTP(ctx context.Context, limit int) error {
 	if err != nil {
 		return err
 	}
-	rows, err = e.store.queryCandidates(ctx, `SELECT r.key_digest FROM v_auth.request_results r JOIN v_auth.mail_outbox m USING(key_digest) WHERE r.operation IN ($1,'LOGIN_OTP_REQUEST') AND r.state='LIVE' AND r.expires_at<={trusted_at} AND m.state IN ('SENT','NOT_SENT','UNKNOWN') ORDER BY r.expires_at,r.key_digest LIMIT $2`, otpRequestOperation, limit)
+	rows, err = e.store.queryCandidates(ctx, `SELECT r.key_digest FROM v_auth.request_results r JOIN v_auth.mail_outbox m USING(key_digest) WHERE r.operation IN ($1,'LOGIN_OTP_REQUEST','RESET_OTP_REQUEST') AND r.state='LIVE' AND r.expires_at<={trusted_at} AND m.state IN ('SENT','NOT_SENT','UNKNOWN') ORDER BY r.expires_at,r.key_digest LIMIT $2`, otpRequestOperation, limit)
 	if err != nil {
 		return err
 	}
@@ -1012,7 +1014,7 @@ func (e *Eligibility) CleanupOTP(ctx context.Context, limit int) error {
 		}
 		if err = lockVRequest(ctx, tx, key); err == nil {
 			var allowed bool
-			err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v_auth.request_results r JOIN v_auth.mail_outbox m USING(key_digest) WHERE r.key_digest=$1 AND r.operation IN ($2,'LOGIN_OTP_REQUEST') AND r.state='LIVE' AND r.expires_at<={trusted_at} AND m.state IN ('SENT','NOT_SENT','UNKNOWN'))`, key[:], otpRequestOperation).Scan(&allowed)
+			err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM v_auth.request_results r JOIN v_auth.mail_outbox m USING(key_digest) WHERE r.key_digest=$1 AND r.operation IN ($2,'LOGIN_OTP_REQUEST','RESET_OTP_REQUEST') AND r.state='LIVE' AND r.expires_at<={trusted_at} AND m.state IN ('SENT','NOT_SENT','UNKNOWN'))`, key[:], otpRequestOperation).Scan(&allowed)
 			if err == nil && allowed {
 				err = expireOTPRequestResult(ctx, tx, key)
 			}

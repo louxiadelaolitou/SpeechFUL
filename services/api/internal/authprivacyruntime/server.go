@@ -30,9 +30,9 @@ import (
 // CheckDatabase rejects a wrong database, missing formal schema, privileged
 // connection, owner membership, and legacy-auth/DDL access before listening.
 func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyhttp.Service) error {
-	party, schema, version := "c", "c_auth", int64(26)
+	party, schema, version := "c", "c_auth", int64(37)
 	if service == authprivacyhttp.VerifierService {
-		party, schema, version = "v", "v_auth", 6
+		party, schema, version = "v", "v_auth", 8
 	}
 	var db, user string
 	var privileged, ownerMember, ddl, legacy bool
@@ -154,6 +154,7 @@ func trust(c Config) (*protocol.Verifier, error) {
 	return protocol.NewVerifier(c.Environment, []protocol.TrustedKey{
 		{Environment: c.Environment, Purpose: protocol.PurposeRegister, Epoch: 1, PublicKey: verifier},
 		{Environment: c.Environment, Purpose: protocol.PurposeEmailLogin, Epoch: 1, PublicKey: verifier},
+		{Environment: c.Environment, Purpose: protocol.PurposeEmailReset, Epoch: 1, PublicKey: verifier},
 		{Environment: c.Environment, Purpose: protocol.PurposeRetireAuth, Epoch: 1, PublicKey: verifier},
 		{Environment: c.Environment, Purpose: protocol.PurposeRetired, Epoch: 1, PublicKey: community},
 		{Environment: c.Environment, Purpose: protocol.PurposeReleased, Epoch: 1, PublicKey: community},
@@ -456,6 +457,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 			adminDirectory = c.Path(c.AdminDirectory)
 			origins = append(append([]string{}, origins...), c.PublicOrigin)
 		}
+		community = community.WithRecoveryPaused()
 		endpoints, err = authprivacyhttp.NewCommunityEndpoints(authprivacyhttp.CommunityOptions{PublicOrigin: c.PublicOrigin, Shared: shared, Backend: community, Passwords: passwords, InternalPeer: identity, AllowedOrigins: origins, Limits: limits, AdminDirectory: adminDirectory})
 		if err != nil {
 			return err

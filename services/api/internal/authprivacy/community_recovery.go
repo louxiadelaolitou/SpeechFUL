@@ -58,6 +58,9 @@ func generateRecoveryCode() (string, [32]byte, error) {
 // reset. A replacement intent invalidates the previous intent atomically;
 // neither this response nor a lost response creates a normal session.
 func (c *Community) CreateRecoveryCodeResetIntent(ctx context.Context, code string) (PasswordResetIntent, error) {
+	if c.recoveryPaused {
+		return PasswordResetIntent{}, ErrRecoveryProofInvalid
+	}
 	var zero PasswordResetIntent
 	decision, err := c.gate.Snapshot(ctx)
 	if err != nil {
@@ -179,6 +182,7 @@ func lockRecoveryRows(ctx context.Context, tx pgx.Tx, account uuid.UUID, all boo
 type resetIntentRow struct {
 	account                                      uuid.UUID
 	state                                        string
+	kind                                         string
 	version, generation, authorizationGeneration int64
 	digest                                       []byte
 	expires                                      time.Time
@@ -188,12 +192,12 @@ func readResetIntent(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, id [32]byte, lock bool) (resetIntentRow, error) {
 	var row resetIntentRow
-	query := `SELECT account_id,state,credential_version,reset_generation,authorization_generation,new_recovery_digest,expires_at
-		FROM c_auth.reset_intents WHERE intent_id=$1`
+	query := `SELECT account_id,state,credential_version,reset_generation,authorization_generation,new_recovery_digest,expires_at,COALESCE(to_jsonb(r)->>'proof_kind','RECOVERY_CODE')
+		FROM c_auth.reset_intents r WHERE intent_id=$1`
 	if lock {
 		query += " FOR UPDATE"
 	}
-	err := q.QueryRow(ctx, query, id[:]).Scan(&row.account, &row.state, &row.version, &row.generation, &row.authorizationGeneration, &row.digest, &row.expires)
+	err := q.QueryRow(ctx, query, id[:]).Scan(&row.account, &row.state, &row.version, &row.generation, &row.authorizationGeneration, &row.digest, &row.expires, &row.kind)
 	return row, err
 }
 
@@ -237,9 +241,20 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	if processor == nil || request.IntentID == ([32]byte{}) || request.IdempotencyKey == ([32]byte{}) {
 		return ErrResetIntentInvalid
 	}
-	confirmation, err := recoveryDigest(request.NewRecoveryCodeConfirmation)
-	if err != nil {
-		return ErrResetIntentInvalid
+	var confirmation [32]byte
+	if request.NewRecoveryCodeConfirmation == "" {
+		intent, e := readResetIntent(ctx, c.pool, request.IntentID, false)
+		if e != nil || intent.kind != "EMAIL" {
+			return ErrResetIntentInvalid
+		}
+	} else {
+		if c.recoveryPaused {
+			return ErrResetIntentInvalid
+		}
+		confirmation, err = recoveryDigest(request.NewRecoveryCodeConfirmation)
+		if err != nil {
+			return ErrResetIntentInvalid
+		}
 	}
 	key := digest("HNUHOLE/C-REQUEST-TOMBSTONE/V1", request.IdempotencyKey[:])
 	mac := requestMAC(c.requestKey, []byte("PASSWORD_RESET"), request.IntentID[:], []byte(request.NewPassword), confirmation[:])
@@ -345,7 +360,9 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	}
 	if locked.account != original.account || locked.version != original.version || version != original.version ||
 		locked.generation != original.generation || generation != original.generation || !hmac.Equal(active, request.IntentID[:]) || locked.state != "ACTIVE" ||
-		locked.authorizationGeneration != original.authorizationGeneration || !hmac.Equal(locked.digest, confirmation[:]) {
+		locked.authorizationGeneration != original.authorizationGeneration || locked.kind != original.kind ||
+		(locked.kind == "EMAIL" && (request.NewRecoveryCodeConfirmation != "" || len(locked.digest) != 32 || !hmac.Equal(locked.digest, original.digest))) ||
+		(locked.kind != "EMAIL" && !hmac.Equal(locked.digest, confirmation[:])) {
 		return ErrResetIntentInvalid
 	}
 	if version == math.MaxInt64 || sessionGeneration == math.MaxInt64 {
@@ -388,12 +405,15 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 			original.account, material.Hash[:], material.Salt[:], material.ParametersVersion, version+1, sessionGeneration+1); e != nil {
 			return e
 		}
-		if _, e := tx.Exec(ctx, `UPDATE c_auth.recovery_codes SET code_digest=$2,activation_version=$3 WHERE account_id=$1`, original.account, confirmation[:], version+1); e != nil {
-			return e
+		if locked.kind != "EMAIL" {
+			if _, e := tx.Exec(ctx, `UPDATE c_auth.recovery_codes SET code_digest=$2,activation_version=$3 WHERE account_id=$1`, original.account, confirmation[:], version+1); e != nil {
+				return e
+			}
+			if _, e := tx.Exec(ctx, `DELETE FROM c_auth.passkeys WHERE account_id=$1`, original.account); e != nil {
+				return e
+			}
 		}
-		if _, e := tx.Exec(ctx, `DELETE FROM c_auth.passkeys WHERE account_id=$1`, original.account); e != nil {
-			return e
-		}
+
 		if _, e := tx.Exec(ctx, `UPDATE c_auth.sessions SET revoked_at=$2,revocation_reason='RECOVERY' WHERE account_id=$1 AND revoked_at IS NULL`, original.account, final.TrustedAt); e != nil {
 			return e
 		}

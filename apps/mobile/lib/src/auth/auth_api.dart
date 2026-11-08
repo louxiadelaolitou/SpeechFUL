@@ -90,3 +90,24 @@ abstract interface class EmailLoginApi {
     required String idempotencyKey,
   });
 }
+
+/// Restricted email reset proof never grants a community session.
+abstract interface class EmailResetApi {
+  Future<OtpRequestAccepted> requestEmailResetOtp({
+    required String email,
+    required String installationId,
+    required String idempotencyKey,
+  });
+  Future<String?> confirmEmailResetOtp({
+    required String flowId,
+    required String otp,
+    required String binding,
+    required String installationId,
+    required String idempotencyKey,
+  });
+  Future<PasswordResetIntent> createEmailResetIntent({
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
+  });
+}

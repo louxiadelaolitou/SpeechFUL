@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -59,6 +60,12 @@ DROP FUNCTION IF EXISTS public.guard_identity_account_state(),public.guard_commu
 	if err != nil || len(files) == 0 {
 		t.Fatal("formal C migrations absent")
 	}
+	// The fixture installs every formal migration below. Its ledger must
+	// describe that schema instead of pinning an obsolete startup minimum.
+	version, err := strconv.ParseInt(strings.SplitN(filepath.Base(files[len(files)-1]), "_", 2)[0], 10, 64)
+	if err != nil {
+		t.Fatal("invalid formal migration version", err)
+	}
 	for _, file := range files {
 		sql, err := os.ReadFile(file)
 		if err != nil {
@@ -69,8 +76,10 @@ DROP FUNCTION IF EXISTS public.guard_identity_account_state(),public.guard_commu
 		}
 	}
 	if _, err = tx.Exec(ctx, `CREATE TABLE public.goose_db_version(version_id bigint,is_applied boolean);
-INSERT INTO public.goose_db_version VALUES(26,true);
 REVOKE CREATE,TEMP ON DATABASE hnuhole_c FROM PUBLIC,hnuhole_c_runtime`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO public.goose_db_version VALUES($1,true)`, version); err != nil {
 		t.Fatal(err)
 	}
 	grant, err := os.ReadFile("../../../../infra/postgres/grant-community.sql")
