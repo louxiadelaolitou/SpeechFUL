@@ -94,7 +94,9 @@ type verifiedDBFallback struct {
 // WithVerifiedDBFallback is called only by a trusted boundary for actions with
 // a verified final SQL limit. The final transaction must call MarkDBFallback.
 func (c *Controller) WithVerifiedDBFallback(ctx context.Context) (context.Context, error) {
-	n, err := c.store.Load(ctx)
+	loadCtx, cancel := context.WithTimeout(ctx, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
+	defer cancel()
+	n, err := c.loadNamespace(loadCtx)
 	if err != nil || n.State != "READY" || n.Generation < 1 || n.PolicyHash != c.policyHash {
 		return ctx, ErrUnavailable
 	}

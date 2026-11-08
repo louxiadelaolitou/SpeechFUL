@@ -68,6 +68,8 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   _inFlight;
   int _searchRequest = 0, _historyRequest = 0;
   bool _searchLoading = false;
+  bool _refreshRequired = false;
+  late int _contentVersion;
   bool _historyLoading = false, _historyChanging = false, _historyError = false;
   bool _historyExpanded = false, _retired = false;
   bool _inputInvalid = false;
@@ -92,6 +94,7 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
     super.initState();
     // Capture the authority before this route can dispatch any requests.
     _epoch = _controller.authorityVersion;
+    _contentVersion = _controller.contentVersion;
     _controller.addListener(_authorityChanged);
     if (_current) scheduleMicrotask(_loadDiscovery);
   }
@@ -108,6 +111,20 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
   }
 
   void _authorityChanged() {
+    if (_current && _contentVersion != _controller.contentVersion) {
+      _contentVersion = _controller.contentVersion;
+      ++_searchRequest;
+      _inFlight = null;
+      _searchLoading = false;
+      _cursor = null;
+      _retry = null;
+      _refreshRequired = _keyword != null;
+      _posts = [
+        for (final post in _posts)
+          _controller.confirmedEdit(post.postId) ?? post,
+      ];
+      unawaited(_recheckEditedResults(_searchRequest));
+    }
     if (!_current && !_retired) {
       _retired = true;
       _focus.unfocus();
@@ -119,6 +136,34 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
     setState(() {});
   }
 
+  Future<void> _recheckEditedResults(int request) async {
+    final keyword = _keyword;
+    if (keyword == null) return;
+    for (final post in List<PostCard>.of(_posts)) {
+      if (!_current || request != _searchRequest) return;
+      if (_controller.confirmedEdit(post.postId) == null) continue;
+      try {
+        final page = await _controller.searchPosts(
+          keyword: keyword,
+          channelId: _channelId,
+          sort: _sort,
+          postId: post.postId,
+        );
+        if (!_current || request != _searchRequest) return;
+        if (page.items.isEmpty) {
+          setState(
+            () =>
+                _posts = _posts.where((p) => p.postId != post.postId).toList(),
+          );
+        }
+      } catch (_) {
+        // Keep confirmed content and the refresh affordance until membership
+        // can be checked using the server's exact Unicode/search predicates.
+        return;
+      }
+    }
+  }
+
   void _resetResults() {
     _searchTimer?.cancel();
     ++_searchRequest;
@@ -127,6 +172,7 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
     _posts = const [];
     _retry = null;
     _searchLoading = false;
+    _refreshRequired = false;
   }
 
   void _edit(String value) {
@@ -281,6 +327,7 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
     setState(() {
       _searchLoading = true;
       _retry = null;
+      _refreshRequired = false;
       if (cursor == null) {
         _posts = const [];
         _cursor = null;
@@ -303,7 +350,11 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
         (post) =>
             !_channels.containsKey(post.channelId) || !ids.add(post.postId),
       )) {
-        throw const FormatException('Invalid search result scope or overlap');
+        setState(() {
+          _refreshRequired = true;
+          _cursor = null;
+        });
+        return;
       }
       setState(() {
         _posts = [..._posts, ...page.items];
@@ -313,8 +364,13 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
       if (!_current || request != _searchRequest) return;
       if (cursor != null &&
           error is PostFailure &&
-          error.code == 'CURSOR_INVALID') {
-        await _loadResults();
+          (error.code == 'CURSOR_INVALID' ||
+              error.kind == PostFailureKind.invalidResponse)) {
+        setState(() {
+          _refreshRequired = true;
+          _cursor = null;
+          _retry = null;
+        });
         return;
       }
       setState(() => _retry = (cursor: cursor, recordHistory: recordHistory));
@@ -651,6 +707,8 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
         padding: EdgeInsets.all(16),
         child: Center(child: CircularProgressIndicator()),
       );
+    } else if (_refreshRequired) {
+      footer = _retryNotice('搜索结果已变化，请刷新', () => _loadResults());
     } else if (retry != null) {
       footer = _retryNotice(
         '暂时无法搜索帖子',

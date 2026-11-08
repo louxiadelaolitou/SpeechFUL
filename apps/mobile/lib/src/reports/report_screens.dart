@@ -422,7 +422,9 @@ class PendingGovernancePanel extends StatelessWidget {
       retry: retry,
       discard: discard,
     );
-    if (ok && controller.pending == null) onResolved?.call(!discard);
+    if (ok && controller.pending == null) {
+      onResolved?.call(controller.lastPendingSubmitted == true);
+    }
   }
 
   @override

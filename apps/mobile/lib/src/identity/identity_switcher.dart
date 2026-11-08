@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../localization/app_localizations.dart';
+
 import '../design_system/telegram_theme.dart';
 import '../messaging/direct_message_models.dart';
 import '../messaging/direct_message_composer.dart';
@@ -33,9 +35,9 @@ class HhIdentitySwitcher extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 224, minHeight: 48),
       child: Tooltip(
-        message: '切换身份',
+        message: hhText(context, '切换身份'),
         child: Semantics(
-          label: '切换身份，当前${identity.name}',
+          label: hhText(context, '切换身份，当前{v0}', args: {'v0': identity.name}),
           button: true,
           excludeSemantics: true,
           onTap: onTap,
@@ -65,7 +67,9 @@ class HhIdentitySwitcher extends StatelessWidget {
                       children: [
                         AnimatedRotation(
                           turns: menuOpen ? 0.25 : 0,
-                          duration: const Duration(milliseconds: 180),
+                          duration: (MediaQuery.disableAnimationsOf(context) || MediaQuery.accessibleNavigationOf(context))
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
                           child: Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
@@ -137,11 +141,13 @@ Future<String?> showHhIdentityMenu({
       borderRadius: BorderRadius.circular(16),
       side: BorderSide(color: p.line),
     ),
-    popUpAnimationStyle: const AnimationStyle(
-      duration: Duration(milliseconds: 180),
-      reverseDuration: Duration(milliseconds: 120),
-      curve: Curves.easeOutCubic,
-    ),
+    popUpAnimationStyle: (MediaQuery.disableAnimationsOf(context) || MediaQuery.accessibleNavigationOf(context))
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: Duration(milliseconds: 180),
+            reverseDuration: Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+          ),
     items: [
       PopupMenuItem<String>(
         enabled: false,
@@ -151,7 +157,7 @@ Future<String?> showHhIdentityMenu({
             final route = ModalRoute.of(context);
             if (route != null) onRoute?.call(route);
             return Text(
-              '切换身份',
+              hhText(context, '切换身份'),
               style: TextStyle(fontSize: 13, color: p.secondary),
             );
           },
@@ -189,7 +195,7 @@ Future<String?> showHhIdentityMenu({
           enabled: canAdd,
           height: 56,
           child: Semantics(
-            label: '添加身份',
+            label: hhText(context, '添加身份'),
             child: Center(
               child: Icon(Icons.add_rounded, color: p.accent, size: 26),
             ),

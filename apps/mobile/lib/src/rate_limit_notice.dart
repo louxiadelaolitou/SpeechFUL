@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'rate_limit.dart';
+import 'localization/app_localizations.dart';
 
 /// Local presentation timer only. Expiry never submits or polls the network.
 class RateLimitDraftNotice extends StatefulWidget {
@@ -40,11 +41,16 @@ class _RateLimitDraftNoticeState extends State<RateLimitDraftNotice> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          seconds > 0 ? rateLimitDraftMessage(seconds) : '等待结束，内容已保存为草稿，请手动重试。',
+          hhText(
+            context,
+            seconds > 0
+                ? rateLimitDraftMessage(seconds)
+                : '等待结束，内容已保存为草稿，请手动重试。',
+          ),
         ),
         TextButton(
           onPressed: seconds > 0 ? null : widget.onRetry,
-          child: const Text('重试原草稿'),
+          child: Text(hhText(context, '重试原草稿')),
         ),
       ],
     );

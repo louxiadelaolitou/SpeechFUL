@@ -51,6 +51,8 @@ class _WidgetPosts extends ChangeNotifier implements PostController {
   @override
   PostPublicationNotice? get latestPublicationNotice => publicationNotice;
   PostDetail? detail;
+  @override
+  PostDetail? confirmedEdit(String id) => null;
   Completer<PostDetail?>? detailWait;
   bool deleteAllowed = false, deleted = false, tombstoned = false;
   int reads = 0, deletions = 0;

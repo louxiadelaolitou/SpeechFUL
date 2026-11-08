@@ -25,6 +25,7 @@ class _SearchApi extends feed.FeedTestApi implements PostSearchApi {
   final historyChanges = <(String?, String?)>[];
   final histories = <String?, List<String>>{};
   FutureOr<PostsPage<PostCard>> Function(_Query)? resultFor;
+  FutureOr<PostsPage<PostCard>> Function(String)? matchFor;
   Future<List<String>>? historyWait;
   Future<void>? historyChangeWait;
   bool historyFails = false;
@@ -35,11 +36,13 @@ class _SearchApi extends feed.FeedTestApi implements PostSearchApi {
     required String sessionToken,
     required String keyword,
     String? channelId,
+    String? postId,
     PostSearchSort sort = PostSearchSort.relevance,
     String? cursor,
     int limit = 20,
     bool recordHistory = false,
   }) async {
+    if (postId != null) return feed.reply(await matchFor!(postId));
     final query = (
       keyword: keyword,
       scope: channelId,
@@ -175,6 +178,44 @@ Future<void> _pickChannel(WidgetTester tester, String id) async {
 }
 
 void main() {
+  testWidgets(
+    'confirmed edit removes a nonmatching hit and fences a late continuation',
+    (tester) async {
+      final old = feed.post(title: 'needle');
+      final other = feed.post(id: _id(9), title: 'other needle');
+      final pending = Completer<PostsPage<PostCard>>();
+      final api = _SearchApi();
+      api.resultFor = (q) => q.cursor == null
+          ? PostsPage(items: [old, other], nextCursor: 'next')
+          : pending.future;
+      api.matchFor = (_) => PostsPage(items: [], nextCursor: null);
+      final fixture = await _start(tester, api);
+      await _open(tester);
+      await _submit(tester, 'needle');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(_more));
+      await tester.pump();
+      fixture.controller.refreshEditedPost(
+        PostDetail(
+          postId: old.postId,
+          channelId: old.channelId,
+          title: 'changed',
+          body: 'changed',
+          author: old.author,
+          publishedAt: old.publishedAt,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('needle'), findsOneWidget); // search input only
+      expect(find.text('other needle'), findsOneWidget);
+      expect(find.text('changed'), findsNothing);
+      pending.complete(PostsPage(items: [old], nextCursor: 'later'));
+      await tester.pumpAndSettle();
+      expect(find.text('changed'), findsNothing);
+      expect(find.text('搜索结果已变化，请刷新'), findsOneWidget);
+      expect(find.byKey(_more), findsNothing);
+    },
+  );
   testWidgets(
     'fixed categories keep recommended first; global hot posts load alongside history',
     (tester) async {
@@ -809,35 +850,39 @@ void main() {
     },
   );
 
-  testWidgets(
-    'expired continuation reloads first page without recording history again',
-    (tester) async {
-      final api = _SearchApi();
-      api.resultFor = (query) {
-        if (query.cursor != null) {
-          throw const PostFailure(
-            kind: PostFailureKind.rejected,
-            code: 'CURSOR_INVALID',
-          );
-        }
-        final initial = query.record;
-        return PostsPage(
-          items: [feed.post(title: initial ? '原页' : '已刷新')],
-          nextCursor: initial ? 'next' : null,
+  testWidgets('expired continuation preserves results until explicit refresh', (
+    tester,
+  ) async {
+    final api = _SearchApi();
+    api.resultFor = (query) {
+      if (query.cursor != null) {
+        throw const PostFailure(
+          kind: PostFailureKind.rejected,
+          code: 'CURSOR_INVALID',
         );
-      };
-      await _start(tester, api);
-      await _open(tester);
-      await _submit(tester, '自习');
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(_more));
-      await tester.pumpAndSettle();
-      expect(find.text('已刷新'), findsOneWidget);
-      expect(find.text('原页'), findsNothing);
-      expect(api.queries.map((query) => query.cursor), [null, 'next', null]);
-      expect(api.queries.map((query) => query.record), [true, false, false]);
-    },
-  );
+      }
+      final initial = query.record;
+      return PostsPage(
+        items: [feed.post(title: initial ? '原页' : '已刷新')],
+        nextCursor: initial ? 'next' : null,
+      );
+    };
+    await _start(tester, api);
+    await _open(tester);
+    await _submit(tester, '自习');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(_more));
+    await tester.pumpAndSettle();
+    expect(find.text('原页'), findsOneWidget);
+    expect(find.text('搜索结果已变化，请刷新'), findsOneWidget);
+    expect(api.queries.map((query) => query.cursor), [null, 'next']);
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(find.text('已刷新'), findsOneWidget);
+    expect(find.text('原页'), findsNothing);
+    expect(api.queries.map((query) => query.cursor), [null, 'next', null]);
+    expect(api.queries.map((query) => query.record), [true, false, false]);
+  });
 
   testWidgets(
     'history retries, expands two rows, reuses, deletes, and confirms scope clear',

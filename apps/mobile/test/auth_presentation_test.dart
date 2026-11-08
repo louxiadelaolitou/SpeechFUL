@@ -26,6 +26,34 @@ class _Preferences implements AuthVault {
 }
 
 void main() {
+  testWidgets(
+    'welcome exposes independent moderation access without entering login',
+    (tester) async {
+      final controller = AuthPresentationController(
+        preferences: _Preferences(),
+      );
+      var moderation = 0, login = 0;
+      await tester.pumpWidget(
+        AuthPresentationScope(
+          controller: controller,
+          child: MaterialApp(
+            home: AuthWelcomeScreen(
+              onStarted: () => login++,
+              onModerationAccess: () => moderation++,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final access = find.byKey(const ValueKey('welcome-moderation-access'));
+      await tester.ensureVisible(access);
+      await tester.tap(access);
+      expect(moderation, 1);
+      expect(login, 0);
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    },
+  );
   for (final language in AppLanguage.values) {
     test(
       'persists and restores ${language.code} without changing the theme',

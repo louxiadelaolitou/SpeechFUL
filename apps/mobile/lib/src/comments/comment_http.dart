@@ -238,6 +238,33 @@ class HttpCommentApi implements CommentApi {
   final Future<bool> Function(CommentBinding)? identityMissing;
   final CommentRequest request;
   final Future<void> Function(CommentIntent intent, int version) upload;
+  final _uploaded = <(String, int), String>{};
+  final _uploading = <(String, int, String), Future<void>>{};
+  int _uploadWindow = 0;
+  void clearUploadCache() {
+    ++_uploadWindow;
+    _uploaded.clear();
+    _uploading.clear();
+  }
+
+  Future<void> _uploadOnce(CommentIntent intent, int version) async {
+    final key = (intent.taskId, version);
+    final window = _uploadWindow;
+    final fingerprint = digest(intent);
+    if (_uploaded[key] == fingerprint) return;
+    final flight = (intent.taskId, version, fingerprint);
+    final pending = _uploading.putIfAbsent(
+      flight,
+      () => upload(intent, version),
+    );
+    try {
+      await pending;
+      if (window == _uploadWindow) _uploaded[key] = fingerprint;
+    } finally {
+      if (identical(_uploading[flight], pending)) _uploading.remove(flight);
+    }
+  }
+
   static Map<String, dynamic> intentBody(CommentIntent i) => {
     'operation': i.operation.name.toUpperCase(),
     'taskId': i.taskId,
@@ -303,7 +330,7 @@ class HttpCommentApi implements CommentApi {
     if (t?.state == CommentTaskState.accepted &&
         i.content?.image != null &&
         !i.reconciliationOnly) {
-      await upload(i, version);
+      await _uploadOnce(i, version);
       t = await queryTask(taskId: i.taskId, binding: i.binding);
     }
     return t;
@@ -320,6 +347,12 @@ class HttpCommentApi implements CommentApi {
       if (t.taskId != taskId) {
         throw const FormatException('Task resource mismatch');
       }
+      _uploaded.removeWhere(
+        (key, _) =>
+            key.$1 == taskId &&
+            (key.$2 != t.attemptVersion ||
+                t.state != CommentTaskState.accepted),
+      );
       return t;
     } on CommentHttpFailure catch (e) {
       if (e.status == 404 &&

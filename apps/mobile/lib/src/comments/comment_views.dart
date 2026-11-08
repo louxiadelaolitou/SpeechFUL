@@ -864,6 +864,10 @@ class _CommentPostPaneState extends State<CommentPostPane> {
         }
         for (final raw in p['comments'] as List) {
           final row = CommentRow(raw);
+          if (widget.runtime.deleted.contains(row.id) ||
+              widget.runtime.deleted.contains(row.root)) {
+            continue;
+          }
           if (!rows.any((r) => r.id == row.id)) rows.add(row);
         }
         cursor = p['nextCursor'] as String?;
@@ -963,6 +967,10 @@ class _CommentPostPaneState extends State<CommentPostPane> {
         final list = replies.putIfAbsent(root, () => []);
         for (final raw in p['comments'] as List) {
           final row = CommentRow(raw);
+          if (widget.runtime.deleted.contains(row.id) ||
+              widget.runtime.deleted.contains(row.root)) {
+            continue;
+          }
           if (!list.any((r) => r.id == row.id)) list.add(row);
         }
         replyCursors[root] = p['nextCursor'] as String?;
@@ -1065,7 +1073,9 @@ class _CommentPostPaneState extends State<CommentPostPane> {
   Future<void> _locate(String id, {bool userInitiated = true}) async {
     int? locationVersion;
     bool locationCurrent() =>
-        current && (locationVersion == null || locationVersion == _listVersion);
+        current &&
+        !widget.runtime.deleted.contains(id) &&
+        (locationVersion == null || locationVersion == _listVersion);
     if (!locationCurrent()) return;
     try {
       final reading = _reading;
@@ -1084,6 +1094,7 @@ class _CommentPostPaneState extends State<CommentPostPane> {
       );
       final target = CommentRow(raw);
       final floor = target.root ?? id;
+      if (widget.runtime.deleted.contains(floor)) return;
       final laterReading = _reading;
       if (laterReading != null) await laterReading.future;
       if (!locationCurrent()) return;
@@ -1097,7 +1108,15 @@ class _CommentPostPaneState extends State<CommentPostPane> {
           current: locationCurrent,
         );
         if (!locationCurrent()) return;
-        rows.addAll((page['comments'] as List).map(CommentRow.new));
+        rows.addAll(
+          (page['comments'] as List)
+              .map(CommentRow.new)
+              .where(
+                (row) =>
+                    !widget.runtime.deleted.contains(row.id) &&
+                    !widget.runtime.deleted.contains(row.root),
+              ),
+        );
         cursor = page['nextCursor'] as String?;
         total = page['totalCount'] as int;
       }
@@ -1118,7 +1137,9 @@ class _CommentPostPaneState extends State<CommentPostPane> {
                   '/api/v1/posts/${widget.postId}/comments/$floor',
                 ),
               );
-        if (!locationCurrent()) return;
+        if (!locationCurrent() || widget.runtime.deleted.contains(root.id)) {
+          return;
+        }
         if (userInitiated &&
             !own.contains(root.id) &&
             widget.initialCommentId != id) {
@@ -1306,7 +1327,15 @@ class _CommentPostPaneState extends State<CommentPostPane> {
               widget.runtime.accountId!,
               image,
             );
-          } catch (_) {}
+          } catch (_) {
+            if (current && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(hhText(context, '图片读取失败，请重试'))),
+              );
+            }
+            // Keep the durable rejected command and its media lease intact.
+            return;
+          }
         }
         if (!current) return;
         final recovered = await widget.runtime.core.releaseRejected(

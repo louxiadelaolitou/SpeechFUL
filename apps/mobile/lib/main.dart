@@ -798,6 +798,9 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
             builder: (context) => AuthScreen(
               sessions: widget.sessions,
               flows: widget.flows,
+              onModerationAccess: widget.governance?.restrictedAccess == null
+                  ? null
+                  : () => unawaited(_openMessages()),
               onAuthenticated: () =>
                   Navigator.of(context).popUntil((route) => route.isFirst),
               onManageSecurity: _openSecurity,

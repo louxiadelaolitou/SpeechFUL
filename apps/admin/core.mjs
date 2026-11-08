@@ -48,12 +48,15 @@ export function createClient({ fetcher = globalThis.fetch, cryptoAPI = globalThi
   const random = length => encodeBytes(cryptoAPI.getRandomValues(new Uint8Array(length)));
   async function send(path, { method = 'GET', body, headers = {} } = {}) {
     if (!path.startsWith('/api/v1/') || path.includes('..') || path.includes('#')) throw new Error('请求地址无效。');
-    let response;
+    let response, result;
     const controller = new AbortController(); const deadline = setTimeout(() => controller.abort(), 30000);
-    try { response = await fetcher(path, { method, signal: controller.signal, mode: 'same-origin', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
+    try {
+      response = await fetcher(path, { method, signal: controller.signal, mode: 'same-origin', credentials: 'omit', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer', headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      result = response.status === 204 ? null : await response.json().catch(() => null);
+      if (controller.signal.aborted) throw new Error('Response deadline expired');
+    }
     catch { throw new APIError(0, 'UNKNOWN'); }
     finally { clearTimeout(deadline); }
-    const result = response.status === 204 ? null : await response.json().catch(() => null);
     if (!response.ok) throw new APIError(response.status, result?.error?.code ?? result?.code ?? 'REQUEST_FAILED');
     if (response.status !== 204 && (!result || typeof result !== 'object')) throw new APIError(0, 'INVALID_RESPONSE');
     return result;

@@ -288,6 +288,7 @@ class _DraftPhotoPreview extends StatefulWidget {
 
 class _DraftPhotoPreviewState extends State<_DraftPhotoPreview> {
   MemoryImage? _provider;
+  ImageProvider? _decoded;
   late final Future<MemoryImage> _future = () async {
     final bytes = await widget.load();
     if (!mounted) throw const PostStorageFailure();
@@ -297,6 +298,7 @@ class _DraftPhotoPreviewState extends State<_DraftPhotoPreview> {
   void dispose() {
     final provider = _provider;
     if (provider != null) unawaited(provider.evict());
+    if (_decoded != null) unawaited(_decoded!.evict());
     super.dispose();
   }
 
@@ -305,11 +307,36 @@ class _DraftPhotoPreviewState extends State<_DraftPhotoPreview> {
     future: _future,
     builder: (context, state) {
       if (state.hasData) {
-        return Image(
-          image: state.data!,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) =>
-              const Center(child: Icon(Icons.broken_image_outlined)),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final dpr = MediaQuery.devicePixelRatioOf(context);
+            final provider = ResizeImage(
+              state.data!,
+              width:
+                  ((constraints.hasBoundedWidth ? constraints.maxWidth : 256) *
+                          dpr)
+                      .ceil()
+                      .clamp(1, 4096),
+              height:
+                  ((constraints.hasBoundedHeight
+                              ? constraints.maxHeight
+                              : 256) *
+                          dpr)
+                      .ceil()
+                      .clamp(1, 4096),
+              policy: ResizeImagePolicy.fit,
+            );
+            if (_decoded != null && _decoded != provider) {
+              unawaited(_decoded!.evict());
+            }
+            _decoded = provider;
+            return Image(
+              image: provider,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) =>
+                  const Center(child: Icon(Icons.broken_image_outlined)),
+            );
+          },
         );
       }
       return Center(
@@ -334,7 +361,9 @@ class _PostImageUploadStatus extends StatelessWidget {
       children: [
         const SizedBox(height: 16),
         Text(
-          progress?.message ??
+          (progress?.message == null
+                  ? null
+                  : hhText(context, progress!.message!)) ??
               (progress?.busy == true
                   ? hhText(
                       context,

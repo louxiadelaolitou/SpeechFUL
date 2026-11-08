@@ -599,6 +599,19 @@ void main() {
     };
     expect(await f.controller.reconcilePending(discard: true), isTrue);
     expect(f.controller.pending, isNull);
+    expect(f.controller.lastPendingSubmitted, isFalse);
+  });
+  test('discard request reports submitted when the authoritative receipt already exists', () async {
+    final f = await _Fixture.create();
+    addTearDown(f.dispose);
+    f.api.respond = (_) async =>
+        throw const GovernanceFailure(null, 'TRANSPORT', uncertain: true);
+    await f.submit();
+    final original = f.controller.pending!['id'] as String;
+    f.api.respond = (_) async => _report(original);
+    expect(await f.controller.reconcilePending(discard: true), isTrue);
+    expect(f.controller.pending, isNull);
+    expect(f.controller.lastPendingSubmitted, isTrue);
   });
   test('restart restores original pending material without creating another request', () async {
     final first = await _Fixture.create();

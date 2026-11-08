@@ -919,6 +919,7 @@ class HttpPostApi
     required String sessionToken,
     required String keyword,
     String? channelId,
+    String? postId,
     PostSearchSort sort = PostSearchSort.relevance,
     String? cursor,
     int limit = 20,
@@ -934,6 +935,7 @@ class HttpPostApi
       '/api/v1/post-search',
       body: {
         'keyword': normalizePostSearchKeyword(keyword),
+        if (postId != null) 'postId': PostProtocol.resourceId(postId),
         if (channelId != null) 'channelId': PostProtocol.resourceId(channelId),
         'sort': sort.name,
         if (cursor != null) 'cursor': cursor,

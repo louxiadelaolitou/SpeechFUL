@@ -222,6 +222,10 @@ class PostController extends ChangeNotifier {
   final _sharingPosts = <String, int>{};
   final _deletedPostIds = <String>{};
   final _postMediaRevisions = <String, int>{};
+  final _confirmedEdits = <String, PostDetail>{};
+  int _contentVersion = 0;
+  int get contentVersion => _contentVersion;
+  PostDetail? confirmedEdit(String id) => _confirmedEdits[id];
   final _saving = <String, Future<bool>>{};
   final _sending = <String>{};
   final _retired = <String, Future<void>>{};
@@ -339,6 +343,8 @@ class PostController extends ChangeNotifier {
     _remoteTasks.clear();
     _deletedPostIds.clear();
     _postMediaRevisions.clear();
+    _confirmedEdits.clear();
+    ++_contentVersion;
     _latestPublicationNotice = null;
     _imageProgress.clear();
     personalItems = [];
@@ -581,6 +587,7 @@ class PostController extends ChangeNotifier {
   }
 
   Future<PostDetail?> loadDetail(String postId, {String? sharedUrl}) async {
+    final contentVersion = _contentVersion;
     _PostAuthority? a;
     try {
       a = await _authority();
@@ -597,7 +604,13 @@ class PostController extends ChangeNotifier {
       if (post.postId != postId) {
         throw const PostFailure(kind: PostFailureKind.invalidResponse);
       }
-      return _deletedPostIds.contains(postId) ? null : post;
+      if (_deletedPostIds.contains(postId)) return null;
+      if (contentVersion != _contentVersion &&
+          _confirmedEdits.containsKey(postId)) {
+        return _confirmedEdits[postId];
+      }
+      if (_confirmedEdits.containsKey(postId)) _confirmedEdits[postId] = post;
+      return post;
     } catch (error) {
       _failure(error, a);
       return null;

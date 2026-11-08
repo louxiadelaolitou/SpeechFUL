@@ -6,6 +6,7 @@ on:
       - 'apps/mobile/**'
       - 'packages/openapi/**'
       - 'infra/postgres/**'
+      - 'infra/ratelimit/**'
       - '.github/workflows/shared-rate-limit.yml'
   workflow_dispatch:
 permissions:

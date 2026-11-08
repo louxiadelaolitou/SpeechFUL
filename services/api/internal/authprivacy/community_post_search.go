@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -28,6 +29,11 @@ func (c *Community) SearchPosts(ctx context.Context, bearer [32]byte, query post
 		return PostResponse{}, err
 	}
 	query.Keyword = keyword
+	if query.PostID != "" {
+		if _, err := posts.ParseResourceID(query.PostID); err != nil {
+			return PostResponse{}, err
+		}
+	}
 	if query.ChannelID != "" {
 		if _, err := posts.ParseResourceID(query.ChannelID); err != nil {
 			return PostResponse{}, err
@@ -185,6 +191,17 @@ type preparedPostSearch struct {
 	leaders    []string
 }
 
+func (c *Community) postSearchContentRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
+	// The retained pre-edit schema has no mutable title/body or revision table.
+	// Edit-capable schemas must have 0038; missing state remains an error.
+	if !c.posts.editEnabled {
+		return 0, nil
+	}
+	var revision int64
+	err := tx.QueryRow(ctx, `SELECT revision FROM c_posts.search_content_revision WHERE singleton`).Scan(&revision)
+	return revision, err
+}
+
 func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, query posts.SearchQuery, at time.Time) (preparedPostSearch, error) {
 	defer readtiming.Span(ctx, "search_candidates")()
 	var prepared preparedPostSearch
@@ -202,7 +219,7 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	if err != nil {
 		return prepared, err
 	}
-	digest := sha256.Sum256([]byte(query.Sort + "\x00" + query.Keyword))
+	digest := sha256.Sum256([]byte(query.Sort + "\x00" + query.Keyword + "\x00" + query.PostID))
 	position := posts.CursorPosition{
 		Scope: posts.CursorSearch, AccountID: account.String(), ChannelID: query.ChannelID,
 		Limit: query.Limit, FilterRevision: revision,
@@ -210,16 +227,24 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	}
 	var groups []string
 	var lastAt *time.Time
+	contentRevision, err := c.postSearchContentRevision(ctx, tx)
+	if err != nil {
+		return prepared, err
+	}
 	if query.Cursor != "" {
 		position, err = c.posts.cursors.Decode(query.Cursor, position, at)
 		if err != nil {
 			return prepared, err
+		}
+		if position.SearchRevision != contentRevision {
+			return prepared, posts.ErrCursorInvalid
 		}
 		groups = strings.Split(position.SearchGroups, ",")
 		lastAt = &position.LastAt
 	} else if err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(publication_ordinal),0) FROM c_posts.posts`).Scan(&position.Ceiling); err != nil {
 		return prepared, err
 	}
+	position.SearchRevision = contentRevision
 	defer readtiming.Span(ctx, "search_candidate_query")()
 	candidateSQL := searchCandidatesSQL
 	if c.posts.typedSearchEnabled {
@@ -231,6 +256,10 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	if c.posts.hiddenPostsEnabled {
 		candidateSQL = strings.Replace(candidateSQL, "AND NOT (p.channel_id = ANY($5::uuid[]))", "AND NOT (p.channel_id = ANY($5::uuid[])) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$12 AND hp.post_id=p.post_id AND hp.hidden)", 1)
 		args = append(args, account)
+	}
+	if query.PostID != "" {
+		args = append(args, query.PostID)
+		candidateSQL = strings.Replace(candidateSQL, "AND p.publication_ordinal <= $3", fmt.Sprintf("AND p.publication_ordinal <= $3 AND p.post_id=$%d::uuid", len(args)), 1)
 	}
 	rows, err := tx.Query(ctx, candidateSQL, args...)
 	if err != nil {
@@ -284,6 +313,16 @@ func (c *Community) finishPostSearch(ctx context.Context, tx pgx.Tx, account uui
 		return page, err
 	}
 	position := prepared.position
+	contentRevision, err := c.postSearchContentRevision(ctx, tx)
+	if err != nil {
+		return page, err
+	}
+	if position.SearchRevision != contentRevision {
+		if query.Cursor != "" {
+			return page, posts.ErrCursorInvalid
+		}
+		return page, errPostSearchChanged
+	}
 	preferences, revision, err := readFeedPreferences(ctx, tx, account)
 	if err != nil {
 		return page, err

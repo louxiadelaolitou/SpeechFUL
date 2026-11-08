@@ -24,7 +24,8 @@ class _DmPostCardBubbleState extends State<DmPostCardBubble>
   Map<String, dynamic>? _card;
   String _placeholder = '联网后查看';
   int _generation = 0;
-  bool _loading = false, _opening = false;
+  bool _opening = false;
+  Future<bool>? _loadInFlight;
   Timer? _timer;
   @override
   void initState() {
@@ -75,10 +76,15 @@ class _DmPostCardBubbleState extends State<DmPostCardBubble>
     }
   }
 
-  Future<bool> _load() async {
-    if (!_current || _loading) return false;
+  Future<bool> _load() {
+    if (!_current) return Future.value(false);
+    return _loadInFlight ??= _performLoad().whenComplete(
+      () => _loadInFlight = null,
+    );
+  }
+
+  Future<bool> _performLoad() async {
     final generation = ++_generation;
-    _loading = true;
     if (mounted) setState(() => _card = null);
     try {
       final card = await _controller!.postCard(widget.postId);
@@ -95,14 +101,12 @@ class _DmPostCardBubbleState extends State<DmPostCardBubble>
         });
       }
       return false;
-    } finally {
-      _loading = false;
     }
   }
 
   Future<void> _open() async {
     if (_opening || !_current) return;
-    _opening = true;
+    setState(() => _opening = true);
     try {
       if (await _load() && mounted && _current) {
         final open = _runtime?.openPost;
@@ -113,7 +117,7 @@ class _DmPostCardBubbleState extends State<DmPostCardBubble>
         }
       }
     } finally {
-      _opening = false;
+      if (mounted) setState(() => _opening = false);
     }
   }
 
@@ -145,6 +149,7 @@ class _DmPostCardBubbleState extends State<DmPostCardBubble>
               ],
             ),
             const SizedBox(height: 8),
+            if (_opening) const LinearProgressIndicator(),
             Text(
               _card?['title'] as String? ?? hhText(context, _placeholder),
               maxLines: 3,

@@ -215,7 +215,10 @@ func TestModerationLegacyRestrictionBefore0015Postgres(t *testing.T) {
 	l := newPostLab(t)
 	mustExec(t, l.cp, `DROP SCHEMA c_moderation CASCADE`)
 	// Remove later tags and edits before modeling a pre-0015 database.
-	mustExec(t, l.cp, `DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
+	mustExec(t, l.cp, `DROP TRIGGER advance_search_content_revision ON c_posts.posts;
+DROP FUNCTION c_posts.advance_search_content_revision();
+DROP TABLE c_posts.search_content_revision;
+DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
 DROP TRIGGER post_tags_lifecycle ON c_posts.posts;
 DROP TRIGGER attempt_tags_immutable ON c_posts.attempt_contents;
 DROP TABLE c_posts.post_tag_terms;

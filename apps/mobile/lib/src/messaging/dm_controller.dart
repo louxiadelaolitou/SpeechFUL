@@ -57,7 +57,11 @@ class DmController extends ChangeNotifier {
   Timer? _retryTimer;
   final _waitClocks = <String, (String, Stopwatch)>{};
   List<Map<String, dynamic>> conversations = [];
-  String? error;
+  String? _error;
+  final _failedDrafts = <(String, String)>{};
+  final _draftSaves = <(String, String), int>{};
+  String? get error => _failedDrafts.isNotEmpty ? '草稿保存失败，请保留当前页面' : _error;
+  set error(String? value) => _error = value;
   String? _operationError;
   bool get available =>
       _store != null && _authorized?.call() == true && !_disposed;
@@ -178,6 +182,8 @@ class DmController extends ChangeNotifier {
     _token = null;
     _identities = [];
     conversations = [];
+    _failedDrafts.clear();
+    _draftSaves.clear();
     error = null;
     _operationError = null;
     _notify();
@@ -815,12 +821,19 @@ class DmController extends ChangeNotifier {
   Future<bool> saveDraft(String own, String peer, String text) async {
     if (!available || !_identities.contains(own)) return false;
     final epoch = _epoch;
+    final pair = (own, peer);
+    final revision = (_draftSaves[pair] ?? 0) + 1;
+    _draftSaves[pair] = revision;
     try {
       await _store!.saveDraft(own, peer, text);
+      if (_current(epoch) && _draftSaves[pair] == revision) {
+        _failedDrafts.remove(pair);
+        _notify();
+      }
       return _current(epoch);
     } catch (_) {
-      if (_current(epoch)) {
-        error = '草稿保存失败，请保留当前页面';
+      if (_current(epoch) && _draftSaves[pair] == revision) {
+        _failedDrafts.add(pair);
         _notify();
       }
       return false;

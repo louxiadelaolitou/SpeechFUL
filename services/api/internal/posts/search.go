@@ -15,6 +15,7 @@ const (
 type SearchQuery struct {
 	Keyword       string
 	ChannelID     string
+	PostID        string
 	Sort          string
 	Cursor        string
 	Limit         int

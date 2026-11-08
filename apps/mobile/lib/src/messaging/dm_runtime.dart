@@ -348,7 +348,17 @@ class _DmInboxRouteState extends State<DmInboxRoute> {
     });
     if (query.trim().isEmpty) return;
     try {
-      final result = await controller.search(identity, query);
+      bool current() =>
+          mounted &&
+          generation == _searchGeneration &&
+          scope == controller.scope;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (!current()) return;
+      final result = await controller.search(
+        identity,
+        query,
+        isCurrent: current,
+      );
       if (mounted &&
           generation == _searchGeneration &&
           scope == controller.scope) {
@@ -629,15 +639,20 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
       // Receipt reconciliation may move an outgoing row outside the newest
       // page. Refresh already displayed work by its stable local id as well.
       final updated = <Map<String, dynamic>>[];
-      final retained = <Map<String, dynamic>>[];
-      for (final row in rows) {
-        final value = await c.message(row['_id']);
+      // Read the latest durable projection for every candidate, including
+      // newly paged IDs: deletion may have committed after history returned.
+      for (final id in {
+        ...rows.map((r) => r['_id']),
+        ...next.map((r) => r['_id']),
+      }) {
+        final value = await c.message(id);
         if (value != null && value['_kind'] != 'hidden_message') {
           updated.add(value);
-          retained.add(row);
         }
       }
-      if (!mounted || epoch != _loadEpoch || scope != c.scope) return;
+      if (!mounted || epoch != _loadEpoch || scope != c.scope || _reloadPending) {
+        return;
+      }
       if (rows.any(
         (old) =>
             old['messageType'] == 'IMAGE' &&
@@ -650,9 +665,7 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
       }
       setState(() {
         final byId = <String, Map<String, dynamic>>{
-          for (final r in retained) r['_id']: r,
           for (final r in updated) r['_id']: r,
-          for (final r in next) r['_id']: r,
         };
         rows = byId.values.toList()
           ..sort((a, b) => (a['_sort'] as int).compareTo(b['_sort'] as int));
@@ -786,6 +799,10 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
         draftRevision: _draftRevision,
         firstContact: conv.isEmpty || awaiting,
         firstTextAccepted: awaiting,
+        localHistoryUnavailable:
+            conv.isNotEmpty &&
+            (directory?['sequence'] as int? ?? 0) > 0 &&
+            messages.isEmpty,
         canSend: restored && directory?['canSend'] != false,
         localSaveFailed:
             c.error?.contains('保存失败') == true ||
@@ -884,7 +901,15 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
       },
       onBack: () => Navigator.pop(context),
       onLoadOlder: (_) async => _load(older: true),
-      onSaveRetry: () => unawaited(c.sync()),
+      onSaveRetry: () => unawaited(() async {
+        final edit = ++_textSaveGeneration;
+        final saved = await c.saveDraft(widget.own.id, widget.peer.id, draft);
+        if (!mounted || scope != c.scope || edit != _textSaveGeneration) return;
+        if (saved) {
+          _draftDirty = false;
+          await c.sync();
+        }
+      }()),
       onVisible: (ids) {
         if (ModalRoute.of(context)?.isCurrent == true &&
             WidgetsBinding.instance.lifecycleState ==

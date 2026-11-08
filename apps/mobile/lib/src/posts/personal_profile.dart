@@ -368,6 +368,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     _hot = _sorting = false;
     _replies.clear();
     _replyLoaded = _replyLoading = false;
+    _replyCursor = null;
     _replyError = null;
     _offsets.remove(0);
     _offsets.remove(1);
@@ -549,6 +550,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
   final _offsets = <int, double>{};
   final _replies = <CommentRow>[];
   bool _replyLoading = false, _replyLoaded = false;
+  String? _replyCursor;
   String? _replyError;
   final _collections = <int, List<PostCard>>{};
   final _collectionCursors = <int, String?>{};
@@ -648,9 +650,11 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     }
   }
 
-  Future<void> _loadReplies() async {
+  Future<void> _loadReplies({bool more = false}) async {
     final identityId = widget.controller.personalIdentity?.id;
-    if (_replyLoading || identityId == null) return;
+    if (_replyLoading || identityId == null || (more && _replyCursor == null)) {
+      return;
+    }
     final identityEpoch = _identityEpoch;
     final runtime = CommentScope.maybeOf(context);
     if (runtime == null) {
@@ -665,25 +669,33 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     try {
       final rows = <CommentRow>[];
       {
-        String? cursor;
-        do {
-          if (!mounted ||
-              !_authority.current ||
-              !runtime.current(epoch) ||
-              identityEpoch != _identityEpoch) {
-            return;
-          }
-          final page = await runtime.request(
-            'GET',
-            '/api/v1/me/comments',
-            query: {
-              'identityId': identityId,
-              if (cursor != null) 'cursor': cursor,
-            },
-          );
-          rows.addAll((page['items'] as List).map(CommentRow.new));
-          cursor = page['nextCursor'] as String?;
-        } while (cursor != null);
+        final cursor = more ? _replyCursor : null;
+        if (!mounted ||
+            !_authority.current ||
+            !runtime.current(epoch) ||
+            identityEpoch != _identityEpoch) {
+          return;
+        }
+        final page = await runtime.request(
+          'GET',
+          '/api/v1/me/comments',
+          query: {
+            'identityId': identityId,
+            if (cursor != null) 'cursor': cursor,
+          },
+        );
+        rows.addAll((page['items'] as List).map(CommentRow.new));
+        if (!mounted ||
+            !_authority.current ||
+            !runtime.current(epoch) ||
+            identityEpoch != _identityEpoch) {
+          return;
+        }
+        final next = page['nextCursor'] as String?;
+        if (next != null && next == cursor) {
+          throw const FormatException('Reply cursor did not advance');
+        }
+        _replyCursor = next;
       }
       if (!mounted ||
           !_authority.current ||
@@ -697,9 +709,16 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         ),
       );
       setState(() {
-        _replies
-          ..clear()
-          ..addAll(rows);
+        if (!more) _replies.clear();
+        final ids = _replies.map((r) => r.id).toSet();
+        _replies.addAll(
+          rows.where(
+            (r) =>
+                !runtime.deleted.contains(r.id) &&
+                !runtime.deleted.contains(r.root) &&
+                ids.add(r.id),
+          ),
+        );
         _replyLoaded = true;
       });
     } catch (_) {
@@ -709,6 +728,17 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     } finally {
       if (mounted && identityEpoch == _identityEpoch) {
         setState(() => _replyLoading = false);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              identityEpoch == _identityEpoch &&
+              _tab == 1 &&
+              _replyError == null &&
+              _replyCursor != null &&
+              _scroll.hasClients &&
+              _scroll.position.extentAfter < 320) {
+            unawaited(_loadReplies(more: true));
+          }
+        });
       }
     }
   }
@@ -756,265 +786,282 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
           if (_hot) await _sort(true);
         }
       },
-      child: CustomScrollView(
-        controller: _scroll,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 14, 24),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        hhText(context, '我的'),
-                        key: const ValueKey('profile-title'),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: HhTelegramPalette.of(context).action,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notice) {
+          if (_tab == 1 &&
+              notice.metrics.extentAfter < 320 &&
+              !_replyLoading &&
+              _replyError == null &&
+              _replyCursor != null) {
+            unawaited(_loadReplies(more: true));
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          controller: _scroll,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 14, 24),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          hhText(context, '我的'),
+                          key: const ValueKey('profile-title'),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: HhTelegramPalette.of(context).action,
+                          ),
                         ),
-                      ),
-                      const Spacer(),
-                      Flexible(
-                        flex: 3,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: _profileIdentityChip(name),
+                        const Spacer(),
+                        Flexible(
+                          flex: 3,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _profileIdentityChip(name),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _ProfileTabs(
-              selected: _tab,
-              hot: _hot,
-              onSort: _sort,
-              onSelect: (index) {
-                final previous = _scroll.hasClients ? _scroll.offset : 0.0;
-                _offsets[_tab] = previous;
-                setState(() => _tab = index);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && _scroll.hasClients) {
-                    _scroll.jumpTo(
-                      (_offsets[index] ?? previous.clamp(0.0, 212.0)).clamp(
-                        0.0,
-                        _scroll.position.maxScrollExtent,
-                      ),
-                    );
-                  }
-                });
-                if (index == 2 && !_repostsOpened) unawaited(_refreshReposts());
-                if (index == 1 && !_replyLoaded) unawaited(_loadReplies());
-                if (index >= 3 && !_collections.containsKey(index)) {
-                  unawaited(_loadCollection(index));
-                }
-              },
-            ),
-          ),
-          if (_sorting)
-            const SliverToBoxAdapter(child: LinearProgressIndicator()),
-          if (_tab == 0) ...[
-            if (c.personalLoading && items.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    semanticsLabel: hhText(context, '正在加载自己的帖子'),
-                  ),
-                ),
-              )
-            else if (items.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _PageState(
-                  title: c.personalError != null
-                      ? hhText(context, '暂时无法加载自己的帖子')
-                      : hhText(context, '还没有自己的帖子'),
-                  message: c.personalError,
-                  action: c.personalError != null ? '重新加载' : '选择分类发帖',
-                  actionIcon: c.personalError == null ? Icons.add : null,
-                  onAction: c.personalError != null
-                      ? c.loadPersonal
-                      : _chooseChannel,
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            SliverList.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return item.post != null
-                    ? _ProfilePost(
-                        key: ValueKey(item.id),
-                        post: item.post!,
-                        controller: c,
-                        loadImages: widget.loadImages,
-                        onOpen: () => _open(item),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: _PersonalCard(
-                          key: ValueKey(item.id),
-                          item: item,
-                          channelName:
-                              widget.channelNames[item.channelId] ?? '原分类',
-                          onOpen: () => _open(item),
-                          onDeleteDraft: item.isDraft
-                              ? () => _deleteDraft(item)
-                              : null,
-                          onDeleteTask:
-                              item.task?.canHide == true &&
-                                  !{
-                                    'SUBMITTED',
-                                    'UNKNOWN',
-                                    'RESULT_EXPIRED',
-                                  }.contains(item.state)
-                              ? () => _deleteFailedTask(item)
-                              : null,
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _ProfileTabs(
+                selected: _tab,
+                hot: _hot,
+                onSort: _sort,
+                onSelect: (index) {
+                  final previous = _scroll.hasClients ? _scroll.offset : 0.0;
+                  _offsets[_tab] = previous;
+                  setState(() => _tab = index);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && _scroll.hasClients) {
+                      _scroll.jumpTo(
+                        (_offsets[index] ?? previous.clamp(0.0, 212.0)).clamp(
+                          0.0,
+                          _scroll.position.maxScrollExtent,
                         ),
                       );
-              },
+                    }
+                  });
+                  if (index == 2 && !_repostsOpened) {
+                    unawaited(_refreshReposts());
+                  }
+                  if (index == 1 && !_replyLoaded) unawaited(_loadReplies());
+                  if (index >= 3 && !_collections.containsKey(index)) {
+                    unawaited(_loadCollection(index));
+                  }
+                },
+              ),
             ),
-            if (items.isNotEmpty)
-              SliverToBoxAdapter(
-                child: _LoadMore(
-                  loading: c.personalLoading,
-                  hasMore: c.personalHasMore,
-                  onPressed: () => c.loadPersonal(more: true),
-                ),
-              ),
-          ] else if (_tab == 1) ...[
-            if (_replyLoading)
+            if (_sorting)
               const SliverToBoxAdapter(child: LinearProgressIndicator()),
-            if (_replyError != null)
-              SliverToBoxAdapter(
-                child: TextButton(
-                  onPressed: _loadReplies,
-                  child: Text(hhText(context, _replyError!)),
+            if (_tab == 0) ...[
+              if (c.personalLoading && items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      semanticsLabel: hhText(context, '正在加载自己的帖子'),
+                    ),
+                  ),
+                )
+              else if (items.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _PageState(
+                    title: c.personalError != null
+                        ? hhText(context, '暂时无法加载自己的帖子')
+                        : hhText(context, '还没有自己的帖子'),
+                    message: c.personalError,
+                    action: c.personalError != null ? '重新加载' : '选择分类发帖',
+                    actionIcon: c.personalError == null ? Icons.add : null,
+                    onAction: c.personalError != null
+                        ? c.loadPersonal
+                        : _chooseChannel,
+                  ),
                 ),
-              ),
-            if (!_replyLoading && _replies.isEmpty && _replyError == null)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: Text(hhText(context, '还没有回复'))),
-              ),
-            SliverList.builder(
-              itemCount: _replies.length,
-              itemBuilder: (context, index) {
-                final row = _replies[index];
-                void openReply() => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => PostDetailScreen(
-                      controller: c,
-                      postId: row.post,
-                      initialCommentId: row.id,
-                      loadImages: widget.loadImages,
-                      onAuthenticationRequired: widget.onAuthenticationRequired,
-                    ),
-                  ),
-                );
-                return HhXPostItem(
-                  post: FeedPostView(
-                    id: row.id,
-                    authorId: '',
-                    authorName: row.nickname,
-                    elapsed: _postDate(
-                      context,
-                      DateTime.parse(row.data['publishedAt'] as String),
-                    ),
-                    title: row.body,
-                    comments: row.replyCount,
-                    likes: row.likes,
-                    liked: row.liked,
-                    channelCode: '',
-                    availableActions: const {FeedAction.comment},
-                  ),
-                  avatarBuilder: (_, __) => DetailAvatar(
-                    name: row.nickname,
-                    avatar: row.avatar,
-                    radius: 21,
-                  ),
-                  mediaBuilder: (_, __) => const SizedBox.shrink(),
-                  mediaSection:
-                      row.data['image'] != null &&
-                          CommentScope.maybeOf(context) != null
-                      ? CommentImageView(
-                          runtime: CommentScope.maybeOf(context)!,
-                          row: row,
+              SliverList.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return item.post != null
+                      ? _ProfilePost(
+                          key: ValueKey(item.id),
+                          post: item.post!,
+                          controller: c,
+                          loadImages: widget.loadImages,
+                          onOpen: () => _open(item),
                         )
-                      : null,
-                  onPost: openReply,
-                  onAuthor: () {},
-                  onMenu: openReply,
-                  onMedia: (_) => openReply(),
-                  onAction: (_) => openReply(),
-                );
-              },
-            ),
-          ] else if (_tab == 2)
-            ..._repostSlivers()
-          else ...[
-            if (_collectionLoading.contains(_tab) &&
-                !_collections.containsKey(_tab))
-              const SliverToBoxAdapter(child: LinearProgressIndicator()),
-            if (_collectionErrors[_tab] case final error?)
-              SliverToBoxAdapter(
-                child: TextButton(
-                  onPressed: () => _loadCollection(_tab),
-                  child: Text(hhText(context, error)),
-                ),
+                      : Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: _PersonalCard(
+                            key: ValueKey(item.id),
+                            item: item,
+                            channelName:
+                                widget.channelNames[item.channelId] ?? '原分类',
+                            onOpen: () => _open(item),
+                            onDeleteDraft: item.isDraft
+                                ? () => _deleteDraft(item)
+                                : null,
+                            onDeleteTask:
+                                item.task?.canHide == true &&
+                                    !{
+                                      'SUBMITTED',
+                                      'UNKNOWN',
+                                      'RESULT_EXPIRED',
+                                    }.contains(item.state)
+                                ? () => _deleteFailedTask(item)
+                                : null,
+                          ),
+                        );
+                },
               ),
-            if (!_collectionLoading.contains(_tab) &&
-                !_collectionErrors.containsKey(_tab) &&
-                _collectionItems(_tab).isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Text(
-                    _tab == 3
-                        ? hhText(context, '还没有喜欢的帖子')
-                        : hhText(context, '还没有收藏的帖子'),
+              if (items.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _LoadMore(
+                    loading: c.personalLoading,
+                    hasMore: c.personalHasMore,
+                    onPressed: () => c.loadPersonal(more: true),
                   ),
                 ),
+            ] else if (_tab == 1) ...[
+              if (_replyLoading)
+                const SliverToBoxAdapter(child: LinearProgressIndicator()),
+              if (_replyError != null)
+                SliverToBoxAdapter(
+                  child: TextButton(
+                    onPressed: () => _loadReplies(
+                      more: _replyLoaded && _replyCursor != null,
+                    ),
+                    child: Text(hhText(context, _replyError!)),
+                  ),
+                ),
+              if (!_replyLoading && _replies.isEmpty && _replyError == null)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: Text(hhText(context, '还没有回复'))),
+                ),
+              SliverList.builder(
+                itemCount: _replies.length,
+                itemBuilder: (context, index) {
+                  final row = _replies[index];
+                  void openReply() => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => PostDetailScreen(
+                        controller: c,
+                        postId: row.post,
+                        initialCommentId: row.id,
+                        loadImages: widget.loadImages,
+                        onAuthenticationRequired:
+                            widget.onAuthenticationRequired,
+                      ),
+                    ),
+                  );
+                  return HhXPostItem(
+                    post: FeedPostView(
+                      id: row.id,
+                      authorId: '',
+                      authorName: row.nickname,
+                      elapsed: _postDate(
+                        context,
+                        DateTime.parse(row.data['publishedAt'] as String),
+                      ),
+                      title: row.body,
+                      comments: row.replyCount,
+                      likes: row.likes,
+                      liked: row.liked,
+                      channelCode: '',
+                      availableActions: const {FeedAction.comment},
+                    ),
+                    avatarBuilder: (_, __) => DetailAvatar(
+                      name: row.nickname,
+                      avatar: row.avatar,
+                      radius: 21,
+                    ),
+                    mediaBuilder: (_, __) => const SizedBox.shrink(),
+                    mediaSection:
+                        row.data['image'] != null &&
+                            CommentScope.maybeOf(context) != null
+                        ? CommentImageView(
+                            runtime: CommentScope.maybeOf(context)!,
+                            row: row,
+                          )
+                        : null,
+                    onPost: openReply,
+                    onAuthor: () {},
+                    onMenu: openReply,
+                    onMedia: (_) => openReply(),
+                    onAction: (_) => openReply(),
+                  );
+                },
               ),
-            SliverList.builder(
-              itemCount: _collectionItems(_tab).length,
-              itemBuilder: (_, index) {
-                final post = _collectionItems(_tab)[index];
-                return _ProfilePost(
-                  key: ValueKey(('collection', _tab, post.postId)),
-                  post: post,
-                  controller: c,
-                  loadImages: widget.loadImages,
-                  own: false,
-                  onOpen: () => _open(
-                    PersonalPostItem(
-                      id: post.postId,
-                      title: post.title,
-                      sortAt: post.publishedAt,
-                      post: post,
+            ] else if (_tab == 2)
+              ..._repostSlivers()
+            else ...[
+              if (_collectionLoading.contains(_tab) &&
+                  !_collections.containsKey(_tab))
+                const SliverToBoxAdapter(child: LinearProgressIndicator()),
+              if (_collectionErrors[_tab] case final error?)
+                SliverToBoxAdapter(
+                  child: TextButton(
+                    onPressed: () => _loadCollection(_tab),
+                    child: Text(hhText(context, error)),
+                  ),
+                ),
+              if (!_collectionLoading.contains(_tab) &&
+                  !_collectionErrors.containsKey(_tab) &&
+                  _collectionItems(_tab).isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Text(
+                      _tab == 3
+                          ? hhText(context, '还没有喜欢的帖子')
+                          : hhText(context, '还没有收藏的帖子'),
                     ),
                   ),
-                );
-              },
-            ),
-            if (_collectionCursors[_tab] != null)
-              SliverToBoxAdapter(
-                child: _LoadMore(
-                  loading: _collectionLoading.contains(_tab),
-                  hasMore: true,
-                  onPressed: () => _loadCollection(_tab, more: true),
                 ),
+              SliverList.builder(
+                itemCount: _collectionItems(_tab).length,
+                itemBuilder: (_, index) {
+                  final post = _collectionItems(_tab)[index];
+                  return _ProfilePost(
+                    key: ValueKey(('collection', _tab, post.postId)),
+                    post: post,
+                    controller: c,
+                    loadImages: widget.loadImages,
+                    own: false,
+                    onOpen: () => _open(
+                      PersonalPostItem(
+                        id: post.postId,
+                        title: post.title,
+                        sortAt: post.publishedAt,
+                        post: post,
+                      ),
+                    ),
+                  );
+                },
               ),
+              if (_collectionCursors[_tab] != null)
+                SliverToBoxAdapter(
+                  child: _LoadMore(
+                    loading: _collectionLoading.contains(_tab),
+                    hasMore: true,
+                    onPressed: () => _loadCollection(_tab, more: true),
+                  ),
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1272,74 +1319,95 @@ class _ProfilePostState extends State<_ProfilePost> {
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.post;
-    final detail = widget.initialDetail ?? _detail;
+    final edited = widget.controller.confirmedEdit(widget.post.postId);
+    final p = edited ?? widget.post;
+    final detail = edited ?? widget.initialDetail ?? _detail;
     final interaction = widget.controller.supportsInteractions
         ? widget.controller.interaction(p.postId)
         : PostInteractionState();
-    return HhXPostItem(
-      repostAction: widget.repostAction,
-      post: FeedPostView(
-        id: p.postId,
-        authorId: '',
-        authorName: localizedPostAuthor(context, p.author),
-        elapsed: _postDate(context, p.publishedAt),
-        title: p.title,
-        body: detail?.body ?? '',
-        comments: interaction.value?.commentCount,
-        likes: interaction.likes,
-        liked: interaction.liked,
-        bookmarked: interaction.favorited,
-        availableActions: {
-          FeedAction.comment,
-          if (interaction.canChange) ...[FeedAction.like, FeedAction.bookmark],
-        },
-        channelCode: '',
-        isOwnAuthor: widget.own,
-      ),
-      avatarBuilder: (_, __) => DetailAvatar(
-        name: localizedPostAuthor(context, p.author),
-        avatar: p.author.avatar,
-        radius: 21,
-      ),
-      mediaBuilder: (_, __) => const SizedBox.shrink(),
-      mediaSection: _failed
-          ? TextButton(
-              onPressed: _load,
-              child: Text(hhText(context, '内容加载失败，点击重试')),
-            )
-          : detail != null && detail.imageCount > 0 && widget.loadImages != null
-          ? PostImagesSection(
-              postId: p.postId,
-              loadImages: widget.loadImages!,
-              authority: widget.controller,
-              isCurrent: () =>
-                  _authority.current &&
-                  !widget.controller.isPostDeleted(p.postId),
-              expectedCount: detail.imageCount,
-              feedPreview: true,
-            )
-          : null,
-      onPost: widget.onOpen,
-      onAuthor: () {},
-      onMenu: widget.onMenu ?? widget.onOpen,
-      onMedia: (_) => widget.onOpen(),
-      onAction: (action) {
-        if (action == FeedAction.comment) {
-          widget.onOpen();
-          return;
-        }
-        if (action == FeedAction.like || action == FeedAction.bookmark) {
-          unawaited(
-            widget.controller.changeInteraction(
-              p.postId,
-              action == FeedAction.like
-                  ? PostInteractionAction.like
-                  : PostInteractionAction.favorite,
-            ),
-          );
-        }
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HhXPostItem(
+          repostAction: widget.repostAction,
+          post: FeedPostView(
+            id: p.postId,
+            authorId: '',
+            authorName: localizedPostAuthor(context, p.author),
+            elapsed: _postDate(context, p.publishedAt),
+            title: p.title,
+            body: detail?.body ?? '',
+            comments: interaction.value?.commentCount,
+            likes: interaction.likes,
+            liked: interaction.liked,
+            bookmarked: interaction.favorited,
+            availableActions: {
+              FeedAction.comment,
+              if (interaction.canChange) ...[
+                FeedAction.like,
+                FeedAction.bookmark,
+              ],
+            },
+            channelCode: '',
+            isOwnAuthor: widget.own,
+          ),
+          avatarBuilder: (_, __) => DetailAvatar(
+            name: localizedPostAuthor(context, p.author),
+            avatar: p.author.avatar,
+            radius: 21,
+          ),
+          mediaBuilder: (_, __) => const SizedBox.shrink(),
+          mediaSection: _failed
+              ? TextButton(
+                  onPressed: _load,
+                  child: Text(hhText(context, '内容加载失败，点击重试')),
+                )
+              : detail != null &&
+                    detail.imageCount > 0 &&
+                    widget.loadImages != null
+              ? PostImagesSection(
+                  postId: p.postId,
+                  loadImages: widget.loadImages!,
+                  authority: widget.controller,
+                  isCurrent: () =>
+                      _authority.current &&
+                      !widget.controller.isPostDeleted(p.postId),
+                  expectedCount: detail.imageCount,
+                  feedPreview: true,
+                )
+              : null,
+          onPost: widget.onOpen,
+          onAuthor: () {},
+          onMenu: widget.onMenu ?? widget.onOpen,
+          onMedia: (_) => widget.onOpen(),
+          onAction: (action) {
+            if (action == FeedAction.comment) {
+              widget.onOpen();
+              return;
+            }
+            if (action == FeedAction.like || action == FeedAction.bookmark) {
+              unawaited(
+                widget.controller.changeInteraction(
+                  p.postId,
+                  action == FeedAction.like
+                      ? PostInteractionAction.like
+                      : PostInteractionAction.favorite,
+                ),
+              );
+            }
+          },
+        ),
+        if (interaction.writeError != null || interaction.unresolved) ...[
+          Text(hhText(context, interaction.writeError ?? '结果尚未确认，请重试核对。')),
+          TextButton(
+            key: ValueKey('profile-interaction-retry-${p.postId}'),
+            onPressed: interaction.sending
+                ? null
+                : () => widget.controller.retryInteraction(p.postId),
+            child: Text(hhText(context, '重试核对')),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -12,6 +12,25 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
+func TestFeedPostSearchMissingRevisionFailsClosedPostgres(t *testing.T) {
+	l := newPostLab(t)
+	ctx := context.Background()
+	if !l.c.posts.editEnabled {
+		t.Fatal("current schema must support edits")
+	}
+	tx, err := l.cp.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `DROP TABLE c_posts.search_content_revision`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = l.c.postSearchContentRevision(ctx, tx); err == nil {
+		t.Fatal("editable schema silently bypassed missing revision state")
+	}
+}
+
 func TestFeedPostSearchTypedMatchesCompatiblePostgres(t *testing.T) {
 	l := newPostLab(t)
 	ctx := context.Background()

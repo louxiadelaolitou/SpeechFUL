@@ -29,6 +29,10 @@ func (c *Controller) WriteMetrics(logger *slog.Logger) {
 		return
 	}
 	snapshot := c.Metrics.Snapshot()
+	for _, phase := range []string{"metadata.load", "metadata.recover"} {
+		metric := snapshot[phase]
+		logger.Info("shared_rate_limit_metadata", "phase", phase, "requests", metric.Requests, "errors", metric.Errors, "duration_ns_total", metric.Nanoseconds)
+	}
 	for _, rule := range c.config.Rules {
 		metric := snapshot[rule.Action]
 		logger.Info("shared_rate_limit_metrics", "action", rule.Action, "mode", string(rule.Mode), "requests", metric.Requests, "allowed", metric.Allowed, "denied", metric.Denied, "would_deny", metric.WouldDeny, "redis_errors", metric.Errors, "fallbacks", metric.Fallbacks, "duration_ns_total", metric.Nanoseconds)

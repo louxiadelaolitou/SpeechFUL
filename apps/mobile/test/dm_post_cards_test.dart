@@ -103,6 +103,39 @@ class UiCardController extends DmController {
 }
 
 void main() {
+  testWidgets('tap during preview refresh waits and opens exactly once', (
+    tester,
+  ) async {
+    final api = CardApi()..cardWait = Completer<void>();
+    final c = UiCardController(api);
+    var opened = 0;
+    final runtime = chat.ChatRuntime(
+      c,
+      openPost: (_, id) {
+        expect(id, p1.post);
+        opened++;
+      },
+    );
+    await tester.pumpWidget(
+      DmScope(
+        runtime: runtime,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: DmPostCardBubble(postId: p1.post, time: '12:00'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(DmPostCardBubble));
+    await tester.pump();
+    expect(opened, 0);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    api.cardWait!.complete();
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
   late Directory root;
   late p1.Vault vault;
   setUp(() {

@@ -223,7 +223,11 @@ extension DmChatController on DmController {
   }
 
   /// Full text is decrypted only for an explicit query in the selected identity.
-  Future<Set<String>> search(String identityId, String query) async {
+  Future<Set<String>> search(
+    String identityId,
+    String query, {
+    bool Function()? isCurrent,
+  }) async {
     final needle = query.trim().toLowerCase();
     if (!available ||
         !chatEnabled ||
@@ -232,21 +236,24 @@ extension DmChatController on DmController {
       return {};
     }
     final epoch = _epoch, store = _store!;
+    bool current() => _current(epoch) && (isCurrent?.call() ?? true);
     final matches = <String>{};
     for (final dir in await store.conversations()) {
-      if (!_current(epoch)) return {};
+      if (!current()) return {};
       if (dir['identityId'] != identityId || dir['deleted'] == true) continue;
       final metadata =
           '${dir['peerName'] ?? ''}\n${dir['note'] ?? ''}\n${dir['sourceTitle'] ?? ''}'
               .toLowerCase();
       if (metadata.contains(needle) ||
-          (await store.searchText(
+          await store.containsText(
             identityId,
             dir['peerId'],
-          )).toLowerCase().contains(needle)) {
+            needle,
+            isCurrent: current,
+          )) {
         matches.add(dir['id'] as String);
       }
     }
-    return _current(epoch) ? matches : {};
+    return current() ? matches : {};
   }
 }

@@ -3,11 +3,50 @@ package authprivacyruntime
 import (
 	"context"
 	"errors"
+	"github.com/jackc/pgx/v5/pgconn"
 	"log"
 	"log/slog"
 
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacyhttp"
 )
+
+var (
+	errDatabaseConnection = errors.New("database connection")
+	errDatabaseSchema     = errors.New("database schema")
+	errDatabasePrivileges = errors.New("database privileges")
+	errListenerBind       = errors.New("listener bind")
+)
+
+func failureReason(err error) string {
+	var pg *pgconn.PgError
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	case errors.Is(err, errCommentSnapshotConfiguration):
+		return "comment_snapshot_configuration"
+	case errors.Is(err, errListenerBind):
+		return "listener_bind"
+	case errors.As(err, &pg):
+		switch pg.Code {
+		case "42501", "28000", "28P01":
+			return "database_privileges"
+		case "42P01", "42703", "3F000":
+			return "database_schema"
+		}
+	}
+	switch {
+	case errors.Is(err, errDatabasePrivileges):
+		return "database_privileges"
+	case errors.Is(err, errDatabaseSchema):
+		return "database_schema"
+	case errors.Is(err, errDatabaseConnection):
+		return "database_connection"
+	default:
+		return "failed"
+	}
+}
 
 type FailureStage string
 
@@ -35,14 +74,7 @@ func LogFailure(logger *slog.Logger, service authprivacyhttp.Service, stage Fail
 	if stage != ConfigurationFailure && stage != RuntimeFailure {
 		stage = "unknown"
 	}
-	reason := "failed"
-	if errors.Is(err, context.DeadlineExceeded) {
-		reason = "deadline_exceeded"
-	} else if errors.Is(err, context.Canceled) {
-		reason = "cancelled"
-	} else if errors.Is(err, errCommentSnapshotConfiguration) {
-		reason = "comment_snapshot_configuration"
-	}
+	reason := failureReason(err)
 	logger.Error("authentication process failure", "service", diagnosticService(service), "stage", string(stage), "reason", reason)
 }
 

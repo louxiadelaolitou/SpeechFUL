@@ -38,6 +38,7 @@ extension PostSearchController on PostController {
     required PostSearchSort sort,
     String? cursor,
     bool recordHistory = false,
+    String? postId,
   }) => _withSearchAuthority(
     (api, token) => api.searchPosts(
       sessionToken: token,
@@ -46,6 +47,7 @@ extension PostSearchController on PostController {
       sort: sort,
       cursor: cursor,
       recordHistory: recordHistory,
+      postId: postId,
     ),
   );
 

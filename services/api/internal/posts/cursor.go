@@ -41,6 +41,7 @@ type CursorPosition struct {
 	SearchGroups   string    `json:"searchGroups,omitempty"`
 	SearchGroup    int       `json:"searchGroup,omitempty"`
 	SearchRank     int       `json:"searchRank,omitempty"`
+	SearchRevision int64     `json:"searchRevision,omitempty"`
 }
 
 type CursorCodec struct {
@@ -139,7 +140,7 @@ func validPosition(position CursorPosition) bool {
 }
 
 func validSearchPosition(position CursorPosition) bool {
-	if position.FilterRevision < 0 || position.LastOrdinal < 1 || position.LastOrdinal > position.Ceiling ||
+	if position.FilterRevision < 0 || position.SearchRevision < 0 || position.LastOrdinal < 1 || position.LastOrdinal > position.Ceiling ||
 		position.LastID != "" || position.SearchRank < 0 || position.SearchRank > 3 {
 		return false
 	}

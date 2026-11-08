@@ -2,6 +2,7 @@ package authprivacyruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -118,7 +119,7 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 		t.Run(access.name, func(t *testing.T) {
 			exec(t, access.revoke)
 			defer exec(t, access.grant)
-			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil || err.Error() != "moderation lifecycle schema or privileges absent" {
+			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabaseSchema) {
 				t.Fatalf("common C startup accepted missing cleanup permission: %v", err)
 			}
 		})
@@ -130,7 +131,7 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 		t.Run(access.name, func(t *testing.T) {
 			exec(t, access.revoke)
 			defer exec(t, access.grant)
-			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil || err.Error() != "moderation legacy restriction schema or privileges absent" {
+			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabaseSchema) {
 				t.Fatal("common C startup accepted missing legacy grant", err)
 			}
 		})
@@ -142,7 +143,7 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 		t.Run(hook.name, func(t *testing.T) {
 			exec(t, "DROP TRIGGER "+hook.name+" ON "+hook.table)
 			defer exec(t, hook.restore)
-			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil || err.Error() != "moderation lifecycle schema or privileges absent" {
+			if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabaseSchema) {
 				t.Fatalf("common C startup accepted missing lifecycle hook: %v", err)
 			}
 		})
@@ -151,7 +152,7 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 		t.Fatal("restored lifecycle permissions/hooks rejected", err)
 	}
 	exec(t, `ALTER TABLE c_moderation.legacy_restrictions DROP COLUMN ban_ends_at`)
-	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil || err.Error() != "moderation legacy restriction schema or privileges absent" {
+	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabaseSchema) {
 		t.Fatal("common C startup accepted missing legacy column", err)
 	}
 	// Model the formal 0014 shape, without requiring absent moderation objects.
@@ -161,7 +162,10 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 		t.Fatal("common C startup accepted partially removed 0018")
 	}
 	// Remove later tags and edits before modeling a pre-moderation database.
-	exec(t, `DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
+	exec(t, `DROP TRIGGER advance_search_content_revision ON c_posts.posts;
+DROP FUNCTION c_posts.advance_search_content_revision();
+DROP TABLE c_posts.search_content_revision;
+DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
 DROP TRIGGER post_tags_lifecycle ON c_posts.posts;
 DROP TRIGGER attempt_tags_immutable ON c_posts.attempt_contents;
 DROP TABLE c_posts.post_tag_terms;
@@ -179,5 +183,30 @@ ALTER TABLE public.community_identities DROP COLUMN moderation_rename_required;
 UPDATE public.goose_db_version SET version_id=14`)
 	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil {
 		t.Fatal("pre-avatar schema version accepted")
+	}
+}
+
+func TestSearchRevisionStartupFencesPostgres(t *testing.T) {
+	owner, runtime := moderationStartupLab(t)
+	ctx := context.Background()
+	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err != nil {
+		t.Fatal(err)
+	}
+	for _, privilege := range []string{"SELECT", "UPDATE"} {
+		if _, err := owner.Exec(ctx, "REVOKE "+privilege+" ON c_posts.search_content_revision FROM hnuhole_c_runtime"); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabasePrivileges) {
+			t.Fatal("missing search revision permission admitted", err)
+		}
+		if _, err := owner.Exec(ctx, "GRANT "+privilege+" ON c_posts.search_content_revision TO hnuhole_c_runtime"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := owner.Exec(ctx, `ALTER TABLE c_posts.posts DISABLE TRIGGER advance_search_content_revision`); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); !errors.Is(err, errDatabaseSchema) {
+		t.Fatal("disabled revision trigger admitted", err)
 	}
 }

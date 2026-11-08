@@ -90,6 +90,31 @@ class PrereleaseRoleAuditPostgresTest(unittest.TestCase):
                     self.lab.sql('c', 'REVOKE ' + privilege + ' ON c_posts.post_tag_terms FROM ' + role)
         self.lab.audit()
 
+    def test_search_revision_grants_reject_extra_permissions(self):
+        self.lab.audit()
+        for privilege in ('SELECT', 'UPDATE'):
+            self.assertEqual(self.lab.sql('c', "SELECT has_table_privilege('hnuhole_c_runtime',"
+                                         "'c_posts.search_content_revision','" + privilege + "')"), 't')
+        for role, privilege in [
+            ('hnuhole_c_runtime', 'INSERT'),
+            ('hnuhole_c_runtime', 'DELETE'),
+            ('hnuhole_c_runtime', 'TRUNCATE'),
+            ('hnuhole_c_runtime', 'REFERENCES'),
+            ('hnuhole_c_runtime', 'TRIGGER'),
+            ('hnuhole_c_recovery', 'SELECT'),
+            ('hnuhole_business', 'UPDATE'),
+        ]:
+            with self.subTest(role=role, privilege=privilege):
+                self.lab.sql('c', 'GRANT ' + privilege + ' ON c_posts.search_content_revision TO ' + role)
+                try:
+                    with self.assertRaisesRegex(RuntimeError, 'owned SQL operation failed'):
+                        self.lab.audit()
+                    self.assertIn('operational role acquired noncontract table privilege',
+                                  (self.lab.root / 'sql-error.private.log').read_text())
+                finally:
+                    self.lab.sql('c', 'REVOKE ' + privilege + ' ON c_posts.search_content_revision FROM ' + role)
+        self.lab.audit()
+
     def test_repost_grants_pass_and_extra_permissions_fail(self):
         self.lab.audit()
         for table in ('post_reposts', 'post_repost_versions'):

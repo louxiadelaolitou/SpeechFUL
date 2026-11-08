@@ -120,6 +120,45 @@ class _Api implements CommentApi {
 }
 
 void main() {
+  for (final sealed in [false, true]) {
+    test(
+      'rate-limited command consumes durable rejection after seal=$sealed',
+      () async {
+        var now = DateTime.utc(2026, 10, 24);
+        final journal = MemoryCommentJournalTestAdapter();
+        final api = _Api()
+          ..onExecute = (_) async => throw const CommentHttpFailure(
+            429,
+            'RATE_LIMITED',
+            retryAfterSeconds: 1,
+          );
+        final core = CommentController(
+          api: api,
+          journal: journal,
+          clock: () => now,
+        );
+        await core.activate(_account);
+        await core.submit(
+          taskId: _task,
+          commandId: _command,
+          binding: _binding(),
+          content: _content(),
+        );
+        now = now.add(const Duration(seconds: 2));
+        api.onQuery = (_) async => throw CommentCommandRejected('SEALED');
+        if (sealed) {
+          await core.reconcile(_task, afterSeal: true);
+        } else {
+          await core.retryRateLimited(_task);
+        }
+        expect(core.entries.single.rateLimitWait, isNull);
+        expect(core.entries.single.rejectionCode, 'SEALED');
+        expect((await journal.read(_account)).single.rejectionCode, 'SEALED');
+        expect((await journal.read(_account)).single.content!.body, '原文');
+        core.dispose();
+      },
+    );
+  }
   test('429 journals comment/reply/image draft, restart never publishes, manual retry keeps key', () async {
     var now = DateTime.utc(2026, 10, 24);
     final journal = MemoryCommentJournalTestAdapter();

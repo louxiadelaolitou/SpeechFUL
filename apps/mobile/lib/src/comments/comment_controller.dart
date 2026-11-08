@@ -443,6 +443,11 @@ class CommentController extends ChangeNotifier {
         rateLimitMessage = null;
         return;
       }
+    } on CommentCommandRejected catch (rejection) {
+      if (_current(account, epoch)) {
+        await _recordRejection(account, epoch, entry, rejection.code);
+      }
+      return;
     } on CommentHttpFailure catch (failure) {
       if (_current(account, epoch) &&
           failure.status == 429 &&
@@ -470,12 +475,12 @@ class CommentController extends ChangeNotifier {
     await _execute(entry.limited(null), account, epoch);
   }
 
-  Future<void> reconcile(String localId) async {
+  Future<void> reconcile(String localId, {bool afterSeal = false}) async {
     final account = _accountId, entry = _entries[localId], epoch = _epoch;
     if (account == null ||
         entry == null ||
         _disposed ||
-        entry.rateLimitWait != null) {
+        (entry.rateLimitWait != null && !afterSeal)) {
       return;
     }
     final key = '$account:$epoch:$localId';
@@ -495,7 +500,13 @@ class CommentController extends ChangeNotifier {
         if (task == null) {
           if (!_knownFailure(entry)) await _unknown(account, epoch, entry);
         } else {
-          await _apply(account, epoch, entry, task, commandResult: false);
+          await _apply(
+            account,
+            epoch,
+            afterSeal ? entry.limited(null) : entry,
+            task,
+            commandResult: false,
+          );
         }
       } on CommentCommandRejected catch (rejection) {
         if (_current(account, epoch)) {
@@ -533,13 +544,14 @@ class CommentController extends ChangeNotifier {
       await _clearTask(account, epoch, entry.localId);
       return;
     }
-    final rejected = entry.rejected(code);
+    final rejected = entry.limited(null).rejected(code);
     await _put(account, rejected);
     if (!_current(account, epoch) ||
         _retiredIdentities.contains(entry.intent.binding.identityId)) {
       return;
     }
     _entries[entry.localId] = rejected;
+    rateLimitMessage = null;
     _changed();
     if (entry.intent.operation != CommentOperation.create) {
       await _queryRejectedTask(account, epoch, rejected);

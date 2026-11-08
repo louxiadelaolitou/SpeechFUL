@@ -27,6 +27,9 @@ const profiles = new Map([2, 3].map(n => { const id = `10000000-0000-4000-8000-0
 const appeal = () => ({ id: appealId, caseId, sanctionId, state: appealState, ordinal: 1, version: 1, reason: appealState === 'ACCEPTED' ? '核查新材料后撤销对应处罚。' : '', platformNumber: '000125', action: 'MUTE', originalActorNumber: '000999', createdAt: stamp, materials: [{ description: '请结合原帖重新核查。', createdAt: stamp, images: [] }], nextMaterialsCursor: 'appeal-material+2' });
 const sanctions = () => [{ id: sanctionId, action: 'MUTE', reason: '已确认违规。', actorNumber: '000999', startsAt: stamp, endsAt: '2026-10-21T04:30:00Z', revokedAt: revoked ? stamp : null }];
 let server, browser;
+let queuePageReads = 0, releaseQueuePage, queuePageStarted;
+const queuePageGate = new Promise(resolve => { releaseQueuePage = resolve; });
+const queuePageReady = new Promise(resolve => { queuePageStarted = resolve; });
 try {
   await writeFile(join(temporary, 'openssl.cnf'), '[req]\ndistinguished_name=dn\nx509_extensions=v3\nprompt=no\n[dn]\nCN=localhost\n[v3]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n');
   execFileSync(process.env.OPENSSL_BIN || 'openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-config', join(temporary, 'openssl.cnf'), '-keyout', join(temporary, 'key.pem'), '-out', join(temporary, 'cert.pem'), '-days', '1'], { stdio: 'ignore' });
@@ -42,7 +45,10 @@ try {
       if (url.pathname === '/api/v1/auth/sessions') { role = payload.username === 'admin_test' ? 'ADMIN' : 'REVIEWER'; state = 'PENDING'; version = 1; respond({ sessionToken: token, accountId: 'PRIVATE-ACCOUNT-MAPPING', expiresAt: '2030-01-01T00:00:00Z' }, 201); return; }
       if (url.pathname === '/api/v1/auth/session-revocations') { respond(null, 204); return; }
       if (url.pathname === '/api/v1/moderation/me') { respond({ role, platformNumber: '000123', email: 'PRIVATE-EMAIL', otherIdentities: ['PRIVATE-OTHER-MASK'] }); return; }
-      if (url.pathname === '/api/v1/moderation/cases') { respond(url.searchParams.has('before') ? { items: [...profiles.values()] } : { items: [record()], nextBefore: `${stamp}|${caseId}` }); return; }
+      if (url.pathname === '/api/v1/moderation/cases') {
+        if (url.searchParams.has('before')) { queuePageReads++; queuePageStarted(); await queuePageGate; }
+        respond(url.searchParams.has('before') ? { items: [...profiles.values()] } : { items: [record()], nextBefore: `${stamp}|${caseId}` }); return;
+      }
       if (url.pathname === `/api/v1/moderation/cases/${caseId}`) { respond(record()); return; }
       if (url.pathname === `/api/v1/moderation/cases/${caseId}/reports`) {
         if (reportPageFailures-- > 0) { respond({}, 503); return; }
@@ -99,7 +105,12 @@ try {
   await page.getByText(/考虑现有处罚/).waitFor(); await page.getByLabel('处理原因', { exact: true }).fill('根据本案证据作出三天禁言。');
   await page.screenshot({ path: join(root, 'reviewer-case.png'), fullPage: true });
   await page.getByRole('button', { name: '确认处理', exact: true }).click(); await page.getByText('案件已处理。', { exact: true }).waitFor();
-  await page.getByRole('button', { name: '加载更早记录', exact: true }).click();
+  await page.getByRole('button', { name: '加载更早记录', exact: true }).evaluate(button => { button.click(); button.click(); });
+  await queuePageReady;
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+  assert.equal(queuePageReads, 1); releaseQueuePage();
+  await page.getByRole('button', { name: /工单 R202610180002/ }).waitFor();
+  assert.equal(await page.locator('.queue-item[data-record]').count(), 3);
   await page.getByRole('button', { name: /工单 R202610180002/ }).click(); await page.getByRole('button', { name: '加载后续材料', exact: true }).click(); await lateReportStarted;
   await page.getByRole('button', { name: /工单 R202610180003/ }).click(); await page.getByRole('heading', { name: '工单 R202610180003', exact: true }).waitFor();
   const lateResponse = page.waitForResponse(response => response.url().endsWith('/reports?cursor=late-report')); releaseLateReport(); await (await lateResponse).finished();

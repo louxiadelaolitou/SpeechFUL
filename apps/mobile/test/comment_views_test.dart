@@ -20,6 +20,7 @@ import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/src/localization/app_localizations.dart';
 
 import 'identity_test_support.dart';
+import 'login_home_test_support.dart';
 import 'feed_ui_test.dart' as feed;
 import 'feed_interactions_test.dart' as interactions;
 
@@ -279,6 +280,125 @@ class _Runtime extends ChangeNotifier implements CommentRuntime {
 }
 
 void main() {
+  testWidgets(
+    'personal replies show first page and preserve it across paging failure',
+    (tester) async {
+      final journal = _MemoryJournal();
+      final runtime = _Runtime(journal);
+      await runtime.core.activate(account);
+      final next = Completer<Map<String, dynamic>>();
+      final cursors = <String?>[];
+      var retry = false;
+      runtime.snapshotHandler = (path, query, nonce) async {
+        expect(path, '/api/v1/me/comments');
+        cursors.add(query?['cursor']);
+        if (query?['cursor'] == null) {
+          return {
+            'items': List.generate(
+              20,
+              (i) => row(
+                '33333333-3333-4333-8333-${i.toString().padLeft(12, '0')}',
+                '首批回复 $i',
+              ),
+            ),
+            'nextCursor': 'next-page',
+          };
+        }
+        return retry
+            ? {
+                'items': [row(reply, '第二批回复')],
+                'nextCursor': null,
+              }
+            : next.future;
+      };
+      final fixture = HomeTestFixture();
+      await tester.pumpWidget(
+        CommentScope(runtime: runtime, child: await fixture.create()),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('profile-tab-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('首批回复 0'), findsOneWidget);
+      expect(cursors, [null]);
+      final scroll = find.byType(CustomScrollView).last;
+      await tester.drag(scroll, const Offset(0, -8000));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(cursors, [null, 'next-page']);
+      next.completeError(StateError('synthetic transport failure'));
+      await tester.pumpAndSettle();
+      await tester.drag(scroll, const Offset(0, 8000));
+      await tester.pumpAndSettle();
+      expect(find.text('首批回复 0'), findsOneWidget);
+      expect(cursors, [null, 'next-page']);
+      retry = true;
+      await tester.tap(find.text('回复加载失败，点击重试'));
+      await tester.pumpAndSettle();
+      expect(cursors, [null, 'next-page', 'next-page']);
+      await tester.drag(scroll, const Offset(0, -8000));
+      await tester.pumpAndSettle();
+      expect(find.text('第二批回复'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      runtime.core.dispose();
+      runtime.dispose();
+      await journal.close();
+    },
+  );
+  testWidgets(
+    'failed rejected image read preserves the original durable material',
+    (tester) async {
+      final journal = _MemoryJournal();
+      final runtime = _Runtime(journal);
+      await runtime.core.activate(account);
+      runtime.transportFake.executeFailure = CommentCommandRejected(
+        'IDENTITY_UNAVAILABLE',
+      );
+      final image = CommentImage(
+        blobId: reply,
+        selection: PostImageSelection.fromJson({
+          'mediaId': root,
+          'sha256': 'ab' * 32,
+          'mimeType': 'image/png',
+          'byteLength': 123,
+          'width': 20,
+          'height': 30,
+        }),
+      );
+      await runtime.core.submit(
+        taskId: reply,
+        commandId: commentKey(),
+        binding: CommentBinding(postId: post, identityId: identity),
+        content: CommentContent(body: '原始材料', image: image),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CommentPostPane(
+              runtime: runtime,
+              postId: post,
+              postBody: '正文',
+              body: const Text('正文'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('写评论'));
+      await tester.pumpAndSettle();
+      expect(find.text('图片读取失败，请重试'), findsOneWidget);
+      final retained = (await journal.read(account)).single;
+      expect(retained.content!.body, '原始材料');
+      expect(retained.content!.image!.blobId, reply);
+      expect(retained.rejectionCode, 'IDENTITY_UNAVAILABLE');
+      await tester.pumpWidget(const SizedBox());
+      runtime.core.dispose();
+      runtime.dispose();
+      await journal.close();
+    },
+  );
   snapshotRecoveryTests();
   detailReferenceTests();
   quickReplyTests();

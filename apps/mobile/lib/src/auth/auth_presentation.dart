@@ -270,9 +270,11 @@ class AuthWelcomeScreen extends StatelessWidget {
     super.key,
     required this.onStarted,
     this.showControls = true,
+    this.onModerationAccess,
   });
 
   final VoidCallback onStarted;
+  final VoidCallback? onModerationAccess;
   final bool showControls;
 
   @override
@@ -387,6 +389,14 @@ class AuthWelcomeScreen extends StatelessWidget {
                                           : 'Continue in English',
                                     ),
                                   ),
+                                  if (onModerationAccess != null)
+                                    TextButton(
+                                      key: const ValueKey(
+                                        'welcome-moderation-access',
+                                      ),
+                                      onPressed: onModerationAccess,
+                                      child: Text(controller.text('查看处理通知与申诉')),
+                                    ),
                                   const SizedBox(height: 24),
                                   SizedBox(
                                     width: double.infinity,

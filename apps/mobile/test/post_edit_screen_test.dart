@@ -12,6 +12,8 @@ class _EditApi extends ComposerApi implements PostEditApi {
   final editReceipts = <String, PostEditResult>{};
   final commands = <String>[];
   final submittedTags = <List<String>?>[];
+  final submittedImageIds = <List<String>?>[];
+  PostFailure? stageFailure;
   final staged = <({String commandId, String imageId, Uint8List bytes})>[];
   List<String> publicImageIds = [];
   bool allowEdit = true, rejectNext = false, loseNext = false;
@@ -85,6 +87,7 @@ class _EditApi extends ComposerApi implements PostEditApi {
   }) async {
     commands.add(commandId);
     submittedTags.add(tags);
+    submittedImageIds.add(imageIds);
     if (rejectNext) {
       rejectNext = false;
       return composerReply(
@@ -123,6 +126,7 @@ class _EditApi extends ComposerApi implements PostEditApi {
     required Uint8List bytes,
   }) async {
     staged.add((commandId: commandId, imageId: imageId, bytes: bytes));
+    if (stageFailure case final failure?) throw failure;
     return composerReply(true);
   }
 }
@@ -212,6 +216,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('最后修改时间'), findsOneWidget);
     expect(api.commands.toSet().length, 2);
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(fixture.close);
+  });
+
+  testWidgets('编辑图片配额拒绝仍以原键完整提交取得终态', (tester) async {
+    final api = _EditApi()..body = '原公开正文';
+    final fixture = (await tester.runAsync(
+      () => MediaComposerFixture.create(api: api),
+    ))!;
+    await start(tester, fixture);
+    await edit(tester);
+    await tester.enterText(find.byType(TextField).at(1), '需保留的修改');
+    final image = (await tester.runAsync(
+      () => File(
+        '../../packages/image_viewer/example/assets/fixtures/ordinary.png',
+      ).readAsBytes(),
+    ))!;
+    fixture.picker.next = [pickedBytes(image)];
+    await tester.ensureVisible(find.byTooltip('添加图片'));
+    await tester.tap(find.byTooltip('添加图片'));
+    await waitFor(tester, find.text('图片 1/9'));
+    api.stageFailure = const PostFailure(
+      kind: PostFailureKind.rejected,
+      statusCode: 409,
+      code: 'POST_EDIT_MEDIA_LIMIT',
+    );
+    api.rejectNext = true;
+    await tester.tap(find.text('保存'));
+    await waitFor(tester, find.text('保存失败。修改保留在此页，可重试。'));
+    expect(api.commands, [api.staged.single.commandId]);
+    expect(api.submittedImageIds.single, [api.staged.single.imageId]);
+    expect(api.body, '原公开正文');
+    final retainedBody = find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.controller?.text == '需保留的修改',
+    );
+    expect(retainedBody, findsOneWidget);
+    expect(tester.widget<TextField>(retainedBody).readOnly, isFalse);
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(fixture.close);
   });

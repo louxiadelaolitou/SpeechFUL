@@ -88,6 +88,109 @@ class _Channels implements ChannelRepository {
 }
 
 void main() {
+  for (final code in ['RESET_INTENT_INVALID', 'RESET_INTENT_EXPIRED']) {
+    for (final terminal in [false, true]) {
+      test(
+        '$code with terminal=$terminal only restarts after authoritative non-commit',
+        () async {
+          final h = ResetHarness();
+          final flow = h.make();
+          await flow.requestEmailReset('owned@hainanu.edu.cn');
+          await flow.completeEmailReset('123456');
+          final original = h.store.current!.emailReset!['intentId'];
+          h.api.onCommitReset = () async =>
+              throw AuthFailure(kind: AuthFailureKind.rejected, code: code);
+          h.api.resetResult = terminal
+              ? PasswordResetResult.notCommitted
+              : PasswordResetResult.pending;
+          await flow.commitReset('NewPassword123!', '');
+          expect(flow.canCorrectResetPassword, isFalse);
+          expect(
+            h.store.current!.pendingReset!['state'],
+            terminal ? 'NOT_COMMITTED' : 'UNKNOWN',
+          );
+          if (terminal) {
+            expect(h.store.current!.emailReset, isNull);
+            final resumed = h.make();
+            await resumed.restorePending();
+            expect(resumed.canCorrectResetPassword, isFalse);
+            await resumed.acknowledgeResetResult();
+            await resumed.requestEmailReset('owned@hainanu.edu.cn');
+            expect(h.store.current!.emailReset!['intentId'], isNull);
+            expect(h.store.current!.pendingReset, isNull);
+          } else {
+            expect(h.store.current!.emailReset!['intentId'], original);
+            await flow.acknowledgeResetResult();
+            final retained = await h.store.read();
+            expect(retained.pendingReset!['state'], 'UNKNOWN');
+            expect(retained.emailReset!['intentId'], original);
+          }
+        },
+      );
+    }
+  }
+
+  test('restarting a terminal reset discards its stale email intent', () async {
+    final h = ResetHarness();
+    final flow = h.make();
+    await flow.requestEmailReset('owned@hainanu.edu.cn');
+    await flow.completeEmailReset('123456');
+    h.api.onCommitReset = () async =>
+        throw const AuthFailure(kind: AuthFailureKind.unavailable);
+    await flow.commitReset('NewPassword123!', '');
+    h.api.resetResult = PasswordResetResult.notCommitted;
+    await flow.reconcileReset();
+    await flow.acknowledgeResetResult();
+    expect(h.store.current!.emailReset, isNull);
+    await flow.requestEmailReset('owned@hainanu.edu.cn');
+    expect(h.store.current!.emailReset!['intentId'], isNull);
+  });
+  test('policy refusal requires terminal result and survives restart before correction', () async {
+    final h = ResetHarness();
+    final flow = h.make();
+    await flow.requestEmailReset('owned@hainanu.edu.cn');
+    await flow.completeEmailReset('123456');
+    h.api.onCommitReset = () async => throw const AuthFailure(
+      kind: AuthFailureKind.rejected,
+      code: 'PASSWORD_POLICY_FAILED',
+    );
+    h.api.resetResult = PasswordResetResult.notCommitted;
+    await flow.commitReset('InvalidPassword123!', '');
+    expect(flow.status, AuthFlowStatus.resetNotCommitted);
+    expect(h.store.current!.pendingReset!['state'], 'NOT_COMMITTED');
+    final oldKey = h.api.resetCommits.single['key'];
+    final resumed = h.make();
+    await resumed.restorePending();
+    expect(resumed.canCorrectResetPassword, isTrue);
+    await resumed.correctResetPassword();
+    expect(resumed.status, AuthFlowStatus.resetCodeConfirmation);
+    expect(resumed.username, 'private_user');
+    h.api.onCommitReset = null;
+    await resumed.commitReset('CorrectedPassword123!', '');
+    expect(h.api.resetCommits.last['key'], isNot(oldKey));
+    expect(resumed.status, AuthFlowStatus.resetCommitted);
+    expect(h.store.current!.emailReset, isNull);
+  });
+
+  test(
+    'unavailable policy receipt remains unknown and cannot be corrected',
+    () async {
+      final h = ResetHarness();
+      final f = h.make();
+      await f.requestEmailReset('owned@hainanu.edu.cn');
+      await f.completeEmailReset('123456');
+      h.api.onCommitReset = () async => throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'PASSWORD_POLICY_FAILED',
+      );
+      h.api.resetResultFailure = const AuthFailure(
+        kind: AuthFailureKind.unavailable,
+      );
+      await f.commitReset('NewPassword123!', '');
+      expect(h.store.current!.pendingReset!['state'], 'UNKNOWN');
+      expect(f.canCorrectResetPassword, isFalse);
+    },
+  );
   test(
     'email reset survives restart and commits without a code or login',
     () async {
@@ -223,6 +326,50 @@ void main() {
       expect(flow.recoveryCode, isNull);
     },
   );
+
+  for (final code in ['PASSWORD_POLICY_FAILED', 'RESET_INTENT_INVALID']) {
+    testWidgets('$code terminal page can restart email verification', (
+      tester,
+    ) async {
+      final h = ResetHarness();
+      final directory = ChannelDirectoryController(repository: _Channels());
+      final sessions = AuthSessionController(
+        api: h.api,
+        store: h.store,
+        directory: directory,
+      );
+      await sessions.start();
+      final flow = h.make();
+      await flow.requestEmailReset('owned@hainanu.edu.cn');
+      await flow.completeEmailReset('123456');
+      h.api.onCommitReset = () async =>
+          throw AuthFailure(kind: AuthFailureKind.rejected, code: code);
+      h.api.resetResult = PasswordResetResult.notCommitted;
+      await flow.commitReset('NewPassword123!', '');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(sessions: sessions, flows: flow),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('本次重设未提交'), findsOneWidget);
+      expect(
+        find.text('重新输入密码'),
+        code == 'PASSWORD_POLICY_FAILED' ? findsOneWidget : findsNothing,
+      );
+      await tester.ensureVisible(find.text('重新开始恢复'));
+      await tester.tap(find.text('重新开始恢复'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('reset-email')), findsOneWidget);
+      expect(h.store.current!.pendingReset, isNull);
+      expect(h.store.current!.emailReset, isNull);
+      expect(h.api.resetCommits, hasLength(1));
+      await tester.pumpWidget(const SizedBox());
+      flow.dispose();
+      sessions.dispose();
+      directory.dispose();
+    });
+  }
 
   testWidgets('forgot password shows email only and completes back at login', (
     tester,

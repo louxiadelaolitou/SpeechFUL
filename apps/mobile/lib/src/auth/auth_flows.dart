@@ -104,6 +104,37 @@ class AuthFlows extends ChangeNotifier {
   int _epoch = 0;
 
   AuthFlowStatus get status => _status;
+  bool get canCorrectResetPassword {
+    final state = _store.current;
+    final email = state?.emailReset;
+    return state?.pendingReset?['state'] == 'NOT_COMMITTED' &&
+        email?['intentId'] == state?.pendingReset?['intentId'] &&
+        email?['intentExpiresAt'] is String &&
+        _clock().isBefore(DateTime.parse(email!['intentExpiresAt'] as String));
+  }
+
+  Future<void> correctResetPassword() => _run((epoch) async {
+    if (!canCorrectResetPassword) return;
+    final email = _store.current!.emailReset!;
+    final key = _store.current!.pendingReset!['key'];
+    await _store.update(
+      (s) =>
+          s.pendingReset?['key'] == key &&
+              s.pendingReset?['state'] == 'NOT_COMMITTED'
+          ? s.copyWith(clearPendingReset: true)
+          : s,
+    );
+    if (!_current(epoch) || _store.current!.pendingReset != null) return;
+    _resetIntent = PasswordResetIntent(
+      resetIntentId: email['intentId'] as String,
+      expiresAt: DateTime.parse(email['intentExpiresAt'] as String),
+      username: email['username'] as String,
+      newRecoveryCode: '',
+    );
+    _emailResetAuthorityVersion = _sessionAuthorityVersion();
+    _username = _resetIntent!.username;
+    _status = AuthFlowStatus.resetCodeConfirmation;
+  });
   AuthFailure? get error => _error;
   String? get errorMessage => _errorMessage;
   bool get busy => _busy;
@@ -177,11 +208,27 @@ class AuthFlows extends ChangeNotifier {
       );
     }
     final original = m;
-    final result = await (_api as EmailLoginApi).requestEmailLoginOtp(
-      email: email,
-      installationId: state.vInstallationId!,
-      idempotencyKey: original['sendKey'] as String,
-    );
+    late OtpRequestAccepted result;
+    try {
+      result = await (_api as EmailLoginApi).requestEmailLoginOtp(
+        email: email,
+        installationId: state.vInstallationId!,
+        idempotencyKey: original['sendKey'] as String,
+      );
+    } on AuthFailure catch (failure) {
+      if (failure.resultsExpired && _current(epoch)) {
+        await _store.update(
+          (s) =>
+              s.emailLogin?['sendKey'] == original['sendKey'] &&
+                  s.emailLogin?['confirmKey'] == null &&
+                  s.emailLogin?['proof'] == null &&
+                  s.emailLogin?['intentId'] == null
+              ? s.copyWith(clearEmailLogin: true)
+              : s,
+        );
+      }
+      rethrow;
+    }
     if (!_current(epoch)) return;
     await _store.update(
       (s) => s.emailLogin?['sendKey'] == original['sendKey']
@@ -401,11 +448,27 @@ class AuthFlows extends ChangeNotifier {
       );
     }
     final original = m;
-    final result = await (_api as EmailResetApi).requestEmailResetOtp(
-      email: email,
-      installationId: state.vInstallationId!,
-      idempotencyKey: original['sendKey'] as String,
-    );
+    late OtpRequestAccepted result;
+    try {
+      result = await (_api as EmailResetApi).requestEmailResetOtp(
+        email: email,
+        installationId: state.vInstallationId!,
+        idempotencyKey: original['sendKey'] as String,
+      );
+    } on AuthFailure catch (failure) {
+      if (failure.resultsExpired && _current(epoch)) {
+        await _store.update(
+          (s) =>
+              s.emailReset?['sendKey'] == original['sendKey'] &&
+                  s.emailReset?['confirmKey'] == null &&
+                  s.emailReset?['proof'] == null &&
+                  s.emailReset?['intentId'] == null
+              ? s.copyWith(clearEmailReset: true)
+              : s,
+        );
+      }
+      rethrow;
+    }
     if (!_current(epoch)) return;
     await _store.update(
       (s) => s.emailReset?['sendKey'] == original['sendKey']
@@ -1331,7 +1394,6 @@ class AuthFlows extends ChangeNotifier {
             );
           }
           return latest.copyWith(
-            clearEmailReset: true,
             pendingReset: <String, dynamic>{
               'v': 1,
               'intentId': intent.resetIntentId,
@@ -1348,12 +1410,37 @@ class AuthFlows extends ChangeNotifier {
         _clearCommunityAccess();
         _status = AuthFlowStatus.resetUnknown;
         _notify();
-        await _api.commitPasswordReset(
-          resetIntentId: intent.resetIntentId,
-          newPassword: newPassword,
-          newRecoveryCodeConfirmation: confirmation,
-          idempotencyKey: key,
-        );
+        try {
+          await _api.commitPasswordReset(
+            resetIntentId: intent.resetIntentId,
+            newPassword: newPassword,
+            newRecoveryCodeConfirmation: confirmation,
+            idempotencyKey: key,
+          );
+        } on AuthFailure catch (failure) {
+          final invalidIntent =
+              failure.code == 'RESET_INTENT_INVALID' ||
+              failure.code == 'RESET_INTENT_EXPIRED';
+          if ((failure.code == 'PASSWORD_POLICY_FAILED' || invalidIntent) &&
+              _current(epoch)) {
+            final result = await _api.passwordResetResult(
+              resetIntentId: intent.resetIntentId,
+              idempotencyKey: key,
+            );
+            if (!_current(epoch)) return;
+            // A rejected intent is not reusable merely because its local
+            // expiry lies in the future. Keep all material until the exact
+            // request has a durable authoritative non-commit conclusion.
+            await _recordResetResult(key, result, invalidIntent: invalidIntent);
+            if (!_current(epoch)) return;
+            _status = result == PasswordResetResult.notCommitted
+                ? AuthFlowStatus.resetNotCommitted
+                : result == PasswordResetResult.committed
+                ? AuthFlowStatus.resetCommitted
+                : AuthFlowStatus.resetUnknown;
+          }
+          rethrow;
+        }
         if (!_current(epoch)) {
           return;
         }
@@ -1423,9 +1510,13 @@ class AuthFlows extends ChangeNotifier {
           code: 'PENDING_CHECK_REQUIRED',
         );
       }
-      return latest.copyWith(clearPendingReset: true);
+      return latest.copyWith(clearPendingReset: true, clearEmailReset: true);
     });
-    if (_current(epoch)) _status = AuthFlowStatus.idle;
+    if (_current(epoch)) {
+      _resetIntent = null;
+      _username = null;
+      _status = AuthFlowStatus.idle;
+    }
   });
 
   Future<void> requestClosure(String password) => _run((epoch) async {
@@ -1655,8 +1746,9 @@ class AuthFlows extends ChangeNotifier {
 
   Future<void> _recordResetResult(
     String key,
-    PasswordResetResult result,
-  ) async {
+    PasswordResetResult result, {
+    bool invalidIntent = false,
+  }) async {
     await _store.update((latest) {
       final pending = latest.pendingReset;
       if (pending?['key'] != key) {
@@ -1690,10 +1782,17 @@ class AuthFlows extends ChangeNotifier {
         return latest.copyWith(
           pendingReset: next,
           clearSession: true,
+          clearEmailReset: true,
           logouts: tasks,
         );
       }
-      return latest.copyWith(pendingReset: next);
+      return latest.copyWith(
+        pendingReset: next,
+        clearEmailReset:
+            result == PasswordResetResult.committed ||
+            (invalidIntent &&
+                latest.emailReset?['intentId'] == pending['intentId']),
+      );
     });
   }
 

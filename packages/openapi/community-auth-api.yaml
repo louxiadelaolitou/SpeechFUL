@@ -1343,7 +1343,6 @@ components:
       - intentId
       - challenge
       - expiresAt
-      - recoveryCode
     RegistrationRequest:
       description: Legacy recovery is paused in the email reset release. Recovery fields are omitted; legacy code confirmation is rejected by the paused runtime. Password reset omission is accepted only for an EMAIL intent.
       type: object
@@ -1358,7 +1357,6 @@ components:
       required:
       - intentId
       - bootstrapSignature
-      - recoveryCodeConfirmation
     SessionCreateRequest:
       type: object
       additionalProperties: false
@@ -1499,7 +1497,6 @@ components:
       required:
       - resetIntentId
       - newPassword
-      - newRecoveryCodeConfirmation
     ResetResult:
       type: object
       additionalProperties: false

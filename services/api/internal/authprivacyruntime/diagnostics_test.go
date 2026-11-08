@@ -41,6 +41,24 @@ func TestProcessDiagnosticsExcludeUntrustedErrors(t *testing.T) {
 	}
 }
 
+func TestProcessDiagnosticsStableCategories(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{errors.Join(errDatabaseConnection, errors.New("secret endpoint")), "database_connection"},
+		{errors.Join(errDatabaseSchema, errors.New("private table")), "database_schema"},
+		{errors.Join(errDatabasePrivileges, errors.New("private role")), "database_privileges"},
+		{errors.Join(errListenerBind, errors.New("private address")), "listener_bind"},
+		{fmt.Errorf("secret: %w", &pgconn.PgError{Code: "42501", Message: "secret"}), "database_privileges"},
+		{fmt.Errorf("secret: %w", &pgconn.PgError{Code: "42P01", Message: "secret"}), "database_schema"},
+	} {
+		if got := failureReason(tc.err); got != tc.want {
+			t.Fatalf("got %s want %s", got, tc.want)
+		}
+	}
+}
+
 func TestHTTPPanicDiagnosticExcludesRequestAndPanicMaterial(t *testing.T) {
 	const secret = "sentinel@example.invalid-secret-capability"
 	var output bytes.Buffer

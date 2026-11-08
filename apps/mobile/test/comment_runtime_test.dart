@@ -42,6 +42,20 @@ class _RenewingSessionApi extends IdentityTestSessionApi {
   }
 }
 
+class _PausedVault extends IdentityTestVault {
+  Completer<void>? entered, release;
+  @override
+  Future<void> write(String next) async {
+    final pending = release;
+    if (pending != null) {
+      release = null;
+      entered!.complete();
+      await pending.future;
+    }
+    await super.write(next);
+  }
+}
+
 class _Journal extends NativeCommentJournal {
   _Journal() : super((account) async => _Store(account));
   final entries = <String, CommentJournalEntry>{};
@@ -176,8 +190,8 @@ Future<
     NativeCommentJournal journal,
   })
 >
-_fixture() async {
-  final vault = IdentityTestVault();
+_fixture({IdentityTestVault? pausedVault}) async {
+  final vault = pausedVault ?? IdentityTestVault();
   final store = AuthStore(vault);
   await store.update(
     (state) => state.copyWith(
@@ -258,6 +272,49 @@ Future<void> _open(WidgetTester tester, CommentRuntime runtime) async {
 }
 
 void main() {
+  testWidgets(
+    'renewal during comment metadata write does not revoke a valid session',
+    (tester) async {
+      final vault = _PausedVault();
+      final f = await _fixture(pausedVault: vault);
+      try {
+        await _open(tester, f.runtime);
+        await f.auth.store.update(
+          (s) => s.copyWith(
+            session: SessionRecord(
+              token: identityTestToken,
+              accountId: identityTestAccount,
+              expiresAt: DateTime.now().toUtc().add(const Duration(days: 5)),
+            ),
+          ),
+        );
+        vault.entered = Completer<void>();
+        final release = Completer<void>();
+        vault.release = release;
+        final request = f.runtime.request(
+          'GET',
+          '/api/v1/posts/$_post/comments',
+        );
+        await vault.entered!.future;
+        final renewal = f.auth.sessions.onActivity();
+        release.complete();
+        expect((await request)['comments'], isNotEmpty);
+        await renewal;
+        await tester.pumpAndSettle();
+        expect(f.sessionsApi.renewals, 1);
+        expect(f.auth.sessions.isCurrentToken(identityTestToken), isTrue);
+        expect(f.auth.store.current!.session!.token, identityTestToken);
+        expect(find.text('续期前已加载评论'), findsOneWidget);
+        await tester.tap(find.text('继续输入'));
+        await tester.pumpAndSettle();
+        expect(find.text('尚未提交的评论草稿'), findsOneWidget);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        f.runtime.dispose();
+        f.auth.dispose();
+      }
+    },
+  );
   for (final code in [
     'COMMENT_SNAPSHOT_UNAVAILABLE',
     'COMMENT_SNAPSHOT_CAPACITY',

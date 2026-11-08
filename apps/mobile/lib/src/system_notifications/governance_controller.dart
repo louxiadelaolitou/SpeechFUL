@@ -146,6 +146,7 @@ class GovernanceController extends ChangeNotifier {
   }
 
   Map<String, dynamic>? pending;
+  bool? lastPendingSubmitted;
   bool loading = false, busy = false;
   bool _disposed = false;
   int _epoch = 0, _version = -1, _listRequest = 0;
@@ -230,6 +231,7 @@ class GovernanceController extends ChangeNotifier {
     _inboxUnread = false;
     selectedIdentityId = nextBefore = error = null;
     pending = null;
+    lastPendingSubmitted = null;
     busy = loading = false;
     _notify();
     if (available) unawaited(restorePending());
@@ -746,6 +748,7 @@ class GovernanceController extends ChangeNotifier {
     if (!_current(a)) return false;
     pending = null;
     error = null;
+    lastPendingSubmitted = true;
     return true;
   }
 
@@ -890,6 +893,7 @@ class GovernanceController extends ChangeNotifier {
     bool discard = false,
   }) async {
     if (busy || pending == null) return false;
+    lastPendingSubmitted = null;
     final a = _capture(), p = pending!;
     busy = true;
     error = null;
@@ -910,6 +914,7 @@ class GovernanceController extends ChangeNotifier {
         await pendingStore.put(a.account, null, () => _current(a));
         if (!_current(a)) return false;
         pending = null;
+        lastPendingSubmitted = false;
         return true;
       }
       if (retry) {

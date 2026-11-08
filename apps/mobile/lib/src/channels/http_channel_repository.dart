@@ -42,9 +42,19 @@ class HttpChannelRepository implements ChannelRepository {
 
     final requestUri = baseUri.resolve('/api/v1/channels');
     HttpClientResponse response;
-    late HttpClientRequest request;
+    HttpClientRequest? request;
+    var expired = false;
     try {
-      request = await _client.getUrl(requestUri).timeout(timeout);
+      request = await _client
+          .getUrl(requestUri)
+          .then((opened) {
+            if (expired) {
+              opened.abort();
+              throw TimeoutException('Channel connection expired');
+            }
+            return opened;
+          })
+          .timeout(timeout);
       request.followRedirects = false;
       request.maxRedirects = 0;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
@@ -54,10 +64,14 @@ class HttpChannelRepository implements ChannelRepository {
       );
       response = await request.close().timeout(timeout);
     } on TimeoutException {
+      expired = true;
+      request?.abort();
       throw const ChannelRepositoryException(
         message: 'The channel request timed out',
       );
     } on IOException {
+      expired = true;
+      request?.abort();
       // Socket/TLS/HTTP exception strings can contain request values or
       // endpoint diagnostics. Retain only a safe transport classification.
       throw const ChannelRepositoryException(
@@ -85,9 +99,13 @@ class HttpChannelRepository implements ChannelRepository {
         message: 'The channel request timed out',
       );
     } on FormatException {
+      request.abort();
       throw const ChannelRepositoryException(
         message: 'The channel response is malformed',
       );
+    } on ChannelRepositoryException {
+      request.abort();
+      rethrow;
     } on IOException {
       request.abort();
       throw const ChannelRepositoryException(

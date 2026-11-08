@@ -370,7 +370,7 @@ func TestIdentityClosureWaiterRejectsFreezeAndOldGenerationPostgres(t *testing.T
 			l := control.lab
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			owner, ids := identityClosureAccount(t, control, "identity_close_freeze", 1)
+			owner, _ := identityClosureAccount(t, control, "identity_close_freeze", 1)
 			request, _ := closureTestRequest(t, owner.SessionToken)
 			accepted, err := l.c.RequestAccountClosure(ctx, request, sessionTestPasswordWorker(t, 1))
 			if err != nil {
@@ -378,18 +378,18 @@ func TestIdentityClosureWaiterRejectsFreezeAndOldGenerationPostgres(t *testing.T
 			}
 			advanceClosureClock(t, control, accepted.DueAt)
 			profiles, receipts, authority := identityProfileSnapshot(t, l, owner.AccountID), identityReceiptSnapshot(t, l, owner.AccountID), identityClosureAuthoritySnapshot(t, l, owner.AccountID)
-			hold, err := l.cp.Begin(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer hold.Rollback(ctx)
-			var id uuid.UUID
-			if err = hold.QueryRow(ctx, `SELECT identity_id FROM public.community_identities WHERE identity_id=$1 FOR UPDATE`, ids[0]).Scan(&id); err != nil {
-				t.Fatal(err)
-			}
+			// Pause before final authorization, independently of identity lock
+			// order. Identity locks now follow the Gate to avoid peer-send cycles.
+			barrier := &identityClosureCommitBarrier{AuthorizationGate: l.c.gate, captured: make(chan struct{}), release: make(chan struct{})}
+			closer := *l.c
+			closer.gate = barrier
 			answer := make(chan error, 1)
-			go func() { _, e := l.c.FinalizeDueClosures(ctx, 10); answer <- e }()
-			waitLock(t, l.cp, "transactionid", 1)
+			go func() { _, e := closer.FinalizeDueClosures(ctx, 10); answer <- e }()
+			select {
+			case <-barrier.captured:
+			case <-ctx.Done():
+				t.Fatal("closure did not reach final Gate")
+			}
 			if err = control.gate.Freeze(ctx, "identity dependent wait checkpoint"); err != nil {
 				t.Fatal(err)
 			}
@@ -397,9 +397,7 @@ func TestIdentityClosureWaiterRejectsFreezeAndOldGenerationPostgres(t *testing.T
 				control.clock.set(control.clock.now().Add(time.Second))
 				control.recover(t, AuthorizationRecoveryNormal, 3, 4)
 			}
-			if err = hold.Commit(ctx); err != nil {
-				t.Fatal(err)
-			}
+			close(barrier.release)
 			if err = <-answer; !errors.Is(err, ErrAuthorizationUnavailable) {
 				t.Fatalf("old/frozen waiter passed final authorization: %v", err)
 			}

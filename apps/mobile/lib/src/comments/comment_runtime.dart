@@ -167,6 +167,7 @@ class CommentRuntime extends ChangeNotifier with WidgetsBindingObserver {
     _token = token;
     _account = account;
     _epoch++;
+    api.clearUploadCache();
     _seenCommands.clear();
     mutations.clear();
     deleted.clear();
@@ -328,7 +329,7 @@ class CommentRuntime extends ChangeNotifier with WidgetsBindingObserver {
         'requestDigest': HttpCommentApi.digest(e.intent),
       },
     );
-    await core.reconcile(id);
+    await core.reconcile(id, afterSeal: true);
   }
 
   Future<void> mutate(String id, {bool? liked}) async {

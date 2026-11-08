@@ -269,6 +269,7 @@ void main() {
         client: endpoint.client(),
       );
       addTearDown(endpoint.close);
+      addTearDown(api.close);
       final post = {..._card(), 'body': '原始正文'};
       const root = '/api/v1/me/posts/$_id';
       final command = '$root/edit-commands/$_key';

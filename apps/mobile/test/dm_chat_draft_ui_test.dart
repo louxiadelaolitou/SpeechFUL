@@ -85,6 +85,17 @@ void main() {
       vault.value = key;
       await tester.runAsync(() => c.sync());
       await settleLoad();
+      expect(c.error, contains('草稿保存失败'));
+      tester
+          .widget<HhDirectMessageScreen>(find.byType(HhDirectMessageScreen))
+          .onSaveRetry!();
+      await settleLoad();
+      late String persisted;
+      await tester.runAsync(() async {
+        persisted = await c.draft(p1.own, p1.peer);
+      });
+      expect(persisted, '不可丢失的新输入');
+      expect(c.error, isNull);
       expect(
         tester
             .widget<TextField>(find.byKey(const ValueKey('dm-input')))

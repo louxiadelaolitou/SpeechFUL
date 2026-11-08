@@ -93,6 +93,7 @@ class DmConversationView {
     this.identityLocked = true,
     this.firstContact = false,
     this.firstTextAccepted = false,
+    this.localHistoryUnavailable = false,
     this.canSend = true,
     this.sourceDeleted = false,
     this.localSaveFailed = false,
@@ -112,6 +113,7 @@ class DmConversationView {
   final List<DmImage> draftImages;
   final bool identityLocked, firstContact, firstTextAccepted, canSend;
   final bool sourceDeleted, localSaveFailed;
+  final bool localHistoryUnavailable;
 
   /// Increment only for an explicit restore/re-edit, not every poll response.
   final int draftRevision;

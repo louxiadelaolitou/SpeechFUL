@@ -59,7 +59,7 @@ Map<String, Object> textIntent(String text) => {
 };
 
 class ChatRuntime extends ChangeNotifier implements DmRuntime {
-  ChatRuntime(this.controller);
+  ChatRuntime(this.controller, {this.openPost});
   @override
   final DmController controller;
   @override
@@ -69,7 +69,7 @@ class ChatRuntime extends ChangeNotifier implements DmRuntime {
   @override
   List<DmIdentity> identities = [const DmIdentity(id: p1.own, name: '本人面具')];
   @override
-  final void Function(BuildContext, String)? openPost = null;
+  final void Function(BuildContext, String)? openPost;
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

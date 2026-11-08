@@ -692,6 +692,45 @@ extension DmChatStorage on DmStore {
     }),
   );
 
+  Future<bool> containsText(
+    String own,
+    String peer,
+    String needle, {
+    required bool Function() isCurrent,
+  }) async {
+    final pair = await pairTag(own, peer);
+    var after = 0;
+    while (isCurrent()) {
+      final batch = await _run(() async {
+        if (!isCurrent()) return (after, false, true);
+        final rows = _db.select(
+          "SELECT rowid AS scan_id,* FROM dm_records WHERE kind='message' AND pair=? AND rowid>? ORDER BY rowid LIMIT 64",
+          [pair, after],
+        );
+        var last = after;
+        for (final row in rows) {
+          if (!isCurrent()) return (last, false, true);
+          last = row['scan_id'] as int;
+          final data = await _decode(row);
+          if (data['recalled'] == true || data['messageType'] == 'POST') {
+            continue;
+          }
+          final text = data['outgoing'] == true
+              ? (data['intent'] as Map)['text']
+              : data['text'];
+          if (text is String && text.toLowerCase().contains(needle)) {
+            return (last, true, true);
+          }
+        }
+        return (last, false, rows.length < 64);
+      });
+      if (!isCurrent()) return false;
+      if (batch.$2 || batch.$3) return batch.$2;
+      after = batch.$1;
+    }
+    return false;
+  }
+
   Future<String> searchText(String own, String peer) => _run(() async {
     final pair = await pairTag(own, peer);
     final texts = <String>[];

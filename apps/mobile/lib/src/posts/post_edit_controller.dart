@@ -37,6 +37,15 @@ extension PublishedPostEditing on PostController {
 
   void refreshEditedPost(PostDetail post) {
     final id = post.postId;
+    _confirmedEdits[id] = post;
+    ++_contentVersion;
+    ++_feedRequest;
+    ++_timelineRequest;
+    ++_personalRequest;
+    ++_repostListRevision;
+    _repostListLoading = false;
+    feedLoading = timelineLoading = personalLoading = personalProfileLoading =
+        false;
     feedItems = [for (final old in feedItems) old.postId == id ? post : old];
     _timeline = [
       for (final old in _timeline)
@@ -204,6 +213,7 @@ class PostEditSession {
         );
       } on PostFailure catch (error) {
         if (error.code != 'MEDIA_INVALID' &&
+            error.code != 'POST_EDIT_MEDIA_LIMIT' &&
             error.code != 'POSTING_RESTRICTED') {
           rethrow;
         }

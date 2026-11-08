@@ -140,7 +140,7 @@ function renderQueue(parent, kind) {
   const refresh = button('刷新', () => load(false));
   add(queue, add(el('div', null, 'queue-head'), el('h2', kind === 'cases' ? '案件列表' : '待复核申诉'), refresh), list);
   add(workspace, queue, detail); parent.append(workspace);
-  let nextBefore = null, items = [], selected = null, requestVersion = 0;
+  let nextBefore = null, items = [], selected = null, requestVersion = 0, loading = false;
   async function choose(item) {
     selected = item.id; const version = ++requestVersion;
     for (const row of list.querySelectorAll('button[data-record]')) row.setAttribute('aria-pressed', String(row.dataset.record === selected));
@@ -159,6 +159,8 @@ function renderQueue(parent, kind) {
     } catch (error) { if (current === viewVersion && version === requestVersion) { detail.replaceChildren(el('p', '材料未加载，不能提交处理。', 'empty')); showError(error); } }
   }
   async function load(append) {
+    if (loading || current !== viewVersion) return;
+    loading = true;
     refresh.disabled = true;
     if (!append) { list.replaceChildren(el('p', '正在加载…', 'busy')); items = []; nextBefore = null; }
     try {
@@ -174,7 +176,7 @@ function renderQueue(parent, kind) {
       }
       if (nextBefore) list.append(button('加载更早记录', () => load(true), 'pager'));
     } catch (error) { if (current === viewVersion) { list.replaceChildren(button('加载失败，点击重试', () => load(false), 'pager')); showError(error); } }
-    finally { refresh.disabled = false; }
+    finally { loading = false; refresh.disabled = false; }
   }
   void load(false);
 }
@@ -223,7 +225,7 @@ function renderCase(parent, record, reload, current, isCurrent = () => current =
       if (action.value !== 'BAN') { if (days.value === '0') days.value = '3'; [...days.options].find(o => o.value === '0')?.remove(); }
       const profile = ['RESET_NICKNAME', 'RESET_AVATAR'].includes(action.value);
       effect.hidden = !timed && !profile;
-      effect.textContent = record.conversationId ? (action.value === 'BAN' ? '封禁后保留处罚通知与申诉入口，其余社区功能暂停。已授权证据独立保存，对方本地记录不会被远程删除。' : '禁言对账号全部身份生效。已授权证据独立保存，对方本地记录不会被远程删除。') : profile ? '只重置本案身份的对应违规资料并通知本人，不删除身份、不变更内容归属。本人可立即修正为合规资料。' : action.value === 'BAN' ? '封禁后保留处罚通知与申诉入口，其余社区功能暂停；本案帖子同时下架。' : '禁言对账号全部身份生效，暂停发帖、评论、编辑、私信和点赞；本案帖子同时下架。';
+      effect.textContent = record.conversationId ? (action.value === 'BAN' ? '封禁后保留处罚通知与申诉入口，其余社区功能暂停。已授权证据独立保存，对方本地记录不会被远程删除。' : '禁言对账号全部身份生效。已授权证据独立保存，对方本地记录不会被远程删除。') : profile ? '只重置本案身份的对应违规资料并通知本人，不删除身份、不变更内容归属。本人可立即修正为合规资料。' : action.value === 'BAN' ? `封禁后保留处罚通知与申诉入口，其余社区功能暂停；本案${record.commentId ? '评论' : '帖子'}同时下架。` : `禁言对账号全部身份生效，暂停发帖、评论、编辑、私信和点赞；本案${record.commentId ? '评论' : '帖子'}同时下架。`;
       estimate.hidden = !timed;
       const result = recoveryEstimate(sanctions, action.value, Number(days.value));
       estimate.textContent = estimateReady ? `考虑现有处罚：社区访问预计恢复 ${result.community}；发言权限预计恢复 ${result.speaking}。以服务端实际提交时刻为准，各项处罚独立计时。` : '正在核对现有处罚，核对完成前不能提交账号处罚。';

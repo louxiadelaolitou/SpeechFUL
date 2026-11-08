@@ -1033,11 +1033,15 @@ components:
           $ref: '#/components/schemas/PostSearchKeyword'
         channelId:
           $ref: '#/components/schemas/ResourceID'
+        postId:
+          description: Restrict to one post to recheck edited result membership using the same visibility and keyword predicates.
+          $ref: '#/components/schemas/ResourceID'
         sort:
           type: string
           enum: [relevance, latest]
           default: relevance
         cursor:
+          description: Content edits invalidate search cursors; CURSOR_INVALID requires an explicit first-page refresh.
           type: string
           minLength: 1
           maxLength: 1024

@@ -202,7 +202,7 @@ func runID(info string) string {
 }
 
 func (c *Controller) namespace(ctx context.Context) (Namespace, error) {
-	ns, err := c.store.Load(ctx)
+	ns, err := c.loadNamespace(ctx)
 	if err != nil || ns.Generation < 1 || ns.RunID == "" {
 		return ns, ErrUnavailable
 	}
@@ -222,16 +222,16 @@ func (c *Controller) namespace(ctx context.Context) (Namespace, error) {
 		return ns, ErrUnavailable
 	}
 	if infoValue(info, "maxmemory_policy") != "noeviction" || infoValue(info, "maxmemory") == "0" {
-		_, _ = c.store.Recover(ctx, ns.Generation, id, c.recoveryWindow)
+		_, _ = c.recoverNamespace(ctx, ns.Generation, id, c.recoveryWindow)
 		return ns, ErrLost
 	}
 	ns.Evicted = evicted
 	if ns.State == "READY" && ns.DirtyUntil != nil {
-		_, _ = c.store.Recover(ctx, ns.Generation, id, c.recoveryWindow)
+		_, _ = c.recoverNamespace(ctx, ns.Generation, id, c.recoveryWindow)
 		return ns, ErrUnavailable
 	}
 	if ns.State == "READY" && ns.RunID != id {
-		_, _ = c.store.Recover(ctx, ns.Generation, id, c.recoveryWindow)
+		_, _ = c.recoverNamespace(ctx, ns.Generation, id, c.recoveryWindow)
 		return ns, ErrLost
 	}
 	if ns.State == "RECOVERING" {
@@ -239,7 +239,7 @@ func (c *Controller) namespace(ctx context.Context) (Namespace, error) {
 			return ns, ErrUnavailable
 		}
 		if ns.RunID != id {
-			_, _ = c.store.Recover(ctx, ns.Generation, id, c.recoveryWindow)
+			_, _ = c.recoverNamespace(ctx, ns.Generation, id, c.recoveryWindow)
 			return ns, ErrLost
 		}
 		if err = c.client.Set(ctx, c.sentinel(), sentinelValue(ns), 0).Err(); err != nil {
@@ -346,7 +346,17 @@ func (c *Controller) SettleChunk(ctx context.Context, subject, transfer string, 
 // Enforced and observed actions never share capacity. Hard actions stay one
 // atomic decision; observation is a separate, bounded best-effort lane.
 func (c *Controller) execute(parent context.Context, kind, subject string, charges []Charge, proof Proof, transfer string, amount, actual int64) (Decision, error) {
+	// Include metadata SQL and recovery in the same budget as Redis. Recovery
+	// cancellation cannot admit this request; the next request must reconcile.
+	parent, cancel := context.WithTimeout(parent, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
+	defer cancel()
+	started := time.Now()
 	if e := c.ValidatePolicy(parent); e != nil {
+		for _, charge := range charges {
+			if _, ok := c.rules[charge.Action]; ok {
+				c.Metrics.add(charge.Action, "error", time.Since(started))
+			}
+		}
 		if errors.Is(e, ErrPolicyMismatch) {
 			return Decision{}, e
 		}
@@ -456,7 +466,7 @@ func (c *Controller) executeLane(parent context.Context, observer bool, kind, su
 	ctx, cancel := context.WithTimeout(parent, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
 	defer cancel()
 	if proof.ExpectedGeneration > 0 {
-		n, e := c.store.Load(ctx)
+		n, e := c.loadNamespace(ctx)
 		if e != nil {
 			return result, ErrUnavailable
 		}
@@ -528,13 +538,13 @@ func (c *Controller) executeLane(parent context.Context, observer bool, kind, su
 	case "CAPACITY":
 		return result, ErrCapacity
 	case "NAMESPACE_LOST":
-		_, _ = c.store.Recover(parent, ns.Generation, ns.RunID, c.recoveryWindow)
+		_, _ = c.recoverNamespace(ctx, ns.Generation, ns.RunID, c.recoveryWindow)
 		return result, ErrLost
 	case "LOST":
 		if observer {
 			return result, ErrLost
 		}
-		_, _ = c.store.Recover(parent, ns.Generation, ns.RunID, c.recoveryWindow)
+		_, _ = c.recoverNamespace(ctx, ns.Generation, ns.RunID, c.recoveryWindow)
 		return result, ErrLost
 	default:
 		return result, ErrUnavailable
@@ -542,7 +552,9 @@ func (c *Controller) executeLane(parent context.Context, observer bool, kind, su
 }
 
 func (c *Controller) CanDBFallback(ctx context.Context) bool {
-	ns, err := c.store.Load(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
+	defer cancel()
+	ns, err := c.loadNamespace(ctx)
 	return err == nil && ns.State == "READY" && ns.Generation > 0 && ns.PolicyHash == c.policyHash
 }
 func (c *Controller) Check(ctx context.Context, subject string, charges []Charge) (Decision, error) {
@@ -554,7 +566,9 @@ func (c *Controller) ResetAction(ctx context.Context, subject, action string) er
 }
 
 func (c *Controller) Metadata(ctx context.Context) (Namespace, error) {
-	n, e := c.store.Load(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
+	defer cancel()
+	n, e := c.loadNamespace(ctx)
 	if e == nil && n.PolicyHash != c.policyHash {
 		e = ErrPolicyMismatch
 	}
@@ -583,7 +597,9 @@ func (c *Controller) TransferEnforced() bool {
 
 func (c *Controller) PolicyHash() string { return c.policyHash }
 func (c *Controller) ValidatePolicy(ctx context.Context) error {
-	n, e := c.store.Load(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(c.config.DeadlineMilliseconds)*time.Millisecond)
+	defer cancel()
+	n, e := c.loadNamespace(ctx)
 	if e != nil {
 		return ErrUnavailable
 	}
@@ -607,4 +623,26 @@ func (c *Controller) ResumeRecovery(ctx context.Context) error {
 	defer cancel()
 	_, e := c.namespace(bounded)
 	return e
+}
+
+// Fixed phase labels expose metadata latency without identity or SQL details.
+func (c *Controller) loadNamespace(ctx context.Context) (Namespace, error) {
+	started := time.Now()
+	n, err := c.store.Load(ctx)
+	outcome := "allow"
+	if err != nil {
+		outcome = "error"
+	}
+	c.Metrics.add("metadata.load", outcome, time.Since(started))
+	return n, err
+}
+func (c *Controller) recoverNamespace(ctx context.Context, g int64, id string, window time.Duration) (Namespace, error) {
+	started := time.Now()
+	n, err := c.store.Recover(ctx, g, id, window)
+	outcome := "allow"
+	if err != nil {
+		outcome = "error"
+	}
+	c.Metrics.add("metadata.recover", outcome, time.Since(started))
+	return n, err
 }

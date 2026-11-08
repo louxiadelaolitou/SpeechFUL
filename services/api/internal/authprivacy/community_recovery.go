@@ -292,11 +292,12 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 		return ErrAuthorizationUnavailable
 	}
 	material, err := processor.PreparePassword(ctx, request.NewPassword, username)
-	if err != nil {
+	policyRejected := errors.Is(err, ErrPasswordPolicy)
+	if err != nil && !policyRejected {
 		return err
 	}
 	if material.ParametersVersion != 1 || material.Hash == ([32]byte{}) || material.Salt == ([16]byte{}) {
-		return ErrPasswordPolicy
+		policyRejected = true
 	}
 	tx, err := begin(ctx, c.pool)
 	if err != nil {
@@ -370,10 +371,14 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	}
 	// Claim before any irreversible mutation; global key uniqueness serializes
 	// different-account races as well as retries on this account.
+	resultCode := "COMMITTED"
+	if policyRejected {
+		resultCode = "NOT_COMMITTED"
+	}
 	claim, err := tx.Exec(ctx, `INSERT INTO c_auth.request_results
 		(operation,key_digest,state,request_hmac,hmac_key_version,reset_intent_id,result_code,expires_at)
-		VALUES('PASSWORD_RESET',$1,'LIVE',$2,1,$3,'COMMITTED',$4) ON CONFLICT(key_digest) DO NOTHING`,
-		key[:], mac[:], request.IntentID[:], decision.TrustedAt.Add(8*24*time.Hour))
+		VALUES('PASSWORD_RESET',$1,'LIVE',$2,1,$3,$5,$4) ON CONFLICT(key_digest) DO NOTHING`,
+		key[:], mac[:], request.IntentID[:], decision.TrustedAt.Add(8*24*time.Hour), resultCode)
 	if err != nil {
 		return ErrAuthorizationUnavailable
 	}
@@ -393,6 +398,11 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 		}
 		if !final.TrustedAt.Before(locked.expires) {
 			return ErrResetIntentExpired
+		}
+		if policyRejected {
+			// Seal this exact request without consuming the recovery intent.
+			// Corrected input must use a new key; the old key cannot commit later.
+			return nil
 		}
 		if _, e := tx.Exec(ctx, `UPDATE c_auth.reset_intents SET state='CONSUMED',new_recovery_digest=NULL,terminal_at=$2 WHERE intent_id=$1`, request.IntentID[:], final.TrustedAt); e != nil {
 			return e
@@ -424,6 +434,9 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	var pgerr *pgconn.PgError
 	if errors.As(err, &pgerr) && pgerr.Code == "23505" && pgerr.ConstraintName == "recovery_codes_code_digest_key" {
 		return ErrConflict
+	}
+	if err == nil && policyRejected {
+		return ErrPasswordPolicy
 	}
 	return err
 }

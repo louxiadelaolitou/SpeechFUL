@@ -137,6 +137,7 @@ class _EntryScreenState extends State<EntryScreen> {
           widget.directory.status == ChannelDirectoryStatus.ready;
       return AuthWelcomeScreen(
         onStarted: widget.onLoginRequested,
+        onModerationAccess: widget.onMessagesPressed,
         showControls: !_retrying && !waitingForEntry,
       );
     },

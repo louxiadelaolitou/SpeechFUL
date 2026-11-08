@@ -72,7 +72,7 @@ func (b *boundary) communityPostSearch(w http.ResponseWriter, r *http.Request, b
 
 func readPostSearch(r *http.Request) (posts.SearchQuery, error) {
 	query := posts.SearchQuery{Limit: 20, Sort: posts.SearchRelevance}
-	object, err := readRequestObject(r, 4096, []string{"keyword"}, []string{"channelId", "sort", "cursor", "limit", "recordHistory"})
+	object, err := readRequestObject(r, 4096, []string{"keyword"}, []string{"channelId", "postId", "sort", "cursor", "limit", "recordHistory"})
 	if err != nil {
 		return query, err
 	}
@@ -83,6 +83,15 @@ func readPostSearch(r *http.Request) (posts.SearchQuery, error) {
 	query.Keyword, err = posts.NormalizeSearchKeyword(keyword)
 	if err != nil {
 		return query, errMalformed
+	}
+	if _, present := object["postId"]; present {
+		query.PostID, err = stringField(object, "postId")
+		if err != nil {
+			return query, errMalformed
+		}
+		if _, err = posts.ParseResourceID(query.PostID); err != nil {
+			return query, errMalformed
+		}
 	}
 	query.ChannelID, err = postSearchChannelField(object)
 	if err != nil {

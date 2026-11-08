@@ -62,6 +62,10 @@ REVOKE ALL ON ALL TABLES IN SCHEMA c_posts FROM PUBLIC,hnuhole_c_runtime,hnuhole
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA c_posts FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA c_posts FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
 GRANT USAGE ON SCHEMA c_posts TO hnuhole_c_runtime;
+DO $$ BEGIN IF to_regclass('c_posts.search_content_revision') IS NOT NULL THEN
+ GRANT SELECT,UPDATE ON c_posts.search_content_revision TO hnuhole_c_runtime;
+ GRANT EXECUTE ON FUNCTION c_posts.advance_search_content_revision() TO hnuhole_c_runtime;
+ END IF; END $$;
 GRANT SELECT ON c_posts.schema_meta,c_posts.protocol_keys,c_posts.account_publication_control,c_posts.publication_stop_events,
     c_posts.identity_public_labels,c_posts.posts,c_posts.post_identity_bindings,c_posts.publication_tasks,
     c_posts.publication_attempts,c_posts.attempt_contents,c_posts.command_receipts,c_posts.payload_cleanup

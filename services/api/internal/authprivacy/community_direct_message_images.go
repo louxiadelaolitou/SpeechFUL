@@ -45,7 +45,11 @@ func (c *Community) sendDMImageOnce(ctx context.Context, b [32]byte, id string, 
 	material.Attempt = 0
 	material.Data = ""
 	fp := c.dmFingerprint("HNUHOLE/DM-IMAGE/V1\x00", material)
-	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, m restriction) (any, error) {
+	inspectionNeeded := errors.New("DM image requires inspection outside transaction")
+	inspected := false
+	var metadata postmedia.Metadata
+	var inspectionErr error
+	apply := func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, m restriction) (any, error) {
 		old, prior, e := dmReceipt(ctx, tx, a, id)
 		if e == nil {
 			if old.ErrorCode == "COMMAND_CLOSED" {
@@ -141,11 +145,13 @@ func (c *Community) sendDMImageOnce(ctx context.Context, b [32]byte, id string, 
 		if c.postImages == nil || c.postImages.validator == nil {
 			return nil, ErrAuthorizationUnavailable
 		}
-		metadata, e := c.postImages.validator.Inspect(ctx, data)
-		if errors.Is(e, postmedia.ErrInvalid) {
+		if !inspected {
+			return nil, inspectionNeeded
+		}
+		if errors.Is(inspectionErr, postmedia.ErrInvalid) {
 			return reject("INVALID_IMAGE")
 		}
-		if e != nil {
+		if inspectionErr != nil {
 			return nil, ErrAuthorizationUnavailable
 		}
 		if !metadata.Matches(in.Selection, data) {
@@ -188,7 +194,18 @@ func (c *Community) sendDMImageOnce(ctx context.Context, b [32]byte, id string, 
 			e = completeRateAdmission(ctx, tx)
 		}
 		return DMReceipt{EvidenceVersion: 1, State: "SENT", Attempt: in.Attempt, MessageID: msg, ConversationID: in.ConversationID, Sequence: seq, AcceptedAt: &at}, e
-	})
+	}
+	result, err := c.withDMSession(ctx, b, apply)
+	if !errors.Is(err, inspectionNeeded) {
+		return result, err
+	}
+	// The preliminary transaction is fully aborted before external validation.
+	// Replays can return their durable receipt without invoking the validator.
+	metadata, inspectionErr = c.postImages.validator.Inspect(ctx, data)
+	inspected = true
+	// Re-run every authorization, receipt, peer, quota and group check; only
+	// immutable bytes and their inspection result cross the transaction gap.
+	return c.withDMSession(ctx, b, apply)
 }
 func (c *Community) ReadDMPrivateMedia(ctx context.Context, b [32]byte, id string) (PostResponse, error) {
 	if !dmUUID(id) {

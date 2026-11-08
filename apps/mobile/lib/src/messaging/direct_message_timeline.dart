@@ -274,7 +274,10 @@ class _HhDmTimelineState extends State<HhDmTimeline>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    hhText(context, '还没有消息'),
+                    hhText(
+                      context,
+                      view.localHistoryUnavailable ? '本机暂无可用历史消息' : '还没有消息',
+                    ),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -283,7 +286,9 @@ class _HhDmTimelineState extends State<HhDmTimeline>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    view.firstContact
+                    view.localHistoryUnavailable
+                        ? hhText(context, '此设备没有可显示的历史正文。未读状态保持不变。')
+                        : view.firstContact
                         ? hhText(context, '打个招呼吧\n对方回复前只能发送一条文字消息')
                         : hhText(context, '从这里继续你们的对话'),
                     textAlign: TextAlign.center,

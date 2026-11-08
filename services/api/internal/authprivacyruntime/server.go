@@ -30,7 +30,7 @@ import (
 // CheckDatabase rejects a wrong database, missing formal schema, privileged
 // connection, owner membership, and legacy-auth/DDL access before listening.
 func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyhttp.Service) error {
-	party, schema, version := "c", "c_auth", int64(37)
+	party, schema, version := "c", "c_auth", int64(38)
 	if service == authprivacyhttp.VerifierService {
 		party, schema, version = "v", "v_auth", 8
 	}
@@ -43,8 +43,14 @@ func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyh
    has_database_privilege(current_user,current_database(),'CREATE,TEMP') OR has_schema_privilege(current_user,'public','CREATE') OR has_schema_privilege(current_user,$1,'CREATE'),
    COALESCE(has_table_privilege(current_user,to_regclass('public.sessions'),'SELECT'),false),
    COALESCE((SELECT MAX(version_id) FROM public.goose_db_version WHERE is_applied),0)`, schema).Scan(&db, &user, &privileged, &ownerMember, &ddl, &legacy, &migrated)
-	if err != nil || db != "hnuhole_"+party || user != "hnuhole_"+party+"_runtime" || privileged || ownerMember || ddl || legacy || migrated < version {
-		return errors.New("database/schema/version/runtime privileges rejected")
+	if err != nil {
+		return errors.Join(errDatabaseSchema, err)
+	}
+	if db != "hnuhole_"+party || migrated < version {
+		return errDatabaseSchema
+	}
+	if user != "hnuhole_"+party+"_runtime" || privileged || ownerMember || ddl || legacy {
+		return errDatabasePrivileges
 	}
 	var schemaOK bool
 	query := `SELECT to_regclass('c_auth.accounts') IS NOT NULL AND to_regclass('c_auth.authorization_gate') IS NOT NULL AND to_regclass('public.channels') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='c_auth' AND table_name='receipt_outbox' AND column_name='claim_generation')`
@@ -52,12 +58,12 @@ func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyh
 		query = `SELECT to_regclass('v_auth.email_login_confirmations') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='v_auth' AND table_name='otp_flows' AND column_name='purpose') AND to_regclass('v_auth.otp_confirmations') IS NOT NULL AND to_regclass('v_auth.mail_outbox') IS NOT NULL AND to_regclass('v_auth.used_slots') IS NOT NULL AND to_regclass('v_auth.authorization_gate') IS NOT NULL AND to_regclass('v_auth.authorization_gate_audit') IS NOT NULL AND EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='v_auth' AND table_name='mail_outbox' AND column_name='authorization_generation')`
 	}
 	if err = pool.QueryRow(ctx, query).Scan(&schemaOK); err != nil || !schemaOK {
-		return errors.New("required formal auth schema absent")
+		return errors.Join(errDatabaseSchema, err)
 	}
 	// Sequence permissions matter for Gate audit identity and V budget events.
 	var denied bool
 	if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relkind='S' AND NOT has_sequence_privilege(current_user,c.oid,'USAGE'))`, schema).Scan(&denied); err != nil || denied {
-		return errors.New("runtime auth sequence permissions absent")
+		return errors.Join(errDatabasePrivileges, err)
 	}
 	var insufficient bool
 	required := []string{"accounts", "sessions", "receipt_outbox", "request_results"}
@@ -65,32 +71,43 @@ func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyh
 		required = []string{"email_login_confirmations", "otp_flows", "otp_confirmations", "mail_outbox", "request_results"}
 	}
 	if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM unnest($2::text[]) AS required_table(table_name) WHERE NOT has_table_privilege(current_user,format('%I.%I',$1::text,required_table.table_name),'SELECT') OR NOT has_table_privilege(current_user,format('%I.%I',$1::text,required_table.table_name),'INSERT') OR NOT has_table_privilege(current_user,format('%I.%I',$1::text,required_table.table_name),'UPDATE'))`, schema, required).Scan(&insufficient); err != nil || insufficient {
-		return errors.New("runtime required auth DML privileges absent")
+		return errors.Join(errDatabasePrivileges, err)
 	}
 	if party == "c" {
+		var revisionSchema, revisionPrivileges bool
+		if err = pool.QueryRow(ctx, `SELECT
+ EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid=to_regclass('c_posts.posts') AND tgname='advance_search_content_revision' AND tgenabled='O' AND NOT tgisinternal)
+ AND to_regclass('c_posts.search_content_revision') IS NOT NULL,
+ COALESCE(has_table_privilege(current_user,to_regclass('c_posts.search_content_revision'),'SELECT'),false)
+ AND COALESCE(has_table_privilege(current_user,to_regclass('c_posts.search_content_revision'),'UPDATE'),false)`).Scan(&revisionSchema, &revisionPrivileges); err != nil || !revisionSchema {
+			return errors.Join(errDatabaseSchema, err)
+		}
+		if !revisionPrivileges {
+			return errDatabasePrivileges
+		}
 		if err = checkIdentityAvatarSchema(ctx, pool); err != nil {
 			return err
 		}
 		if err = pool.QueryRow(ctx, `SELECT to_regclass('public.community_identities') IS NOT NULL AND to_regclass('public.identity_account_state') IS NOT NULL AND to_regclass('public.identity_change_receipts') IS NOT NULL
    AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='c_auth.accounts'::regclass AND tgname='identity_account_shape_from_account' AND tgenabled='O' AND NOT tgisinternal)`).Scan(&schemaOK); err != nil || !schemaOK {
-			return errors.New("identity management schema absent")
+			return errors.Join(errDatabaseSchema, err)
 		}
 		if err = pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM unnest(ARRAY['community_identities','identity_account_state','identity_change_receipts']) AS t(name) WHERE NOT has_table_privilege(current_user,format('public.%I',t.name),'SELECT') OR NOT has_table_privilege(current_user,format('public.%I',t.name),'INSERT') OR (t.name<>'identity_change_receipts' AND NOT has_table_privilege(current_user,format('public.%I',t.name),'UPDATE')))`).Scan(&insufficient); err != nil || insufficient {
-			return errors.New("identity management DML privileges absent")
+			return errors.Join(errDatabasePrivileges, err)
 		}
 		// 0015 cleanup hooks remain active on account closure even when Posts
 		// is nil and Moderation is false. Validate them on the common C path,
 		// before any optional HTTP feature or worker can start.
 		if err = authprivacy.CheckModerationLifecycleSchema(ctx, pool); err != nil {
-			return errors.New("moderation lifecycle schema or privileges absent")
+			return errors.Join(errDatabaseSchema, err)
 		}
 		if err = authprivacy.CheckModerationLegacyRestrictionSchema(ctx, pool); err != nil {
-			return errors.New("moderation legacy restriction schema or privileges absent")
+			return errors.Join(errDatabaseSchema, err)
 		}
 	}
 	var recoveryMember bool
 	if err = pool.QueryRow(ctx, `SELECT pg_has_role(current_user,$1::text,'MEMBER')`, "hnuhole_"+party+"_recovery").Scan(&recoveryMember); err != nil || recoveryMember {
-		return errors.New("API must not possess recovery role membership")
+		return errors.Join(errDatabasePrivileges, err)
 	}
 	if party == "v" {
 		var gatePrivileges bool
@@ -100,7 +117,7 @@ func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyh
    AND NOT has_column_privilege(current_user,'v_auth.authorization_gate','opened_at','UPDATE')
    AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['gate_state','trusted_high_watermark','evidence_version','evidence_issued_at','evidence_valid_until','freeze_reason','frozen_at']) AS c(name) WHERE NOT has_column_privilege(current_user,'v_auth.authorization_gate',c.name,'UPDATE'))
    AND has_table_privilege(current_user,'v_auth.authorization_gate_audit','SELECT') AND has_table_privilege(current_user,'v_auth.authorization_gate_audit','INSERT')`).Scan(&gatePrivileges); err != nil || !gatePrivileges {
-			return errors.New("V runtime Gate column privilege boundary rejected")
+			return errors.Join(errDatabasePrivileges, err)
 		}
 	}
 	return CheckDatabaseDiagnostics(ctx, pool)
@@ -196,17 +213,23 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		return errors.New("create runtime database pool failed")
+		return errors.Join(errDatabaseConnection, err)
 	}
 	defer pool.Close()
 	startup, cancel := context.WithTimeout(ctx, 10*time.Second)
 	err = pool.Ping(startup)
+	if err != nil {
+		err = errors.Join(errDatabaseConnection, err)
+	}
 	if err == nil {
 		err = CheckDatabase(startup, pool, service)
+		if err != nil {
+			err = errors.Join(errDatabaseSchema, err)
+		}
 	}
 	cancel()
 	if err != nil {
-		return errors.New("runtime database startup validation failed")
+		return err
 	}
 	verifier, err := trust(c)
 	if err != nil {
@@ -589,7 +612,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 			for _, l := range listeners {
 				_ = l.Close()
 			}
-			return errors.New("runtime listener bind failed")
+			return errors.Join(errListenerBind, err)
 		}
 		listeners = append(listeners, tls.NewListener(listener, server.TLSConfig))
 	}

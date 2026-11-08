@@ -2,6 +2,53 @@ import 'app_language.dart';
 
 /// Only application-owned text; interpolated user content stays verbatim.
 const messagingNotificationTranslations = <String, UiTranslation>{
+  '搜索结果已变化，请刷新': (
+    '搜尋結果已變更，請重新整理',
+    'Search results changed. Refresh to continue.',
+    '検索結果が変更されました。更新してください',
+  ),
+  '图片读取失败，请重试': (
+    '圖片讀取失敗，請重試',
+    'Could not read the image. Retry.',
+    '画像を読み込めませんでした。再試行してください',
+  ),
+  '可修改密码后重试，也可重新验证校邮。': (
+    '可修改密碼後重試，也可重新驗證校郵。',
+    'You can change the password and retry, or verify your university email again.',
+    'パスワードを変更して再試行するか、大学のメールを再認証できます。',
+  ),
+  '重新输入密码': ('重新輸入密碼', 'Change password', 'パスワードを再入力'),
+  '读取过于频繁，请稍后重试。': (
+    '讀取過於頻繁，請稍後重試。',
+    'Too many requests. Try again shortly.',
+    'リクエストが多すぎます。しばらくしてから再試行してください。',
+  ),
+  '读取过于频繁，请在 {seconds} 秒后重试。': (
+    '讀取過於頻繁，請在 {seconds} 秒後重試。',
+    'Too many requests. Retry in {seconds} seconds.',
+    'リクエストが多すぎます。{seconds}秒後に再試行してください。',
+  ),
+  '本机暂无可用历史消息': (
+    '本機暫無可用歷史訊息',
+    'No history available on this device',
+    'この端末では履歴を表示できません',
+  ),
+  '此设备没有可显示的历史正文。未读状态保持不变。': (
+    '此裝置沒有可顯示的歷史正文。未讀狀態保持不變。',
+    'This device has no message history to display. Unread status is unchanged.',
+    'この端末には表示できる過去の本文がありません。未読状態は変更されません。',
+  ),
+  '短时间内操作次数已达上限，请 {seconds} 秒后重试。内容已保存为草稿': (
+    '短時間內操作次數已達上限，請 {seconds} 秒後重試。內容已儲存為草稿',
+    'Too many requests. Retry in {seconds} seconds. Your draft is saved.',
+    '操作回数の上限に達しました。{seconds}秒後に再試行してください。下書きは保存されています。',
+  ),
+  '等待结束，内容已保存为草稿，请手动重试。': (
+    '等待結束，內容已儲存為草稿，請手動重試。',
+    'You can retry now. Your draft is saved.',
+    '待機時間が終了しました。保存済みの下書きを再試行できます。',
+  ),
+  '重试原草稿': ('重試原草稿', 'Retry original draft', '元の下書きを再試行'),
   '联网后查看': ('連線後查看', 'Connect to view', '接続後に表示'),
   '帖子已不可用': ('貼文已無法查看', 'Post unavailable', '投稿を表示できません'),
   '分享至私信': ('分享至私訊', 'Share in a message', 'メッセージで共有'),

@@ -11,6 +11,40 @@ import (
 	"time"
 )
 
+type blockedMetadataStore struct{ memoryNamespace }
+
+func (*blockedMetadataStore) Load(ctx context.Context) (Namespace, error) {
+	<-ctx.Done()
+	return Namespace{}, ctx.Err()
+}
+
+func TestMetadataReadsRespectBudgetAndDenyFallback(t *testing.T) {
+	config := TrialConfig("127.0.0.1:1", "metadata_budget")
+	config.DeadlineMilliseconds = 50
+	controller, err := New(config, "", &blockedMetadataStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	for _, check := range []struct {
+		name string
+		run  func(context.Context) bool
+	}{
+		{"metadata", func(ctx context.Context) bool { _, err := controller.Metadata(ctx); return err != nil }},
+		{"community fallback", func(ctx context.Context) bool { return !controller.CanDBFallback(ctx) }},
+		{"verifier fallback", func(ctx context.Context) bool { _, err := controller.WithVerifiedDBFallback(ctx); return err != nil }},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			started := time.Now()
+			if !check.run(ctx) || time.Since(started) > 350*time.Millisecond {
+				t.Fatal("metadata read escaped its budget or admitted fallback")
+			}
+		})
+	}
+}
+
 func TestBoundedConfigRejectsUnverifiedFallbackAndUnsafeParameters(t *testing.T) {
 	for _, change := range []func(*Config){func(c *Config) { c.MaxSubjects = 65537 }, func(c *Config) { c.DedupSeconds = 86401 }, func(c *Config) { c.ReadSeconds = 0 }, func(c *Config) { c.DeadlineMilliseconds = 1001 }, func(c *Config) { c.PoolSize = 65 }, func(c *Config) { c.Rules[0].Mode = "silent" }, func(c *Config) { c.Rules[0].Action = "account:user-supplied" }, func(c *Config) { c.Rules[0].Failure = "verified-db" }, func(c *Config) { c.Rules[1].Failure = "local-read" }} {
 		config := TrialConfig("127.0.0.1:6379", "bounded_test")
@@ -42,7 +76,7 @@ func TestMetricsAreOperationallyReadableAndBoundedWithoutSubjects(t *testing.T) 
 	logger := slog.New(slog.NewJSONHandler(&output, nil))
 	controller.WriteMetrics(logger)
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != len(config.Rules) {
+	if len(lines) != len(config.Rules)+2 {
 		t.Fatal("unbounded metric cardinality")
 	}
 	found := false

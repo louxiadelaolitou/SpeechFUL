@@ -20,12 +20,14 @@ class AuthScreen extends StatefulWidget {
     required this.flows,
     this.onAuthenticated,
     this.onManageSecurity,
+    this.onModerationAccess,
   });
 
   final AuthSessionController sessions;
   final AuthFlows flows;
   final VoidCallback? onAuthenticated;
   final VoidCallback? onManageSecurity;
+  final VoidCallback? onModerationAccess;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -441,6 +443,17 @@ class _AuthScreenState extends State<AuthScreen> {
       ];
     }
     if (flow == AuthFlowStatus.resetNotCommitted) {
+      if (widget.flows.canCorrectResetPassword) {
+        return [
+          const _Title('本次重设未提交', '可修改密码后重试，也可重新验证校邮。'),
+          _button('重新输入密码', widget.flows.correctResetPassword),
+          _secondary('重新开始恢复', () async {
+            await widget.flows.acknowledgeResetResult();
+            _selectMode(_AuthMode.recover);
+            await widget.sessions.retry();
+          }),
+        ];
+      }
       return [
         const _Title('本次重设未提交', '受限意图已失效，可以重新用有效恢复凭据开始。'),
         _button('重新开始恢复', () async {
@@ -532,6 +545,12 @@ class _AuthScreenState extends State<AuthScreen> {
     final controls = <Widget>[
       const SizedBox(height: 56),
       const _Title('欢迎回来', ''),
+      if (widget.onModerationAccess != null)
+        TextButton(
+          key: const ValueKey('login-moderation-access'),
+          onPressed: _busy ? null : widget.onModerationAccess,
+          child: Text(_text('查看处理通知与申诉')),
+        ),
       if (_explicitClosureLogin) const _Notice('注销缓冲期内主动登录将撤销注销申请。'),
       if (email) ...[
         _field(

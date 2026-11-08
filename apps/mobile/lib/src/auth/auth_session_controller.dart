@@ -46,6 +46,7 @@ class AuthSessionController extends ChangeNotifier {
   bool _busy = false, _disposed = false;
   Future<void>? _logoutRetry;
   int _operation = 0;
+  int _authorityVersion = 0;
   String? _authorizedToken;
   AuthStatus get status => _status;
   bool get busy => _busy;
@@ -56,7 +57,7 @@ class AuthSessionController extends ChangeNotifier {
   bool get isAuthenticated =>
       _status == AuthStatus.authenticated && _authorizedToken != null;
   bool get hasPendingLogout => _store.current?.logouts.isNotEmpty ?? false;
-  int get authorityVersion => _operation;
+  int get authorityVersion => _authorityVersion;
   // A route intent can distinguish explicit logout from an expired session.
   int _logoutVersion = 0;
   int get logoutVersion => _logoutVersion;
@@ -136,12 +137,14 @@ class AuthSessionController extends ChangeNotifier {
   }
 
   void _clear() {
+    _authorityVersion++;
     _authorizedToken = null;
     _currentSession = null;
     _directory.signOut();
   }
 
   void _suspend() {
+    _authorityVersion++;
     _authorizedToken = null;
     _currentSession = null;
     _directory.suspend();
@@ -226,6 +229,7 @@ class AuthSessionController extends ChangeNotifier {
         return;
       }
       _currentSession = view;
+      _authorityVersion++;
       _authorizedToken = record.token;
       _status = AuthStatus.authenticated;
       _error = null;
@@ -540,10 +544,12 @@ class AuthSessionController extends ChangeNotifier {
     DateTime expiresAt,
     bool Function() isCurrent,
   ) async {
-    final fence = _operation;
+    // Same-token renewal changes the request sequence, not the authority of
+    // this business response. Suspension/replacement still retires the window.
+    final fence = _authorityVersion;
     bool permitted() =>
         !_disposed &&
-        fence == _operation &&
+        fence == _authorityVersion &&
         isCurrent() &&
         _authorizedToken == token &&
         _usable(_store.current ?? const AuthState())?.token == token;

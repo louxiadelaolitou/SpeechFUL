@@ -137,7 +137,10 @@ func TestPostSchemaPreModerationNeedsNoCleanupGrantPostgres(t *testing.T) {
 	l := newLab(t)
 	// The later tag projection also references moderation visibility. Remove
 	// that complete feature when constructing the historical pre-0015 shape.
-	mustExec(t, l.cp, `DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
+	mustExec(t, l.cp, `DROP TRIGGER advance_search_content_revision ON c_posts.posts;
+DROP FUNCTION c_posts.advance_search_content_revision();
+DROP TABLE c_posts.search_content_revision;
+DROP TRIGGER post_tag_terms_sync ON c_posts.posts;
 DROP TRIGGER post_tags_lifecycle ON c_posts.posts;
 DROP TRIGGER attempt_tags_immutable ON c_posts.attempt_contents;
 DROP TABLE c_posts.post_tag_terms;

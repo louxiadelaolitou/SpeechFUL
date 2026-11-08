@@ -441,7 +441,6 @@ func lockClosureDependents(ctx context.Context, tx pgx.Tx, account uuid.UUID) er
 		`SELECT token_digest FROM c_auth.sessions WHERE account_id=$1 ORDER BY token_digest FOR UPDATE`,
 		`SELECT account_id FROM c_auth.recent_device_replacement WHERE account_id=$1 FOR UPDATE`,
 		`SELECT account_id FROM public.identity_account_state WHERE account_id=$1 FOR UPDATE`,
-		`SELECT identity_id FROM public.community_identities WHERE account_id=$1 ORDER BY identity_id FOR UPDATE`,
 	} {
 		rows, err := tx.Query(ctx, sql, account)
 		if err != nil {
@@ -513,6 +512,12 @@ func (c *Community) finalizeAccountClosure(ctx context.Context, account uuid.UUI
 		}
 		if final.TrustedAt.Before(p.dueAt) {
 			return nil
+		}
+		// Peer sends acquire the Gate before locking identities. Match that
+		// order: a closure holding an identity before the Gate would deadlock
+		// with another account sending to it while holding the Gate.
+		if e := drainLocks(ctx, tx, `SELECT identity_id FROM public.community_identities WHERE account_id=$1 ORDER BY identity_id FOR UPDATE`, account); e != nil {
+			return e
 		}
 		if credentialVersion == math.MaxInt64 || sessionGeneration == math.MaxInt64 || closureGeneration == math.MaxInt64 ||
 			resetGeneration == math.MaxInt64 || restrictionVersion == math.MaxInt64 {

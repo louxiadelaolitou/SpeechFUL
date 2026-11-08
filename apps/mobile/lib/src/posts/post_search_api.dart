@@ -33,6 +33,7 @@ abstract interface class PostSearchApi {
     required String sessionToken,
     required String keyword,
     String? channelId,
+    String? postId,
     PostSearchSort sort = PostSearchSort.relevance,
     String? cursor,
     int limit = 20,

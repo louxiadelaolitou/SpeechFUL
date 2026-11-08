@@ -8,6 +8,31 @@ const token = encodeBytes(new Uint8Array(32).fill(13));
 const me = { role: 'REVIEWER', platformNumber: '000123' };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const ok = () => new Response(null, { status: 204 });
+
+test('deadline aborts a stalled response body and preserves the original command', async t => {
+  let stall = true;
+  let bodyStarted;
+  const reading = new Promise(resolve => { bodyStarted = resolve; });
+  const { client, calls } = authenticated(async (_, init) => stall ? {
+    status: 200, ok: true,
+    json: () => new Promise((_, reject) => { init.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }); bodyStarted(); }),
+  } : json({ state: 'ENDED' }));
+  await client.login('reviewer', 'phrase');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const path = '/api/v1/moderation/cases/item/decision';
+  const body = { expectedVersion: 1, action: 'MUTE', days: 3, reason: 'verified' };
+  const operation = client.command(path, body);
+  const rejected = assert.rejects(operation, error => error.status === 0 && error.code === 'UNKNOWN');
+  await reading;
+  t.mock.timers.tick(30000);
+  await rejected;
+  stall = false;
+  await client.command(path, body);
+  const commands = calls.filter(c => c.path === path);
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0].init.body, commands[1].init.body);
+  assert.equal(commands[0].init.signal.aborted, true);
+});
 function authenticated(extra = async () => json({})) {
   const calls = [];
   const client = createClient({ cryptoAPI: webcrypto, fetcher: async (path, init) => {
