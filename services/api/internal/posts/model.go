@@ -278,3 +278,9 @@ type ComposerContext struct {
 	SelectionState    string  `json:"selectionState"`
 	DefaultIdentityID *string `json:"defaultIdentityId"`
 }
+
+// HiddenPostState is private to the authenticated account.
+type HiddenPostState struct {
+	PostID string `json:"postId"`
+	Hidden bool   `json:"hidden"`
+}

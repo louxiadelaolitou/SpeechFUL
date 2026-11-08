@@ -13,6 +13,7 @@ import 'post_api.dart';
 import 'post_tags.dart';
 import 'post_edit_api.dart';
 import 'feed_api.dart';
+import 'hidden_post_api.dart';
 import 'post_interactions_api.dart';
 import 'post_reposts_api.dart';
 import 'post_search_api.dart';
@@ -40,6 +41,7 @@ class HttpPostApi
         PostEditApi,
         PostMediaApi,
         FeedApi,
+        HiddenPostApi,
         PostInteractionsApi,
         PostRepostsApi,
         PostSearchApi,
@@ -348,6 +350,52 @@ class HttpPostApi
       decode: FeedPreferences.fromJson,
     );
   });
+  @override
+  Future<PostResponse<HiddenPostState>> hiddenPost({
+    required String sessionToken,
+    required String postId,
+  }) => _hiddenPostRequest(sessionToken, postId);
+
+  @override
+  Future<PostResponse<HiddenPostState>> setHiddenPost({
+    required String sessionToken,
+    required String postId,
+    required bool hidden,
+    required String version,
+  }) => _hiddenPostRequest(
+    sessionToken,
+    postId,
+    hidden: hidden,
+    version: version,
+  );
+
+  Future<PostResponse<HiddenPostState>> _hiddenPostRequest(
+    String token,
+    String id, {
+    bool? hidden,
+    String? version,
+  }) => _input(() {
+    if (hidden != null &&
+        (version == null || !_validInteractionVersion(version))) {
+      throw const FormatException('Hidden post write requires a version');
+    }
+    return _send(
+      token,
+      hidden == null ? 'GET' : 'PUT',
+      '/api/v1/posts/${PostProtocol.resourceId(id)}/hidden',
+      body: hidden == null ? null : {'hidden': hidden},
+      headers: {if (version != null) 'If-Interaction-Version': version},
+      readInteractionVersion: true,
+      decode: (raw) {
+        final result = HiddenPostState.fromJson(raw);
+        if (result.postId != id || hidden != null && result.hidden != hidden) {
+          throw const FormatException('Mismatched hidden post result');
+        }
+        return result;
+      },
+    );
+  });
+
   @override
   Future<PostResponse<PostViews>> registerPostView({
     required String sessionToken,

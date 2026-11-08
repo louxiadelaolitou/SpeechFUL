@@ -294,6 +294,61 @@ Future<void> main(List<String> args) async {
           finalSummary.likeCount == 0,
       step,
     );
+    step = 'hidden_post';
+    final initialHidden = await api.hiddenPost(
+      sessionToken: reader,
+      postId: postId,
+    );
+    check(!initialHidden.value.hidden, step);
+    final hidden = await api.setHiddenPost(
+      sessionToken: reader,
+      postId: postId,
+      hidden: true,
+      version: initialHidden.interactionVersion!,
+    );
+    check(hidden.value.hidden, step);
+    check(
+      (await api.timeline(sessionToken: reader)).value.items
+          .every((post) => post.postId != postId),
+      step,
+    );
+    check(
+      (await api.timeline(sessionToken: owner)).value.items
+          .any((post) => post.postId == postId),
+      'hidden_account_isolation',
+    );
+    check(
+      (await api.detail(
+        sessionToken: reader,
+        postId: postId,
+      )).value.body.isNotEmpty,
+      'hidden_direct_link',
+    );
+    final restored = await api.setHiddenPost(
+      sessionToken: reader,
+      postId: postId,
+      hidden: false,
+      version: hidden.interactionVersion!,
+    );
+    check(!restored.value.hidden, 'hidden_undo');
+    try {
+      await api.setHiddenPost(
+        sessionToken: reader,
+        postId: postId,
+        hidden: true,
+        version: initialHidden.interactionVersion!,
+      );
+      throw StateError('late_hide_applied');
+    } on PostFailure catch (error) {
+      check(error.code == 'INTERACTION_VERSION_CONFLICT', 'hidden_late_write');
+    }
+    check(
+      (await api.postInteractions(
+        sessionToken: reader,
+        postId: postId,
+      )).value.favoritedByMe,
+      'hidden_preserves_favorite',
+    );
     await output.writeAsString(
       jsonEncode({
         'status': 'PASS',
@@ -315,6 +370,12 @@ Future<void> main(List<String> args) async {
           'conditional_favorite',
           'account_private_flags',
           'reverse_then_late_like',
+          'hidden_post',
+          'hidden_account_isolation',
+          'hidden_direct_link',
+          'hidden_undo',
+          'hidden_late_write',
+          'hidden_preserves_favorite',
         ],
       }),
     );

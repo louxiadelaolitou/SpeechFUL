@@ -185,7 +185,11 @@ void main() {
       // Feed and detail must operate on the same controller and original post.
       await tapVisible(
         tester,
-        find.byKey(const ValueKey('repost:${feed.postId}')),
+        find.byKey(const ValueKey('menu:${feed.postId}')),
+      );
+      await tapVisible(
+        tester,
+        find.byKey(const ValueKey('repost-menu:${feed.postId}')),
       );
       await tester.tap(find.text('账号A的身份'));
       await tester.pumpAndSettle();

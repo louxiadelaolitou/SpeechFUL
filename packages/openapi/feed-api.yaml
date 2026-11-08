@@ -91,6 +91,64 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Error' }
+  /api/v1/posts/{postId}/hidden:
+    parameters:
+      - { $ref: '#/components/parameters/PostID' }
+    get:
+      operationId: readHiddenPost
+      summary: Read the current account's private hidden-post state
+      description: >-
+        No query, body, If-Interaction-Version, If-Match or Idempotency-Key.
+        An already-associated post may be read after it becomes unavailable;
+        an inaccessible post not associated with this account returns 404.
+      responses:
+        '200': { $ref: '#/components/responses/HiddenPost' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: setHiddenPost
+      summary: Hide or restore one post for the current account
+      description: >-
+        The required private version fences delayed writes. Every committed
+        write rotates it, including a repeated value. A stale condition returns
+        412 without mutation or session renewal. Hidden posts are omitted from
+        feed, category, search, favorites and liked lists for this account;
+        likes and favorites remain intact, and direct post links still work.
+        Changing the state invalidates affected preference-bound cursors.
+        Hiding requires an accessible post; restoring a previously associated
+        unavailable post is allowed. No query, If-Match or Idempotency-Key.
+      parameters:
+        - name: If-Interaction-Version
+          in: header
+          required: true
+          description: The private version returned by this account's hidden-post read or write.
+          schema: { type: string, pattern: '^"[0-9a-f]{64}"$' }
+      requestBody:
+        required: true
+        x-max-bytes: 1024
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [hidden]
+              properties:
+                hidden: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/HiddenPost' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '412': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/posts/{postId}/like:
     parameters:
       - $ref: '#/components/parameters/PostTagsVersion'
@@ -191,7 +249,8 @@ paths:
         limit and preference revision, expires after 30 minutes, and is never
         an access capability. A changed preference, expired or mismatched
         cursor returns 400 CURSOR_INVALID; refresh without the old cursor.
-        Reading/exposing the feed never increments views.
+        Account-hidden posts are excluded before LIMIT. Reading/exposing the
+        feed never increments views.
       parameters:
         - name: X-Post-Preview
           in: header
@@ -537,6 +596,23 @@ components:
               enum: [MALFORMED_REQUEST, AUTHENTICATION_FAILED, SESSION_INVALID, session_replaced, AUTHORIZATION_UNAVAILABLE, SERVICE_UNAVAILABLE, RANKINGS_UNAVAILABLE, RATE_LIMITED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, CURSOR_INVALID, POST_CHANNEL_UNAVAILABLE, POST_NOT_FOUND, INTERACTION_VERSION_CONFLICT]
             message: { type: string, minLength: 1, maxLength: 256 }
   responses:
+    HiddenPost:
+      description: Committed private state and its independent write version
+      headers:
+        Interaction-Version: { $ref: '#/components/headers/InteractionVersion' }
+        X-Request-ID: { $ref: '#/components/headers/RequestID' }
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        Session-Expires-At: { $ref: '#/components/headers/SessionExpiresAt' }
+        Server-Time: { $ref: '#/components/headers/ServerTime' }
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [postId, hidden]
+            properties:
+              postId: { $ref: '#/components/schemas/ResourceID' }
+              hidden: { type: boolean }
     Interactions:
       description: Committed aggregate counts and own account flags
       headers:

@@ -225,9 +225,14 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	if c.posts.typedSearchEnabled {
 		candidateSQL = typedSearchCandidatesSQL
 	}
-	rows, err := tx.Query(ctx, candidateSQL, query.Sort == posts.SearchRelevance, query.Keyword, position.Ceiling,
+	args := []any{query.Sort == posts.SearchRelevance, query.Keyword, position.Ceiling,
 		nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, groups, lastAt,
-		position.SearchGroup, position.SearchRank, position.LastOrdinal, query.Limit+1)
+		position.SearchGroup, position.SearchRank, position.LastOrdinal, query.Limit + 1}
+	if c.posts.hiddenPostsEnabled {
+		candidateSQL = strings.Replace(candidateSQL, "AND NOT (p.channel_id = ANY($5::uuid[]))", "AND NOT (p.channel_id = ANY($5::uuid[])) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$12 AND hp.post_id=p.post_id AND hp.hidden)", 1)
+		args = append(args, account)
+	}
+	rows, err := tx.Query(ctx, candidateSQL, args...)
 	if err != nil {
 		return prepared, err
 	}
@@ -310,7 +315,12 @@ func (c *Community) finishPostSearch(ctx context.Context, tx pgx.Tx, account uui
 	if c.posts.typedSearchEnabled {
 		projectionSQL = typedProjectSearchCandidatesSQL
 	}
-	rows, err := tx.Query(ctx, projectionSQL, ids, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, query.Keyword)
+	args := []any{ids, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, query.Keyword}
+	if c.posts.hiddenPostsEnabled {
+		projectionSQL = strings.Replace(projectionSQL, "AND NOT (p.channel_id = ANY($3::uuid[]))", "AND NOT (p.channel_id = ANY($3::uuid[])) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$5 AND hp.post_id=p.post_id AND hp.hidden)", 1)
+		args = append(args, account)
+	}
+	rows, err := tx.Query(ctx, projectionSQL, args...)
 	if err != nil {
 		return page, err
 	}

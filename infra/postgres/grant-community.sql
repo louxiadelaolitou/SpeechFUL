@@ -250,3 +250,11 @@ DO $$ BEGIN
   GRANT UPDATE(read_at) ON c_moderation.notifications TO hnuhole_c_runtime;
  END IF;
 END $$;
+
+-- 0036 account-private hidden posts and closure cleanup.
+DO $$ BEGIN
+ IF to_regclass('c_posts.hidden_posts') IS NOT NULL THEN
+  GRANT SELECT,INSERT,DELETE ON c_posts.hidden_posts TO hnuhole_c_runtime;
+  GRANT UPDATE(hidden,version) ON c_posts.hidden_posts TO hnuhole_c_runtime;
+ END IF;
+END $$;

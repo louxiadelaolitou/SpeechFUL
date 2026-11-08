@@ -100,6 +100,12 @@ func parsePostRoute(path string) (postRoute, error) {
 		}
 		return postRoute{kind: postShareRoute, id: parts[1], methods: "GET"}, nil
 	}
+	if len(parts) == 3 && parts[0] == "posts" && parts[2] == "hidden" {
+		if _, err := posts.ParseResourceID(parts[1]); err != nil {
+			return postRoute{}, errMalformed
+		}
+		return postRoute{kind: authprivacy.PostHiddenState, id: parts[1], methods: "GET, PUT"}, nil
+	}
 	if len(parts) == 3 && parts[0] == "posts" && parts[2] == "repost" {
 		if _, err := posts.ParseResourceID(parts[1]); err != nil {
 			return postRoute{}, errMalformed
@@ -272,7 +278,7 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 		route.editCapabilities = true
 	}
 	command := ""
-	if route.command || route.seal || r.Method == http.MethodGet || route.kind == postLinkResolveRoute || isPostSearchKind(route.kind) || route.kind == authprivacy.PostViewRecord || route.kind == authprivacy.PostFeedPreferences || isPostInteractionKind(route.kind) || isRepostKind(route.kind) {
+	if route.command || route.seal || r.Method == http.MethodGet || route.kind == postLinkResolveRoute || isPostSearchKind(route.kind) || route.kind == authprivacy.PostViewRecord || route.kind == authprivacy.PostFeedPreferences || isPostInteractionKind(route.kind) || isRepostKind(route.kind) || isHiddenPostKind(route.kind) {
 		if hasHeader(r.Header, "Idempotency-Key") {
 			b.postBad(w, errMalformed)
 			return
@@ -306,6 +312,13 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 	}
 	if route.kind == hotPostsRoute {
 		b.communityRankings(w, r, backend, bearer, route)
+		return
+	}
+	if isHiddenPostKind(route.kind) {
+		if r.Method == http.MethodPut {
+			route.kind = authprivacy.PostHiddenSet
+		}
+		b.communityHiddenPost(w, r, backend, bearer, route)
 		return
 	}
 	if isRepostKind(route.kind) {
@@ -796,7 +809,7 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 		return
 	}
 	if response.InteractionVersion != "" && route.kind != authprivacy.PostInteractionBatch {
-		if !posts.ValidInteractionVersion(response.InteractionVersion) || !(isPostInteractionKind(route.kind) || isRepostKind(route.kind) && route.kind != authprivacy.PostRepostList) {
+		if !posts.ValidInteractionVersion(response.InteractionVersion) || !(isPostInteractionKind(route.kind) || isRepostKind(route.kind) && route.kind != authprivacy.PostRepostList || isHiddenPostKind(route.kind)) {
 			b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
 			return
 		}
@@ -861,6 +874,12 @@ func strictPostValue(value any, route postRoute) (any, error) {
 	switch route.kind {
 	case authprivacy.PostInteractions, authprivacy.PostLikeSet, authprivacy.PostFavoriteSet, authprivacy.PostInteractionBatch:
 		return strictPostInteractions(value, route)
+	case authprivacy.PostHiddenState, authprivacy.PostHiddenSet:
+		result, ok := value.(posts.HiddenPostState)
+		if !ok || result.PostID != route.id || !postValidID(result.PostID) || route.enabled != nil && result.Hidden != *route.enabled {
+			return nil, errMalformed
+		}
+		return result, nil
 	case authprivacy.PostViewRecord:
 		result, ok := value.(posts.PostView)
 		if !ok || result.PostID != route.id || !postValidID(result.PostID) || result.ViewCount < 0 {

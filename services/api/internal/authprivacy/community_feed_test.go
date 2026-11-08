@@ -270,7 +270,16 @@ func TestFeedRuntimePrivilegesClosureAndStartupPostgres(t *testing.T) {
 	interactionTestSet(t, l, reader.SessionToken, p.PostID, posts.PostFavorite, true)
 	interactionTestSet(t, l, owner.SessionToken, p.PostID, posts.PostLike, true)
 	interactionTestSet(t, l, owner.SessionToken, p.PostID, posts.PostFavorite, true)
-	for _, sql := range []string{`REVOKE DELETE ON c_posts.feed_preferences FROM hnuhole_c_runtime`, `ALTER TABLE c_auth.accounts DISABLE TRIGGER feed_account_closed`} {
+	for _, token := range [][32]byte{reader.SessionToken, owner.SessionToken} {
+		state, err := l.c.ReadHiddenPost(ctx, token, p.PostID)
+		if err != nil {
+			t.Fatal("runtime hidden read", err)
+		}
+		if _, err = l.c.SetHiddenPost(ctx, token, p.PostID, true, state.InteractionVersion); err != nil {
+			t.Fatal("runtime hidden write", err)
+		}
+	}
+	for _, sql := range []string{`REVOKE DELETE ON c_posts.feed_preferences FROM hnuhole_c_runtime`, `ALTER TABLE c_auth.accounts DISABLE TRIGGER feed_account_closed`, `REVOKE DELETE ON c_posts.hidden_posts FROM hnuhole_c_runtime`, `ALTER TABLE c_auth.accounts DISABLE TRIGGER hidden_posts_account_closed`} {
 		tx, err := l.cp.Begin(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -284,7 +293,7 @@ func TestFeedRuntimePrivilegesClosureAndStartupPostgres(t *testing.T) {
 		if CheckModerationLifecycleSchema(ctx, pool) == nil {
 			t.Fatal("common startup ignored missing feed cleanup")
 		}
-		mustExec(t, l.cp, `GRANT DELETE ON c_posts.feed_preferences TO hnuhole_c_runtime; ALTER TABLE c_auth.accounts ENABLE TRIGGER feed_account_closed`)
+		mustExec(t, l.cp, `GRANT DELETE ON c_posts.feed_preferences,c_posts.hidden_posts TO hnuhole_c_runtime; ALTER TABLE c_auth.accounts ENABLE TRIGGER feed_account_closed; ALTER TABLE c_auth.accounts ENABLE TRIGGER hidden_posts_account_closed`)
 	}
 	// A reader without public identities can close through the original path.
 	request, _ := closureTestRequest(t, reader.SessionToken)
@@ -314,6 +323,9 @@ func TestFeedRuntimePrivilegesClosureAndStartupPostgres(t *testing.T) {
 	}
 	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_interaction_versions WHERE account_id=$1`, reader.AccountID) != 0 {
 		t.Fatal("closure retained private write fence")
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.hidden_posts WHERE account_id=$1`, reader.AccountID) != 0 || count(t, l.cp, `SELECT count(*) FROM c_posts.hidden_posts WHERE account_id=$1`, owner.AccountID) != 1 {
+		t.Fatal("closure retained hidden preferences or touched another account")
 	}
 	remaining := interactionTestRead(t, l, owner.SessionToken, p.PostID)[0]
 	if remaining.LikeCount != 1 || remaining.FavoriteCount != 1 || !remaining.LikedByMe || !remaining.FavoritedByMe {

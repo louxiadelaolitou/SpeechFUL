@@ -57,6 +57,12 @@ func (c *Community) TaggedPosts(ctx context.Context, bearer [32]byte, query post
 
 		// One statement projects the matched public version as well as its
 		// labels, so concurrent edits cannot change membership between reads.
+		hiddenFilter := ""
+		args := []any{strings.ToLower(tag), position.Ceiling, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, lastAt, lastOrdinal, query.Limit + 1}
+		if c.posts.hiddenPostsEnabled {
+			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$8 AND hp.post_id=p.post_id AND hp.hidden)`
+			args = append(args, account)
+		}
 		rows, err := tx.Query(ctx, `SELECT p.post_id,p.channel_id,COALESCE(p.edited_title,x.title),p.published_at,p.publication_ordinal,a.state,i.deleted_at,i.nickname,i.avatar,l.short_code,p.tags
          FROM c_posts.posts p JOIN c_posts.publication_tasks t USING(post_id)
          JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version
@@ -65,9 +71,9 @@ func (c *Community) TaggedPosts(ctx context.Context, bearer [32]byte, query post
          JOIN c_posts.identity_public_labels l ON l.identity_id=i.identity_id
          WHERE p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND x.erased_at IS NULL
          AND p.tag_keys @> ARRAY[$1::text] AND p.publication_ordinal<=$2
-         AND ($3::uuid IS NULL OR p.channel_id=$3) AND NOT(p.channel_id=ANY($4::uuid[]))
+         AND ($3::uuid IS NULL OR p.channel_id=$3) AND NOT(p.channel_id=ANY($4::uuid[]))`+hiddenFilter+`
          AND ($5::timestamptz IS NULL OR (p.published_at,p.publication_ordinal)<($5,$6::bigint))
-         ORDER BY p.published_at DESC,p.publication_ordinal DESC LIMIT $7`, strings.ToLower(tag), position.Ceiling, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, lastAt, lastOrdinal, query.Limit+1)
+         ORDER BY p.published_at DESC,p.publication_ordinal DESC LIMIT $7`, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -126,10 +132,16 @@ func (c *Community) SuggestPostTags(ctx context.Context, bearer [32]byte, prefix
 			return nil, err
 		}
 		escaped := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(strings.ToLower(prefix))
+		hiddenFilter := ""
+		args := []any{escaped + "%", preferences.BlockedChannelIDs}
+		if c.posts.hiddenPostsEnabled {
+			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$3 AND hp.post_id=p.post_id AND hp.hidden)`
+			args = append(args, account)
+		}
 		rows, err := tx.Query(ctx, `SELECT DISTINCT ON(t.tag_key) t.label FROM c_posts.post_tag_terms t
    JOIN c_posts.posts p USING(post_id) WHERE t.tag_key LIKE $1 ESCAPE '\'
-   AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND NOT(p.channel_id=ANY($2::uuid[]))
-   ORDER BY t.tag_key,t.label COLLATE "C" LIMIT 10`, escaped+"%", preferences.BlockedChannelIDs)
+   AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND NOT(p.channel_id=ANY($2::uuid[]))`+hiddenFilter+`
+   ORDER BY t.tag_key,t.label COLLATE "C" LIMIT 10`, args...)
 		if err != nil {
 			return nil, err
 		}

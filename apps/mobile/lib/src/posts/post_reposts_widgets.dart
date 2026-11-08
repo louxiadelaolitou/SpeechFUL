@@ -67,9 +67,12 @@ class PostRepostButton extends StatefulWidget {
     super.key,
     required this.controller,
     required this.postId,
+    this.builder,
   });
   final PostController controller;
   final String postId;
+  final Widget Function(VoidCallback? open, bool reposted, bool unresolved)?
+  builder;
   @override
   State<PostRepostButton> createState() => _PostRepostButtonState();
 }
@@ -233,6 +236,15 @@ class _PostRepostButtonState extends State<PostRepostButton> {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: c,
     builder: (_, _) {
+      if (widget.builder case final builder?) {
+        if (!current || !c.supportsReposts) return builder(null, false, false);
+        final state = c.repostState(widget.postId);
+        return builder(
+          !opening ? open : null,
+          state.reposted,
+          state.unresolved,
+        );
+      }
       if (!current || !c.supportsReposts) return const SizedBox.shrink();
       final state = c.repostState(widget.postId);
       return IconButton(

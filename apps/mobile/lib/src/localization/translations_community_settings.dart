@@ -48,6 +48,27 @@ const communitySettingsTranslations = <String, (String, String, String)>{
   '添加标签': ('新增標籤', 'Add tags', 'タグを追加'),
   '下一步': ('下一步', 'Next', '次へ'),
   '主评论': ('主評論', 'Comment', 'コメント'),
+  '不感兴趣': ('不感興趣', 'Not interested', '興味がない'),
+  '暂时无法保存，请重试。': (
+    '暫時無法儲存，請重試。',
+    'Could not save. Please try again.',
+    '保存できませんでした。もう一度お試しください。',
+  ),
+  '暂时无法确认结果，请重试。': (
+    '暫時無法確認結果，請重試。',
+    'Could not confirm the result. Please try again.',
+    '結果を確認できません。もう一度お試しください。',
+  ),
+  '状态已变化，请重新操作。': (
+    '狀態已變更，請重新操作。',
+    'The state changed. Please try again.',
+    '状態が変わりました。もう一度お試しください。',
+  ),
+  '上次操作的结果还在核对，请重试。': (
+    '上次操作的結果仍在確認，請重試。',
+    'The previous result is still being checked. Please try again.',
+    '前回の結果を確認中です。もう一度お試しください。',
+  ),
   '举报': ('舉報', 'Report', '通報'),
   '举报主评论': ('檢舉主評論', 'Report comment', 'コメントを報告'),
   '举报回复': ('檢舉回覆', 'Report reply', '返信を報告'),

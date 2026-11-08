@@ -205,7 +205,11 @@ void main() {
       ];
       await tester.pumpWidget(feed.screen(f));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('repost:${feed.postId}')));
+      await tester.tap(find.byKey(const ValueKey('menu:${feed.postId}')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('repost-menu:${feed.postId}')),
+      );
       await tester.pumpAndSettle();
       expect((f.api as RepostApi).repostWrites, 0);
       await tester.tap(find.text('转帖身份'));
@@ -388,7 +392,15 @@ void main() {
     addTearDown(f.dispose);
     await tester.pumpWidget(feed.screen(f));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('repost:${feed.postId}')), findsOneWidget);
+    expect(find.byKey(const ValueKey('repost:${feed.postId}')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('menu:${feed.postId}')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('repost-menu:${feed.postId}')),
+      findsOneWidget,
+    );
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     final c = f.controller;
     await c.setRepost(
       feed.postId,

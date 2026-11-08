@@ -10,6 +10,10 @@ import '../navigation/app_navigation.dart';
 import '../navigation/feed_chrome.dart';
 import '../navigation/home_side_menu.dart';
 import 'feed_refresh.dart';
+import 'feed_card_motion.dart';
+import 'feed_header_glyphs.dart';
+import 'feed_browse_controls.dart';
+export 'feed_card_motion.dart' show HhFeedPostCard;
 export '../navigation/app_navigation.dart' show AppDestination;
 
 enum FeedAction { comment, like, bookmark, share }
@@ -188,7 +192,13 @@ class HhXPostFeed extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      FeedSmileMark(pull: pull, loading: loading || refreshing),
+                      FeedHeaderTile(
+                        size: 44,
+                        child: FeedSmileMark(
+                          pull: pull,
+                          loading: loading || refreshing,
+                        ),
+                      ),
                       Positioned(
                         left: 12,
                         child: IconButton(
@@ -199,21 +209,16 @@ class HhXPostFeed extends StatelessWidget {
                           onPressed:
                               HomeSideMenuScope.maybeOf(context)?.open ??
                               () => onDestination(FeedDestination.personal),
-                          icon: SizedBox(
-                            width: 36,
-                            height: 36,
-                            child: ClipOval(
-                              child:
-                                  accountAvatar ??
-                                  ColoredBox(
-                                    color: p.action,
-                                    child: const Icon(
-                                      Icons.person_outline_rounded,
-                                      color: Colors.white,
-                                      size: 24,
+                          icon: FeedHeaderTile(
+                            child: accountAvatar == null
+                                ? const FeedHeaderAvatarGlyph()
+                                : ClipOval(
+                                    child: SizedBox(
+                                      width: 32,
+                                      height: 32,
+                                      child: accountAvatar,
                                     ),
                                   ),
-                            ),
                           ),
                         ),
                       ),
@@ -223,170 +228,25 @@ class HhXPostFeed extends StatelessWidget {
                           key: const ValueKey('feed-search'),
                           tooltip: hhText(context, '搜索帖子'),
                           onPressed: onSearch,
-                          icon: Icon(
-                            Icons.search_rounded,
-                            size: 28,
-                            color: p.ink,
+                          icon: const FeedHeaderTile(
+                            child: FeedHeaderSearchGlyph(),
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final large =
-                        MediaQuery.textScalerOf(context).scale(17) > 22;
-                    final channel = DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: latestSelected
-                                ? Colors.transparent
-                                : p.accent,
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Semantics(
-                              selected: !latestSelected,
-                              child: TextButton(
-                                key: const ValueKey('feed-recommended'),
-                                onPressed: onRecommended,
-                                child: Text(
-                                  hhText(context, feedTitle ?? channelTitle),
-                                  style: _text(
-                                    context,
-                                    17,
-                                    weight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            key: const ValueKey('feed-channel-picker'),
-                            tooltip: hhText(context, '选择分类'),
-                            onPressed: onBack,
-                            icon: Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: p.secondary,
-                              size: 21,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                    final filter = TextButton(
-                      key: const ValueKey('feed-block-filter'),
-                      onPressed: onFilter,
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(48, 48),
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            hhText(context, '筛选'),
-                            style: _text(
-                              context,
-                              16,
-                              color: blockedCount == 0 ? p.secondary : p.accent,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          if (blockedCount > 0)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: p.accent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '$blockedCount',
-                                style: _text(
-                                  context,
-                                  10,
-                                  color: p.onAccent,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                            )
-                          else
-                            Icon(
-                              Icons.add_rounded,
-                              size: 21,
-                              color: p.secondary,
-                            ),
-                        ],
-                      ),
-                    );
-                    final latest = Semantics(
-                      selected: latestSelected,
-                      child: DecoratedBox(
-                        key: const ValueKey('feed-latest-indicator'),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: latestSelected
-                                  ? p.accent
-                                  : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                        ),
-                        child: TextButton(
-                          key: const ValueKey('feed-latest'),
-                          onPressed: onLatest,
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                          ),
-                          child: Text(
-                            hhText(context, '最新'),
-                            style: _text(
-                              context,
-                              17,
-                              color: latestSelected ? p.ink : p.secondary,
-                              weight: latestSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                    if (large) {
-                      return Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(child: channel),
-                              filter,
-                            ],
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: latest,
-                          ),
-                        ],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(flex: 4, child: channel),
-                        Expanded(flex: 4, child: Center(child: latest)),
-                        Expanded(flex: 2, child: filter),
-                      ],
-                    );
-                  },
+                FeedBrowseControls(
+                  channelLabel: hhText(context, feedTitle ?? channelTitle),
+                  latestLabel: hhText(context, '最新'),
+                  filterLabel: hhText(context, '筛选'),
+                  channelTooltip: hhText(context, '选择分类'),
+                  latestSelected: latestSelected,
+                  blockedCount: blockedCount,
+                  onRecommended: onRecommended,
+                  onLatest: onLatest,
+                  onChannelPicker: onBack,
+                  onFilter: onFilter,
                 ),
                 Divider(height: 1, thickness: .5, color: p.line),
               ],
@@ -394,50 +254,62 @@ class HhXPostFeed extends StatelessWidget {
           ),
         ),
         Expanded(
-          child:
-              content ??
-              (posts.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              hhText(context, '暂无可显示的帖子'),
-                              style: _text(
-                                context,
-                                17,
-                                weight: FontWeight.w600,
-                              ),
+          child: FeedCardEntranceScope(
+            child: ColoredBox(
+              color: p.background,
+              child:
+                  content ??
+                  (posts.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  hhText(context, '暂无可显示的帖子'),
+                                  style: _text(
+                                    context,
+                                    17,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (blockedCount > 0)
+                                  TextButton(
+                                    onPressed: onFilter,
+                                    child: Text(hhText(context, '调整屏蔽设置')),
+                                  ),
+                              ],
                             ),
-                            if (blockedCount > 0)
-                              TextButton(
-                                onPressed: onFilter,
-                                child: Text(hhText(context, '调整屏蔽设置')),
-                              ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      key: const ValueKey('x-feed'),
-                      padding: const EdgeInsets.only(bottom: 90),
-                      itemCount: posts.length,
-                      separatorBuilder: (_, _) =>
-                          Divider(height: 1, thickness: .5, color: p.line),
-                      itemBuilder: (context, index) => HhXPostItem(
-                        key: ValueKey('post:${posts[index].id}'),
-                        post: posts[index],
-                        mediaBuilder: mediaBuilder,
-                        avatarBuilder: avatarBuilder,
-                        onPost: () => onPost(posts[index]),
-                        onAuthor: () => onAuthor(posts[index].authorId),
-                        onMenu: () => onMenu(posts[index]),
-                        onAction: (action) => onAction(posts[index], action),
-                        onMedia: (media) => onMedia(posts[index], media),
-                      ),
-                    )),
+                          ),
+                        )
+                      : ListView.separated(
+                          key: const ValueKey('x-feed'),
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                          itemCount: posts.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) => HhFeedPostCard(
+                            key: ValueKey('post:${posts[index].id}'),
+                            postId: posts[index].id,
+                            child: HhXPostItem(
+                              post: posts[index],
+                              showTimestamp: false,
+                              horizontalMenu: true,
+                              browseActions: true,
+                              mediaBuilder: mediaBuilder,
+                              avatarBuilder: avatarBuilder,
+                              onPost: () => onPost(posts[index]),
+                              onAuthor: () => onAuthor(posts[index].authorId),
+                              onMenu: () => onMenu(posts[index]),
+                              onAction: (action) =>
+                                  onAction(posts[index], action),
+                              onMedia: (media) => onMedia(posts[index], media),
+                            ),
+                          ),
+                        )),
+            ),
+          ),
         ),
       ],
     );
@@ -562,8 +434,12 @@ class HhXPostItem extends StatelessWidget {
     required this.mediaBuilder,
     this.mediaSection,
     this.repostAction,
+    this.menuWidget,
     this.onTag,
     this.avatarBuilder,
+    this.showTimestamp = true,
+    this.horizontalMenu = false,
+    this.browseActions = false,
     required this.onPost,
     required this.onAuthor,
     required this.onMenu,
@@ -572,10 +448,12 @@ class HhXPostItem extends StatelessWidget {
   });
   final Widget? mediaSection;
   final Widget? repostAction;
+  final Widget? menuWidget;
   final ValueChanged<String>? onTag;
   final FeedPostView post;
   final FeedMediaBuilder mediaBuilder;
   final FeedAvatarBuilder? avatarBuilder;
+  final bool showTimestamp, horizontalMenu, browseActions;
   final VoidCallback onPost, onAuthor, onMenu;
   final ValueChanged<FeedAction> onAction;
   final ValueChanged<int> onMedia;
@@ -667,7 +545,7 @@ class HhXPostItem extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              if (post.elapsed.isNotEmpty)
+                              if (showTimestamp && post.elapsed.isNotEmpty)
                                 Text(
                                   '· ${post.elapsed}',
                                   style: _text(context, 14, color: p.secondary),
@@ -705,7 +583,7 @@ class HhXPostItem extends StatelessWidget {
                             final wideText =
                                 MediaQuery.textScalerOf(context).scale(12) >
                                     16 ||
-                                constraints.maxWidth < 260;
+                                constraints.maxWidth < 235;
                             final actions = [
                               _action(
                                 context,
@@ -756,6 +634,18 @@ class HhXPostItem extends StatelessWidget {
                                 false,
                               ),
                             ];
+                            if (browseActions) {
+                              return Row(
+                                children: [
+                                  for (final action in [
+                                    actions[1],
+                                    actions[0],
+                                    actions[2],
+                                  ])
+                                    Expanded(child: action),
+                                ],
+                              );
+                            }
                             if (wideText) {
                               return Wrap(
                                 children: [
@@ -799,16 +689,20 @@ class HhXPostItem extends StatelessWidget {
             Positioned(
               top: 0,
               right: 4,
-              child: IconButton(
-                key: ValueKey('menu:${post.id}'),
-                tooltip: hhText(context, '帖子更多操作'),
-                onPressed: onMenu,
-                icon: Icon(
-                  Icons.more_vert_rounded,
-                  size: 20,
-                  color: p.secondary,
-                ),
-              ),
+              child:
+                  menuWidget ??
+                  IconButton(
+                    key: ValueKey('menu:${post.id}'),
+                    tooltip: hhText(context, '帖子更多操作'),
+                    onPressed: onMenu,
+                    icon: Icon(
+                      horizontalMenu
+                          ? Icons.more_horiz_rounded
+                          : Icons.more_vert_rounded,
+                      size: 22,
+                      color: p.secondary,
+                    ),
+                  ),
             ),
           ],
         ),

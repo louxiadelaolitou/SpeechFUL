@@ -25,6 +25,9 @@ extension FeedController on PostController {
 
   void _clearTimeline() {
     _interactions.clear();
+    _hiddenWrites.clear();
+    _hiddenUncertainVersions.clear();
+    hiddenPostError = null;
     ++_timelineRequest;
     _timeline = [];
     _blockedChannels = {};
@@ -112,6 +115,7 @@ extension FeedController on PostController {
         _postViews[post.postId] = post.viewCount > old ? post.viewCount : old;
       }
       timelineCursor = page.nextCursor;
+      if (!more) timelineGeneration++;
       _notify();
       final found = await loadInteractions(
         page.items.map((p) => p.postId).toList(),

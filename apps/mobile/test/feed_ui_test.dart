@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:hnuhole_mobile/src/posts/feed_card_motion.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/src/posts/feed_api.dart';
 import 'package:hnuhole_mobile/src/posts/x_feed.dart';
+import 'package:hnuhole_mobile/src/posts/hidden_post_api.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 
 import 'identity_test_support.dart';
@@ -43,13 +46,67 @@ PostResponse<T> reply<T>(T value) => PostResponse(
   statusCode: 200,
 );
 
-class FeedTestApi implements PostApi, FeedApi {
+class FeedTestApi implements PostApi, FeedApi, HiddenPostApi {
   final calls = <String>[];
   final writes = <Set<String>>[];
   Set<String> blocked = {};
   List<FeedPost> items = [post()];
   String? cursor;
   int views = 1261;
+  final hiddenPosts = <String>{};
+  final hiddenVersions = <String, int>{};
+  bool hiddenCommitTimeout = false;
+  PostFailure? hiddenWriteFailure;
+
+  String hiddenVersion(String id) =>
+      '"${(hiddenVersions[id] ?? 0).toRadixString(16).padLeft(64, '0')}"';
+  PostResponse<HiddenPostState> hiddenReply(String id) => PostResponse(
+    value: HiddenPostState(postId: id, hidden: hiddenPosts.contains(id)),
+    serverTime: at,
+    sessionExpiresAt: identityTestRenewed,
+    requestId: AuthCrypto.encode(List.filled(16, 9)),
+    statusCode: 200,
+    interactionVersion: hiddenVersion(id),
+  );
+
+  @override
+  Future<PostResponse<HiddenPostState>> hiddenPost({
+    required String sessionToken,
+    required String postId,
+  }) async {
+    calls.add('hidden-read:$postId');
+    return hiddenReply(postId);
+  }
+
+  @override
+  Future<PostResponse<HiddenPostState>> setHiddenPost({
+    required String sessionToken,
+    required String postId,
+    required bool hidden,
+    required String version,
+  }) async {
+    calls.add('hidden-write:$postId:$hidden');
+    if (hiddenWriteFailure case final failure?) throw failure;
+    if (version != hiddenVersion(postId)) {
+      throw const PostFailure(
+        kind: PostFailureKind.rejected,
+        code: 'INTERACTION_VERSION_CONFLICT',
+        statusCode: 412,
+      );
+    }
+    if (hidden) {
+      hiddenPosts.add(postId);
+    } else {
+      hiddenPosts.remove(postId);
+    }
+    hiddenVersions[postId] = (hiddenVersions[postId] ?? 0) + 1;
+    if (hiddenCommitTimeout) {
+      hiddenCommitTimeout = false;
+      throw const PostFailure(kind: PostFailureKind.transport, code: 'TIMEOUT');
+    }
+    return hiddenReply(postId);
+  }
+
   bool writeLost = false, commitLost = false, readFails = false;
   PostFailure? timelineFailure;
   Completer<PostResponse<PostsPage<FeedPost>>>? pageWait;
@@ -97,6 +154,7 @@ class FeedTestApi implements PostApi, FeedApi {
                 .where(
                   (p) =>
                       !blocked.contains(p.channelId) &&
+                      !hiddenPosts.contains(p.postId) &&
                       (channelId == null || p.channelId == channelId),
                 )
                 .toList(),
@@ -205,11 +263,15 @@ Widget screen(
   PostImagesLoader? loader,
   Brightness brightness = Brightness.light,
   double scale = 1,
+  bool reduceMotion = false,
 }) => MaterialApp(
   debugShowCheckedModeBanner: false,
   theme: HhTelegramTheme.create(brightness),
   builder: (context, child) => MediaQuery(
-    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+    data: MediaQuery.of(context).copyWith(
+      textScaler: TextScaler.linear(scale),
+      disableAnimations: reduceMotion,
+    ),
     child: child!,
   ),
   home: FeedScreen(
@@ -223,6 +285,281 @@ Widget screen(
 );
 
 void main() {
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    testWidgets(
+      'feed cards hide dates and retain post navigation in $brightness',
+      (tester) async {
+        final f = await FeedFixture.create();
+        addTearDown(f.dispose);
+        await tester.pumpWidget(screen(f, brightness: brightness));
+        await tester.pumpAndSettle();
+        expect(find.byType(HhFeedPostCard), findsOneWidget);
+        expect(find.text('今天的校园'), findsOneWidget);
+        final item = tester.widget<HhXPostItem>(find.byType(HhXPostItem));
+        expect(item.showTimestamp, isFalse);
+        expect(find.text('· ${item.post.elapsed}'), findsNothing);
+        await tester.tap(find.text('今天的校园'));
+        await tester.pumpAndSettle();
+        expect(f.api.calls, contains('detail:$postId'));
+      },
+    );
+  }
+
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'feed card animates when re-entering; reduced motion: $reduced',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 480);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final f = await FeedFixture.create();
+        addTearDown(f.dispose);
+        const targetId = '55555555-5555-4555-8555-555555555555';
+        f.api.items = [
+          post(),
+          post(id: '44444444-4444-4444-8444-444444444444'),
+          post(id: targetId, title: '刚进入视野的帖子'),
+          post(id: '66666666-6666-4666-8666-666666666666'),
+          post(id: '77777777-7777-4777-8777-777777777777'),
+          post(id: '88888888-8888-4888-8888-888888888888'),
+          post(id: '99999999-9999-4999-8999-999999999999'),
+          post(id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+        ];
+        await tester.pumpWidget(screen(f, reduceMotion: reduced));
+        await tester.pumpAndSettle();
+        final feed = find.byKey(const ValueKey('production-feed'));
+        final gesture = await tester.startGesture(tester.getCenter(feed));
+        await gesture.moveBy(const Offset(0, -35));
+        await tester.pump();
+        await gesture.moveBy(const Offset(0, -230));
+        await tester.pump();
+        await tester.pump();
+        final motion = find.byKey(const ValueKey('feed-card-scale:$targetId'));
+        expect(motion, findsOneWidget);
+        final start = tester.widget<Transform>(motion).transform.entry(0, 0);
+        if (reduced) {
+          expect(start, closeTo(1, .001));
+        } else {
+          expect(start, lessThan(.99));
+          await tester.pump(const Duration(milliseconds: 120));
+          expect(
+            tester.widget<Transform>(motion).transform.entry(0, 0),
+            greaterThan(start),
+          );
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<Transform>(motion).transform.entry(0, 0),
+          closeTo(1, .001),
+        );
+        await tester.drag(feed, const Offset(0, -600));
+        await tester.pumpAndSettle();
+        final again = await tester.startGesture(tester.getCenter(feed));
+        await again.moveBy(const Offset(0, 35));
+        await tester.pump();
+        await again.moveBy(const Offset(0, 450));
+        await tester.pump();
+        await tester.pump();
+        expect(
+          tester.widget<Transform>(motion).transform.entry(0, 0),
+          reduced ? closeTo(1, .001) : lessThan(.99),
+        );
+        await again.up();
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  testWidgets(
+    'mouse wheel after hiding a card still animates newly visible cards',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 480);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var hidden = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FeedCardEntranceScope(
+              child: StatefulBuilder(
+                builder: (context, setState) => ListView.builder(
+                  key: const ValueKey('wheel-list'),
+                  itemCount: 10,
+                  itemBuilder: (context, index) {
+                    if (index == 0 && hidden) {
+                      return SizedBox(
+                        height: 36,
+                        child: TextButton(
+                          onPressed: () => setState(() => hidden = false),
+                          child: const Text('撤销'),
+                        ),
+                      );
+                    }
+                    return HhFeedPostCard(
+                      postId: '$index',
+                      key: ValueKey('test-card:$index'),
+                      child: SizedBox(
+                        height: 180,
+                        child: index == 0
+                            ? TextButton(
+                                onPressed: () => setState(() => hidden = true),
+                                child: const Text('隐藏'),
+                              )
+                            : Text('帖子 $index'),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('隐藏'));
+      await tester.pumpAndSettle();
+      expect(find.text('撤销'), findsOneWidget);
+      final list = find.byKey(const ValueKey('wheel-list'));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: tester.getCenter(list),
+          scrollDelta: const Offset(0, 300),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      final motion = find.byKey(const ValueKey('feed-card-scale:4'));
+      expect(motion, findsOneWidget);
+      expect(
+        tester.widget<Transform>(motion).transform.entry(0, 0),
+        lessThan(.99),
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        tester.widget<Transform>(motion).transform.entry(0, 0),
+        greaterThan(.99),
+      );
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('feed menu hides in place and undo restores the post', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(screen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('menu:$postId')));
+    await tester.pumpAndSettle();
+    expect(find.text('不感兴趣'), findsOneWidget);
+    expect(find.text('举报'), findsOneWidget);
+    expect(find.text('分享'), findsOneWidget);
+    expect(find.byKey(const ValueKey('views:$postId')), findsNothing);
+    expect(find.byKey(const ValueKey('share:$postId')), findsNothing);
+    await tester.tap(find.text('不感兴趣'));
+    await tester.pumpAndSettle();
+    expect(f.api.hiddenPosts, contains(postId));
+    expect(find.text('今天的校园'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('hidden-placeholder:$postId')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('撤销'));
+    await tester.pumpAndSettle();
+    expect(f.api.hiddenPosts, isNot(contains(postId)));
+    expect(find.text('今天的校园'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('hidden-placeholder:$postId')),
+      findsNothing,
+    );
+  });
+
+  test(
+    'a rejected first hidden write does not leave an uncertain fence',
+    () async {
+      final f = await FeedFixture.create();
+      addTearDown(f.dispose);
+      f.api.hiddenWriteFailure = const PostFailure(
+        kind: PostFailureKind.rejected,
+        code: 'POST_NOT_FOUND',
+        statusCode: 404,
+      );
+      expect(await f.controller.changeHiddenPost(postId, true), isNull);
+      f.api.hiddenWriteFailure = null;
+      expect(await f.controller.changeHiddenPost(postId, false), isNotNull);
+    },
+  );
+
+  test('a rejected retry preserves an earlier unknown hidden write', () async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.hiddenWriteFailure = const PostFailure(
+      kind: PostFailureKind.transport,
+    );
+    expect(await f.controller.changeHiddenPost(postId, true), isNull);
+    f.api.hiddenWriteFailure = const PostFailure(
+      kind: PostFailureKind.rejected,
+      code: 'POST_NOT_FOUND',
+      statusCode: 404,
+    );
+    expect(await f.controller.changeHiddenPost(postId, true), isNull);
+    f.api.hiddenWriteFailure = null;
+    expect(await f.controller.changeHiddenPost(postId, false), isNull);
+    expect(f.controller.hiddenPostError, '上次操作的结果还在核对，请重试。');
+  });
+
+  testWidgets(
+    'a committed hide with a lost response is reconciled before showing undo',
+    (tester) async {
+      final f = await FeedFixture.create();
+      addTearDown(f.dispose);
+      f.api.hiddenCommitTimeout = true;
+      await tester.pumpWidget(screen(f));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('menu:$postId')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('不感兴趣'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('hidden-placeholder:$postId')),
+        findsOneWidget,
+      );
+      expect(
+        f.api.calls.where((c) => c == 'hidden-read:$postId'),
+        hasLength(2),
+      );
+      await tester.tap(find.text('撤销'));
+      await tester.pumpAndSettle();
+      expect(find.text('今天的校园'), findsOneWidget);
+      expect(f.api.hiddenPosts, isEmpty);
+    },
+  );
+
+  testWidgets('refresh keeps a hidden post out of the next server page', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(screen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('menu:$postId')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('不感兴趣'));
+    await tester.pumpAndSettle();
+    await f.controller.loadTimeline();
+    await tester.pumpAndSettle();
+    expect(f.controller.timelineItems, isEmpty);
+    expect(find.text('今天的校园'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('hidden-placeholder:$postId')),
+      findsNothing,
+    );
+  });
+
   testWidgets('recommended label switches selection; only arrow opens picker', (
     tester,
   ) async {

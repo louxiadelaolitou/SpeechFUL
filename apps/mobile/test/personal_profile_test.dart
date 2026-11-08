@@ -10,6 +10,7 @@ import 'identity_test_support.dart';
 import 'package:hnuhole_mobile/src/posts/x_feed.dart';
 
 import 'package:flutter/material.dart';
+import 'package:hnuhole_mobile/src/posts/feed_header_glyphs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'login_home_test_support.dart';
@@ -125,7 +126,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(avatar().avatar, 'default-v1');
       expect(
-        find.descendant(of: account, matching: find.text('乙')),
+        find.descendant(
+          of: account,
+          matching: find.byType(FeedHeaderAvatarGlyph),
+        ),
         findsOneWidget,
       );
       f.identitiesApi.items[1] = identityTestItem(

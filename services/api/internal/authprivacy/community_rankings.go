@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,11 +60,12 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 	var generation int64
 	var decision AuthorizationDecision
 	var blocked []string
-	err := c.pool.QueryRow(ctx, `SELECT s.account_id,s.session_generation,g.authorization_generation,g.trusted_high_watermark,COALESCE(p.blocked_channel_ids,'{}'::uuid[])
+	var preferenceRevision int64
+	err := c.pool.QueryRow(ctx, `SELECT s.account_id,s.session_generation,g.authorization_generation,g.trusted_high_watermark,COALESCE(p.blocked_channel_ids,'{}'::uuid[]),COALESCE(p.revision,0)
 		FROM c_auth.sessions s CROSS JOIN c_auth.authorization_gate g
 		LEFT JOIN c_posts.feed_preferences p ON p.account_id=s.account_id
 		WHERE s.token_digest=$1 AND g.singleton_id=1`, token[:]).
-		Scan(&account, &generation, &decision.Generation, &decision.TrustedAt, &blocked)
+		Scan(&account, &generation, &decision.Generation, &decision.TrustedAt, &blocked, &preferenceRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PostResponse{}, ErrSessionInvalid
 	}
@@ -73,7 +75,7 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 
 	candidateAt := decision.TrustedAt
 	var verifiedAt *time.Time
-	project := func(snapshot rankings.Snapshot, ids []string, expected int, preparedBlocked []string, completePrefix bool) (PostResponse, error) {
+	project := func(snapshot rankings.Snapshot, ids []string, expected int, preparedBlocked []string, preparedRevision *int64, completePrefix bool) (PostResponse, error) {
 		return c.withPostSessionAt(ctx, token, account, decision, &generation,
 			func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 				candidateAt = final.TrustedAt
@@ -82,14 +84,16 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 					return nil, errRankingSnapshotInvalid
 				}
 				page := posts.PostRanking{AsOf: snapshot.Bucket, Items: []posts.RankedPost{}}
-				prefs, _, err := readFeedPreferences(ctx, tx, account)
+				prefs, revision, err := readFeedPreferences(ctx, tx, account)
 				if err != nil {
 					return nil, err
 				}
 				blocked = prefs.BlockedChannelIDs
-				if preparedBlocked != nil && !slices.Equal(preparedBlocked, blocked) {
+				if preparedBlocked != nil && (!slices.Equal(preparedBlocked, blocked) || preparedRevision == nil || *preparedRevision != revision) {
+					preferenceRevision = revision
 					return nil, errRankingNeedsMore
 				}
+				preferenceRevision = revision
 				if preparedBlocked == nil {
 					var count int64
 					for i, ch := range snapshot.Channels {
@@ -100,7 +104,13 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 					expected = int(min(count, posts.PostRankingLimit))
 				}
 				if len(ids) > 0 {
-					rows, err := tx.Query(ctx, projectRankedPostsSQL, ids, blocked, final.TrustedAt)
+					projection := projectRankedPostsSQL
+					args := []any{ids, blocked, final.TrustedAt}
+					if c.posts.hiddenPostsEnabled {
+						projection = strings.Replace(projection, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$4 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
+						args = append(args, account)
+					}
+					rows, err := tx.Query(ctx, projection, args...)
 					if err != nil {
 						return nil, err
 					}
@@ -155,11 +165,11 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 	}
 	cancel()
 	if useCache {
-		response, err := project(snapshot, ids[:min(len(ids), rankings.ReadLimit)], expected, nil, true)
+		response, err := project(snapshot, ids[:min(len(ids), rankings.ReadLimit)], expected, nil, nil, true)
 		// The first 64 of the merged union are the exact global first 64.
 		// If those fill the response, deeper shard candidates cannot outrank it.
 		if errors.Is(err, errRankingNeedsMore) && len(ids) > rankings.ReadLimit {
-			response, err = project(snapshot, ids, expected, nil, false)
+			response, err = project(snapshot, ids, expected, nil, nil, false)
 		}
 		if !errors.Is(err, errRankingNeedsMore) && !errors.Is(err, errRankingSnapshotInvalid) {
 			return response, err
@@ -174,7 +184,7 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 			// Even an unavailable board must not mask a revoked session.
 			// The empty candidate cannot pass snapshot validation, but the
 			// existing final Gate decides authentication first.
-			return project(rankings.Snapshot{}, nil, 0, nil, true)
+			return project(rankings.Snapshot{}, nil, 0, nil, nil, true)
 		}
 	}
 	if candidateAt.Before(snapshot.Bucket) {
@@ -182,11 +192,12 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 	}
 	for range 2 {
 		preparedBlocked := append([]string{}, blocked...)
-		ids, err = c.rankingFallback(ctx, snapshot, preparedBlocked, candidateAt)
+		preparedRevision := preferenceRevision
+		ids, err = c.rankingFallback(ctx, snapshot, preparedBlocked, account, candidateAt)
 		if err != nil {
 			return PostResponse{}, rankingsUnavailable()
 		}
-		response, err := project(snapshot, ids, len(ids), preparedBlocked, false)
+		response, err := project(snapshot, ids, len(ids), preparedBlocked, &preparedRevision, false)
 		if !errors.Is(err, errRankingNeedsMore) {
 			return response, err
 		}

@@ -333,10 +333,14 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 		}
 		blocked = preferences.BlockedChannelIDs
 	}
+	hiddenFilter := ""
+	if c.posts.hiddenPostsEnabled {
+		hiddenFilter = ` AND ($8::text NOT IN ('feed','channel','liked','favorites') OR NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$9 AND hp.post_id=p.post_id AND hp.hidden))`
+	}
 	rows, err := tx.Query(ctx, `SELECT p.post_id FROM c_posts.posts p JOIN c_posts.publication_tasks t ON t.post_id=p.post_id JOIN public.community_identities i ON i.identity_id=t.identity_id
  WHERE p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND p.publication_ordinal<=$1 AND ($2::uuid IS NULL OR p.channel_id=$2) AND ($3::uuid IS NULL OR (p.owner_account_id=$3 AND i.deleted_at IS NULL))
  AND ($10::text = '' OR t.identity_id::text=$10)
- AND NOT (p.channel_id=ANY($7::uuid[]))
+ AND NOT (p.channel_id=ANY($7::uuid[]))`+hiddenFilter+`
  AND ($8::text <> 'liked' OR EXISTS(SELECT 1 FROM c_posts.post_likes l WHERE l.post_id=p.post_id AND l.account_id=$9))
  AND ($8::text <> 'favorites' OR EXISTS(SELECT 1 FROM c_posts.post_favorites f WHERE f.post_id=p.post_id AND f.account_id=$9))
  AND ($8::text NOT IN ('liked','favorites') OR EXISTS(SELECT 1 FROM c_posts.attempt_contents x WHERE x.task_id=t.task_id AND x.version=p.published_attempt_version AND x.erased_at IS NULL))

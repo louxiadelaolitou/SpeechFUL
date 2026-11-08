@@ -5,8 +5,10 @@ import (
 	"errors"
 	"math/big"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
@@ -84,7 +86,7 @@ func sortRankingCandidates(items []rankingCandidate) {
 
 // Each permitted shard's first 20 live candidates contain the global top 20.
 // A read expands only the next 64-entry blocks of shards that still need rows.
-func (c *Community) rankingFallback(ctx context.Context, snapshot rankings.Snapshot, blocked []string, at time.Time) ([]string, error) {
+func (c *Community) rankingFallback(ctx context.Context, snapshot rankings.Snapshot, blocked []string, account uuid.UUID, at time.Time) ([]string, error) {
 	counts := make(map[string]int, len(snapshot.Channels))
 	var candidates []rankingCandidate
 	for block := int64(0); ; block++ {
@@ -108,7 +110,13 @@ func (c *Community) rankingFallback(ctx context.Context, snapshot rankings.Snaps
 		if len(ids) == 0 {
 			return nil, rankingsUnavailable()
 		}
-		rows, err := c.pool.Query(ctx, liveRankCandidatesSQL, ids, blocked, at)
+		sql := liveRankCandidatesSQL
+		args := []any{ids, blocked, at}
+		if c.posts.hiddenPostsEnabled {
+			sql = strings.Replace(sql, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$4 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
+			args = append(args, account)
+		}
+		rows, err := c.pool.Query(ctx, sql, args...)
 		if err != nil {
 			return nil, err
 		}

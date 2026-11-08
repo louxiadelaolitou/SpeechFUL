@@ -16,6 +16,7 @@ import '../storage/post_store.dart';
 import 'post_api.dart';
 import 'post_edit_api.dart';
 import 'feed_api.dart';
+import 'hidden_post_api.dart';
 import 'post_interactions_api.dart';
 import 'post_reposts_api.dart';
 import 'post_search_api.dart';
@@ -33,6 +34,7 @@ import 'post_photo_picker.dart';
 
 part 'post_composer_media.dart';
 part 'feed_controller.dart';
+part 'hidden_post_controller.dart';
 part 'post_interactions_controller.dart';
 part 'post_reposts_controller.dart';
 part 'post_edit_controller.dart';
@@ -174,6 +176,9 @@ class PostController extends ChangeNotifier {
 
   List<FeedPost> _timeline = [];
   final _interactions = <String, PostInteractionState>{};
+  final _hiddenWrites = <String>{};
+  final _hiddenUncertainVersions = <String, ({bool desired, String version})>{};
+  String? hiddenPostError;
   final _reposts = <String, PostRepostState>{};
   List<RepostedPost> _repostItems = [];
   String? _repostCursor, _repostListError;
@@ -183,6 +188,7 @@ class PostController extends ChangeNotifier {
   final _postViews = <String, int>{};
   bool _preferencesReady = false;
   int _timelineRequest = 0;
+  int timelineGeneration = 0;
   String? timelineChannelId, timelineCursor, timelineError, preferencesError;
   bool timelineLoading = false, preferencesSaving = false;
   Future<void> _preferenceWrites = Future.value();

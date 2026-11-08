@@ -270,8 +270,18 @@ void main() {
         expect(find.byType(PostDetailScreen), findsNothing);
       }
       await tester.tap(find.byKey(const ValueKey('bookmark:${feed.postId}')));
-      await tester.tap(find.byKey(const ValueKey('share:${feed.postId}')));
-      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('menu:${feed.postId}')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<PopupMenuItem>(
+              find.byKey(const ValueKey('share-menu:${feed.postId}')),
+            )
+            .enabled,
+        isFalse,
+      );
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
       expect(find.byType(PostDetailScreen), findsNothing);
       expect(api(f).changes.length, 1);
       expect(
@@ -552,7 +562,7 @@ void main() {
     expect(api(f).actual.likedByMe, false);
   });
   testWidgets(
-    '360dp normal text keeps all interactions on one row; large text wraps',
+    'browse actions stay ordered and usable at normal and large text sizes',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -563,14 +573,18 @@ void main() {
       await tester.pumpWidget(feed.screen(f));
       await tester.pumpAndSettle();
       final tops = [
-        for (final key in ['comment', 'like', 'bookmark', 'share'])
+        for (final key in ['like', 'comment', 'bookmark'])
           tester.getTopLeft(find.byKey(ValueKey('$key:${feed.postId}'))).dy,
       ];
       expect(tops.toSet().length, 1);
-      final viewTop = tester
-          .getTopLeft(find.byKey(const ValueKey('views:${feed.postId}')))
-          .dy;
-      expect(viewTop, tops.first);
+      final positions = [
+        for (final key in ['like', 'comment', 'bookmark'])
+          tester.getCenter(find.byKey(ValueKey('$key:${feed.postId}'))).dx,
+      ];
+      expect(positions[0], lessThan(positions[1]));
+      expect(positions[1], lessThan(positions[2]));
+      expect(find.byKey(const ValueKey('views:${feed.postId}')), findsNothing);
+      expect(find.byKey(const ValueKey('share:${feed.postId}')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(feed.screen(f, scale: 2));
       await tester.pumpAndSettle();
@@ -578,10 +592,11 @@ void main() {
         tester
             .getTopLeft(find.byKey(const ValueKey('bookmark:${feed.postId}')))
             .dy,
-        greaterThan(
+        closeTo(
           tester
               .getTopLeft(find.byKey(const ValueKey('like:${feed.postId}')))
               .dy,
+          2,
         ),
       );
       expect(tester.takeException(), isNull);

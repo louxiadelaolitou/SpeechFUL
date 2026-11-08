@@ -118,7 +118,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 35 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 35 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 36 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 36 {
 				t.Fatal("incomplete migration chain")
 			}
 			if e = checkPostSearchHistorySchema(ctx, pool, true); e != nil {
@@ -140,6 +140,12 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			}
 			if e = checkPostRepostSchema(ctx, pool, true); e != nil {
 				t.Fatal(e)
+			}
+			if e = checkHiddenPostSchema(ctx, pool); e != nil {
+				t.Fatal(e)
+			}
+			if count(t, pool, `SELECT count(*) FROM c_posts.hidden_posts`) != 0 {
+				t.Fatal("migration fabricated hidden post preferences")
 			}
 			if count(t, pool, `SELECT count(*) FROM c_posts.post_reposts`) != 0 || count(t, pool, `SELECT count(*) FROM c_posts.post_repost_versions`) != 0 {
 				t.Fatal("migration fabricated private repost history")
@@ -172,7 +178,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("down"); e == nil {
 				t.Fatal("cumulative facts rolled back")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 35 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 36 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})

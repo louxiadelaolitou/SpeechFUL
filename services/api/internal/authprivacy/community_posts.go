@@ -25,6 +25,7 @@ type postServices struct {
 	editEnabled                bool
 	tagsEnabled                bool
 	typedSearchEnabled         bool
+	hiddenPostsEnabled         bool
 }
 type PostResponse struct {
 	Value                 any
@@ -59,6 +60,9 @@ func (c *Community) WithPosts(ctx context.Context, config PostConfig) (*Communit
 	}
 	clone := *c
 	clone.posts = &postServices{commands: commands, cursors: cursors}
+	if err = c.pool.QueryRow(ctx, `SELECT to_regclass('c_posts.hidden_posts') IS NOT NULL`).Scan(&clone.posts.hiddenPostsEnabled); err != nil {
+		return nil, err
+	}
 	if err = c.pool.QueryRow(ctx, `SELECT to_regclass('c_posts.post_edit_receipts') IS NOT NULL`).Scan(&clone.posts.editEnabled); err != nil {
 		return nil, err
 	}

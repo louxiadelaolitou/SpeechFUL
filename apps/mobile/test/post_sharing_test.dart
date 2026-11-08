@@ -267,12 +267,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       final id = api.items.first.postId;
-      await tester.tap(find.byKey(ValueKey('share:$id')));
-      await tester.pump();
+      await tester.tap(find.byKey(ValueKey('menu:$id')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('share-menu:$id')));
+      await tester.pumpAndSettle();
       expect(api.shares, 0);
       // A second action cannot create another request or another system sheet.
-      await tester.tap(find.byKey(ValueKey('share:$id')));
-      await tester.pump();
+      await tester.tap(find.byKey(ValueKey('menu:$id')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('share-menu:$id')));
+      await tester.pumpAndSettle();
       expect(api.shares, 0);
       links.receive(_url(_other));
       await f.sessions.logout();
@@ -303,7 +307,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       final id = api.items.first.postId;
-      await tester.tap(find.byKey(ValueKey('share:$id')));
+      await tester.tap(find.byKey(ValueKey('menu:$id')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('share-menu:$id')));
       await tester.pumpAndSettle();
       expect(sent, isEmpty);
       expect(find.byType(PostDetailScreen), findsNothing);

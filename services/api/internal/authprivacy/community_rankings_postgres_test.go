@@ -114,6 +114,23 @@ func TestFeedRankingsRedisPostgres(t *testing.T) {
 	}
 	build()
 	hot(newer, first, other) // equal base score; author interactions and duplicate replies count zero extra.
+	private, e := l.c.ReadHiddenPost(ctx, b.SessionToken, first)
+	if e != nil {
+		t.Fatal(e)
+	}
+	hidden, e := l.c.SetHiddenPost(ctx, b.SessionToken, first, true, private.InteractionVersion)
+	if e != nil {
+		t.Fatal(e)
+	}
+	hot(newer, other) // A short cached prefix must fall back instead of leaking the hidden row.
+	visibleToOther, e := l.c.ReadRankings(ctx, d.SessionToken)
+	if e != nil || len(visibleToOther.Value.(posts.PostRanking).Items) != 3 {
+		t.Fatal("hidden ranking preference crossed account", e)
+	}
+	if _, e = l.c.SetHiddenPost(ctx, b.SessionToken, first, false, hidden.InteractionVersion); e != nil {
+		t.Fatal(e)
+	}
+	hot(newer, first, other)
 	locked, e := l.cp.Begin(ctx)
 	if e != nil {
 		t.Fatal(e)

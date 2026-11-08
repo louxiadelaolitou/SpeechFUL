@@ -7,8 +7,6 @@ import '../design_system/detail_components.dart';
 import 'dart:typed_data';
 
 import '../messaging/dm_runtime.dart';
-import '../messaging/direct_message_composer.dart';
-import '../messaging/direct_message_models.dart';
 
 import 'package:flutter/material.dart';
 
@@ -30,6 +28,9 @@ import 'post_screens.dart';
 import 'post_search_screen.dart';
 import 'post_tag_screen.dart';
 import 'x_feed.dart';
+import 'feed_card_menu.dart';
+import 'feed_header_glyphs.dart';
+import '../reports/report_screens.dart';
 import 'x_feed_controls.dart';
 
 /// Production owner: directory, preferences, pagination and protected media.
@@ -73,6 +74,8 @@ class _FeedScreenState extends State<FeedScreen> {
   final _seenReplies = <String>{};
   CommentRuntime? _comments;
   bool _replyOpen = false;
+  final _hiddenHere = <String, String>{};
+  int _timelineGeneration = 0;
   bool _composeOpen = false;
   bool _searchOpen = false;
   bool _channelPickerOpen = false;
@@ -112,6 +115,10 @@ class _FeedScreenState extends State<FeedScreen> {
         editor.leave();
       }
       _replyEditors.clear();
+    }
+    if (c.timelineGeneration != _timelineGeneration) {
+      _timelineGeneration = c.timelineGeneration;
+      _hiddenHere.clear();
     }
     final notice = c.latestPublicationNotice;
     if (current && notice != null && notice.sequence > _publication) {
@@ -349,6 +356,42 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  Future<void> _changeHidden(FeedPost post, bool hidden) async {
+    if (!current || c.hiddenPostBusy(post.postId)) return;
+    final version = await c.changeHiddenPost(
+      post.postId,
+      hidden,
+      version: hidden ? null : _hiddenHere[post.postId],
+    );
+    if (!mounted || !current) return;
+    if (version != null) {
+      setState(() {
+        if (hidden) {
+          _hiddenHere[post.postId] = version;
+        } else {
+          _hiddenHere.remove(post.postId);
+        }
+      });
+    } else if (c.hiddenPostError case final message?) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(hhText(context, message))));
+    }
+  }
+
+  void _reportPost(BuildContext context, FeedPost post) {
+    final governance = GovernanceScope.maybeOf(context);
+    if (!current || governance?.available != true) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => ReportScreen(
+          controller: governance!,
+          postId: post.postId,
+          title: post.title,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Theme(
     data: HhTelegramTheme.create(
@@ -430,8 +473,11 @@ class _FeedScreenState extends State<FeedScreen> {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: ClampingScrollPhysics(),
                 ),
-                padding: EdgeInsets.only(
-                  bottom: 96 + MediaQuery.paddingOf(context).bottom,
+                padding: EdgeInsets.fromLTRB(
+                  12,
+                  12,
+                  12,
+                  96 + MediaQuery.paddingOf(context).bottom,
                 ),
                 children: [
                   if ((_starting || c.timelineLoading) && posts.isEmpty)
@@ -472,176 +518,287 @@ class _FeedScreenState extends State<FeedScreen> {
                       ),
                     ),
                   for (final post in posts) ...[
-                    PostShareAction(
-                      key: ValueKey('post:${post.postId}'),
-                      controller: c,
-                      postId: post.postId,
-                      builder: (share, sharing) => HhXPostItem(
-                        repostAction: c.supportsReposts
-                            ? PostRepostButton(
+                    if (_hiddenHere.containsKey(post.postId))
+                      FeedHiddenUndoRow(
+                        key: ValueKey('hidden-placeholder:${post.postId}'),
+                        label: hhText(context, '撤销'),
+                        onUndo: c.hiddenPostBusy(post.postId)
+                            ? null
+                            : () => unawaited(_changeHidden(post, false)),
+                      )
+                    else
+                      HhFeedPostCard(
+                        key: ValueKey('post:${post.postId}'),
+                        postId: post.postId,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            PostShareAction(
+                              controller: c,
+                              postId: post.postId,
+                              builder: (share, sharing) => PostRepostButton(
                                 controller: c,
                                 postId: post.postId,
-                              )
-                            : null,
-                        post: FeedPostView(
-                          id: post.postId,
-                          authorId: '',
-                          authorName: localizedPostAuthor(context, post.author),
-                          elapsed: MaterialLocalizations.of(context)
-                              .formatShortDate(post.publishedAt.toLocal()),
-                          title: post.title,
-                          body: post.body,
-                          tags: post.tags,
-                          views: c.postViewCount(post.postId),
-                          comments: c
-                              .interaction(post.postId)
-                              .value
-                              ?.commentCount,
-                          likes: c.interaction(post.postId).likes,
-                          favorites: c
-                              .interaction(post.postId)
-                              .value
-                              ?.favoriteCount,
-                          liked: c.interaction(post.postId).liked,
-                          bookmarked: c.interaction(post.postId).favorited,
-                          availableActions: {
-                            FeedAction.comment,
-                            if (share != null) FeedAction.share,
-                            if (c.interaction(post.postId).canChange) ...{
-                              FeedAction.like,
-                              FeedAction.bookmark,
-                            },
-                          },
-                          busyActions: {
-                            if (sharing) FeedAction.share,
-                            if (c.interaction(post.postId).unresolved &&
-                                !c.interaction(post.postId).canChange)
-                              c.interaction(post.postId).pendingAction ==
-                                      PostInteractionAction.like
-                                  ? FeedAction.like
-                                  : FeedAction.bookmark,
-                          },
-                        ),
-                        avatarBuilder: (_, _) => DetailAvatar(
-                          name: localizedPostAuthor(context, post.author),
-                          avatar: post.author.avatar,
-                          radius: 20,
-                        ),
-                        mediaBuilder: (_, _) => const SizedBox.shrink(),
-                        mediaSection:
-                            post.imageCount > 0 && widget.loadImages != null
-                            ? PostImagesSection(
-                                key: c.postMediaRevision(post.postId) == 0
-                                    ? ValueKey('feed-images:${post.postId}')
-                                    : ValueKey((
+                                builder: (repost, reposted, unresolved) =>
+                                    HhXPostItem(
+                                      showTimestamp: false,
+                                      horizontalMenu: true,
+                                      browseActions: true,
+                                      menuWidget: FeedCardMenu(
+                                        postId: post.postId,
+                                        tooltip: hhText(context, '帖子更多操作'),
+                                        shareLabel: hhText(
+                                          context,
+                                          sharing ? '正在准备分享…' : '分享',
+                                        ),
+                                        shareEnabled: share != null,
+                                        repostLabel: hhText(
+                                          context,
+                                          unresolved ? '重试核对' : '转帖',
+                                        ),
+                                        showRepost: c.supportsReposts,
+                                        repostEnabled: repost != null,
+                                        reposted: reposted,
+                                        notInterestedLabel: hhText(
+                                          context,
+                                          '不感兴趣',
+                                        ),
+                                        reportLabel: hhText(context, '举报'),
+                                        notInterestedEnabled:
+                                            c.supportsHiddenPosts &&
+                                            !c.hiddenPostBusy(post.postId),
+                                        reportEnabled:
+                                            GovernanceScope.maybeOf(context)
+                                                ?.available ==
+                                            true,
+                                        onSelected: (action) {
+                                          if (!current) return;
+                                          switch (action) {
+                                            case FeedCardMenuAction.share:
+                                              share?.call();
+                                            case FeedCardMenuAction.repost:
+                                              repost?.call();
+                                            case FeedCardMenuAction
+                                                .notInterested:
+                                              unawaited(
+                                                _changeHidden(post, true),
+                                              );
+                                            case FeedCardMenuAction.report:
+                                              _reportPost(context, post);
+                                          }
+                                        },
+                                      ),
+                                      post: FeedPostView(
+                                        id: post.postId,
+                                        authorId: '',
+                                        authorName: localizedPostAuthor(
+                                          context,
+                                          post.author,
+                                        ),
+                                        elapsed:
+                                            MaterialLocalizations.of(context)
+                                                .formatShortDate(
+                                                  post.publishedAt.toLocal(),
+                                                ),
+                                        title: post.title,
+                                        body: post.body,
+                                        tags: post.tags,
+                                        views: c.postViewCount(post.postId),
+                                        comments: c
+                                            .interaction(post.postId)
+                                            .value
+                                            ?.commentCount,
+                                        likes: c.interaction(post.postId).likes,
+                                        favorites: c
+                                            .interaction(post.postId)
+                                            .value
+                                            ?.favoriteCount,
+                                        liked: c.interaction(post.postId).liked,
+                                        bookmarked: c
+                                            .interaction(post.postId)
+                                            .favorited,
+                                        availableActions: {
+                                          FeedAction.comment,
+                                          if (share != null) FeedAction.share,
+                                          if (c
+                                              .interaction(post.postId)
+                                              .canChange) ...{
+                                            FeedAction.like,
+                                            FeedAction.bookmark,
+                                          },
+                                        },
+                                        busyActions: {
+                                          if (sharing) FeedAction.share,
+                                          if (c
+                                                  .interaction(post.postId)
+                                                  .unresolved &&
+                                              !c
+                                                  .interaction(post.postId)
+                                                  .canChange)
+                                            c
+                                                        .interaction(
+                                                          post.postId,
+                                                        )
+                                                        .pendingAction ==
+                                                    PostInteractionAction.like
+                                                ? FeedAction.like
+                                                : FeedAction.bookmark,
+                                        },
+                                      ),
+                                      avatarBuilder: (_, _) => DetailAvatar(
+                                        name: localizedPostAuthor(
+                                          context,
+                                          post.author,
+                                        ),
+                                        avatar: post.author.avatar,
+                                        radius: 20,
+                                      ),
+                                      mediaBuilder: (_, _) =>
+                                          const SizedBox.shrink(),
+                                      mediaSection:
+                                          post.imageCount > 0 &&
+                                              widget.loadImages != null
+                                          ? PostImagesSection(
+                                              key:
+                                                  c.postMediaRevision(
+                                                        post.postId,
+                                                      ) ==
+                                                      0
+                                                  ? ValueKey(
+                                                      'feed-images:${post.postId}',
+                                                    )
+                                                  : ValueKey((
+                                                      post.postId,
+                                                      c.postMediaRevision(
+                                                        post.postId,
+                                                      ),
+                                                    )),
+                                              postId: post.postId,
+                                              feedPreview: true,
+                                              initialSizes:
+                                                  post.imageSizes
+                                                      ?.map(
+                                                        (size) => Size(
+                                                          size.width.toDouble(),
+                                                          size.height
+                                                              .toDouble(),
+                                                        ),
+                                                      )
+                                                      .toList() ??
+                                                  List.filled(
+                                                    post.imageCount,
+                                                    const Size(1, 1),
+                                                  ),
+                                              expectedCount: post.imageCount,
+                                              loadImages: widget.loadImages!,
+                                              authority: c,
+                                              isCurrent: () =>
+                                                  current &&
+                                                  !c.isPostDeleted(post.postId),
+                                            )
+                                          : null,
+                                      onTag: (tag) => unawaited(
+                                        openPostTag(
+                                          context,
+                                          controller: c,
+                                          tag: tag,
+                                          channels: widget.channels,
+                                          onAuthenticationRequired:
+                                              widget.onAuthenticationRequired,
+                                          loadImages: widget.loadImages,
+                                        ),
+                                      ),
+                                      onPost: () => _open(
+                                        context,
                                         post.postId,
-                                        c.postMediaRevision(post.postId),
-                                      )),
-                                postId: post.postId,
-                                feedPreview: true,
-                                initialSizes:
-                                    post.imageSizes
-                                        ?.map(
-                                          (size) => Size(
-                                            size.width.toDouble(),
-                                            size.height.toDouble(),
-                                          ),
-                                        )
-                                        .toList() ??
-                                    List.filled(
-                                      post.imageCount,
-                                      const Size(1, 1),
-                                    ),
-                                expectedCount: post.imageCount,
-                                loadImages: widget.loadImages!,
-                                authority: c,
-                                isCurrent: () =>
-                                    current && !c.isPostDeleted(post.postId),
-                              )
-                            : null,
-                        onTag: (tag) => unawaited(
-                          openPostTag(
-                            context,
-                            controller: c,
-                            tag: tag,
-                            channels: widget.channels,
-                            onAuthenticationRequired:
-                                widget.onAuthenticationRequired,
-                            loadImages: widget.loadImages,
-                          ),
-                        ),
-                        onPost: () =>
-                            _open(context, post.postId, post.channelId),
-                        onAuthor: () =>
-                            unawaited(DmScope.contact(context, post.postId)),
-                        onMenu: () =>
-                            _open(context, post.postId, post.channelId),
-                        onAction: (action) {
-                          if (!current) return;
-                          switch (action) {
-                            case FeedAction.comment:
-                              unawaited(_reply(context, post));
-                            case FeedAction.like:
-                              unawaited(
-                                c.changeInteraction(
-                                  post.postId,
-                                  PostInteractionAction.like,
-                                ),
-                              );
-                            case FeedAction.bookmark:
-                              unawaited(
-                                c.changeInteraction(
-                                  post.postId,
-                                  PostInteractionAction.favorite,
-                                ),
-                              );
-                            case FeedAction.share:
-                              share?.call();
-                          }
-                        },
-                        onMedia: (_) {},
-                      ),
-                    ),
-                    for (final notice in [
-                      (c.interaction(post.postId).writeError, true),
-                      (c.interaction(post.postId).readError, false),
-                    ])
-                      if (notice.$1 case final error?)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 64, right: 16),
-                          child: Row(
-                            children: [
-                              Expanded(child: Text(hhText(context, error))),
-                              TextButton(
-                                key: ValueKey(
-                                  'interaction-${notice.$2 ? '' : 'read-'}retry:${post.postId}',
-                                ),
-                                onPressed: c.interaction(post.postId).sending
-                                    ? null
-                                    : () {
+                                        post.channelId,
+                                      ),
+                                      onAuthor: () => unawaited(
+                                        DmScope.contact(context, post.postId),
+                                      ),
+                                      onMenu: () => _open(
+                                        context,
+                                        post.postId,
+                                        post.channelId,
+                                      ),
+                                      onAction: (action) {
                                         if (!current) return;
-                                        if (notice.$2) {
-                                          unawaited(
-                                            c.retryInteraction(post.postId),
-                                          );
-                                        } else {
-                                          unawaited(
-                                            c.loadInteractions([
-                                              post.postId,
-                                            ], single: true),
-                                          );
+                                        switch (action) {
+                                          case FeedAction.comment:
+                                            unawaited(_reply(context, post));
+                                          case FeedAction.like:
+                                            unawaited(
+                                              c.changeInteraction(
+                                                post.postId,
+                                                PostInteractionAction.like,
+                                              ),
+                                            );
+                                          case FeedAction.bookmark:
+                                            unawaited(
+                                              c.changeInteraction(
+                                                post.postId,
+                                                PostInteractionAction.favorite,
+                                              ),
+                                            );
+                                          case FeedAction.share:
+                                            share?.call();
                                         }
                                       },
-                                child: Text(
-                                  notice.$2
-                                      ? hhText(context, '重试')
-                                      : hhText(context, '重新读取'),
-                                ),
+                                      onMedia: (_) {},
+                                    ),
                               ),
-                            ],
-                          ),
+                            ),
+                            for (final notice in [
+                              (c.interaction(post.postId).writeError, true),
+                              (c.interaction(post.postId).readError, false),
+                            ])
+                              if (notice.$1 case final error?)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 64,
+                                    right: 16,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(hhText(context, error)),
+                                      ),
+                                      TextButton(
+                                        key: ValueKey(
+                                          'interaction-${notice.$2 ? '' : 'read-'}retry:${post.postId}',
+                                        ),
+                                        onPressed:
+                                            c.interaction(post.postId).sending
+                                            ? null
+                                            : () {
+                                                if (!current) return;
+                                                if (notice.$2) {
+                                                  unawaited(
+                                                    c.retryInteraction(
+                                                      post.postId,
+                                                    ),
+                                                  );
+                                                } else {
+                                                  unawaited(
+                                                    c.loadInteractions([
+                                                      post.postId,
+                                                    ], single: true),
+                                                  );
+                                                }
+                                              },
+                                        child: Text(
+                                          notice.$2
+                                              ? hhText(context, '重试')
+                                              : hhText(context, '重新读取'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                          ],
                         ),
-                    const Divider(height: 1, thickness: .5),
+                      ),
+                    const SizedBox(height: 12),
                   ],
                   if (c.timelineCursor != null && !c.timelineLoading)
                     TextButton(
@@ -689,14 +846,10 @@ class _FeedAccountAvatar extends StatelessWidget {
     animation: controller,
     builder: (context, _) {
       final identity = controller.selectedIdentity;
-      if (identity == null) return const IdentityAvatar(radius: 18);
-      return HhDmAvatar(
-        identity: DmIdentity(
-          id: identity.id,
-          name: identity.nickname,
-          avatar: identity.avatar,
-        ),
-        size: 36,
+      return IdentityAvatar(
+        avatar: identity?.avatar ?? 'default-v1',
+        radius: 16,
+        fallback: const Center(child: FeedHeaderAvatarGlyph()),
       );
     },
   );
