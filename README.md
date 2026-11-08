@@ -40,7 +40,7 @@
 </div>
 
 
-## Docs
+## Related Work
 
 - [近期工作](docs/RECENT_WORK.md)
 
