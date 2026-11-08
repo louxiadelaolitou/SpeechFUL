@@ -226,7 +226,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _pick(BuildContext context) async {
     if (!current || _channelPickerOpen) return;
-    _channelPickerOpen = true;
+    setState(() => _channelPickerOpen = true);
     try {
       await showFeedChannelPicker(
         context,
@@ -241,7 +241,7 @@ class _FeedScreenState extends State<FeedScreen> {
         },
       );
     } finally {
-      _channelPickerOpen = false;
+      if (mounted) setState(() => _channelPickerOpen = false);
     }
   }
 
@@ -434,6 +434,7 @@ class _FeedScreenState extends State<FeedScreen> {
               ? null
               : () => _selectFeed(false),
           latestSelected: _latestSelected,
+          channelPickerOpen: _channelPickerOpen,
           channelTitle: widget.composeChannel.name,
           feedTitle: selectedChannel?.name ?? '推荐',
           composeTooltip: selectedChannel == null

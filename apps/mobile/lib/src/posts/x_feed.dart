@@ -117,6 +117,7 @@ class HhXPostFeed extends StatelessWidget {
     this.onLatest,
     this.onRecommended,
     this.latestSelected = false,
+    this.channelPickerOpen = false,
     this.refreshEnabled = true,
     this.loading = false,
     this.avatarBuilder,
@@ -140,7 +141,7 @@ class HhXPostFeed extends StatelessWidget {
   final Future<void> Function()? onRefresh;
   final VoidCallback? onLatest;
   final VoidCallback? onRecommended;
-  final bool latestSelected;
+  final bool latestSelected, channelPickerOpen;
   final bool refreshEnabled, loading;
   final String channelTitle;
   final List<FeedPostView> posts;
@@ -242,6 +243,7 @@ class HhXPostFeed extends StatelessWidget {
                   filterLabel: hhText(context, '筛选'),
                   channelTooltip: hhText(context, '选择分类'),
                   latestSelected: latestSelected,
+                  pickerOpen: channelPickerOpen,
                   blockedCount: blockedCount,
                   onRecommended: onRecommended,
                   onLatest: onLatest,
@@ -635,15 +637,23 @@ class HhXPostItem extends StatelessWidget {
                               ),
                             ];
                             if (browseActions) {
-                              return Row(
-                                children: [
-                                  for (final action in [
-                                    actions[1],
-                                    actions[0],
-                                    actions[2],
-                                  ])
-                                    Expanded(child: action),
-                                ],
+                              return Align(
+                                alignment: Alignment.centerRight,
+                                child: SizedBox(
+                                  width: constraints.maxWidth < 180
+                                      ? constraints.maxWidth
+                                      : 180,
+                                  child: Row(
+                                    children: [
+                                      for (final action in [
+                                        actions[1],
+                                        actions[0],
+                                        actions[2],
+                                      ])
+                                        Expanded(child: action),
+                                    ],
+                                  ),
+                                ),
                               );
                             }
                             if (wideText) {
@@ -823,7 +833,7 @@ class HhXPostItem extends StatelessWidget {
                     builder: (context, box) {
                       final glyph = CustomPaint(
                         key: ValueKey('action-glyph:${action.name}:${post.id}'),
-                        size: const Size(20, 20),
+                        size: Size.square(browseActions ? 18 : 20),
                         painter: _FeedActionGlyph(
                           action,
                           color,
@@ -860,7 +870,9 @@ class HhXPostItem extends StatelessWidget {
                                   context,
                                   count,
                                   color,
-                                  box.maxWidth,
+                                  browseActions
+                                      ? box.maxWidth / 2 + 11
+                                      : box.maxWidth,
                                 ),
                               ),
                           ],

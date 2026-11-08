@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../design_system/motion.dart';
 import '../design_system/telegram_theme.dart';
 
 /// Feed navigation keeps the current channel title and picker as separate
@@ -17,10 +18,11 @@ class FeedBrowseControls extends StatelessWidget {
     required this.onLatest,
     required this.onChannelPicker,
     required this.onFilter,
+    this.pickerOpen = false,
   });
 
   final String channelLabel, latestLabel, filterLabel, channelTooltip;
-  final bool latestSelected;
+  final bool latestSelected, pickerOpen;
   final int blockedCount;
   final VoidCallback? onRecommended, onLatest, onChannelPicker, onFilter;
 
@@ -85,10 +87,14 @@ class FeedBrowseControls extends StatelessWidget {
           onPressed: onChannelPicker,
           constraints: const BoxConstraints(minWidth: 40, minHeight: 48),
           padding: EdgeInsets.zero,
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 19,
-            color: p.secondary,
+          icon: AnimatedRotation(
+            turns: pickerOpen ? .25 : 0,
+            duration: HhMotion.duration(context, HhMotion.quick),
+            child: Icon(
+              Icons.chevron_right_rounded,
+              size: 19,
+              color: p.secondary,
+            ),
           ),
         ),
       ],

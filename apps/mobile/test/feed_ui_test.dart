@@ -567,6 +567,12 @@ void main() {
     addTearDown(f.dispose);
     await tester.pumpWidget(screen(f));
     await tester.pumpAndSettle();
+    final arrow = find.descendant(
+      of: find.byKey(const ValueKey('feed-channel-picker'), skipOffstage: false),
+      matching: find.byType(AnimatedRotation, skipOffstage: false),
+      skipOffstage: false,
+    );
+    expect(tester.widget<AnimatedRotation>(arrow).turns, 0);
     await tester.tap(find.byKey(const ValueKey('feed-latest')));
     await tester.pumpAndSettle();
     expect(
@@ -586,9 +592,11 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('feed-channel-picker')));
     await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedRotation>(arrow).turns, .25);
     expect(find.text('选择分类'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('choose-channel:$channelId')));
     await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedRotation>(arrow).turns, 0);
     expect(f.controller.timelineChannelId, channelId);
     expect(find.text('选择分类'), findsNothing);
   });

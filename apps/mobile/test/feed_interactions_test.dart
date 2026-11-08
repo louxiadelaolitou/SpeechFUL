@@ -583,6 +583,15 @@ void main() {
       ];
       expect(positions[0], lessThan(positions[1]));
       expect(positions[1], lessThan(positions[2]));
+      expect(positions[1] - positions[0], closeTo(60, .1));
+      expect(positions[2] - positions[1], closeTo(60, .1));
+      expect(
+        tester.getRect(find.byType(HhXPostItem)).right -
+            tester
+                .getRect(find.byKey(const ValueKey('bookmark:${feed.postId}')))
+                .right,
+        closeTo(8, .1),
+      );
       expect(find.byKey(const ValueKey('views:${feed.postId}')), findsNothing);
       expect(find.byKey(const ValueKey('share:${feed.postId}')), findsNothing);
       expect(tester.takeException(), isNull);

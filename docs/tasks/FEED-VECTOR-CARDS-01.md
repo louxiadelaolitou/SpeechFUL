@@ -40,3 +40,9 @@
 ## 阻碍与下一步
 
 开发后端进程与固定清单不一致，需安全核对后再恢复；上线前须按部署流程应用 0036 迁移并更新运行时授权。等待产品 CI，合并不等于部署。
+
+## 后续布局调整
+
+- 用户要求将点赞、评论、收藏缩小并等距集中在卡片右下角，继续沿用已确认的顺序和操作；分类箭头收起朝右，选择器打开时朝下，关闭后恢复。
+- 分支 `codex/fix/feed-action-spacing`，基线 `931b5f8d970600b871648652dedc8aaee2b1e1f5`（origin/main）；实现完成，产品 CI 和合并状态以关联 PR 为准，发布未授权。
+- 验证：基线加本次布局差异，Windows Flutter 的 `flutter analyze --no-pub`、`flutter test --no-pub test/feed_interactions_test.dart test/feed_ui_test.dart`（59 项）和 `flutter build bundle --debug --no-pub` 均 PASS；预览以示例内容展示。
