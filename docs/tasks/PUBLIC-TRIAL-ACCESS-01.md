@@ -193,3 +193,30 @@
 
 - 用户随后明确要求完成D05的远程CI、PR及合并，授权本任务正常Push/PR并在检查通过后合并main；当前不部署/装机。该最新授权覆盖上文“未Push/合并”的后续操作，不倒改历史版本状态。
 - 已在原任务分支正常合入main8808d00，保留热榜PR115；App产品仍与97ee00f/已装2026110707一致，未改变运行C/V或用户账号。唯一Android总验收记录最新内容一并进入本次PR；D05最终head CI/合并回执集中链接到[原权威任务](ANDROID-V1-ACCEPTANCE-01.md#d05送审与合并执行2026-11-07)。本专项只记录同一次送审，不另建平行任务。
+
+## 2026-11-08 最新 main 与 Passkey 并行收尾
+
+- 模式：常规，单 Session；分支 `codex/chore/v1-runtime-passkey-align`，Worktree `E:/Hnuhole-env/source/SpeechFUL-v1-runtime-passkey-align`，基线 `310fed6e856b77d0117ce871d94720a9f5b546ec`；[PR #119](https://github.com/zewbby/SpeechFUL/pull/119)。
+- 授权依据：用户要求“可以，并行一起做”，覆盖最新 main 公网试用运行版本统一和 Passkey 域名关联准备；随后明确授权推送本收尾分支、创建 PR、检查并修复 CI，通过后合并 main。不正式发行、不操作真实用户账号、不真机验收。
+- 需求确认：依 `grill-with-docs` 和依赖技能收敛；用户 Q1 选择推荐方案，RP 固定 `speechful.dpdns.org`，关联原公网试用包与原签名；生产签名单列。Q2 无 Apple Team ID，先完成 Android 试用接入及 iOS 待填配置。保留密码、校邮登录和恢复码，外部分享不重开。无未决产品取舍。
+- 状态：Android 候选及 RP 配置已完成；本地／公网业务与挑战接口 PASS；本轮记录尚未合并；未装机／未正式发行。
+- 调查修正：外部目录存在晚于仓库快照的 8493c9c 后端升级与 2026110708 独立验收包，不能沿旧文档断言当前服务仍为 6483ac1；先核对运行二进制、数据库版本、Gate、源码等价性，再做必要配置变更。
+- 验收：真实 C/V 严格 TLS、现有数据与 Gate 代次保留；当前 main Android 正常入口同包同签名构建；RP 关联 JSON 公网 200／正确 MIME／无跳转，应用声明及服务端 allowlist 一致；以自有合成账号验证受保护接口及 Passkey 挑战，不伪称原生系统仪式通过。iOS 缺 Team ID 的部分保持待配。
+- 原始材料：`E:/Hnuhole-env/v1-runtime-passkey-align-20261108/`，私有配置、凭据、构建物和日志不入库；当前跟进集中在本节。
+
+### 本轮结果与证据
+
+| 项目 | 版本／证据 | 结果及边界 |
+| --- | --- | --- |
+| 后端对齐 | C 二进制 `5c974bf3…` 来自8493c9c，其services/api与main310fed6无差异；V从main冻结源码重建为`ac9ac16c…` | PASS；保留等价C程序，V原子替换。C35/V7无需迁移，V配置及原密钥不变。 |
+| 安全与数据 | `runtime-before.json`／`runtime-after.json`、`verifier-alignment.json` | PASS；正常服务重启后Gate仍C OPEN/1、V OPEN/2，RECOVER次数仍1/2，未初始化／恢复Gate、重置库或操作真实用户账号。 |
+| RP配置 | `runtime-staged.json`、main真实LoadConfig检查、Nginx `-t` | PASS；RP固定speechful.dpdns.org，C显式受信HTTPS及原试用签名origin；仅在C开放精确assetlinks路径，保留上游CA/TLS。旧配置及V程序备份在任务私有WSL目录。 |
+| Android候选 | main310fed6，正常lib/main.dart、profile/ARM64、2026110801；原包org.hnuhole.hnuhole_mobile.publictrial及原签名 | PASS；57,955,707字节，SHA256 `eed85ac4b5be0048b86d55824cc1af1eb37d34d1807eb86d181377d5f5d79c29`。仅包名／显示名及profile关联声明有包装差异；其他源文件逐项一致。APK实际manifest、RP资源、签名及无GMS/旧诊断DEX检查通过。未装机，不改旧安装回执。 |
+| 本地与公网 | `local-checks.json`、`public-checks.json` | PASS；公网严格TLS、关联文件200/JSON/无跳转且包名指纹精确；V同路径404，无会话绑定401。自有合成账号密码登录、feed、搜索、热榜、现有凭据管理、绑定及可发现恢复挑战通过；RP/UV参数一致。只发挑战，不模拟原生成功。 |
+| iOS准备 | `ios-pending-team/`的entitlements及说明 | PASS（准备）；webcredentials:speechful.dpdns.org。无Apple Team ID，未伪造／发布AASA或启用空Team签名；iOS实际关联、原生系统仪式及装机NOT_RUN。 |
+
+公网首次返回530／502，源站两入口一直200。旧连接器06:11连通后，代理核心于06:14重启；旧连接器反复使用失效假IP映射。沿原配置重建专属连接器后恢复，无全局DNS／路由／代理改动，未关闭TLS。自定义解析和专属转发试验未永久保留，相关临时进程已停止。
+
+原后台任务当时为Ready，历史退出码为中断；已恢复登录后的监控。增加实际`/ready`探测，连续三次未就绪且启动超过90秒时，再核对PID／启动时间／命令归属后只重启自己的连接器。测试发现HA gauge把拨号计入连接，已改为实测200／503的readiness，不把该gauge当成功证据。受控未就绪连接器已于09:31:50被监控替换；测试期间保留健康连接器服务，最终就绪及公网结果见`watchdog-recovery.json`。
+
+本节证据均在上述本机目录，包括`source-proof.json`、`android-build-receipt.json`、`final-summary.json`。新构建用单独`current-public-candidate.json`记录，不把“已构建”写为“已安装”。本轮已部署独立公网试用配置并准备候选，未正式发行；按用户新授权送审收尾记录，当前 PR、CI 与合并状态以该分支 PR 实时页面为准。本 PR 只含三份文档，运行配置、凭据、APK及个人监控脚本保留本机，不打包进 Git。

@@ -27,7 +27,9 @@ final assertion = await passkeys.get(serverRecoveryOptions.publicKey);
 
 ## 固定 RP 与应用关联
 
-当前没有用户指定的真实 RP／受信域名／签名指纹／Apple Team ID，配置仍待提供。以下工具只从显式值生成待审阅文件，不修改宿主、不发布关联文件、不启用 WebAuthn。
+公网试用已确认 RP `speechful.dpdns.org`，使用原 `org.hnuhole.hnuhole_mobile.publictrial` 包及原试用签名；独立试用 C 已配置固定 RP／签名 origin，并通过同域关联文件及挑战接口检查。版本及部署证据见 [PUBLIC-TRIAL-ACCESS-01](../../docs/tasks/PUBLIC-TRIAL-ACCESS-01.md#2026-11-08-最新-main-与-passkey-并行收尾)。这不是生产签名或原生系统仪式验收。Apple Team ID 尚缺，iOS 仅准备 entitlements，AASA／签名关联待配。
+
+以下工具从显式部署值生成待审阅文件，不修改宿主、不发布关联文件、不启用 WebAuthn。主工程不硬编码试用 RP 或证书，生产关联按实际发行身份另配。
 
 在仓库根目录，先由操作者填入实际值；`PASSKEY_OUTPUT_DIR` 必须不存在：
 
