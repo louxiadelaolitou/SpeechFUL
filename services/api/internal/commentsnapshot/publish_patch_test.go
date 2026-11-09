@@ -72,6 +72,42 @@ func legacyPublishScript(t *testing.T) *redis.Script {
 	return redis.NewScript("#!lua flags=no-cluster\n" + commonSource + writeSource[:start] + writeSource[end:])
 }
 
+func TestRealRedisPublishPatchRebuildsLedgerIfKeyExpiresBeforePatch(t *testing.T) {
+	s, _ := realStore(t, 2)
+	ctx := context.Background()
+	owner := sha256.Sum256([]byte(t.Name()))
+	v, id := sample(s, owner)
+	p, err := s.Prepare(ctx, v, id, LegacyUsage{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, expiry := publishLedger(t, s)
+	// Deterministically model expiry after the precheck and before SETRANGE.
+	needle := "      redis.call('SETRANGE',KEYS[2],offset,stateByte)"
+	if strings.Count(writeSource, needle) != 1 {
+		t.Fatal("publication patch not found")
+	}
+	s.write = redis.NewScript("#!lua flags=no-cluster\n" + commonSource + strings.Replace(writeSource, needle, "      redis.call('DEL',KEYS[2])\n"+needle, 1))
+	if err := s.Publish(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	got, gotExpiry := publishLedger(t, s)
+	before[273] = 2
+	if !bytes.Equal(got, before) || gotExpiry != expiry {
+		t.Fatal("publication left a corrupt or persistent ledger")
+	}
+	if err := s.Check(ctx); err != nil {
+		t.Fatal("runtime restart would reject ledger", err)
+	}
+	u, err := s.Usage(ctx, owner)
+	if err != nil || u.AccountCount != 1 {
+		t.Fatal("reservation accounting lost", u, err)
+	}
+	if _, err := s.Load(ctx, v.Scope, p.Snapshot.Ref, time.Now()); err != nil {
+		t.Fatal("published material lost", err)
+	}
+}
+
 func TestRealRedisPublishPatchMatchesLegacyAtEveryPosition(t *testing.T) {
 	s, mac := realStore(t, 4)
 	legacy, err := New(s.config, "", mac)

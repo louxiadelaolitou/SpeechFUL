@@ -57,7 +57,10 @@ if r.op=='publish' or r.op=='abort' then
        and redis.acl_check_cmd('SETRANGE',KEYS[2],offset,stateByte)
        and redis.call('PEXPIRETIME',KEYS[2])==h then
       redis.call('SETRANGE',KEYS[2],offset,stateByte)
-      return activeReply
+      -- An expired key can be recreated by SETRANGE with a zero-filled
+      -- header and no TTL. Only keep the patch if its absolute expiry
+      -- survived; otherwise rebuild the validated ledger through save.
+      if redis.call('PEXPIRETIME',KEYS[2])==h then return activeReply end
     end
     e.stateCode=2;l.patch=e;save(l);return {'ACTIVE'}
   end

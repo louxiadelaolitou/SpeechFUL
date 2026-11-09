@@ -271,6 +271,13 @@ func newBoundary(service Service, identity PeerIdentity, origins []string, limit
 			return nil, err
 		}
 		allowed[strings.TrimSuffix(origin.String(), "/")] = true
+		// Browsers serialize the default HTTPS port without :443. Runtime
+		// configuration keeps an explicit listener port; recognize its same
+		// authority without broadening the host, scheme or non-default port.
+		if origin.Port() == "443" {
+			origin.Host = strings.TrimSuffix(origin.Host, ":443")
+			allowed[strings.TrimSuffix(origin.String(), "/")] = true
+		}
 	}
 	return &boundary{service: service, peer: peer, origins: allowed, limits: limiter}, nil
 }
