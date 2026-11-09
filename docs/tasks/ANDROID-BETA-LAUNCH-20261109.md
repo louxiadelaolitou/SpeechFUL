@@ -8,7 +8,7 @@
 - 本轮交互修正：用户指出欢迎／登录页常驻“查看处理通知与申诉”不符合预期，明确“如果是被封号了只在登录的时候显示账号已被封禁然后出现申诉/取消按钮”；经 grill-with-docs 事实核对及集中提问，用户选择“复用专用申诉登录页”。移除两个常驻按钮；正确凭据＋最终 Gate 确认封禁才弹窗，错误密码不透露封禁，取消留登录页，申诉进入既有独立 MODERATION_SELF 登录。无未决取舍；本轮新增补丁尚未发布，不将旧包验收提升为新补丁通过。
 - 注册反馈修正：用户实际校邮确认后遇到通用“操作未完成”，进一步明确“如果是注册过…要提示该邮箱已注册”。V元数据为已消费验证码、已存在配额；客户端将已验证后的权威 ELIGIBILITY_RESERVED 拒绝显示为“该邮箱已注册”，不改发码／验证／资格流程、不删除原键、不把其他拒绝或未知结果改成已注册。新增确认＋原结果查询回归PASS。
 - 更新日期：2026-11-09。
-- 状态：PR #124 已获用户明确批准并 Squash 合并，main `4d12c8d5277199df7cde487ca3477f2203f5eb09` 与通过14项CI的候选 `f6b9eff` 树一致。beta.4 后端已部署并恢复可用；管理员已初始化。审核网页空白的默认HTTPS端口匹配修复、快照发布完整性修复待聚焦验证／新PR；最终内测发放待验。
+- 状态：实现完成；聚焦验证PASS；PR #124、#125均获用户明确授权并Squash合并。main `e14935196c1203add9051ebd324f1ffb4a652e28` 后端已部署并完成正常重启／公网验收；Android beta.4/2026110904同签名覆盖升级及下载摘要PASS；zewbbu管理员正常登录由用户确认且新活跃会话元数据核实。按本轮修改项完成内测交付，非重跑完整历史全量。
 
 ## 目标与范围
 
@@ -43,7 +43,7 @@
 
 ## 阻碍与下一步
 
-手机已连接；用户已通过正常校邮登录，实际用户名与管理员目标确认完成。主包待beta.4覆盖升级；网页登录待Origin修复上线，随后用户自行输入现有密码完成管理员登录。用户要求只复验本轮修改项，历史全量不重复。
+本轮上线无剩余阻碍。后端仍由当前Windows/WSL电脑托管，需保持电脑在线，现有监控在Windows用户登录后恢复。首次错误凭据与会话过期共用网页401文案仍过于笼统，未将其误判为权限缺失或擅自重置密码；用户用原密码重试后已成功。广泛公网稳定性、iOS和暂停Passkey不在本轮新增通过范围。
 
 ### 2026-11-09 后续进展
 
@@ -61,3 +61,19 @@
 - 用户普通Edge与内置浏览器均只有页头；真实Edge DevTools确认`/admin/app.mjs`为403。部署allowedOrigins配置带`:443`，浏览器Origin省略该默认端口；本地实际HTTP探针分别为无Origin200、默认端口省略403、显式443为200、未知来源403。`admin-origin-before.json`。直接改配置为无端口被运行器显式端口校验拒绝（FAIL），已恢复原配置；改为HTTP边界承认同一HTTPS authority的默认端口序列化，其他scheme／host／非默认port仍拒绝。
 - 重启另暴露既有评论快照缓存账本损坏：274字节、前273字节均0末字节2、TTL=-1，控制水位已过期、无任何活跃snapshot data key。未绕过完整性检查。先私有备份，仅清理这一条无效派生缓存，控制元数据、全部SQL数据及Gate不变，恢复beta.4服务；`cache-repair-receipt.json`。形态与SETRANGE在缺失key上创建零填充无TTL账本相符，精确历史触发时序未证明；补发布后的绝对过期时间校验，失配沿原save路径恢复完整账本及TTL，并以故障注入模拟precheck后key消失。独立真实Redis聚焦回归待验。
 - 先前`local-smoke.json`在本次启动失败时被旧探针覆盖为FAIL，当前候选证据单列`release-local-smoke.json`；历史f938公网及图片证据仍保留原版本范围。诊断只在私有源码副本／日志，未把诊断输出加到发布程序。
+- 修复承载于[PR #125](https://github.com/zewbby/SpeechFUL/pull/125)，head `ee5d214498dcaecb64a74d5e592b2055bfb0f649`；本地HTTP／runtime／真实独占Redis race测试、vet、cmd构建PASS，新增两项回归在原实现上均FAIL，修复后PASS。当前head全部11项适用workflow成功；快照job首轮既有6000条批量补偿清理报storage unavailable，本地同项通过，仅重跑失败job后成功，未放宽门槛。候选C/V已构建并核对与本地被测源码一致；等待用户对此新PR的合并明确授权，未部署。
+- 主手机已同签名覆盖升级beta.4/2026110904；实际base.apk SHA与候选一致、首次安装时间2026-11-07保持、无ADB reverse、欢迎／登录页无常驻申诉入口。自有合成账号正常公网登录，首页文字及图片读回，进程force-stop后冷启动恢复首页PASS；不是用户账号或完整历史全量。`release-phone-proof.json`、`beta4-primary-login-check.png`。网页版管理员实际登录仍待验。
+- 原公网域名beta.4真实认证／读取／定向退出PASS，`release-public-smoke.json`；本轮公网DoH固定IP有超时、系统DNS路径一度403，后续同一路径完整链通过，未宣称广泛稳定性。APK唯一下载路由已启用，完整公网GET为200、37,177,338字节、SHA256 `e903295482c34a1ce05190b3ae390989f68bd642908f9a10bb0dad152a9ca4c2`，与手机一致；`public-download-proof.json`。默认Python UA下载403，统一正常验收客户端标识后GET通过，未改安全配置，精确接入层原因未证明。
+- 用户随后明确批准合并PR #125并继续部署。合并main `e14935196c1203add9051ebd324f1ffb4a652e28` 与head `ee5d214` tree均为`88fb622e8425dd290378cca05cc89493283ce484`；C/V实际进程分别匹配`afef7377...`／`f872e085...`。原配置未改，C38/V8、账号3、帖子5、Gate OPEN C1/V2、RECOVER审计1/2均保持；正常systemd restart后再次核对PASS，无recover或数据恢复。`admin-fix-merge.json`、`admin-fix-activation.json`、`admin-fix-runtime-after.json`、`admin-fix-runtime-restart.json`、`admin-fix-process-proof.json`。
+- 原Edge真实浏览器已显示完整管理员登录表单，截图`admin-login-fixed.jpg`；公网默认端口Origin下4项页面资源200，未知来源403，自有合成账号带浏览器Origin登录／feed200、无管理员角色403、定向退出204及错误合成密码AUTHENTICATION_FAILED401均PASS。`admin-final-http-proof.json`。一次紧跟restart的未就绪探针FAIL，随后完整链通过；额外一次公网资源探针连接超时，聚焦重试通过，异常保留。
+- 用户首次管理员登录显示“登录已失效”；只读确认zewbbu为ACTIVE/ADMIN且未签发新会话，未改密码或重授角色。用户选择原密码自行重试，之后确认“可以了”；SQL核实09:56:29（Asia/Shanghai）新建且保持1条活跃会话。记为PASS_USER_CONFIRMED，不冒充AI自行输入密码验收。首位管理员授权审计为08:30:49（Asia/Shanghai）的BOOTSTRAP_ADMIN，当前管理员数量1，`admin-bootstrap-audit-read.json`。
+- 用户询问黄色边框，已解释为Windows画面捕获指示，结束并重置电脑工具会话，用户确认边框消失。此后仅使用代码和服务端CLI检查，不再读取电脑界面；不保存或读取用户密码／OTP。
+- Android代码与最新main的apps/mobile及packages无差异，沿用已安装并核对的beta.4包；最终交付汇总`launch-final-receipt.json`。相关快照／Origin新代码CI及本地证据如前，未把用户真实账号封禁或授予其他账号权限来测试。
+
+### 测试内容清理与 SpeechFUL v1.0.0
+
+- 用户要求“不备份，全清了”；经grill-with-docs收敛，明确选择“清测试内容，保留账号和权限”。范围为已知2个合成账号的全部测试帖子、关联评论及2段测试私聊（含本人参与部分），保留全部3个账号、身份、校邮资格、管理员权限、Gate与系统安全记录；不新增数据备份、不清库、不删除原有历史备份。
+- 只读盘点为5条帖子记录（4条公开、1条已删除）、4条评论记录（3条未删除，其中1条属于用户）、2段会话共6条消息。清理以已认证数据库owner维护身份执行，精确验证固定资源与账号归属、账号凭据／会话代次、表owner、会话序列不漂移；使用现有C Gate Snapshot＋CommitAuthorized最终事务检查，保留全部数据库约束，不伪造用户会话或绕过资源检查。
+- 回滚演练PASS后已提交：新删除4条测试帖和3条评论，2段私聊双方推进删除／隐藏水位，服务端私信正文和图片均为空；帖子文字和图片载荷为0、关联测试通知与互动已清。必要不可变删除／幂等事实及已发表的评论历史保留，不冒充物理清空所有表。`cleanup-rehearsal.json`、`cleanup-applied.json`、`cleanup-verification.json`。
+- 复核PASS：公开帖0、未删评论0、私聊可读载荷0、未隐藏会话侧0；账号3、zewbbu ACTIVE/ADMIN、V配额3／slot3、Gate OPEN C1/V2及RECOVER审计1/2保持。新增OWNER_TEST_CONTENT_CLEANUP审计，原BOOTSTRAP_ADMIN审计保留；无新增备份。
+- 用户追加要求将最新公网包显示名设为SpeechFUL，作为产品v1.0.0更新到GitHub仓库。版本源码升为`1.0.0+2026110905`，沿用原publictrial包名／原签名覆盖升级；Android显示名使用既有SpeechFUL，发布包装移除“内测”后缀。拟发布GitHub Release `v1.0.0`并附`SpeechFUL-v1.0.0-android-arm64.apk`，不把APK提交进源码Git。此项实现／构建与产品CI待完成；PR合并仍依仓库规则取得明确授权，发布本身已有本次用户授权。

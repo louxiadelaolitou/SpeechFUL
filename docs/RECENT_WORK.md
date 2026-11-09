@@ -4,6 +4,8 @@
 
 ## 工作索引
 
+- [Android 公网发布与 v1.0.0](tasks/ANDROID-BETA-LAUNCH-20261109.md)：后端升级、同包覆盖升级、管理员登录与测试内容清理已验证；v1.0.0 构建及 GitHub Release 状态见任务记录。
+
 - [个人电脑公网试用接入](tasks/PUBLIC-TRIAL-ACCESS-01.md)：两个 HTTPS 入口、真实校邮收信与 Windows 登录后自动恢复已在独立试用环境验证；运行版本、重启复验和剩余缺口见唯一记录，正式发布未执行。
 
 - [Android首版完整业务验收](tasks/ANDROID-V1-ACCEPTANCE-01.md)：三项修复及站内私信帖子卡片本地完成，新版已构建并装机核对，完整真机复验跟进中；验收结论及保留缺口见唯一任务记录，未合并/未正式发布。
