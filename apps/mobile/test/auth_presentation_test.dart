@@ -26,34 +26,26 @@ class _Preferences implements AuthVault {
 }
 
 void main() {
-  testWidgets(
-    'welcome exposes independent moderation access without entering login',
-    (tester) async {
-      final controller = AuthPresentationController(
-        preferences: _Preferences(),
-      );
-      var moderation = 0, login = 0;
-      await tester.pumpWidget(
-        AuthPresentationScope(
-          controller: controller,
-          child: MaterialApp(
-            home: AuthWelcomeScreen(
-              onStarted: () => login++,
-              onModerationAccess: () => moderation++,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final access = find.byKey(const ValueKey('welcome-moderation-access'));
-      await tester.ensureVisible(access);
-      await tester.tap(access);
-      expect(moderation, 1);
-      expect(login, 0);
-      await tester.pumpWidget(const SizedBox());
-      controller.dispose();
-    },
-  );
+  testWidgets('welcome stays focused on starting normal sign-in', (
+    tester,
+  ) async {
+    final controller = AuthPresentationController(preferences: _Preferences());
+    var login = 0;
+    await tester.pumpWidget(
+      AuthPresentationScope(
+        controller: controller,
+        child: MaterialApp(home: AuthWelcomeScreen(onStarted: () => login++)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final access = find.byKey(const ValueKey('welcome-moderation-access'));
+    expect(access, findsNothing);
+    expect(find.text('查看处理通知与申诉'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('auth-start')));
+    expect(login, 1);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
   for (final language in AppLanguage.values) {
     test(
       'persists and restores ${language.code} without changing the theme',

@@ -416,7 +416,12 @@ func TestSessionAuthorityRejectsBannedAndPendingCloseStates(t *testing.T) {
 	if _, err := l.c.GetCurrentSession(ctx, initial.SessionToken); !errors.Is(err, ErrSessionInvalid) {
 		t.Fatalf("banned account read through bearer: %v", err)
 	}
-	if _, err := l.c.CreateSession(ctx, sessionTestRequest(t, "restricted_session_user"), passwords); !errors.Is(err, ErrAccountUnavailable) {
+	wrong := sessionTestRequest(t, "restricted_session_user")
+	wrong.Password = "wrong password"
+	if _, err := l.c.CreateSession(ctx, wrong, passwords); !errors.Is(err, ErrAuthenticationFailed) || errors.Is(err, ErrAccountBanned) {
+		t.Fatalf("wrong password disclosed banned state: %v", err)
+	}
+	if _, err := l.c.CreateSession(ctx, sessionTestRequest(t, "restricted_session_user"), passwords); !errors.Is(err, ErrAccountBanned) || !errors.Is(err, ErrAccountUnavailable) {
 		t.Fatalf("banned account obtained new session: %v", err)
 	}
 	mustExec(t, l.cp, `UPDATE c_auth.account_restrictions SET ban_state='NONE',
@@ -427,6 +432,20 @@ func TestSessionAuthorityRejectsBannedAndPendingCloseStates(t *testing.T) {
 	}
 	if _, err := l.c.CreateSession(ctx, sessionTestRequest(t, "restricted_session_user"), passwords); !errors.Is(err, ErrAccountUnavailable) {
 		t.Fatalf("pending-close account obtained new session without due-time authority: %v", err)
+	}
+}
+
+func TestBannedLoginCannotDiscloseStatusThroughFrozenGate(t *testing.T) {
+	control := newGateControl(t)
+	l := control.lab
+	ctx := context.Background()
+	initial := sessionTestAccount(t, l, "banned_gate_user")
+	mustExec(t, l.cp, `UPDATE c_auth.account_restrictions SET ban_state='BANNED',version=version+1 WHERE account_id=$1`, initial.AccountID)
+	if err := control.gate.Freeze(ctx, "banned login final gate"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.c.CreateSession(ctx, sessionTestRequest(t, "banned_gate_user"), sessionTestPasswordWorker(t, 2)); !errors.Is(err, ErrAuthorizationUnavailable) || errors.Is(err, ErrAccountBanned) {
+		t.Fatalf("frozen gate disclosed banned state: %v", err)
 	}
 }
 

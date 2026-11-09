@@ -213,6 +213,32 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<bool> _showErrorDialog(String message) {
+    if (message == '账号已被封禁') {
+      return showDialog<bool>(
+        context: context,
+        builder: (c) => _localizedDialog(
+          (c) => AlertDialog(
+            key: const ValueKey('account-banned-dialog'),
+            title: Text(hhText(c, '账号已被封禁')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: Text(hhText(c, '取消')),
+              ),
+              TextButton(
+                onPressed: widget.onModerationAccess == null
+                    ? null
+                    : () => Navigator.pop(c, true),
+                child: Text(hhText(c, '申诉')),
+              ),
+            ],
+          ),
+        ),
+      ).then((appeal) {
+        if (mounted && appeal == true) widget.onModerationAccess?.call();
+        return false;
+      });
+    }
     if (widget.sessions.status == AuthStatus.unavailable) {
       return showDialog<bool>(
         context: context,
@@ -545,12 +571,6 @@ class _AuthScreenState extends State<AuthScreen> {
     final controls = <Widget>[
       const SizedBox(height: 56),
       const _Title('欢迎回来', ''),
-      if (widget.onModerationAccess != null)
-        TextButton(
-          key: const ValueKey('login-moderation-access'),
-          onPressed: _busy ? null : widget.onModerationAccess,
-          child: Text(_text('查看处理通知与申诉')),
-        ),
       if (_explicitClosureLogin) const _Notice('注销缓冲期内主动登录将撤销注销申请。'),
       if (email) ...[
         _field(

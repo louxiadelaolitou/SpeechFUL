@@ -175,6 +175,8 @@ func (b *boundary) sessionFailure(w http.ResponseWriter, err error) {
 		b.fail(w, 401, "SESSION_INVALID", 0)
 	case errors.Is(err, authprivacy.ErrSessionReplaced):
 		b.fail(w, 401, "session_replaced", 0)
+	case errors.Is(err, authprivacy.ErrAccountBanned):
+		b.fail(w, 403, "ACCOUNT_BANNED", 0)
 	case errors.Is(err, authprivacy.ErrAccountUnavailable):
 		b.fail(w, 403, "ACCOUNT_UNAVAILABLE", 0)
 	case errors.Is(err, authprivacy.ErrCredentialStateChanged):

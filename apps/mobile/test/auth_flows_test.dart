@@ -41,6 +41,7 @@ class Api implements AuthApi {
   Future<OtpRequestAccepted> Function()? onOtp;
   AuthFailure? otpResultFailure;
   AuthFailure? confirmationFailure;
+  AuthFailure? confirmationResultFailure;
   OtpConfirmationState confirmationResult = OtpConfirmationState.pending;
   Future<AuthSession> Function()? onRegistration;
   final resetCommits = <Map<String, String>>[];
@@ -175,7 +176,11 @@ class Api implements AuthApi {
     required String flowId,
     required String installationId,
     required String idempotencyKey,
-  }) async => OtpConfirmationResult(state: confirmationResult);
+  }) async {
+    if (confirmationResultFailure != null) throw confirmationResultFailure!;
+    return OtpConfirmationResult(state: confirmationResult);
+  }
+
   @override
   Future<RegistrationIntent> createRegistrationIntent({
     required String registrationTicket,
@@ -280,6 +285,25 @@ class Harness {
 }
 
 void main() {
+  test('registered campus email has a clear message and retains its original confirmation', () async {
+    final h = Harness();
+    await h.flows.requestOtp('Exact@hainanu.edu.cn');
+    h.api.confirmationFailure = const AuthFailure(
+      kind: AuthFailureKind.rejected,
+      statusCode: 409,
+      code: 'ELIGIBILITY_RESERVED',
+    );
+    await h.flows.confirmOtp('123456');
+    final original = (await h.store.read()).registration!;
+    expect(h.flows.errorMessage, '该邮箱已注册');
+    h.api.confirmationResultFailure = h.api.confirmationFailure;
+    await h.flows.reconcileOtpConfirmation();
+    expect(h.flows.errorMessage, '该邮箱已注册');
+    expect((await h.store.read()).registration, original);
+    expect(h.api.otpRequests, hasLength(1));
+    expect(h.api.registrationCreates, isEmpty);
+    expect(h.vault.value, isNot(contains('123456')));
+  });
   test('uncommitted OTP confirmation preserves the original flow for corrected input', () async {
     final h = Harness();
     await h.flows.requestOtp('Exact@hainanu.edu.cn');

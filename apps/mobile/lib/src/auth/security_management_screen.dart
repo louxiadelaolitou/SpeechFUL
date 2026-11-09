@@ -251,7 +251,11 @@ class _SecurityManagementScreenState extends State<SecurityManagementScreen>
     final controller = widget.controller;
     final credentials = controller.credentials;
     if (!controller.legacyRecoveryEnabled) {
-      return [_notice('忘记密码时，请退出后在登录页通过校邮验证重置密码。')];
+      return [
+        if (widget.sessions.username != null)
+          _notice('私有用户名：{name}', args: {'name': widget.sessions.username}),
+        _notice('忘记密码时，请退出后在登录页通过校邮验证重置密码。'),
+      ];
     }
     return [
       if (widget.sessions.username != null)

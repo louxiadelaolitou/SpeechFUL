@@ -182,6 +182,26 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets(
+    'paused legacy recovery still shows the signed-in private username',
+    (tester) async {
+      manager.dispose();
+      manager = SecurityManagementController(
+        api: api,
+        store: store,
+        sessions: sessions,
+        passkey: _Passkey(),
+        legacyRecoveryEnabled: false,
+      );
+      await open(tester);
+      expect(find.textContaining('私有用户名：private_name'), findsOneWidget);
+      expect(find.text('轮换恢复码'), findsNothing);
+      expect(find.text('绑定 Passkey'), findsNothing);
+      expect(find.byKey(const ValueKey('management-password')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   Future<void> tap(
     WidgetTester tester,
     String text, {

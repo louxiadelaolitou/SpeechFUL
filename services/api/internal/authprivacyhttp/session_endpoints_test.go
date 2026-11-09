@@ -11,13 +11,46 @@ import (
 )
 
 type httpTestSessions struct {
-	calls int
-	view  authprivacy.SessionView
+	calls     int
+	view      authprivacy.SessionView
+	createErr error
 }
 
 func (s *httpTestSessions) CreateSession(context.Context, authprivacy.SessionCreateRequest, authprivacy.PasswordVerifier) (authprivacy.SessionCreateResult, error) {
 	s.calls++
+	if s.createErr != nil {
+		return authprivacy.SessionCreateResult{}, s.createErr
+	}
 	return authprivacy.SessionCreateResult{AccountID: s.view.AccountID, SessionToken: [32]byte{5}, ExpiresAt: s.view.ExpiresAt}, nil
+}
+
+func TestSessionHTTPBannedLoginIsDistinctFromInvalidCredentials(t *testing.T) {
+	pki := newHTTPTestPKI(t)
+	backend := &httpTestCommunity{}
+	sessions := &httpTestSessions{}
+	endpoints, err := NewCommunityEndpoints(CommunityOptions{Backend: backend, Sessions: sessions,
+		Passwords: httpTestPasswords{backend: backend}, InternalPeer: PeerIdentity{Environment: "lab", Service: VerifierService, Roots: pki.roots}, Limits: httpTestLimits()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, client := httpTestPublicServer(t, endpoints.Public, pki, CommunityService)
+	for _, test := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{authprivacy.ErrAccountBanned, 403, "ACCOUNT_BANNED"},
+		{authprivacy.ErrAuthenticationFailed, 401, "AUTHENTICATION_FAILED"},
+		{authprivacy.ErrAccountUnavailable, 403, "ACCOUNT_UNAVAILABLE"},
+		{authprivacy.ErrAuthorizationUnavailable, 503, "SERVICE_UNAVAILABLE"},
+	} {
+		sessions.createErr = test.err
+		response, body, _ := doHTTPTest(t, client, "POST", server.URL+"/api/v1/auth/sessions", `{"username":"fake_user","password":"valid phrase","installationId":"`+httpTestEncoding(16, 9)+`"}`, map[string][]string{"Content-Type": {"application/json"}, "Idempotency-Key": {httpTestEncoding(32, 7)}})
+		failure, ok := body["error"].(map[string]any)
+		if response.StatusCode != test.status || !ok || failure["code"] != test.code || body["sessionToken"] != nil || response.Header.Get("Session-Expires-At") != "" {
+			t.Fatalf("wrong login failure projection: %d", response.StatusCode)
+		}
+	}
 }
 func (s *httpTestSessions) GetCurrentSession(context.Context, [32]byte) (authprivacy.SessionView, error) {
 	s.calls++

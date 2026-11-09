@@ -126,6 +126,7 @@ paths:
     post:
       operationId: createSession
       summary: 用户名密码主动登录并接替旧设备
+      x-banned-login: 凭据验证及最终 C Gate 检查通过后，仍在封禁期的账号返回403 ACCOUNT_BANNED，不签发普通会话；客户端显示账号已被封禁及申诉/取消。错误密码仍为同形401 AUTHENTICATION_FAILED，其他账号不可用原因仍为ACCOUNT_UNAVAILABLE。申诉需通过独立MODERATION_SELF认证，不提升社区权限。
       description: 不存在用户名、错误密码走同形AUTHENTICATION_FAILED及受控等价计算路径；速率限制不能明显枚举账号。初步验证密码须记录所用密码验证值/凭据版本，最终账号锁内再次确认两者未变，变化就拒绝旧证明并要求全新密码校验，不能把恢复前的旧密码授权套到新版本。在账号锁内现场取UTC时间，拒绝CLOSED、到期FINALIZING及仍有效封禁；早于dueAt的主动成功登录原子取消PENDING_CLOSE并新建唯一移动会话，递增会话代次、撤销旧会话。初始有效期为实际裁决时间+30天，同设备重新登录也接替旧会话；不联系V。首次201含32字节随机token；已提交同键仅409
         SESSION_CREATED_RETRY_LOGIN，不重发token，客户端新键重新输入/确认密码登录替代不可见会话。后台刷新或恢复查询不是主动登录。原完整结果已清理时，命中本operation的请求墓碑只回410
         RESULT_EXPIRED；不重新开户/签发会话，也不能用旧登录请求取消注销。
@@ -2070,6 +2071,7 @@ components:
               - SESSION_INVALID
               - session_replaced
               - ACCOUNT_UNAVAILABLE
+              - ACCOUNT_BANNED
               - AUTHORIZATION_FAILED
               - RESOURCE_NOT_FOUND
               - IDEMPOTENCY_KEY_REUSED

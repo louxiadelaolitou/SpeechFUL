@@ -1620,6 +1620,7 @@ class HttpAuthApi
     'SESSION_INVALID',
     'session_replaced',
     'ACCOUNT_UNAVAILABLE',
+    'ACCOUNT_BANNED',
     'AUTHORIZATION_FAILED',
     'RESOURCE_NOT_FOUND',
     'OPERATION_PENDING',

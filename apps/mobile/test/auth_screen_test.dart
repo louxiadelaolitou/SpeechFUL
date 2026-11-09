@@ -280,6 +280,7 @@ class _Harness {
     Widget? home,
     VoidCallback? onAuthenticated,
     VoidCallback? onManageSecurity,
+    VoidCallback? onModerationAccess,
   }) async {
     const qaFont = String.fromEnvironment('AUTH_UI_QA_FONT');
     if (qaFont.isNotEmpty) {
@@ -336,6 +337,7 @@ class _Harness {
                 flows: flows,
                 onAuthenticated: onAuthenticated,
                 onManageSecurity: onManageSecurity,
+                onModerationAccess: onModerationAccess,
               ),
         ),
       ),
@@ -404,6 +406,66 @@ Future<void> _seedEligibility(_Harness h) async {
 }
 
 void main() {
+  for (final appeal in [false, true]) {
+    testWidgets('verified banned login offers appeal and cancel: $appeal', (
+      tester,
+    ) async {
+      final h = _Harness();
+      h.api.loginFailure = const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        statusCode: 403,
+        code: 'ACCOUNT_BANNED',
+      );
+      var appeals = 0;
+      await h.mount(tester, onModerationAccess: () => appeals++);
+      expect(find.text('查看处理通知与申诉'), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('login-username')),
+        'private_name',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-password')),
+        'private password here',
+      );
+      await _tap(tester, '登录并进入');
+      expect(
+        find.byKey(const ValueKey('account-banned-dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('账号已被封禁'), findsOneWidget);
+      expect(find.text('申诉'), findsOneWidget);
+      expect(find.text('取消'), findsOneWidget);
+      expect(h.sessions.isAuthenticated, isFalse);
+      await _tap(tester, appeal ? '申诉' : '取消');
+      expect(appeals, appeal ? 1 : 0);
+      expect(find.byKey(const ValueKey('account-banned-dialog')), findsNothing);
+      expect(find.byKey(const ValueKey('login-username')), findsOneWidget);
+      await h.finish(tester);
+    });
+  }
+  testWidgets('invalid password never offers the banned account appeal', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.api.rejectLogin = true;
+    var appeals = 0;
+    await h.mount(tester, onModerationAccess: () => appeals++);
+    await tester.enterText(
+      find.byKey(const ValueKey('login-username')),
+      'private_name',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('login-password')),
+      'wrong password here',
+    );
+    await _tap(tester, '登录并进入');
+    expect(find.text('用户名或密码不正确。'), findsOneWidget);
+    expect(find.text('账号已被封禁'), findsNothing);
+    expect(find.text('申诉'), findsNothing);
+    expect(appeals, 0);
+    await _tap(tester, '确定');
+    await h.finish(tester);
+  });
   testWidgets(
     'wrong registration code can be corrected after uncommitted-result reconciliation',
     (tester) async {

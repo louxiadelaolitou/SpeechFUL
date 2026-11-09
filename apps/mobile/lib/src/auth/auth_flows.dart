@@ -1902,7 +1902,11 @@ class AuthFlows extends ChangeNotifier {
         return;
       }
       _error = failure;
-      _errorMessage = failure.resultsExpired
+      _errorMessage = failure.code == 'ACCOUNT_BANNED'
+          ? '账号已被封禁'
+          : failure.code == 'ELIGIBILITY_RESERVED'
+          ? '该邮箱已注册'
+          : failure.resultsExpired
           ? '核对记录已过保留期，无法据此确认是否提交。请主动选择后续操作。'
           : failure.uncertain
           ? '结果未知，请保留原请求并核对。'

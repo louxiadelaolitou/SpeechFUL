@@ -341,7 +341,9 @@ class AuthSessionController extends ChangeNotifier {
       _status = AuthStatus.storageFailure;
       _error = '安全存储写入失败，不能确认本机登录。';
     } on AuthFailure catch (e) {
-      _error = e.unauthorized || e.code == 'CLIENT_INPUT_INVALID'
+      _error = e.code == 'ACCOUNT_BANNED'
+          ? '账号已被封禁'
+          : e.unauthorized || e.code == 'CLIENT_INPUT_INVALID'
           ? '用户名或密码不正确。'
           : e.code == 'SESSION_CREATED_RETRY_LOGIN'
           ? '上次登录已建立会话，请主动重新登录。'

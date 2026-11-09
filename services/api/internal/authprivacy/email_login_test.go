@@ -99,6 +99,40 @@ func TestEmailLoginExistingAccountAndReplayPostgres(t *testing.T) {
 	}
 
 }
+func TestEmailLoginBannedAccountReturnsNoCommunitySessionPostgres(t *testing.T) {
+	l, e, capture := newOTPTestEligibility(t, MailSent)
+	ctx := context.Background()
+	ticket, priv := l.ticket(t)
+	_, signup := l.intent(t, ticket, priv, "email_banned_user")
+	old, err := l.c.CommitSignup(ctx, signup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = l.v.ReserveAfterQualification(ctx, []byte("banned@hainanu.edu.cn"), ticket.BootstrapKey); err != nil {
+		t.Fatal(err)
+	}
+	request := otpFixtureRequest(t, "banned@hainanu.edu.cn")
+	request.Purpose = "LOGIN"
+	accepted, err := e.RequestOTP(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, code := capture.captured()
+	cReq := EmailSessionRequest{InstallationID: [16]byte{11}, IdempotencyKey: [32]byte{12}}
+	result, err := e.ConfirmEmailLogin(ctx, EmailLoginConfirmation{Key: [32]byte{13}, FlowID: accepted.FlowID, InstallationID: request.InstallationID, Binding: protocol.EmailLoginBinding(cReq.InstallationID, cReq.IdempotencyKey), OTP: code})
+	if err != nil || result.State != "PROOF_AVAILABLE" {
+		t.Fatal("verified campus proof absent", err)
+	}
+	cReq.Proof = result.Proof
+	mustExec(t, l.cp, `UPDATE c_auth.account_restrictions SET ban_state='BANNED',version=version+1 WHERE account_id=$1`, old.AccountID)
+	if created, err := l.c.CreateEmailSession(ctx, cReq); !errors.Is(err, ErrAccountBanned) || created.SessionToken != ([32]byte{}) {
+		t.Fatalf("banned email proof issued normal session or lost ban status: %v", err)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_auth.sessions`) != 1 {
+		t.Fatal("banned login changed sessions")
+	}
+}
+
 func TestEmailLoginUnregisteredAndWrongCodePostgres(t *testing.T) {
 	l, e, capture := newOTPTestEligibility(t, MailSent)
 	ctx := context.Background()

@@ -104,6 +104,20 @@ class EmailHarness {
 
 void main() {
   test(
+    'verified campus login reports ban without adopting a community session',
+    () async {
+      final h = EmailHarness();
+      h.api.sessionError = 'ACCOUNT_BANNED';
+      final flow = h.make();
+      await flow.requestEmailLogin('owned@hainanu.edu.cn');
+      await flow.completeEmailLogin('123456');
+      expect(flow.errorMessage, '账号已被封禁');
+      expect(h.adopted, 0);
+      expect(h.store.current?.session, isNull);
+      flow.dispose();
+    },
+  );
+  test(
     'late C success keeps durable revocation when immediate revoke times out',
     () async {
       final h = EmailHarness();

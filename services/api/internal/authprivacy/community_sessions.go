@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 	"unicode/utf8"
@@ -15,9 +16,11 @@ import (
 )
 
 var (
-	ErrAuthenticationFailed   = errors.New("authentication failed")
-	ErrSessionInvalid         = errors.New("session invalid")
-	ErrAccountUnavailable     = errors.New("account unavailable")
+	ErrAuthenticationFailed = errors.New("authentication failed")
+	ErrSessionInvalid       = errors.New("session invalid")
+	ErrAccountUnavailable   = errors.New("account unavailable")
+	// Only returned after credential verification and the final Gate check.
+	ErrAccountBanned          = fmt.Errorf("%w: banned", ErrAccountUnavailable)
 	ErrCredentialStateChanged = errors.New("credential state changed")
 	ErrSessionReplaced        = errors.New("session replaced")
 	ErrSessionCreatedReplay   = errors.New("session already created; login again")
@@ -269,7 +272,7 @@ func (c *Community) createSession(ctx context.Context, request SessionCreateRequ
 			return ErrEmailProofInvalid
 		}
 		if bannedAt(ban, final.TrustedAt) {
-			return ErrAccountUnavailable
+			return ErrAccountBanned
 		}
 		if state == "PENDING_CLOSE" {
 			if err := cancelPendingClosure(ctx, tx, account, closure, final.TrustedAt); err != nil {

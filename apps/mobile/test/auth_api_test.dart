@@ -151,6 +151,23 @@ void main() {
     await verifier.close();
   });
 
+  test('verified ban stays a typed login failure without a session', () async {
+    community.respond = (request) =>
+        _json(request, 403, _error('ACCOUNT_BANNED'));
+    await expectLater(
+      api.login(
+        username: 'private_name',
+        password: 'private password here',
+        installationId: _cInstallation,
+        idempotencyKey: _key,
+      ),
+      throwsA(
+        _failure(AuthFailureKind.rejected, status: 403, code: 'ACCOUNT_BANNED'),
+      ),
+    );
+    expect(verifier.requests, isEmpty);
+  });
+
   Map<String, Object> directory() => {
     'channels': [
       for (var i = 0; i < ChannelDirectory.requiredCodes.length; i++)

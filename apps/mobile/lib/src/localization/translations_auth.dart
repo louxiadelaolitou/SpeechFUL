@@ -2,6 +2,8 @@ import 'app_language.dart';
 
 // Application-owned authentication text; interpolated values are never translated.
 const authTranslations = <String, UiTranslation>{
+  '账号已被封禁': ('帳號已被封禁', 'Account banned', 'アカウントは利用停止されています'),
+  '该邮箱已注册': ('該郵箱已註冊', 'This email is already registered', 'このメールアドレスは登録済みです'),
   '此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。': (
     '此裝置暫不支援系統通行密鑰，可繼續使用密碼、校郵登入和恢復碼。',
     'System passkeys are unavailable on this device. You can still use your password, campus email sign-in and recovery code.',
