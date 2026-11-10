@@ -5,7 +5,7 @@
 - 授权依据与边界：用户明确要求“把这些一次性、重复、过时的测试脚本清理掉，正常的功能测试保留，别影响现有功能。然后直接推送提交到 main 上”。授权本任务清理、提交及直接更新远端 main；不授权混入其他分支重构、修改产品行为、部署、操作数据库或设备。不强制推送。
 - 需求确认：删除以固定历史运行、失效路径或被当前入口替代为依据；不以曾经 PASS、文件名旧或数量多为删除依据。保留当前功能测试、真实 SQL／设备行为验证、CI 和现行 runner 的依赖。无未决产品取舍。
 - 更新日期：2026-11-10。
-- 状态：实现 已完成；验证 PASS（静态依赖与主机工具范围；3 项 POSIX 场景 SKIP）；合并 待推送；发布 未发布。
+- 状态：实现 已完成；验证 PASS（静态依赖与主机工具范围；3 项 POSIX 场景 SKIP）；合并 已按授权直接更新远端 main（实现 `da59e32`）；发布 未发布（本轮无需部署）。
 
 ## 目标与范围
 
@@ -37,13 +37,14 @@
 | 基线与隔离 | fetch 后 `fbf5e6b`；Windows PowerShell | PASS：`D:/SpeechFUL` 在另一条重构分支上，本任务使用独立 Worktree，未切换其分支或修改其文件。 |
 | 删除调查 | 基线文件、调用引用和 CI | PASS：按上表核对闭包；保留正常 Go／Flutter／原生测试及现行 runner。 |
 | 基线／清理后对照 | `fbf5e6b`／本任务最终差异；原 Windows Python 3.9.13；`python -B -X utf8 -m unittest discover -s tools/tests -v` | 两次均为 197 PASS、3 SKIP、1 BLOCKED：原环境缺少 `openapi_schema_validator`，没有新增失败；不将其计为全套通过。 |
-| 完整工具回归 | 本任务独立 Python 3.12 虚拟环境，按 `packages/openapi/requirements-check.txt` 安装已声明依赖；`python -B -X utf8 -m unittest discover -s tools/tests -v` | PASS：201 项中 198 PASS、3 SKIP，exit 0。SKIP 为 Windows 不具备 POSIX 符号链接／权限语义的既有场景。依赖只安装于任务临时环境，不改全局 Python、仓库锁文件或产品依赖。 |
+| 完整工具回归 | 被测实现 `da59e32`（测试时为基线＋同一实现差异）；任务独立 Python 3.12 虚拟环境，按 `packages/openapi/requirements-check.txt` 安装已声明依赖；`python -B -X utf8 -m unittest discover -s tools/tests -v` | PASS：201 项中 198 PASS、3 SKIP，exit 0。SKIP 为 Windows 不具备 POSIX 符号链接／权限语义的既有场景。依赖只安装于任务临时环境，不改全局 Python、仓库锁文件或产品依赖。 |
 | 功能与依赖保留 | `git diff --exit-code fbf5e6b -- apps services packages infra .github`；剩余代码／CI 的完整删除路径及唯一文件名引用扫描、Python AST 检查 | PASS：产品源码、363 个功能测试／夹具文件、正式 SQL／权限、锁文件及 CI 无差异；无可执行文件引用删除项；127 个剩余工具 Python 文件可解析。当前快照 campaign 的 8 个静态／动态子脚本均存在。 |
 | 文档与历史 | 检查 2884 个本地 Markdown 链接及固定历史 Git 路径 | PASS：没有本轮新增或因删除产生的断链；全部新历史入口存在。另识别 162 个基线已有的历史讨论／字节归档等缺失资源链接，保持原状，不把它们计为本轮新增问题或改写原始档案。 |
 | 产品运行验收 | 本轮未变产品实现 | NOT_RUN：未启动／更新公网服务、数据库或设备，未复跑历史 SQL／真机验收。 |
 | 协作与差异 | 最终暂存区；`python tools/check-collaboration.py --staged`、`git diff --cached --check` | PASS：仅包含 16 个脚本删除和 7 个 Markdown 文件更新／新增，未混入其他任务。工具回归已包含全部 19 项协作规则测试。 |
-| 合并和推送 | 待验证 | NOT_RUN |
+| 合并和推送 | [实现提交 da59e32](https://github.com/zewbby/SpeechFUL/commit/da59e326731da49e6c6978bd3df1a5f8bcbb1f3d)；`git push origin HEAD:refs/heads/main` | PASS：推送前 fetch 确认远端仍为基线且为本次提交祖先；普通快进成功，GitHub API 核对 main 为 `da59e326731da49e6c6978bd3df1a5f8bcbb1f3d`。未创建 PR、未强推、未切换另一工作区分支。 |
+| GitHub CI | 实现提交 `da59e32` 的 [Collaboration 42820884645](https://github.com/zewbby/SpeechFUL/actions/runs/42820884645) | PASS：completed/success。这是协作 CI，不冒充 SQL、设备或产品全量验收。后续提交只补充此交付记录，不改变上述被测实现。 |
 
 ## 阻碍与下一步
 
-删除、依赖、主机工具和协作检查完成。重新 fetch 后按明确授权正常推送到 main；不部署。其余保留的历史名称 runner 仍有实际功能测试、CI 或依赖用途，未按名称批量删除。
+本轮清理已推送，GitHub 协作检查通过，无阻碍。其余保留的历史名称 runner 仍有实际功能测试、CI 或依赖用途，未按名称批量删除。不需要重新构建或部署 APP／后端。
