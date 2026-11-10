@@ -2,11 +2,11 @@
 
 > **2026-10-27 PR84已合并，main默认Redis：** [PR #84](https://github.com/zewbby/HnuHole/pull/84)合并 `ad0c47ce98cc13093be9b00b48e5d8ea37443cdb`。默认Redis新建及PG/Redis双读，标准C模板接通；启用评论却缺快照配置时启动明确失败，显式PG回退保留。配置5项、build/vet、独立只读审查和12个适用自动workflow通过。现有开发Redis接线只读核对一致，运行环境未改；性能/真机/30分钟未追加验收，生产未发布。见[实现与验证](../comment-snapshot-redis/main-default-20261027.md)；下方默认PG/待合并状态保留原历史时点。
 
-> **2026-10-27 PR80已合并 main：** 合并 `4e7b0fb7d05daa579eb37138d374bb495d4fea30` 与已测 head `a2e98eb` 完整tree一致，既有适用CI通过。一次指定性能场景PASS，历史FAIL及其他未验项保留；同机开发Redis已授权启用并保留PG旧游标读取，仓库默认仍PG，生产未发布。本次仅合并与文档收尾，无新产品测试、性能采样或部署。见[最终合并交接](../comment-snapshot-redis/merge-receipt-20261027.md)。下方待提交／未合并／未启用状态均保留原历史时点。
+> **2026-10-27 PR80已合并 main：** 合并 `4e7b0fb7d05daa579eb37138d374bb495d4fea30` 与已测 head `a2e98eb` 完整tree一致，既有适用CI通过。一次指定性能场景PASS，历史FAIL及其他未验项保留；同机开发Redis已授权启用并保留PG旧游标读取，仓库默认仍PG，生产未发布。本次仅合并与文档收尾，无新产品测试、性能采样或部署。见[最终合并交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/merge-receipt-20261027.md)。下方待提交／未合并／未启用状态均保留原历史时点。
 
-> **2026-10-27 Publish 局部写优化本地完成：** 按已审定方案增加严格条件下的单字节发布，原全量校验、SQL 后 Publish 及失败补偿保留；真实 Redis/AOF、两项真实 SQL、build/vet 定点检查通过。首次新测试 token 编码夹具失败已修正，仅复跑该子例，原日志保留。限定只读复核无阻断；本轮送审的最终 head 与适用 CI 以 [PR80 Checks](https://github.com/zewbby/HnuHole/pull/80/checks) 和[送审回执](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/post-pr-publish-state-delivery-sol-20261027/delivery-report.md)核对，不复用旧 head 结果；原端到端 +7.571629% FAIL 与启用前性能待验保留，默认 PG/关闭 Redis，未部署。见[实施记录](../comment-snapshot-redis/publish-state-optimization-20261027.md)。下方 PR/CI 为原版本历史。
+> **2026-10-27 Publish 局部写优化本地完成：** 按已审定方案增加严格条件下的单字节发布，原全量校验、SQL 后 Publish 及失败补偿保留；真实 Redis/AOF、两项真实 SQL、build/vet 定点检查通过。首次新测试 token 编码夹具失败已修正，仅复跑该子例，原日志保留。限定只读复核无阻断；本轮送审的最终 head 与适用 CI 以 [PR80 Checks](https://github.com/zewbby/HnuHole/pull/80/checks) 和[送审回执](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/post-pr-publish-state-delivery-sol-20261027/delivery-report.md)核对，不复用旧 head 结果；原端到端 +7.571629% FAIL 与启用前性能待验保留，默认 PG/关闭 Redis，未部署。见[实施记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/publish-state-optimization-20261027.md)。下方 PR/CI 为原版本历史。
 
-> **2026-10-26 阶段7功能与PR/CI交付完成：** 已按具体授权提交并推送[PR #80](https://github.com/zewbby/HnuHole/pull/80)，任务分支已整合main c17a667。功能及CI修复版本的15个workflow/26项实际job检查通过；性能整轮job按设计SKIP，未作为性能通过。两次实际失败及修复、被测head、逐job证据见[阶段7回执](../comment-snapshot-redis/stage-7-pr-and-ci.md)及PR Checks；本回执后仅文档变更的最终head以PR实时检查和[D盘交付记录](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/stage-7-pr-delivery-20261026/README.md)核对。阶段5性能仍启用前待验，原P95 FAIL保留，默认PG/关闭Redis；未合并、部署或启用。下方等待授权/未提交/CI进行中为历史时点。
+> **2026-10-26 阶段7功能与PR/CI交付完成：** 已按具体授权提交并推送[PR #80](https://github.com/zewbby/HnuHole/pull/80)，任务分支已整合main c17a667。功能及CI修复版本的15个workflow/26项实际job检查通过；性能整轮job按设计SKIP，未作为性能通过。两次实际失败及修复、被测head、逐job证据见[阶段7回执](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-7-pr-and-ci.md)及PR Checks；本回执后仅文档变更的最终head以PR实时检查和[D盘交付记录](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/stage-7-pr-delivery-20261026/README.md)核对。阶段5性能仍启用前待验，原P95 FAIL保留，默认PG/关闭Redis；未合并、部署或启用。下方等待授权/未提交/CI进行中为历史时点。
 
 > **2026-10-26 阶段6完成，三项修复复核PASS：** R6-01～03均已闭环；仅复核六文件diff、直接上下文及既有定点证据，未发现新阻断，未重跑验收。六文件及九份日志摘要一致，其他1435个受保护文件和146条台账不变。性能仍为可靠环境／Redis启用前待验，原P95 FAIL保留，阶段5不记全PASS；默认PG/关闭Redis。下一轮GPT-6.1 Sol/high进入阶段7提交PR及适用CI；合并、部署、启用未授权。见[有限复核报告](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/stage-6-fix-review-20261026/review-report.md)。下方待修、待复核等描述保留原时点，不代表当前状态。
 
@@ -16,60 +16,60 @@
 
 > **2026-10-26 单次已授权WSL维护完成：** 三PG干净停机并完成约620MB私有冷备份，目标terminate仅1次，内核boot已更换；原C/V后端、PG/Redis/系统服务恢复，Windows原CA健康检查200，Gate代次与RECOVER审计不变。唯一449组观测中RAW/MONOTONIC与QPC45.037601秒相容，但REALTIME约49.27秒，窗口包含初次NTP校时，稳态未验证；P5-D1仍0对、原性能FAIL保留，无追加重启或采样。见[D盘执行回执](D:/HnuHole-task-storage/comment-snapshot-redis-20261024/approved-maintenance-20261026-r1/execution-report.md)。下方为历史。
 
-> **2026-10-26 计时协议裁定完成：** 唯一45秒同步观测414组全部保留，QPC45.026537秒与两种RAW路径相容；MONOTONIC/REALTIME/gettimeofday仅约41.49秒，区间外偏差至少3.527秒。不能改用MONOTONIC；RAW局部可用，但Lua分段、业务超时/worker及绝对时间条件仍受异常域影响，P5-D1继续环境阻断、0对NOT_EVALUATED。未改钟/NTP/产品，未运行HTTP或回归；原性能FAIL保留。见[裁定与证据](../comment-snapshot-redis/stage-5-clock-protocol-review.md)。下方为历史。
+> **2026-10-26 计时协议裁定完成：** 唯一45秒同步观测414组全部保留，QPC45.026537秒与两种RAW路径相容；MONOTONIC/REALTIME/gettimeofday仅约41.49秒，区间外偏差至少3.527秒。不能改用MONOTONIC；RAW局部可用，但Lua分段、业务超时/worker及绝对时间条件仍受异常域影响，P5-D1继续环境阻断、0对NOT_EVALUATED。未改钟/NTP/产品，未运行HTTP或回归；原性能FAIL保留。见[裁定与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-clock-protocol-review.md)。下方为历史。
 
-> **2026-10-26 P5-D1执行停止于时钟预检：** Sol/high已完成D盘观测副本、构建/vet、5项真实Redis/race回归及观测等价核对；初始最大计时域偏差3.661835秒，唯一临时修复后仍1.528373秒，均超过0.2秒。固定60对测量/预热/HTTP均0，80%/70%判据NOT_EVALUATED；按协议未重试。已独立核验恢复tsc/NTP及卸载。原+7.571629% FAIL保留，阶段5未完成。见[记录与证据](../comment-snapshot-redis/stage-5-p5d1-execution.md)。下方为历史。
+> **2026-10-26 P5-D1执行停止于时钟预检：** Sol/high已完成D盘观测副本、构建/vet、5项真实Redis/race回归及观测等价核对；初始最大计时域偏差3.661835秒，唯一临时修复后仍1.528373秒，均超过0.2秒。固定60对测量/预热/HTTP均0，80%/70%判据NOT_EVALUATED；按协议未重试。已独立核验恢复tsc/NTP及卸载。原+7.571629% FAIL保留，阶段5未完成。见[记录与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-p5d1-execution.md)。下方为历史。
 
-> **2026-10-26 steady展开最小改动审查完成：** 原+7.571629% FAIL保持；离线确认两次Redis完整账本扫描及成功后两次Gate收尾，但尚无证据选定足以达标的安全产品修复。下一步由GPT-6.1 Sol/high实施一次新增Lua/PG写入分段的固定60对诊断，仅steady展开；公共授权和校验规则暂不改。诊断未运行，本轮产品/HTTP/系统改动均为0；阶段5未完成，第6阶段未启动。见[具体方案与判定规则](../comment-snapshot-redis/stage-5-steady-expanded-fix-review.md)。下方为历史。
+> **2026-10-26 steady展开最小改动审查完成：** 原+7.571629% FAIL保持；离线确认两次Redis完整账本扫描及成功后两次Gate收尾，但尚无证据选定足以达标的安全产品修复。下一步由GPT-6.1 Sol/high实施一次新增Lua/PG写入分段的固定60对诊断，仅steady展开；公共授权和校验规则暂不改。诊断未运行，本轮产品/HTTP/系统改动均为0；阶段5未完成，第6阶段未启动。见[具体方案与判定规则](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-steady-expanded-fix-review.md)。下方为历史。
 
-> **2026-10-26 两项剩余性能定点验收完成：** 最终4b0eef09/API87095083在正常worker和真实LIVE条件下，compat续页1000对P95 +0.062251% PASS，steady展开300对 +7.571629% FAIL；2600条测量HTTP零错误，RAW/QPC/资源判据通过。唯一剩余阻断为最终版本steady展开性能：Gate尾部行锁跨度约20–26ms，Redis Prepare/Publish约5ms，传输残差约0.4ms；不据此认定单一因果。原时钟预检失败保留，唯一条件式修复后已恢复tsc/timesyncd active/enabled并独立核验，运行时0、D盘任务存储已卸载。其他验收未重跑，旧结果按版本复用。阶段5未完成，第6阶段未启动，未改产品/追加采样/提交/合并/部署。见[记录与证据](../comment-snapshot-redis/stage-5-performance-gaps-execution.md)。下方为历史。
+> **2026-10-26 两项剩余性能定点验收完成：** 最终4b0eef09/API87095083在正常worker和真实LIVE条件下，compat续页1000对P95 +0.062251% PASS，steady展开300对 +7.571629% FAIL；2600条测量HTTP零错误，RAW/QPC/资源判据通过。唯一剩余阻断为最终版本steady展开性能：Gate尾部行锁跨度约20–26ms，Redis Prepare/Publish约5ms，传输残差约0.4ms；不据此认定单一因果。原时钟预检失败保留，唯一条件式修复后已恢复tsc/timesyncd active/enabled并独立核验，运行时0、D盘任务存储已卸载。其他验收未重跑，旧结果按版本复用。阶段5未完成，第6阶段未启动，未改产品/追加采样/提交/合并/部署。见[记录与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-performance-gaps-execution.md)。下方为历史。
 
-> **2026-10-26 第5阶段最终证据审查完成：** 两条4b/API870的compat回复P95 PASS有效；旧功能/故障/容量/实际30分钟/真我限定证据按原版本复用。阶段5仍不能收口：compat主续页修正预热后缺完整达标证明；steady展开旧单轮+9.977%未由适用证据关闭。保留各轮FAIL，不采用事后三轮汇总或跨模式替代。第6阶段未启动；本轮仅离线审查，未改产品、追加采样或重跑验收，未提交/合并/部署。见[裁决与证据](../comment-snapshot-redis/stage-5-final-evidence-review.md)。下方为历史。
+> **2026-10-26 第5阶段最终证据审查完成：** 两条4b/API870的compat回复P95 PASS有效；旧功能/故障/容量/实际30分钟/真我限定证据按原版本复用。阶段5仍不能收口：compat主续页修正预热后缺完整达标证明；steady展开旧单轮+9.977%未由适用证据关闭。保留各轮FAIL，不采用事后三轮汇总或跨模式替代。第6阶段未启动；本轮仅离线审查，未改产品、追加采样或重跑验收，未提交/合并/部署。见[裁决与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-final-evidence-review.md)。下方为历史。
 
-> **2026-10-26 两条回复P95定点完成：** 最终4b0eef09/API87095083在正常worker、真实HTTP登录生成且全程保留的LIVE占用下，compat预览−1.266%、展开+1.719%，各300对、1200请求零错误，RAW/QPC及资源判据PASS。首轮UTC跳变失败保留；获续权后仅一次临时修复与定点执行，原tsc/timesyncd active/enabled已恢复并独立核验，运行时为0，D盘任务存储已卸载。旧目录未迁移，新大产物直接写D。两项指定缺口已收口；历史单轮失败与未确认汇总口径的使用边界交独立审查，不自行标整体阶段5完成、不自动追加采样。第6阶段未开始，未提交/合并/部署。见[记录与证据](../comment-snapshot-redis/stage-5-replies-repaired-execution.md)。下方为历史。
-
-
-> **2026-10-26 两条回复P95定点验证：** 已固定4b0eef09/API87095083及每路径300对、<=5%参数；只读预检第180秒WSL UTC相对RAW跳变+1.293秒，超过事先0.2秒门槛，停止于HTTP采样前。预览/展开各0样本，均NOT_RUN，不生成新P95或覆盖旧失败；无系统修改、无重试/扩样。用户更正后取消未完成迁移，原缓存/源码未移动删除；后续新缓存/大产物用D盘任务目录。第5阶段仍未完成、第6阶段未开始。见[记录与证据](../comment-snapshot-redis/stage-5-replies-targeted-execution.md)。下方为历史。
+> **2026-10-26 两条回复P95定点完成：** 最终4b0eef09/API87095083在正常worker、真实HTTP登录生成且全程保留的LIVE占用下，compat预览−1.266%、展开+1.719%，各300对、1200请求零错误，RAW/QPC及资源判据PASS。首轮UTC跳变失败保留；获续权后仅一次临时修复与定点执行，原tsc/timesyncd active/enabled已恢复并独立核验，运行时为0，D盘任务存储已卸载。旧目录未迁移，新大产物直接写D。两项指定缺口已收口；历史单轮失败与未确认汇总口径的使用边界交独立审查，不自行标整体阶段5完成、不自动追加采样。第6阶段未开始，未提交/合并/部署。见[记录与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-replies-repaired-execution.md)。下方为历史。
 
 
-> **2026-10-26 第5阶段空worker最小修复完成：** CleanupSessionResults只在短预算内成功确认无LIVE候选时跳过；错误回原父上下文，实际清理保留原最终Gate/Abort。最终源码4b0eef09/API87095083的build、受影响vet及15项真实SQL/race定点测试PASS、0FAIL/0SKIP；确认空批次Gate三次接口调用降为0，非空安全路径不变。未重跑整轮/30分钟/真机；历史P95失败保持，新版本P95尚无完整结论，第5阶段仍未完成、第6阶段未开始。一次性夹具已收尾，系统设置未改，未提交/合并/部署。见[实施及证据](../comment-snapshot-redis/stage-5-worker-precheck-execution.md)。下方保留历史。
+> **2026-10-26 两条回复P95定点验证：** 已固定4b0eef09/API87095083及每路径300对、<=5%参数；只读预检第180秒WSL UTC相对RAW跳变+1.293秒，超过事先0.2秒门槛，停止于HTTP采样前。预览/展开各0样本，均NOT_RUN，不生成新P95或覆盖旧失败；无系统修改、无重试/扩样。用户更正后取消未完成迁移，原缓存/源码未移动删除；后续新缓存/大产物用D盘任务目录。第5阶段仍未完成、第6阶段未开始。见[记录与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-replies-targeted-execution.md)。下方为历史。
 
 
-> **2026-10-26 第5阶段空worker预检审查完成：** CleanupSessionResults可按限定方案实施：仅成功查明无LIVE候选才跳过，真实清理保留原最终Gate/Abort；预检最多50ms且不超过父剩余预算10%，异常回原路径。并发到达按实际整轮调度重查，既有阻塞文件锁不支持绝对墙钟清理上界，未据此声称2秒清完。已列W1–W6必要单项验证，产品代码未改、测试未跑；第5阶段仍未完成，第6阶段未开始。见[限定审查](../comment-snapshot-redis/stage-5-worker-precheck-review.md)，下一步由调度切Sol/high实施；不重复未受影响验收，不重开整轮。下方为历史。
+> **2026-10-26 第5阶段空worker最小修复完成：** CleanupSessionResults只在短预算内成功确认无LIVE候选时跳过；错误回原父上下文，实际清理保留原最终Gate/Abort。最终源码4b0eef09/API87095083的build、受影响vet及15项真实SQL/race定点测试PASS、0FAIL/0SKIP；确认空批次Gate三次接口调用降为0，非空安全路径不变。未重跑整轮/30分钟/真机；历史P95失败保持，新版本P95尚无完整结论，第5阶段仍未完成、第6阶段未开始。一次性夹具已收尾，系统设置未改，未提交/合并/部署。见[实施及证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-worker-precheck-execution.md)。下方保留历史。
 
 
-> **2026-10-26 第5阶段针对性修正完成，阶段仍未满足性能条件：** Sol/high修复TCP_NODELAY、中点预热及完整请求RAW分段计时；有效20请求对照把额外传输等待由约42ms降到约0.4ms。最终源码0481b785/API0c419619的build/vet/host/race、真实SQL/Redis31 PASS和共享限流39 PASS；既有fixture SKIP保留。用户撤回整轮后立即停止于兼容初页各129条，保存部分数据，未运行下一模式；旧回复P95失败不改标PASS。原tsc、timesyncd active/enabled实际恢复，运行时无残留。两项旧版本真实30分钟及真我限定证据准确复用；公共Gate/空worker竞争待调度审查最小方案，未改授权或worker语义。第6阶段未开始，未提交/合并/部署。见[本轮记录](../comment-snapshot-redis/stage-5-targeted-execution.md)。下方为历史。
+> **2026-10-26 第5阶段空worker预检审查完成：** CleanupSessionResults可按限定方案实施：仅成功查明无LIVE候选才跳过，真实清理保留原最终Gate/Abort；预检最多50ms且不超过父剩余预算10%，异常回原路径。并发到达按实际整轮调度重查，既有阻塞文件锁不支持绝对墙钟清理上界，未据此声称2秒清完。已列W1–W6必要单项验证，产品代码未改、测试未跑；第5阶段仍未完成，第6阶段未开始。见[限定审查](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-worker-precheck-review.md)，下一步由调度切Sol/high实施；不重复未受影响验收，不重开整轮。下方为历史。
 
 
-> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第二次限定审查完成，阶段5未完成：** 同一冻结二进制正式兼容预览+7.312%/展开+8.169% FAIL，steady四路径PASS；容量/故障/限流隔离/回退及同二进制增长补跑PASS。PG兼容实际1805秒PASS；Redis阅读原轮58次后400导致harness FAIL，UTC/单调参考差44秒且初始expiry未记录，保留失败、不认定提前到期或30分钟PASS。JSON拆分约69–71%脚本原语耗时在解码/编码，支持定长STRING首修；完整状态/迁移/回退、清理上界与PG发出版本桥接方案已形成，未实施新格式。等待调度切Sol/high实现并完整复验，第6阶段未开始，未提交/合并/发布。下方进行中记录保留为历史。见[第二次限定审查](../comment-snapshot-redis/stage-5-second-limited-review.md)、[证据](../comment-snapshot-redis/stage-5-second-review-evidence.json)。
+> **2026-10-26 第5阶段针对性修正完成，阶段仍未满足性能条件：** Sol/high修复TCP_NODELAY、中点预热及完整请求RAW分段计时；有效20请求对照把额外传输等待由约42ms降到约0.4ms。最终源码0481b785/API0c419619的build/vet/host/race、真实SQL/Redis31 PASS和共享限流39 PASS；既有fixture SKIP保留。用户撤回整轮后立即停止于兼容初页各129条，保存部分数据，未运行下一模式；旧回复P95失败不改标PASS。原tsc、timesyncd active/enabled实际恢复，运行时无残留。两项旧版本真实30分钟及真我限定证据准确复用；公共Gate/空worker竞争待调度审查最小方案，未改授权或worker语义。第6阶段未开始，未提交/合并/部署。见[本轮记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-targeted-execution.md)。下方为历史。
 
 
-> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第5阶段Sol执行中：** 保留单次编码并复用完整校验统计、合并维护采样；真实Redis12 PASS，最终快照/评论28 PASS/2既有fixture SKIP、共享限流39 PASS/1既有设备fixture SKIP，Go主机/build/vet PASS。独立Android2502真实TLS读取live5/down2及每阶段九项fixture界面PASS，lease已释放，整条生产UI/原生vault不提升。两种统一诊断均FAIL，仅诊断；同一冻结二进制的正式双模式四路径、进程容量/故障及真实时间campaign正在运行，第5阶段未完成，第6阶段未开始；未提交/合并/部署。见[执行记录](../comment-snapshot-redis/stage-5-stats-reuse-execution.md)、[证据](../comment-snapshot-redis/stage-5-stats-execution-evidence.json)。
-
-> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第5阶段限定审查完成，阶段未完成：** 双独立API、容量/故障、冻结版本实际1805秒Redis阅读和1803秒PG V1/V2兼容窗口已记录；冻结正式P95预览+5.317% FAIL，单次编码候选11项真实Redis-race通过但P95主翻页+6.174% FAIL，不拼接各轮通过。候选未发现削弱所列一致性不变量，仍需统一完整fixture/基线模式、诊断维护与排队并由Sol/high修复及完整受影响复验。见[限定审查](../comment-snapshot-redis/stage-5-limited-consistency-performance-review.md)、[证据](../comment-snapshot-redis/stage-5-limited-review-evidence.json)。设备lease现已释放，端到端真机仍待重新核实获取；未提交/合并/发布，第6阶段未开始。下方历史不覆盖此状态。
+> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第二次限定审查完成，阶段5未完成：** 同一冻结二进制正式兼容预览+7.312%/展开+8.169% FAIL，steady四路径PASS；容量/故障/限流隔离/回退及同二进制增长补跑PASS。PG兼容实际1805秒PASS；Redis阅读原轮58次后400导致harness FAIL，UTC/单调参考差44秒且初始expiry未记录，保留失败、不认定提前到期或30分钟PASS。JSON拆分约69–71%脚本原语耗时在解码/编码，支持定长STRING首修；完整状态/迁移/回退、清理上界与PG发出版本桥接方案已形成，未实施新格式。等待调度切Sol/high实现并完整复验，第6阶段未开始，未提交/合并/发布。下方进行中记录保留为历史。见[第二次限定审查](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-second-limited-review.md)、[证据](../comment-snapshot-redis/stage-5-second-review-evidence.json)。
 
 
-> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第 4 阶段：** 客户端分层失效/局部刷新、单次短重试及 nonce、主评论/所属楼层临时置顶去重、刷新恢复排序与迟到回调隔离完成。最终客户端964 PASS/0 FAIL/3既有fixture SKIP、analyze0、ARM64 bundle/APK PASS；真实Dart/TLS/Redis/SQL的响应丢失/nonce/游标/429/400及断Redis两次请求PASS。用户要求重试后，真我RMX3366/API34独立2026102501包的9项生产widget场景全部PASS（数据/authority为fixture，不冒充端到端真机或原生存储）；日常2427数据不变，lease已释放。见[阶段详情](../comment-snapshot-redis/stage-4-client-recovery-and-pins.md)、[证据](../comment-snapshot-redis/stage-4-evidence.json)。阶段5待调度，本需求未提交/合并/发布。下方较早阶段与待验状态保留为历史。
+> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第5阶段Sol执行中：** 保留单次编码并复用完整校验统计、合并维护采样；真实Redis12 PASS，最终快照/评论28 PASS/2既有fixture SKIP、共享限流39 PASS/1既有设备fixture SKIP，Go主机/build/vet PASS。独立Android2502真实TLS读取live5/down2及每阶段九项fixture界面PASS，lease已释放，整条生产UI/原生vault不提升。两种统一诊断均FAIL，仅诊断；同一冻结二进制的正式双模式四路径、进程容量/故障及真实时间campaign正在运行，第5阶段未完成，第6阶段未开始；未提交/合并/部署。见[执行记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-stats-reuse-execution.md)、[证据](../comment-snapshot-redis/stage-5-stats-execution-evidence.json)。
+
+> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第5阶段限定审查完成，阶段未完成：** 双独立API、容量/故障、冻结版本实际1805秒Redis阅读和1803秒PG V1/V2兼容窗口已记录；冻结正式P95预览+5.317% FAIL，单次编码候选11项真实Redis-race通过但P95主翻页+6.174% FAIL，不拼接各轮通过。候选未发现削弱所列一致性不变量，仍需统一完整fixture/基线模式、诊断维护与排队并由Sol/high修复及完整受影响复验。见[限定审查](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-5-limited-consistency-performance-review.md)、[证据](../comment-snapshot-redis/stage-5-limited-review-evidence.json)。设备lease现已释放，端到端真机仍待重新核实获取；未提交/合并/发布，第6阶段未开始。下方历史不覆盖此状态。
 
 
-> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第 3 阶段：** 已 fast-forward 集成正式共享限流 PR #73/main `c051981`，保留原差异备份并解决重放冲突；服务端不可变快照、30 分钟 TTL、原子配额/预算、SQL 后发布及补偿、V1/V2/PG 回退、定位和运行配置/CLI 已实现。最终快照/评论隔离回归23 PASS/0 FAIL/2 SKIP，共享限流39 PASS/0 FAIL/1设备夹具SKIP，全后端host/build/vet和完整契约PASS；不拼接历史轮次。客户端、两个API进程、容量/P95、真机和远端CI仍待后续阶段，本需求未提交/合并/发布。见[阶段记录](../comment-snapshot-redis/stage-3-backend-and-integration.md)及[机器证据](../comment-snapshot-redis/stage-3-evidence.json)。下方较早的阶段状态保留为历史快照。
+> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第 4 阶段：** 客户端分层失效/局部刷新、单次短重试及 nonce、主评论/所属楼层临时置顶去重、刷新恢复排序与迟到回调隔离完成。最终客户端964 PASS/0 FAIL/3既有fixture SKIP、analyze0、ARM64 bundle/APK PASS；真实Dart/TLS/Redis/SQL的响应丢失/nonce/游标/429/400及断Redis两次请求PASS。用户要求重试后，真我RMX3366/API34独立2026102501包的9项生产widget场景全部PASS（数据/authority为fixture，不冒充端到端真机或原生存储）；日常2427数据不变，lease已释放。见[阶段详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-4-client-recovery-and-pins.md)、[证据](../comment-snapshot-redis/stage-4-evidence.json)。阶段5待调度，本需求未提交/合并/发布。下方较早阶段与待验状态保留为历史。
 
 
-> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
+> **2026-10-25 COMMENT-SNAPSHOT-REDIS-01 第 3 阶段：** 已 fast-forward 集成正式共享限流 PR #73/main `c051981`，保留原差异备份并解决重放冲突；服务端不可变快照、30 分钟 TTL、原子配额/预算、SQL 后发布及补偿、V1/V2/PG 回退、定位和运行配置/CLI 已实现。最终快照/评论隔离回归23 PASS/0 FAIL/2 SKIP，共享限流39 PASS/0 FAIL/1设备夹具SKIP，全后端host/build/vet和完整契约PASS；不拼接历史轮次。客户端、两个API进程、容量/P95、真机和远端CI仍待后续阶段，本需求未提交/合并/发布。见[阶段记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-3-backend-and-integration.md)及[机器证据](../comment-snapshot-redis/stage-3-evidence.json)。下方较早的阶段状态保留为历史快照。
+
+
+> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
 
 > **2026-10-24 SHARED-RATE-LIMIT-01送审追加：** CI记录时[Draft PR73](https://github.com/zewbby/HnuHole/pull/73)已提交推送，指定Android场景PASS；6e50244远端13workflow/23job全SUCCESS，见[版本化CI证据](../shared-rate-limit-remote-ci-verification.json)。runtime沿原生已测33bdcc0，后续只CI/旧host工具修复；待独立成员review、未合并发布。本次回执编写时纯文档更新CI待新head；CI记录时为Draft，后续检查/送审状态以live PR为准，历史模块总裁决及旧计数不变。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实429保原文字/身份/帖子/root/target/图片，跨force-stop恢复、到期不自动发、手动原键一次受理与SQL匹配已限定PASS。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
+> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实429保原文字/身份/帖子/root/target/图片，跨force-stop恢复、到期不自动发、手动原键一次受理与SQL匹配已限定PASS。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 429保留原帖子/回复目标/身份/文字/图片任务并持久等待，到期用户手动同键重试，不自动发表；未知先核原回执。原SQL120新回执/60秒保留，comment.publish独立SW；body实际字节与逻辑发表分别计。B06/B07仅本任务限定证据。 [当前任务](../../branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
+> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 429保留原帖子/回复目标/身份/文字/图片任务并持久等待，到期用户手动同键重试，不自动发表；未知先核原回执。原SQL120新回执/60秒保留，comment.publish独立SW；body实际字节与逻辑发表分别计。B06/B07仅本任务限定证据。 [当前任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
 
 > **2026-10-24 合并回执：** 本需求已通过 PR [#71](https://github.com/zewbby/HnuHole/pull/71) Squash 合入 main，合并 SHA `a715dc7e8b6a3b1395bc968274bce3865f63f21b`。最终产品源码 `ed1b5e3`，送审 HEAD `aef7618`（仅追加交接文档）；21 项远端检查全部 PASS，包含 Android 构建、完整契约、评论真实隔离 PostgreSQL/TLS 及受影响模块。最终本地 Flutter 924 PASS / 3 SKIP、分析 0；独立审查两处 P2 均已修复且复核无阻断。已构建同签名 2428 Profile 包，尚未安装；真我仍为实测 2427，其 20.3 分钟/28 轮和弱网证据保留原版本，不视作最终 HEAD 真机验收。iOS、完整模块、生产未发布等边界不提升。下文“本地未提交/未合并”属于历史快照。
 
-> **2026-10-24 最新真我2427（本地未合并）：** 20.3分钟/28轮连续操作、限速/断连后图片恢复、实际发表去重清理及35秒读取超时恢复限定PASS；补修旧上下文覆盖新计数/权限、恢复后错误残留及图片传输失败关闭查看器，包含首条立即展示。统一回归232 PASS，分析0；[新报告](../post-detail-comments-weak-soak-20261024.md)按设备/版本保留证据，完整模块与生产结论不提升。
+> **2026-10-24 最新真我2427（本地未合并）：** 20.3分钟/28轮连续操作、限速/断连后图片恢复、实际发表去重清理及35秒读取超时恢复限定PASS；补修旧上下文覆盖新计数/权限、恢复后错误残留及图片传输失败关闭查看器，包含首条立即展示。统一回归232 PASS，分析0；[新报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comments-weak-soak-20261024.md)按设备/版本保留证据，完整模块与生产结论不提升。
 
-> 2026-10-24 最终提交展示：本地持久任务保存成功即在评论区首条显示本人原内容，不显示发送中；发布成功自动去重并保持首条，无成功提示或刷新动作，失败撤回本地展示并提醒、保留原材料。117项宿主回归PASS，源码冻结但新逻辑真机待统一包验收，见[报告](../post-detail-comment-optimistic-submit-20261024.md)。这一明确新要求覆盖此前“正在发送评论…”占位文字。
+> 2026-10-24 最终提交展示：本地持久任务保存成功即在评论区首条显示本人原内容，不显示发送中；发布成功自动去重并保持首条，无成功提示或刷新动作，失败撤回本地展示并提醒、保留原材料。117项宿主回归PASS，源码冻结但新逻辑真机待统一包验收，见[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comment-optimistic-submit-20261024.md)。这一明确新要求覆盖此前“正在发送评论…”占位文字。
 
-> 2026-10-24 最新2424：评论操作提示在顶部独立占位，发送失败只进系统消息；键盘浮动输入栏不缩放阅读区，长列表懒构建及按需回复读取，正文/评论/身份读取并行。隐藏首页不跟随键盘布局，普通会话期限更新不重建首页；授权变化仍正常退出保护内容。vivo2424同签安装、原生相册取消及图片往返限定通过，性能与各版本证据见[最新报告](../post-detail-comments-status-report-20261024.md)。本地未合并，完整模块结论不提升。
+> 2026-10-24 最新2424：评论操作提示在顶部独立占位，发送失败只进系统消息；键盘浮动输入栏不缩放阅读区，长列表懒构建及按需回复读取，正文/评论/身份读取并行。隐藏首页不跟随键盘布局，普通会话期限更新不重建首页；授权变化仍正常退出保护内容。vivo2424同签安装、原生相册取消及图片往返限定通过，性能与各版本证据见[最新报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comments-status-report-20261024.md)。本地未合并，完整模块结论不提升。
 
 > 2026-10-24 视频续修：历史任务不在重进详情时重放定位；后台发布定位不弹删除提示，新评论回读和数量回调同步当前页面。未知发言身份用中性占位，已知身份展开不变。评论图占满160dp单图区域，图片自然到期可前台重新授权读取，加载/失败/重读保持网格高度；授权拒绝仍停止。已有身份账号启动等待不展示初始身份设置。范围及版本见[续修证据](../post-detail-comments-video-verification-20261024.json)，未合并。
 
@@ -79,7 +79,7 @@
 
 用户本轮附件与明确要求覆盖下方旧分屏／独立输入页描述：详情正文操作栏后直接连接评论，正文和评论连续滚动；“相关”打开“对回复排序”，最近／最相关／最多点赞为单选。默认最相关保持既有热评前十后按时间，另外两项分别为全主评论时间倒序／赞数降序，服务端分页固定快照。楼中楼原排序与具体回复关系保留。
 
-回复栏固定底部，头像、图片、放大分别可操作；文字输入在键盘上方展开，收起保留临时草稿和对象，离开帖子清除。GIF沿原图链路选择、校验、预览、移除和发送，不新增在线素材服务。详情见[任务与验证](../../branches/feat-post-detail-comments.md)。仅本分支已实现，未合并／发布；下方未被覆盖的身份、权限与发送可靠性规则继续适用。
+回复栏固定底部，头像、图片、放大分别可操作；文字输入在键盘上方展开，收起保留临时草稿和对象，离开帖子清除。GIF沿原图链路选择、校验、预览、移除和发送，不新增在线素材服务。详情见[任务与验证](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-post-detail-comments.md)。仅本分支已实现，未合并／发布；下方未被覆盖的身份、权限与发送可靠性规则继续适用。
 
 更新：2026-09-23。当前规则只在本模块维护。
 
@@ -256,8 +256,8 @@
 
 ## 设计图
 
-- [回复输入状态 · v3 已确认布局](../../../UI产品图/回复输入状态.png)：展示回复某条评论的输入画面；未展示的发布结果与异常状态仍待细化。
-- [楼中楼回复 · 历史三条版](../../../UI产品图/楼中楼回复.png)：原图仍展示三条，尚未同步新的五条与分段排序；只能用于头像、回复关系和展开入口的视觉参考，当前数量和排序以 COMMENT-03 为准。
+- 回复输入状态 · v3 已确认布局（原文件 `UI产品图/回复输入状态.png` 未随当前仓库交付）：展示回复某条评论的输入画面；未展示的发布结果与异常状态仍待细化。
+- 楼中楼回复 · 历史三条版（原文件 `UI产品图/楼中楼回复.png` 未随当前仓库交付）：原图仍展示三条，尚未同步新的五条与分段排序；只能用于头像、回复关系和展开入口的视觉参考，当前数量和排序以 COMMENT-03 为准。
 
 图中文字、昵称、时间与数字为示例。图稿确认不代表未展示规则已经确定。
 
@@ -272,9 +272,9 @@
 
 ## 决策来源
 
-- [帖子详情、回复与面具联系设计](../../discussions/2026-09-08-post-contact-design.md)：COMMENT-02、COMMENT-03、DETAIL-03、DETAIL-04 及相关展示边界。
-- [回复输入状态 · v3](../../discussions/2026-09-09-reply-input-preview.md)：已确认输入布局、图片入口、草稿和发布流程。
-- [初期需求记录](../../discussions/2026-09-06-hainanu-treehole.md)：评论范围与原始规则。
+- [帖子详情、回复与面具联系设计](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-08-post-contact-design.md)：COMMENT-02、COMMENT-03、DETAIL-03、DETAIL-04 及相关展示边界。
+- [回复输入状态 · v3](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-09-reply-input-preview.md)：已确认输入布局、图片入口、草稿和发布流程。
+- [初期需求记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)：评论范围与原始规则。
 
 本文件作为评论模块当前规则的维护入口；讨论记录保留决策依据，候选方案经用户确认后再更新本文件。
 

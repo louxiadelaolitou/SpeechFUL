@@ -1,11 +1,38 @@
 # REPOSITORY-CLEANUP-01 — 文档入口与历史维护材料整理
 
 - 模式：常规；负责人／状态维护人：当前 Session。
-- 分支／Worktree／PR：`codex/docs/repository-entry-cleanup`；`D:/SpeechFUL`；未创建 PR。实际基线为本地 `origin/main` 与 `main` 一致的 `3db6fac2351d3fe4d3824aeca5aa0cbdb562693a`，开始时工作区干净。此前提交因缺少 Git 作者身份未生成；用户配置后，本轮已核实作者与提交者身份，按明确要求保存本地提交。
+- 分支／Worktree／PR：本轮 `codex/docs/prune-historical-docs-20261110`；`E:/Hnuhole-env/source/SpeechFUL-docs-prune-20261110`；[PR #129](https://github.com/zewbby/SpeechFUL/pull/129)。初始基线为 `origin/main` 的 `fbf5e6be302432db8a187a6293403b88be454bc7`，独立 Worktree 开始时干净；期间 main 合入 runner／tools 清理，已整合 `50baa3c2768b69188f2d6562cdb8b6c51e9fa674`，最终差异以该 main 为准。前轮分支为 `codex/docs/repository-entry-cleanup`，基线 `3db6fac2351d3fe4d3824aeca5aa0cbdb562693a`，已同步 GitHub。
+- 本轮授权与需求确认：用户询问 main 的 docs 为何有大量 Markdown、哪些不需要，随后明确“弄好以后直接清了合并上去就行”。本轮据此清理过程文档、修复历史引用、提交、推送、创建 PR 并在检查通过后合并；不涉及正式部署。现行业务规则和验收门槛不变，原文通过固定 Git 提交保留，无新增产品取舍。
 - 授权依据：用户要求“先处理文档入口和新旧冲突，再清理确认多余的文件，不要改变现有业务行为”；补充包含虽有引用但缺乏维护价值的内容。Q1 明确选择“按建议清理，历史通过 Git 追溯”。允许更新引用、删除被替代的历史材料及仅服务旧快照的检查；不删除当前安全、数据库升级和设备行为覆盖。随后明确要求本地提交、让整理版本成为 main，并追加“推送到 GitHub”。按连续指令同步本地 main 至 `origin/main`，只作正常快进推送，不强制覆盖，不扩大到正式部署。
 - 需求确认：当前术语以已确认的校邮重置、暂停恢复码／Passkey 和“分类”规则为准，不重新定义产品行为。依据为 [AUTH-EMAIL-RESET-01](AUTH-EMAIL-RESET-01.md)、[PROFILE-SETTINGS-01](PROFILE-SETTINGS-01.md) 与现有 `GLOSSARY.md`。历史资料使用上述固定基线追溯，禁止改写旧 PASS、摘要和回执。无未决取舍。
 - 更新日期：2026-11-10。
-- 状态：实现 已完成；验证 PASS（本轮文档、依赖与协作检查；扩展工具全套有 1 项环境 BLOCKED，见下）；合并 main 已快进整合整理提交 `711f809` 及任务状态补充；GitHub 同步按本次授权执行，远端位置以 `origin/main` 核对；发布 未发布（仓库同步不等于部署）。
+- 状态：本轮实现 已完成；本地验证 PASS，最终 head 远端结果见 [PR Checks](https://github.com/zewbby/SpeechFUL/pull/129/checks)；合并 [PR #129 实时状态](https://github.com/zewbby/SpeechFUL/pull/129)；发布 未发布。前轮已完成并同步 main，原扩展工具缺依赖记录保留在下方。
+
+## 本轮：精简 docs 过程文档
+
+初查 main 共有 404 个 docs Markdown，期间 runner／tools 清理新增 2 份任务记录；整合后的 main 基线为 406 个。本轮删除 267 个，最终保留 139 个：旧分支记录 77、早期讨论 45、逐轮 UI 评审 36、阶段执行／交接／专项报告 108、最初协作规范落地过程 1。删除项逐文件定位到基线原件，源码、脚本及 CI 无路径或文件名调用；不能仅以“有文档引用”作为继续保留过程副本的理由。
+
+保留现行模块规则、协议契约、架构／ADR、威胁模型、运行与回退手册、任务记录；特别保留评论快照一致性设计和 main 默认配置说明。文字帖 `original/` 的 19 份固定字节原件及 manifest 有现行契约校验，不删。其余原始 JSON、截图、源码、测试、迁移及 workflow 也不改动。
+
+剩余 Markdown 中指向删除文档的链接改为 `50baa3c` 完整 SHA 下的原文，保留 main 新增的工具退役注释；分支和讨论 README 改为简短历史入口，修正已失效的“README 分支一览”维护规则。CONTRIBUTING 明确同一任务集中记录，不按分支、问答轮次或修复尝试另建过程文档。删除清单以本轮 Git diff 为准，统一历史入口见 [archive](../archive/README.md)。
+
+本轮还标明未随当前仓库交付的旧图／prompt 文件，移除失效链接，修正编辑迁移的当前链接（0030，原历史编号叙述不改）。UI 评审工作流及项目技能的复审模板改为复用任务记录，避免继续按页按轮生成过程 Markdown；技能名称、发现方式、产品规则和其他资源不变。
+
+初次实现提交为 `dd2ed0649094d8d23a85515c6478b0b49b3776f6`。整合后的本轮验证绑定 `50baa3c2768b69188f2d6562cdb8b6c51e9fa674`＋本轮完整 Markdown 差异（由本分支整合提交承载），环境为 Windows PowerShell／Python 3.9.13。验证之后仅更新任务证据不使原检查失效；提交前仍核对暂存差异。
+
+| 本轮验证 | 命令与范围 | 结果 |
+| --- | --- | --- |
+| 文档与历史链接 | 一次性 Python 路径扫描／Git `cat-file --batch-check`；检查器保存在任务自有 `E:/Hnuhole-env/tmp/docs-prune-verify-20261110.py` | PASS：1034 个本地链接无缺失；169 个固定提交原文／目录对象可读取；267 个删除项均属于固定基线 |
+| 删除调用与行为边界 | 扫描已跟踪源码、脚本和 workflow 的删除路径及 basename；`git diff --name-only` | PASS：无调用；全部变更均为 Markdown，源码、现行测试、迁移、CI、原始 JSON、图片和 `original/` 字节不变 |
+| 协作回归 | `python -B -X utf8 -m unittest discover -s tools/tests -p test_collaboration.py -v` | PASS：19 项 |
+| 契约与原始归档 | `python -B -X utf8 -m unittest discover -s tools/tests -p test_community_text_contract.py -v` | PASS：10 项，含原始 Git blob 字节与 manifest 完整性 |
+| 项目 UI 技能 | `quick_validate.py .agents/skills/hnuhole-ui-craft`；人工核对复审模板与 CONTRIBUTING 一致 | PASS；仅修改复审记录位置 |
+| 差异与暂存 | `git diff --check`；`python -B -X utf8 tools/check-collaboration.py --staged` | PASS；最终整合提交前复核暂存范围，远端结果见 PR policy |
+| 产品运行验收 | 业务及运行文件未改变 | NOT_RUN：不启动数据库、服务或设备，不重新宣称 SQL、真机、性能或生产验收通过 |
+
+本轮 PR 的最终 head、CI 和合并 SHA 由关联 PR 实时记录，不为回写自身合并再创建文档 PR。
+
+## 前轮记录（保持原验证范围）
 
 ## 目标与范围
 

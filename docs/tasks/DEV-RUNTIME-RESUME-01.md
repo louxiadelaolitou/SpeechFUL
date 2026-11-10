@@ -32,7 +32,7 @@
 
 ## 阻碍与下一步
 
-PR #91已按用户授权Squash合入main `3bd8299c05c1143a9885ac61c67b42200df72d82`，与最终head `004fc1b0cb1253a9e1a4ffde1fbaebf3e9eed553` 完整树一致。专用恢复器CI（run40988578295）与协作CI（run40988602086）均PASS；同head被替代的协作run已取消，不计失败。已测源码/安装摘要不变。整合efef91f后本页为唯一任务状态来源；[早期分支记录](../branches/fix-development-runtime-resume.md)和旧HANDOFF等保留为此前规则阶段快照，后续不再并行维护。生产/iOS/再次真实隔夜窗口未追加验收。
+PR #91已按用户授权Squash合入main `3bd8299c05c1143a9885ac61c67b42200df72d82`，与最终head `004fc1b0cb1253a9e1a4ffde1fbaebf3e9eed553` 完整树一致。专用恢复器CI（run40988578295）与协作CI（run40988602086）均PASS；同head被替代的协作run已取消，不计失败。已测源码/安装摘要不变。整合efef91f后本页为唯一任务状态来源；[早期分支记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-development-runtime-resume.md)和旧HANDOFF等保留为此前规则阶段快照，后续不再并行维护。生产/iOS/再次真实隔夜窗口未追加验收。
 
 ## 合并后交接
 

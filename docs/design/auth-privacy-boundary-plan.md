@@ -17,4 +17,4 @@
 | 客户端 | AuthStore/codec/vault、HttpAuthApi、身份与当前通道客户端 | 两侧安装 ID 与请求键分离；固定受信端点；敏感状态仅安全存储及必要流程使用；诊断不得反射错误、响应或秘密。 |
 | 后续业务 | B05–B11、媒体／聊天本地清理 | 公开资料、注销占位、帖内绑定、身份对私信、管理／恢复规则固定；未实现调用者与动态证明明确列为 NOT_RUN，不能只称待测试。 |
 
-源码核对和自动化负向测试属于有范围的实现检查，不构成人类独立安全审计或生产批准。具体结果与源文件见 [AC03报告](auth-privacy-boundary-validation-report.md) 和 [后续契约](auth-privacy-business-contract.md)。
+源码核对和自动化负向测试属于有范围的实现检查，不构成人类独立安全审计或生产批准。具体结果与源文件见 [AC03报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-boundary-validation-report.md) 和 [后续契约](auth-privacy-business-contract.md)。

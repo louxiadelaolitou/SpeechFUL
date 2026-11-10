@@ -1,6 +1,6 @@
 # 非 iOS 匿名基础验收任务单
 
-> **2026-10-13 B6与单台Android范围完成：**完整R01 SQL/race/vet、R03实际C/V的19项检查、R05真实Dart→HTTPS→SQL、三个Flutter包分析、移动端188项与Passkey Dart 9项、标准Android Debug／Release构建、原生vault 16项／Passkey codec及错误分类12项、三组实际跨进程读写和已安装Release 13项边界均PASS。Windows／Linux各108项宿主守卫、诊断构建8项、JVM策略24项及四份OpenAPI通过。固定24项维持22 PASS／0 FAIL／2 BLOCKED；原14阶段及各设备版本保留，原SDK-only三项FAIL与历史UNKNOWN未改写。**不需要第二实体Android的非iOS匿名基础工作已完成，唯一固定缺口为NI-X01／X02；完整非iOS、iOS、生产与未来业务仍未获通过。**原手机三包摘要、原provider／autofill、账号与草稿保留；本轮独立模拟器停止，专用AVD／构建副本／临时APK及原始日志已清理，现成环境与缓存保留。HnuHole仅准备本地可审阅候选，未提交／推送／部署。见[B6报告](auth-privacy-b6-validation-report.md)及[最终分层记录](../../services/api/authlab/b6-single-android-20261013-verification.json)。
+> **2026-10-13 B6与单台Android范围完成：**完整R01 SQL/race/vet、R03实际C/V的19项检查、R05真实Dart→HTTPS→SQL、三个Flutter包分析、移动端188项与Passkey Dart 9项、标准Android Debug／Release构建、原生vault 16项／Passkey codec及错误分类12项、三组实际跨进程读写和已安装Release 13项边界均PASS。Windows／Linux各108项宿主守卫、诊断构建8项、JVM策略24项及四份OpenAPI通过。固定24项维持22 PASS／0 FAIL／2 BLOCKED；原14阶段及各设备版本保留，原SDK-only三项FAIL与历史UNKNOWN未改写。**不需要第二实体Android的非iOS匿名基础工作已完成，唯一固定缺口为NI-X01／X02；完整非iOS、iOS、生产与未来业务仍未获通过。**原手机三包摘要、原provider／autofill、账号与草稿保留；本轮独立模拟器停止，专用AVD／构建副本／临时APK及原始日志已清理，现成环境与缓存保留。HnuHole仅准备本地可审阅候选，未提交／推送／部署。见[B6报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-b6-validation-report.md)及[最终分层记录](../../services/api/authlab/b6-single-android-20261013-verification.json)。
 
 下方记录保留原日期、被测版本与证明范围；本轮结论以上述B6入口为准。
 
@@ -8,7 +8,7 @@
 
 日期：2026-10-05。用户要求先完成 iOS 以外的部分；仅在 `codex/auth-privacy-handoff` 完成匿名基础 AC01–AC06，不扩展帖子、评论、聊天或生产发布。保留原正常链路、三组故障证据及所有已有未提交实现。用户要求后续复用的环境／缓存／测试包保留。
 
-**2026-10-08 批量验收交接：**十四个命名实际App阶段已PASS，每项保留自己的APK／夹具／runner摘要、设备PID和代理计数。覆盖真实注册、双端独立草稿／手机主动接替／账号隔离，真实Passkey成功响应丢失与原键跨进程COMMITTED核对，实际provider期间控制器取消与产品返回，C证据过期冻结后的旧会话401／主动登录／明确结束旧UNKNOWN，两次提前成功后的原回执确认与产品移除，未回应原生操作约60秒取消，篡改来源422拒绝及自然到期原键NOT_COMMITTED核对。旧来源拒绝在核对前遇USB及服务中断，仍按原版本保留，未迁成新会话原结果；新的完整负向／核对另有自己的证明。取消／超时后的OEM窗口清理由宿主在原生结果后执行，不宣称自动关闭或任意迟到回调；两秒观察范围保持。对应四组SQL/race/vet、R03十九项、R05及Flutter188项回归PASS，不代证新夹具；新夹具分析／ARM64＋x64构建与设备执行逐项PASS。Activity重建／旋转、原生等待期间Gate／接替、完整关联／签名负向及真实Passkey／未知迟到待办参与关闭仍需补入口和证据。仅有vivo，OEM实体搬家BLOCKED；iOS本轮SKIP；完整AC05／B02及生产继续未通过。工具、环境、缓存、原账号与草稿按用户指令保留；未提交／推送。见[报告](auth-privacy-non-ios-validation-report.md)和[机器记录](../../services/api/authlab/android-matrix-verification.json)。
+**2026-10-08 批量验收交接：**十四个命名实际App阶段已PASS，每项保留自己的APK／夹具／runner摘要、设备PID和代理计数。覆盖真实注册、双端独立草稿／手机主动接替／账号隔离，真实Passkey成功响应丢失与原键跨进程COMMITTED核对，实际provider期间控制器取消与产品返回，C证据过期冻结后的旧会话401／主动登录／明确结束旧UNKNOWN，两次提前成功后的原回执确认与产品移除，未回应原生操作约60秒取消，篡改来源422拒绝及自然到期原键NOT_COMMITTED核对。旧来源拒绝在核对前遇USB及服务中断，仍按原版本保留，未迁成新会话原结果；新的完整负向／核对另有自己的证明。取消／超时后的OEM窗口清理由宿主在原生结果后执行，不宣称自动关闭或任意迟到回调；两秒观察范围保持。对应四组SQL/race/vet、R03十九项、R05及Flutter188项回归PASS，不代证新夹具；新夹具分析／ARM64＋x64构建与设备执行逐项PASS。Activity重建／旋转、原生等待期间Gate／接替、完整关联／签名负向及真实Passkey／未知迟到待办参与关闭仍需补入口和证据。仅有vivo，OEM实体搬家BLOCKED；iOS本轮SKIP；完整AC05／B02及生产继续未通过。工具、环境、缓存、原账号与草稿按用户指令保留；未提交／推送。见[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-non-ios-validation-report.md)和[机器记录](../../services/api/authlab/android-matrix-verification.json)。
 
 2026-10-07 批量接续（历史快照，后续以2026-10-08交接段为准）：用户要求扩大单轮验收范围，确认仅有 vivo S18，无第二台实体 Android。使用新隔离根 `/var/tmp/hnuhole-android-live-batch-20261007`，保留原 boundary／closure 根及手机数据。完整 SQL／Go race／vet、实际 C/V 进程、R05 真实 Dart→HTTPS→SQL 和 Flutter 全量测试四个已启动进程均退出0；待导出其被测源码清单及脱敏详细记录，不把这些回归当成新增批量手机夹具的运行证据。
 
@@ -28,7 +28,7 @@
 
 本轮双设备登录／接替与 V Gate 实际 App 场景已取得证据。V 无确认锚点查询修复经 R01／R03／R05 当前回归及未过期旧代次 flow 的实际 App 核对验证。接着使用独立 [完整 App 存储夹具](../../apps/mobile/integration_test/auth_android_storage_device_test.dart)和[宿主 runner](../../tools/run-android-app-storage.py)补模拟器实际登录／身份草稿跨进程、卸载重装空状态和仅恢复旧密文缺钥时的产品拒绝页面；这不等于 OEM 搬家或物理手机卸载已验证。
 
-免费 RP 候选为 GitHub Pages 用户站点 `zewbby.github.io`。公开发布内容只含实际测试签名的 assetlinks、空 `.nojekyll` 和静态说明，不包含 API、邮箱、令牌、数据库、私钥或运行配置。用户已授权创建并发布；站点及 Google Digital Asset Links 核验已通过，源码与域名证据见[当前报告](auth-privacy-non-ios-validation-report.md)。系统设备场景仍需实际运行，不由域名证据代证。
+免费 RP 候选为 GitHub Pages 用户站点 `zewbby.github.io`。公开发布内容只含实际测试签名的 assetlinks、空 `.nojekyll` 和静态说明，不包含 API、邮箱、令牌、数据库、私钥或运行配置。用户已授权创建并发布；站点及 Google Digital Asset Links 核验已通过，源码与域名证据见[当前报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-non-ios-validation-report.md)。系统设备场景仍需实际运行，不由域名证据代证。
 
 2026-10-06 OTP 续办增量：按现有注册协议第7节补原流程已清理时的明确用户入口及持久恢复。通过[实际App夹具](../../apps/mobile/integration_test/auth_android_otp_continuation_device_test.dart)和[宿主runner](../../tools/run-android-otp-continuation.py)分 start／finish 执行：真实发码、冻结拒绝、恢复后等待不可变期限及正常清理，再以原键确认／核对，独立进程主动续办并取得同公钥／槽位的新票据。只读计数证明明确操作前没有新发码／C账号或会话变化；不改 SQL 期限，不重装清除原操作。当前客户端分析、188项测试及R05已PASS；设备阶段只有机器记录中的实际接受项可计PASS。
 

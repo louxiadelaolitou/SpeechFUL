@@ -33,7 +33,7 @@
 旧尝试捕获的代次不匹配时永久停止；撤销注销或处罚到期不会自动复活旧尝试。
 退出、会话接替、密码重设和临时 Gate 冻结不等于取消已经受理的任务。
 删身份、删帖、封禁和关闭账号继续执行各自的内容与图片生命周期清理；图片 API 关闭也不能跳过已有图片的擦除。
-最后一点的主线修复和回归见 [B5 整合报告](auth-privacy-b5-main-integration-report.md)。
+最后一点的主线修复和回归见 [B5 整合报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-b5-main-integration-report.md)。
 
 ## 文字、图片与隐私边界
 

@@ -10,4 +10,4 @@
 
 ## 结束条件与边界
 
-每个关键不变量有测试入口、执行记录与精确证明范围；新增真实客户端场景运行通过，失败先修复再复验。R05 使用内存 vault 和实际 HTTP handler，不能宣称完整 App→实际 cmd／原生存储通过。AC05 平台、系统 Passkey、物理设备及 P02–P06 生产证据继续单列；B02 整模块仍 BLOCKED，未来业务消费者未实现。结果见[回归报告](auth-privacy-regression-validation-report.md)和[机器记录](../../services/api/authlab/privacy-regression-verification.json)。
+每个关键不变量有测试入口、执行记录与精确证明范围；新增真实客户端场景运行通过，失败先修复再复验。R05 使用内存 vault 和实际 HTTP handler，不能宣称完整 App→实际 cmd／原生存储通过。AC05 平台、系统 Passkey、物理设备及 P02–P06 生产证据继续单列；B02 整模块仍 BLOCKED，未来业务消费者未实现。结果见[回归报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-regression-validation-report.md)和[机器记录](../../services/api/authlab/privacy-regression-verification.json)。

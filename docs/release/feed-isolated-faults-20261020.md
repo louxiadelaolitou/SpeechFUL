@@ -43,4 +43,4 @@
 
 ## GET注入严格契约增量
 
-#32旧注入缺body.requestId，生产Dart会按401/503进入格式错误回退；原宿主状态码自测不能代证规范错误解析。独立 `codex/fix/feed-fault-error-contract` 补同一canonical requestId用于正文和header、无续期/不去上游的TLS断言，旧实现实际FAIL后修复12项PASS；本段为分支范围，未合并/部署前设备GET注入保持NOT_RUN。真实上游200/202 drop及旧请求412不受影响。见[任务及验证](../branches/fix-feed-fault-error-contract.md)。
+#32旧注入缺body.requestId，生产Dart会按401/503进入格式错误回退；原宿主状态码自测不能代证规范错误解析。独立 `codex/fix/feed-fault-error-contract` 补同一canonical requestId用于正文和header、无续期/不去上游的TLS断言，旧实现实际FAIL后修复12项PASS；本段为分支范围，未合并/部署前设备GET注入保持NOT_RUN。真实上游200/202 drop及旧请求412不受影响。见[任务及验证](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-feed-fault-error-contract.md)。

@@ -46,4 +46,4 @@ C/V 端点、请求编号、安装 ID、幂等键、密钥、普通日志与备�
 | 媒体 | 自定义头像权限、审核、留存和资料投影 | 尚未集成，NOT_RUN |
 | A12／P02–P06 | 生产日志／备份权限、灾备、真实分权和人类独立审计 | 环境／外部事实待验，BLOCKED／NOT_RUN |
 
-后续模块任务单需引用本页并映射测试到既有模块台账；完整 B02 状态继续包含这些实际尚未实现的联动。当前 AC03 的边界核对结果见 [验证报告](auth-privacy-boundary-validation-report.md)。
+后续模块任务单需引用本页并映射测试到既有模块台账；完整 B02 状态继续包含这些实际尚未实现的联动。当前 AC03 的边界核对结果见 [验证报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-boundary-validation-report.md)。

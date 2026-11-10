@@ -4,7 +4,7 @@
 
 ## 依据与安全不变量
 
-依据[匿名收口清单](auth-privacy-closure-checklist.md)的 AC01、[已确认的 Gate 设计](auth-authorization-safety-gate.md)和[第39轮最终答复](../discussions/2026-09-29-grilling-round39.md)。沿用已确认的 5 秒回退容忍、最多 5 分钟签名证据、持久冻结、单个受限恢复角色、显式代次推进及审计；正常恢复与受控 break-glass 分别验证证据。工程复用同一状态机，V 具有自己的数据库状态、域、信任材料和库外锚点。
+依据[匿名收口清单](auth-privacy-closure-checklist.md)的 AC01、[已确认的 Gate 设计](auth-authorization-safety-gate.md)和[第39轮最终答复](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-29-grilling-round39.md)。沿用已确认的 5 秒回退容忍、最多 5 分钟签名证据、持久冻结、单个受限恢复角色、显式代次推进及审计；正常恢复与受控 break-glass 分别验证证据。工程复用同一状态机，V 具有自己的数据库状态、域、信任材料和库外锚点。
 
 V 无法确认当前时间、数据库状态或恢复代次可信时，资格操作及受保护结果核对 fail closed。C 正常运行、C Gate OPEN、重启、时间重新向前或取得新证据，都不能直接解除 V FROZEN。数据库中的 OPEN 必须与 V 的独立库外锚点匹配。
 

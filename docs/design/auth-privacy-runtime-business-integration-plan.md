@@ -1,6 +1,6 @@
 # C/V 开发服务与业务授权接入实施计划
 
-日期：2026-10-01。规划时范围与必要决策已收口；随后用户授权按 T0–T6 实施，当前代码与 runner 已落盘，编译和动态验收因本机缺工具仍待执行。实际状态见[实施／验证记录](auth-privacy-runtime-business-integration-validation-report.md)。下文保留规划时的范围、顺序与完成标准，“拟新增”路径的当前状态以报告为准。
+日期：2026-10-01。规划时范围与必要决策已收口；随后用户授权按 T0–T6 实施，当前代码与 runner 已落盘，编译和动态验收因本机缺工具仍待执行。实际状态见[实施／验证记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-runtime-business-integration-validation-report.md)。下文保留规划时的范围、顺序与完成标准，“拟新增”路径的当前状态以报告为准。
 
 ## 1. 目标、范围与约束
 
@@ -23,11 +23,11 @@
 - 沿用 Goose、sqlc、oapi-codegen、宿主机 Go／Flutter 与 Compose 基础设施；限定工具版本。`go.mod` 声明 Go 1.22、现有 Compose 使用 PG16；历史实测为 Go 1.27.1／PG18.6，不能外推兼容性。执行前核对并实测声明版本；若确需提高最低版本，记录原因并更新基线，禁止静默采用 latest。
 - 大型验证运行时、构建缓存和 APK 已按用户要求清理。本轮不下载、不重建；实施时优先复用另一电脑现成工具，输出可复现命令和小型脱敏证据。只删除本次创建且可确认归属的临时产物。
 
-四项已确认决策见[第 40 轮](../discussions/2026-10-01-grilling-round40.md)。
+四项已确认决策见[第 40 轮](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-10-01-grilling-round40.md)。
 
 ## 2. 实际缺口与阅读顺序
 
-新会话先读本计划、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[最新原生／真实联调报告](auth-privacy-mobile-native-integration-validation-report.md)、[Safety Gate 设计](auth-authorization-safety-gate.md)、[迁移设计](auth-privacy-database-migration-design.md)及[实验 README](../../services/api/authlab/README.md)。涉及具体规则时查对应 OpenAPI 与当前实现，不从历史节点重新推导需求。
+新会话先读本计划、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[最新原生／真实联调报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-mobile-native-integration-validation-report.md)、[Safety Gate 设计](auth-authorization-safety-gate.md)、[迁移设计](auth-privacy-database-migration-design.md)及[实验 README](../../services/api/authlab/README.md)。涉及具体规则时查对应 OpenAPI 与当前实现，不从历史节点重新推导需求。
 
 | 现有文件／符号 | 已核实的现状 | 本片应得到的结果 |
 | --- | --- | --- |
@@ -161,7 +161,7 @@ export AUTHLAB_MOBILE_FLUTTER="$(command -v flutter)"
 sh authlab/run-mobile-isolated.sh
 ```
 
-原生设备／iOS 的现有脚本与配置以[最新平台报告](auth-privacy-mobile-native-integration-validation-report.md)和移动端 README 为准。macOS 可从仓库根目录运行 `sh packages/auth_vault/test/native/run-installation-marker.sh`，仅证明文件标记回归。Android 当前 checkout 没有 Gradle wrapper，须先做标准 Flutter 构建生成配置，不能把报告中的 `./gradlew` 说成 clone 后直接可执行。新的运行时 runner、迁移／生成校验命令在实现后提供，不能拿上述 httptest 实验当实际 cmd 启动证明。没有工具或设备时把具体目标交给另一电脑验证并列为缺失证据，不能自行降低完成标准。
+原生设备／iOS 的现有脚本与配置以[最新平台报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-mobile-native-integration-validation-report.md)和移动端 README 为准。macOS 可从仓库根目录运行 `sh packages/auth_vault/test/native/run-installation-marker.sh`，仅证明文件标记回归。Android 当前 checkout 没有 Gradle wrapper，须先做标准 Flutter 构建生成配置，不能把报告中的 `./gradlew` 说成 clone 后直接可执行。新的运行时 runner、迁移／生成校验命令在实现后提供，不能拿上述 httptest 实验当实际 cmd 启动证明。没有工具或设备时把具体目标交给另一电脑验证并列为缺失证据，不能自行降低完成标准。
 
 Windows 路径已确认使用 WSL2：Go、文件锚点、开发密钥和 POSIX runner 在 WSL2 Linux 文件系统中执行，不放在未验证的 `/mnt/c` 等 Windows 挂载目录。Docker Desktop 的 WSL2 集成或 WSL 内 Docker 按实际环境记录。Windows 宿主机 Flutter／Android 用于 app 构建和设备运行；现有 Go fixture 会直接 exec Flutter 并生成 Linux 路径配置，headless 联调必须使用 WSL2 内 Linux Flutter，不能直接传 Windows `.bat` 路径。Linux SDK 来源／版本和清理方式在运行说明中登记，优先复用验证电脑现有依赖，不在本机恢复大型缓存。若未来要 Go 原生 Windows，须另片实现和验证文件锁、原子替换与持久落盘语义。
 

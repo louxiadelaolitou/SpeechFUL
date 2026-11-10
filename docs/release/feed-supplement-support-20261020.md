@@ -1,7 +1,7 @@
 # 隔离补验协议：可信 HTTPS 与原评论 worker 失败重试
 
 FEED-SUPPLEMENT-SUPPORT-01，仅2026-10-20本轮合成隔离环境。任务及状态见
-[分支记录](../branches/test-feed-supplement-support.md)。产品和现有恢复方案不变；正式
+[分支记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/test-feed-supplement-support.md)。产品和现有恢复方案不变；正式
 环境没有访问、部署或恢复授权。下述协议与实际结果分别记录；一次真实worker失败
 及2011候选同一原任务恢复限定PASS，旧2010 FA-D08失败保留；可信入口已打通，
 profile2012已完成单机预设帧/内存预算限定PASS，非生产SLA。

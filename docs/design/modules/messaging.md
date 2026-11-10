@@ -1,12 +1,12 @@
 # 私信与会话
 
-> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
+> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
 
 > **2026-10-24 SHARED-RATE-LIMIT-01送审追加：** CI记录时[Draft PR73](https://github.com/zewbby/HnuHole/pull/73)已提交推送，指定Android场景PASS；6e50244远端13workflow/23job全SUCCESS，见[版本化CI证据](../shared-rate-limit-remote-ci-verification.json)。runtime沿原生已测33bdcc0，后续只CI/旧host工具修复；待独立成员review、未合并发布。本次回执编写时纯文档更新CI待新head；CI记录时为Draft，后续检查/送审状态以live PR为准，历史模块总裁决及旧计数不变。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 实际429计数、原生持久队列保序、queued取消、unknown close/迟到PUT永久COMMAND_CLOSED、独立会话/ACK及真实Redis暂停503后恢复全部限定PASS。未确认只转圈，无待发送文本；非已发撤回。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
+> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 实际429计数、原生持久队列保序、queued取消、unknown close/迟到PUT永久COMMAND_CLOSED、独立会话/ACK及真实Redis暂停503后恢复全部限定PASS。未确认只转圈，无待发送文本；非已发撤回。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 本地持久队列默认256（100只是批次），同会话保序、独立接收ACK、notBefore跨重启；未确认只转圈，无待发送文本。首次回复前一条文字无图，WAITING_FOR_REPLY不自动重发。queued可取消；unknown只隐藏，再POST /api/v1/dm/commands/{id}/close（仅attempt）核SENT或永久FAILED/COMMAND_CLOSED；原账号锁/命令表跨attempt锚，120新锚/60秒，close独立cooldown不停ACK，不扣send/create/upload，不撤回已发。B08/B09仅本任务限定证据。 [当前任务](../../branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
+> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 本地持久队列默认256（100只是批次），同会话保序、独立接收ACK、notBefore跨重启；未确认只转圈，无待发送文本。首次回复前一条文字无图，WAITING_FOR_REPLY不自动重发。queued可取消；unknown只隐藏，再POST /api/v1/dm/commands/{id}/close（仅attempt）核SENT或永久FAILED/COMMAND_CLOSED；原账号锁/命令表跨attempt锚，120新锚/60秒，close独立cooldown不停ACK，不扣send/create/upload，不撤回已发。B08/B09仅本任务限定证据。 [当前任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
 
 更新：2026-09-16。当前会话边界按双方所选身份确定，不再按来源帖强制拆分。
 
@@ -76,7 +76,7 @@
 
 ### DM-IDENTITY-02：使用预设身份联系
 
-- [首发身份选择 L v2](../../../UI产品图/私信聊天-首发身份选择-配色L-v2.png)页面已确认：从首次聊天输入区“选择发送身份”打开底部单选面板；点“使用此身份”只确认选择并回输入区，不发送、不绑定。关闭不发送、不绑定。面板中的选中样例不表示默认选择原始身份；实际点击发送才按下述规则绑定。
+- 首发身份选择 L v2（原文件 `UI产品图/私信聊天-首发身份选择-配色L-v2.png` 未随当前仓库交付）页面已确认：从首次聊天输入区“选择发送身份”打开底部单选面板；点“使用此身份”只确认选择并回输入区，不发送、不绑定。关闭不发送、不绑定。面板中的选中样例不表示默认选择原始身份；实际点击发送才按下述规则绑定。
 - 自己的发送身份从预设身份中选取；对方身份由被点击的发言或既有会话确定。
 - 已有会话固定对应双方身份；消息页切换身份时按[消息中心 MESSAGE-IDENTITY-01](messages.md)切换全页内容，其中私信展示对应身份的会话集合，不能把已有会话或发送内容改挂到另一身份下。
 - 从帖子点击昵称进入私信时，只要自己已有该帖身份，就固定使用这一身份，不能改用其他预设身份；不限于是否已在该帖公开评论。
@@ -92,7 +92,7 @@
 
 ### DM-CONTACT-01：首次联系只发一条文字
 
-- [首次联系等待回复 · 配色 G v1 · 待评审](../../../UI产品图/私信聊天-首次联系等待回复-配色G-v1.png)展示第一条文字已成功发送、对方尚未回复：保留图片入口、固定身份和限制说明，发送按钮暂不可用。只是该状态的视觉提案，不改变图片尝试发送时拦截或身份归属规则。
+- 首次联系等待回复 · 配色 G v1 · 待评审（原文件 `UI产品图/私信聊天-首次联系等待回复-配色G-v1.png` 未随当前仓库交付）展示第一条文字已成功发送、对方尚未回复：保留图片入口、固定身份和限制说明，发送按钮暂不可用。只是该状态的视觉提案，不改变图片尝试发送时拦截或身份归属规则。
 - 一对身份首次联系时，直接提示“对方回复前只能发一条消息”。图片入口仍显示；用户选择图片并尝试发送时，提示“对方回复前不允许发送图片”，不发送该图片。对方回复前仍只允许成功发送一条文字消息。
 - 对方直接回复后即可连续聊天，不另外设置“接受申请”步骤。
 - 同一对身份跨帖进入既有会话，继续原联系状态，不重置首次消息额度；换身份不能借用另一身份的已开放聊天状态。
@@ -161,14 +161,14 @@
 
 消息首页正常状态及会话列表已有确认的 v1 PNG，见[消息中心](messages.md)。私信图稿按页面与全局配色分别记录：
 
-- [正常聊天 F v1](../../../UI产品图/私信聊天-正常状态-配色F-v1.png)：酒红米杏配色已被明确否决为花哨，结构未明确确认；保留历史稿，不作为主题或定稿。
-- [首次联系等待回复 G v1](../../../UI产品图/私信聊天-首次联系等待回复-配色G-v1.png)：待评审，中性黑灰与单一香槟气泡。
-- [长按对方文字 H v1](../../../UI产品图/私信聊天-长按对方文字-配色H-v1.png)：2026-09-21 用户认可黑灰蓝灰配色纳入候选，未锁全局主题，未额外宣称整页定稿；左侧对方菜单仅复制、删除、举报。
-- [长按本人文字 I v1](../../../UI产品图/私信聊天-长按本人文字-配色I-v1.png)：2026-09-21 用户“可以，下一个图”，页面定稿；右侧选中本人气泡，下方菜单仅复制、删除、撤回，示例成功消息处于两分钟窗口内。灰橄榄配色不因此锁为全局主题。
-- [撤回成功 J v1](../../../UI产品图/私信聊天-撤回成功-配色J-v1.png)：旧稿，右对齐及无重新编辑的方案已被用户参考图要求替代，保留历史，不作当前准则。
-- [撤回成功 J v2](../../../UI产品图/私信聊天-撤回成功-配色J-v2.png)：按用户参考修订，用户“下一张”确认页面；延续烟紫色，聊天时间线居中显示“你撤回了一条消息　重新编辑”。未点击编辑前已有草稿保持不变；点击后直接回填原文字，不另做回填图。新增重编辑能力及待决边界见 DM-RECALL-01。普通消息仍左对方右自己，系统提示不套用普通气泡对齐；全局配色未定。
-- [首发身份选择 L v2](../../../UI产品图/私信聊天-首发身份选择-配色L-v2.png)：用户“下一张”确认紧凑弹框，标题与身份名字缩小、三项平面列表及细分隔线、取消浅色整行大卡片；上方聊天页不变。[L v1](../../../UI产品图/私信聊天-首发身份选择-配色L-v1.png)因弹框字大、框大被否决，不作准则。仅未定该帖身份时选择，已有固定身份会话不能换身份。
-- [长按对方图片 M v1](../../../UI产品图/私信聊天-长按对方图片-配色M-v1.png)：已生成待评审，黑底灰青，同组两张收到图片中只突出第一张，图片下方菜单仅删除／举报；不对整个组操作、不新增复制或撤回，业务按 DM-MESSAGE-MENU-01。
+- 正常聊天 F v1（原文件 `UI产品图/私信聊天-正常状态-配色F-v1.png` 未随当前仓库交付）：酒红米杏配色已被明确否决为花哨，结构未明确确认；保留历史稿，不作为主题或定稿。
+- 首次联系等待回复 G v1（原文件 `UI产品图/私信聊天-首次联系等待回复-配色G-v1.png` 未随当前仓库交付）：待评审，中性黑灰与单一香槟气泡。
+- 长按对方文字 H v1（原文件 `UI产品图/私信聊天-长按对方文字-配色H-v1.png` 未随当前仓库交付）：2026-09-21 用户认可黑灰蓝灰配色纳入候选，未锁全局主题，未额外宣称整页定稿；左侧对方菜单仅复制、删除、举报。
+- 长按本人文字 I v1（原文件 `UI产品图/私信聊天-长按本人文字-配色I-v1.png` 未随当前仓库交付）：2026-09-21 用户“可以，下一个图”，页面定稿；右侧选中本人气泡，下方菜单仅复制、删除、撤回，示例成功消息处于两分钟窗口内。灰橄榄配色不因此锁为全局主题。
+- 撤回成功 J v1（原文件 `UI产品图/私信聊天-撤回成功-配色J-v1.png` 未随当前仓库交付）：旧稿，右对齐及无重新编辑的方案已被用户参考图要求替代，保留历史，不作当前准则。
+- 撤回成功 J v2（原文件 `UI产品图/私信聊天-撤回成功-配色J-v2.png` 未随当前仓库交付）：按用户参考修订，用户“下一张”确认页面；延续烟紫色，聊天时间线居中显示“你撤回了一条消息　重新编辑”。未点击编辑前已有草稿保持不变；点击后直接回填原文字，不另做回填图。新增重编辑能力及待决边界见 DM-RECALL-01。普通消息仍左对方右自己，系统提示不套用普通气泡对齐；全局配色未定。
+- 首发身份选择 L v2（原文件 `UI产品图/私信聊天-首发身份选择-配色L-v2.png` 未随当前仓库交付）：用户“下一张”确认紧凑弹框，标题与身份名字缩小、三项平面列表及细分隔线、取消浅色整行大卡片；上方聊天页不变。L v1（原文件 `UI产品图/私信聊天-首发身份选择-配色L-v1.png` 未随当前仓库交付）因弹框字大、框大被否决，不作准则。仅未定该帖身份时选择，已有固定身份会话不能换身份。
+- 长按对方图片 M v1（原文件 `UI产品图/私信聊天-长按对方图片-配色M-v1.png` 未随当前仓库交付）：已生成待评审，黑底灰青，同组两张收到图片中只突出第一张，图片下方菜单仅删除／举报；不对整个组操作、不新增复制或撤回，业务按 DM-MESSAGE-MENU-01。
 
 左对方右自己、最初来源帖、固定身份、删除仅本人、撤回由服务端判定等业务均不变。键盘、发送失败、本人图片长按和撤回失败等仍待设计。
 
@@ -185,4 +185,4 @@
 ## 来源
 
 - 2026-09-10 用户明确接受“按身份隔离会话”：同一对身份跨帖延续，任一方换身份则独立。
-- [初期需求讨论](../../discussions/2026-09-06-hainanu-treehole.md)与[旧面具联系讨论](../../discussions/2026-09-08-post-contact-design.md)保留历史依据。
+- [初期需求讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)与[旧面具联系讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-08-post-contact-design.md)保留历史依据。

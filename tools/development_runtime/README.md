@@ -44,4 +44,4 @@ python3 <已核验release>/resume.py --manifest <私有目录>/current.json
 
 `python3 -B -m unittest discover -s tools/development_runtime/tests -v` 及 `python3 -O -B ...` 均10项PASS。新CI运行同样边界回归，不用模拟测试冒充真实库。
 
-最终安装源码已实际完成：三旧入口幂等PASS，平稳停4个API/watch、2个PG、3个Redis后从原入口冷启PASS；source/配置/二进制核验、严格C/V TLS ready、代次和RECOVER计数、会话记录不变；错误source私有副本在任何进程改变前拒绝。详见[任务](../../docs/branches/fix-development-runtime-resume.md)与[脱敏证据](../../docs/design/validation/development-runtime-resume-20261030.json)。
+最终安装源码已实际完成：三旧入口幂等PASS，平稳停4个API/watch、2个PG、3个Redis后从原入口冷启PASS；source/配置/二进制核验、严格C/V TLS ready、代次和RECOVER计数、会话记录不变；错误source私有副本在任何进程改变前拒绝。详见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-development-runtime-resume.md)与[脱敏证据](../../docs/design/validation/development-runtime-resume-20261030.json)。

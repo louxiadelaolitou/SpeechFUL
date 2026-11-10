@@ -1,20 +1,20 @@
 # 个人内容与设置
 
-> **2026-10-24 PERSONAL-REPOST-INTEGRATION-01（PR68，最终UI）：**已提交推送至[PR #68](https://github.com/zewbby/HnuHole/pull/68)，未合并／发布。个人页左上 `:)`、私信同款身份按钮、五栏目及私人转帖完成；按用户最新定稿移除心情气泡与编辑入口。全页及弹层跟随全局深浅主题。Astra High最终2326深浅真机图审查PASS（非GitHub成员批准）；真实C/V HTTPS＋一次性SQL的归档、精确移除、分页、不可用原帖与账号切换限定验收PASS。最新5项个人页/转帖测试、分析0通过；验收产品版本e404f85远端12工作流／21作业全部PASS，Flutter全量879 PASS／3既有fixture SKIP；文档补录未改变产品文件。见[最终交接](../../branches/personal-reposts-integration.md)。
+> **2026-10-24 PERSONAL-REPOST-INTEGRATION-01（PR68，最终UI）：**已提交推送至[PR #68](https://github.com/zewbby/HnuHole/pull/68)，未合并／发布。个人页左上 `:)`、私信同款身份按钮、五栏目及私人转帖完成；按用户最新定稿移除心情气泡与编辑入口。全页及弹层跟随全局深浅主题。Astra High最终2326深浅真机图审查PASS（非GitHub成员批准）；真实C/V HTTPS＋一次性SQL的归档、精确移除、分页、不可用原帖与账号切换限定验收PASS。最新5项个人页/转帖测试、分析0通过；验收产品版本e404f85远端12工作流／21作业全部PASS，Flutter全量879 PASS／3既有fixture SKIP；文档补录未改变产品文件。见[最终交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/personal-reposts-integration.md)。
 
 
-> **2026-10-23 PERSONAL-PROFILE-MOOD-01 初版历史：**`feat/personal-profile-mood` 已实现个人页与五栏缩放动画、头像旁身份切换、按身份的帖子／回复／心情、账号共享的喜欢／收藏列表。155项Flutter测试、分析0、3项真实SQL、9项契约测试及Android ARM64调试包构建PASS；转帖真实能力按用户要求延期到另会话。未提交／合并／发布，设备验收NOT_RUN。见[任务记录](../../branches/feat-personal-profile-mood.md)。
+> **2026-10-23 PERSONAL-PROFILE-MOOD-01 初版历史：**`feat/personal-profile-mood` 已实现个人页与五栏缩放动画、头像旁身份切换、按身份的帖子／回复／心情、账号共享的喜欢／收藏列表。155项Flutter测试、分析0、3项真实SQL、9项契约测试及Android ARM64调试包构建PASS；转帖真实能力按用户要求延期到另会话。未提交／合并／发布，设备验收NOT_RUN。见[任务记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-personal-profile-mood.md)。
 
 > 本轮用户确认的新个人页规则覆盖下方历史双列／双页签布局，历史验收结果保留原证明范围。
 
 
-> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；“我的”渐进加载与栏目往返保留状态完成真我2303限定验收。下方“未合并”为历史快照，完整模块结论不提升，见[任务](../../branches/fix-mobile-navigation-refresh.md)。
+> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；“我的”渐进加载与栏目往返保留状态完成真我2303限定验收。下方“未合并”为历史快照，完整模块结论不提升，见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)。
 
-> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并，续）：**用户已授权前后端更新、真我安装2303并统一验收五项。开发C后端已更新、ready且原授权代次／会话数量未变；真我同签保数据覆盖2303，2306回退包保留。五项基础结构／断网刷新／有界缓存往返／真缩略图与原图查看／个人空态回归通过；系统录屏失败，切换瞬间重影及帧性能尚未确认，用户验收PENDING。完整宿主742 PASS／1 SKIP，构建镜像744 PASS／1 SKIP；历史模块结论不变。见[任务](../../branches/fix-mobile-navigation-refresh.md)及任务内真机证据。
+> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并，续）：**用户已授权前后端更新、真我安装2303并统一验收五项。开发C后端已更新、ready且原授权代次／会话数量未变；真我同签保数据覆盖2303，2306回退包保留。五项基础结构／断网刷新／有界缓存往返／真缩略图与原图查看／个人空态回归通过；系统录屏失败，切换瞬间重影及帧性能尚未确认，用户验收PENDING。完整宿主742 PASS／1 SKIP，构建镜像744 PASS／1 SKIP；历史模块结论不变。见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)及任务内真机证据。
 
 更新：2026-10-09。当前规则只在本模块维护。
 
-- 状态：本次用户附图明确批准F1-16本人发布中、F1-17失败草稿及F1-18续写重试，见[四图定稿](../ui-reviews/post-publish-feedback-selected-v3.md)。这些状态按实际附件双列混排归档，具体选择优先于此前通用对齐要求；用户最新纠正明确“我的”布局已定稿，F1-11正常态复用已选列表版式；刚生成网格v3已撤回，旧网格不再列为待评审任务。上方头像名称、设置与两个页签继续保留，F1-12空态及F1-13宋体弹窗仍正式。图稿不代表接口、持久化或设备验收通过，Flutter社区业务未实现、业务／平台NOT_RUN。
+- 状态：本次用户附图明确批准F1-16本人发布中、F1-17失败草稿及F1-18续写重试，见[四图定稿](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-feedback-selected-v3.md)。这些状态按实际附件双列混排归档，具体选择优先于此前通用对齐要求；用户最新纠正明确“我的”布局已定稿，F1-11正常态复用已选列表版式；刚生成网格v3已撤回，旧网格不再列为待评审任务。上方头像名称、设置与两个页签继续保留，F1-12空态及F1-13宋体弹窗仍正式。图稿不代表接口、持久化或设备验收通过，Flutter社区业务未实现、业务／平台NOT_RUN。
 
 ## 范围
 
@@ -94,7 +94,7 @@
 ### PERSONAL-DRAFT-DELETE-01：长按删除草稿
 
 - 在“我的”的“自己的帖子”列表中长按草稿，提供“删除草稿”操作。
-- 2026-10-08用户要求居中弹窗且框内仅两行：第一行“确认删除这篇草稿？”，第二行左“取消”、右亮色醒目的“确认”。覆盖原底部面板及具体标题／无法恢复说明的额外文案要求，删除仍不可恢复。明确确认且实际成功后才移除该草稿，取消或系统返回保留。问题行按用户要求使用稍小宋体，按钮字体不改；当前[宋体问题行v5](../ui-reviews/my-draft-delete-confirm-v5.md)已由用户正式定稿，业务未实现／NOT_RUN。
+- 2026-10-08用户要求居中弹窗且框内仅两行：第一行“确认删除这篇草稿？”，第二行左“取消”、右亮色醒目的“确认”。覆盖原底部面板及具体标题／无法恢复说明的额外文案要求，删除仍不可恢复。明确确认且实际成功后才移除该草稿，取消或系统返回保留。问题行按用户要求使用稍小宋体，按钮字体不改；当前[宋体问题行v5](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/my-draft-delete-confirm-v5.md)已由用户正式定稿，业务未实现／NOT_RUN。
 
 ## 待确认
 
@@ -105,4 +105,4 @@
 
 ## 设计图与来源
 
-当前[我的三状态v1](../ui-reviews/my-content-states-v1.md)批准记录保留，F1-12空态与F1-13宋体弹窗仍正式；F1-11正常态沿用已定本人列表版式，无需再画；未选中网格v2与已撤回v3仅为历史。本次[F1-16／17本人状态和F1-18失败编辑](../ui-reviews/post-publish-feedback-selected-v3.md)按用户附件原图正式归档，正常态复用相同已定布局，任务状态按真实内容呈现，不重画版式。收藏空态及设置等不在本批范围。来源：[需求记录 NAV-01 / SCOPE-01 / TAG-05](../../discussions/2026-09-06-hainanu-treehole.md)。
+当前[我的三状态v1](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/my-content-states-v1.md)批准记录保留，F1-12空态与F1-13宋体弹窗仍正式；F1-11正常态沿用已定本人列表版式，无需再画；未选中网格v2与已撤回v3仅为历史。本次[F1-16／17本人状态和F1-18失败编辑](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-feedback-selected-v3.md)按用户附件原图正式归档，正常态复用相同已定布局，任务状态按真实内容呈现，不重画版式。收藏空态及设置等不在本批范围。来源：[需求记录 NAV-01 / SCOPE-01 / TAG-05](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)。

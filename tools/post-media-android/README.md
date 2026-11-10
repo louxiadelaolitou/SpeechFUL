@@ -1,6 +1,6 @@
 # 主 App 帖子图片 Android 集中验收
 
-> **2026-10-15 本轮S18窗口已结束。**实际结果为[PASS_SCOPED_ANDROID_BUSINESS_DEVICE](../../docs/design/post-image-android-device-report.md)，[机器记录](../../docs/design/post-image-android-device-verification.json)逐项说明PMA01–14范围。源码修复fd2e4c0，最终主App Debug20263116。自己的手机映射/临时文件、App及后端服务已收回，Linux专用库/私钥已删除。Windows材料清理被自动审批拦截，SDK/cache、APK及受限private/profile内的合成材料仍在；不能把原空库、旧源码清单和已结束窗口用于下一次测试。以下保留准备时说明和SOP，所有NOT_RUN为当时状态，以本轮机器记录为当前结果；新窗口先重新核材料/归属/签名与信任，不自动恢复旧会话。
+> **2026-10-15 本轮S18窗口已结束。**实际结果为[PASS_SCOPED_ANDROID_BUSINESS_DEVICE](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-image-android-device-report.md)，[机器记录](../../docs/design/post-image-android-device-verification.json)逐项说明PMA01–14范围。源码修复fd2e4c0，最终主App Debug20263116。自己的手机映射/临时文件、App及后端服务已收回，Linux专用库/私钥已删除。Windows材料清理被自动审批拦截，SDK/cache、APK及受限private/profile内的合成材料仍在；不能把原空库、旧源码清单和已结束窗口用于下一次测试。以下保留准备时说明和SOP，所有NOT_RUN为当时状态，以本轮机器记录为当前结果；新窗口先重新核材料/归属/签名与信任，不自动恢复旧会话。
 
 
 准备阶段只做非手机准备。当时没有运行 ADB、读取设备、安装/启动App或修改手机设置；社区会话占用手机期间不得执行下面的设备步骤。范围为当前主App的帖子图片链路，不接管认证/社区会话的环境、Passkey验收或设备任务。最低Android10/API29，不准备旧系统适配。

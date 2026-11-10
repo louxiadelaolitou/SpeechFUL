@@ -37,4 +37,4 @@
 
 ## 2026-10-30 旧入口修复追加
 
-以上“旧脚本未修”是PR89归档时点。后续DEV-RUNTIME-RESUME-01已将三个旧入口备份并统一指向私有版本绑定恢复器，原命令可以继续调用；真实2PG/3Redis依赖冷启动与三入口幂等均PASS，会话和授权代次未变。代码/安装/限制见[任务](../branches/fix-development-runtime-resume.md)和[恢复器说明](../../tools/development_runtime/README.md)。未来部署仍须核对receipt后显式重新pin清单，不能自动猜测新目录；未注册新开机服务，手机USB转发独立于该工具。
+以上“旧脚本未修”是PR89归档时点。后续DEV-RUNTIME-RESUME-01已将三个旧入口备份并统一指向私有版本绑定恢复器，原命令可以继续调用；真实2PG/3Redis依赖冷启动与三入口幂等均PASS，会话和授权代次未变。代码/安装/限制见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-development-runtime-resume.md)和[恢复器说明](../../tools/development_runtime/README.md)。未来部署仍须核对receipt后显式重新pin清单，不能自动猜测新目录；未注册新开机服务，手机USB转发独立于该工具。

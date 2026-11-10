@@ -1,6 +1,6 @@
 # QQ SMTP 零预算测试配置
 
-本分支新增支持，仅用于开发环境小规模测试。本机开发C/V已加载并验证真实投递与已有账号邮箱登录；完整状态见 [邮箱认证交接](../../docs/branches/feat-email-auth-flow.md)，不代表生产发布。
+本分支新增支持，仅用于开发环境小规模测试。本机开发C/V已加载并验证真实投递与已有账号邮箱登录；完整状态见 [邮箱认证交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-email-auth-flow.md)，不代表生产发布。
 
 在 Windows PowerShell 运行：
 
@@ -30,4 +30,4 @@ resume 只签发同代次的时间证据并通过真实 Gate 校验，不调用 
 
 ## 2026-10-30 日常实例恢复入口更新
 
-上述通用原则仍适用，机器当前C28/V7与专用评论快照Redis的启动顺序及旧脚本风险见[日常恢复说明](../../docs/design/session-runtime-recovery.md)。旧C27 safe-resume及邮箱reconnect不能当作当前权威launcher；本次文档PR没有改写私有脚本。隔夜vivo2702原会话恢复限定PASS，见[验收归档](../../docs/branches/docs-session-overnight-acceptance.md)。
+上述通用原则仍适用，机器当前C28/V7与专用评论快照Redis的启动顺序及旧脚本风险见[日常恢复说明](../../docs/design/session-runtime-recovery.md)。旧C27 safe-resume及邮箱reconnect不能当作当前权威launcher；本次文档PR没有改写私有脚本。隔夜vivo2702原会话恢复限定PASS，见[验收归档](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/docs-session-overnight-acceptance.md)。

@@ -15,7 +15,7 @@
 - [当前 API 说明](../../design/community-text-posting-api.md)
 - [当前事务设计](../../design/community-text-posting-backend-design.md)
 - [ADR 0006 维护说明](../../adr/0006-text-post-command-publication-boundary.md)
-- [分支退役与验证记录](../../branches/community-text-posting.md)
+- [分支退役与验证记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/community-text-posting.md)
 
 ## 原始资料与证据
 

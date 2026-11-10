@@ -1,7 +1,7 @@
 # Authorization Safety Gate：可信时间与灾备授权门禁设计
 
 日期：2026-09-29
-状态：**accepted（2026-09-29）；第 0 步已在隔离认证实验中实施（2026-09-30）。** 第 39 轮四项边界均已确认。实现与验证见[第 0 步交付报告](auth-authorization-safety-gate-validation-report.md)；生产独立授时／外部锚点／灾备演练仍未验收。
+状态：**accepted（2026-09-29）；第 0 步已在隔离认证实验中实施（2026-09-30）。** 第 39 轮四项边界均已确认。实现与验证见[第 0 步交付报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-authorization-safety-gate-validation-report.md)；生产独立授时／外部锚点／灾备演练仍未验收。
 
 ## 1. 目的
 
@@ -328,4 +328,4 @@ Freeze 是安全事件，不应由普通请求、重启或普通健康检查自�
 
 ## 17. 请求取消与检查点收尾
 
-2026-10-19 修复分支的补充规则，实际合并状态见[任务](../branches/fix-gate-cancellation-freeze.md)：调用方取消不是独立证据源失效。锁内、证据返回后和最终业务验证后，在发布前发现取消就拒绝/回滚，不推进或冻结检查点。开始发布独立锚点后，用保留context值但脱离调用方取消的独立10秒SQL deadline完成UPDATE/COMMIT；该deadline不界定文件锁/fsync耗时。真实SQL/锚点故障仍fail closed，需要既有显式签名恢复，不撤销锚点、不自动重开、不放宽签名、TTL、时钟与代次检查。
+2026-10-19 修复分支的补充规则，实际合并状态见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-gate-cancellation-freeze.md)：调用方取消不是独立证据源失效。锁内、证据返回后和最终业务验证后，在发布前发现取消就拒绝/回滚，不推进或冻结检查点。开始发布独立锚点后，用保留context值但脱离调用方取消的独立10秒SQL deadline完成UPDATE/COMMIT；该deadline不界定文件锁/fsync耗时。真实SQL/锚点故障仍fail closed，需要既有显式签名恢复，不撤销锚点、不自动重开、不放宽签名、TTL、时钟与代次检查。

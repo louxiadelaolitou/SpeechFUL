@@ -6,7 +6,7 @@
 
 > **2026-10-24 Android追加：** 此前下文未真机是原host交付时点。现final-r11独立Android包四阶段实际TLS/双PG/Redis限定PASS，见[原生证据](shared-rate-limit-device-verification.json)；原940/3SKIP保持。最新native源码manifest110文件，旧107文件为历史；用户授权提PR/远端CI，当前PR未建、CI NOT_RUN，未合并部署。
 
-任务 `SHARED-RATE-LIMIT-01`，2026-10-24；分支 `feat/shared-rate-limit-abuse-control`，基线 `origin/main@8ed8f28`。新增能力仅在本地，未提交/推送/PR/合并/部署。[阶段1历史原文](shared-rate-limit-stage1-history.md)中的候选TTL、旧键长度和待实现描述不作为当前事实。机制见[架构](shared-rate-limit-architecture.md)，操作见[runbook](shared-rate-limit-runbook.md)，结果和失败历史见[机器记录](shared-rate-limit-verification.json)。
+任务 `SHARED-RATE-LIMIT-01`，2026-10-24；分支 `feat/shared-rate-limit-abuse-control`，基线 `origin/main@8ed8f28`。新增能力仅在本地，未提交/推送/PR/合并/部署。[阶段1历史原文](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/shared-rate-limit-stage1-history.md)中的候选TTL、旧键长度和待实现描述不作为当前事实。机制见[架构](shared-rate-limit-architecture.md)，操作见[runbook](shared-rate-limit-runbook.md)，结果和失败历史见[机器记录](shared-rate-limit-verification.json)。
 
 ## 配置来源与模式
 

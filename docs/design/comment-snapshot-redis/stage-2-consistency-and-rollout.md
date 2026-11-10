@@ -1,10 +1,10 @@
 # 评论分页快照迁移第 2 阶段一致性与发布设计
 
-> **2026-10-26 修复后的配置边界：** 交付模板createBackend=postgres、readPostgres=true、readRedis=false；省略配置及DefaultConfig也保持PG。Redis双读、新建及关闭PG读取，须在可靠环境性能项处理完成并取得启用授权后才执行；当前不部署或启用。测试夹具仅在归属明确的隔离Lab中显式选Redis，与发布默认分离。R6-01–03已实现且定点验证、有限复核通过，阶段6完成；下一步为阶段7 PR及适用CI；性能原FAIL保留，详见[当前计划](execution-plan.md)。
+> **2026-10-26 修复后的配置边界：** 交付模板createBackend=postgres、readPostgres=true、readRedis=false；省略配置及DefaultConfig也保持PG。Redis双读、新建及关闭PG读取，须在可靠环境性能项处理完成并取得启用授权后才执行；当前不部署或启用。测试夹具仅在归属明确的隔离Lab中显式选Redis，与发布默认分离。R6-01–03已实现且定点验证、有限复核通过，阶段6完成；下一步为阶段7 PR及适用CI；性能原FAIL保留，详见[当前计划](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/execution-plan.md)。
 
-> **2026-10-26 发布限制更新：** 用户已允许性能延期以继续代码审查和PR，但尚未允许启用Redis。下文的双读、Redis新建、停PG读取步骤暂不执行；当前默认应为PG/ReadRedis=false，唯一示例的开启值已列为R6-02待修复。可靠环境性能项处理完成并取得启用授权后才执行发布步骤；不在本机追加性能或搭环境。原协议和历史数据格式设计保留，最终v2 packed实现及验收范围见阶段5记录和[当前计划](execution-plan.md)。
+> **2026-10-26 发布限制更新：** 用户已允许性能延期以继续代码审查和PR，但尚未允许启用Redis。下文的双读、Redis新建、停PG读取步骤暂不执行；当前默认应为PG/ReadRedis=false，唯一示例的开启值已列为R6-02待修复。可靠环境性能项处理完成并取得启用授权后才执行发布步骤；不在本机追加性能或搭环境。原协议和历史数据格式设计保留，最终v2 packed实现及验收范围见阶段5记录和[当前计划](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/execution-plan.md)。
 
-工作项 COMMENT-SNAPSHOT-REDIS-01，2026-10-24，Asia/Shanghai。调度指定 GPT-6 Astra / xhigh。本阶段仅设计与设计验证，不实现产品代码、不运行数据库或设备、不提交或发布。基线、接口盘点沿用 [第 1 阶段](stage-1-baseline-and-interfaces.md)，产品约束以 [V1.1](requirements-v1.1.md) 为准。
+工作项 COMMENT-SNAPSHOT-REDIS-01，2026-10-24，Asia/Shanghai。调度指定 GPT-6 Astra / xhigh。本阶段仅设计与设计验证，不实现产品代码、不运行数据库或设备、不提交或发布。基线、接口盘点沿用 [第 1 阶段](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/stage-1-baseline-and-interfaces.md)，产品约束以 [V1.1](requirements-v1.1.md) 为准。
 
 ## 确定的架构
 

@@ -8,7 +8,7 @@
 
 ## 帖子举报、审核和最小系统通知
 
-`codex/feat/report-moderation` 阶段1提供帖子举报、原提交核对、同事实合案、审核、处罚、必要申诉与 App 内通知，0015不依赖评论表。当前评论举报任务在其上支持真实主评论／回复（文字及单图），原请求增加可选 `commentId`；帖子旧请求继续兼容。阶段1证据沿用[原报告](../../docs/design/report-moderation-validation-report.md)，新增评论链见上方报告。
+`codex/feat/report-moderation` 阶段1提供帖子举报、原提交核对、同事实合案、审核、处罚、必要申诉与 App 内通知，0015不依赖评论表。当前评论举报任务在其上支持真实主评论／回复（文字及单图），原请求增加可选 `commentId`；帖子旧请求继续兼容。阶段1证据沿用[原报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/report-moderation-validation-report.md)，新增评论链见上方报告。
 
 已有 C/V 开发环境继续使用原认证和 Gate 初始化／恢复流程。在 **C owner 连接**上按实际 main 的顺序执行迁移；本分支基于0014新增0015，不能跨号或覆盖已合入迁移。迁移后执行 `infra/postgres/grant-community.sql`，图片功能启用时执行 `grant-post-images.sql`，启用审核再执行 `grant-moderation.sql`。0015 的删除／注销清理钩子在关闭审核时仍必需，故必须重跑新版 `grant-community.sql`；启动会核查缺失权限。Down 明确拒绝，采用冻结和前向修复。
 
@@ -28,13 +28,13 @@ psql -X -v ON_ERROR_STOP=1 -v platform_number=001527 "$C_MIGRATION_DSN" -f ../..
 
 Linux／WSL 使用本任务专属缓存、日志及私有数据库 socket，执行 `authlab/run-moderation-isolated.sh`。它拒绝 root 和外部 DSN，结束即清理所建库。设置 `PGPORT` 为本任务端口；`POST_MEDIA_PYTHON`／`POST_MEDIA_FIXTURES` 使用已准备的固定验证器；`MODERATION_GOOSE` 指向 Goose v3.22.1；在 `apps/mobile` 目录先执行 `flutter pub get --enforce-lockfile`，再用 `dart compile exe integration/governance_live_probe.dart -o <本任务绝对路径>` 生成探针，并设置 `MODERATION_PROBE` 为该可执行文件绝对路径。再设置 `MODERATION_NODE`、`MODERATION_PLAYWRIGHT_MODULE`、`MODERATION_BROWSER_OUTPUT`（可选 `MODERATION_BROWSER`）即可同时执行真实网页审核。未提供探针只会明确 SKIP 该项，不能记录为整链 PASS。完整继承 SQL 回归可显式设 `MODERATION_TEST_PATTERN=.` 和 `GOFLAGS=-timeout=25m`，避免 Go 默认十分钟在慢主机提前中断；所有夹具仅使用合成账号。
 
-本轮设备／凭据／原生Passkey接入见[实施报告](../../docs/design/auth-privacy-device-credentials-passkey-validation-report.md)。C可选 `webAuthn:{rpId,origins,androidOrigins}` 固定策略；省略／null保持Passkey禁用，CORS不选择RP或Android签名白名单。`authdev init` 可显式传 `-webauthn-rp-id`、`-webauthn-https-origins`、`-webauthn-android-origins`，不生成虚构部署值。平台关联步骤见[原生包](../../packages/auth_passkey/README.md)，loopback TLS材料不代证手机关联／信任。
+本轮设备／凭据／原生Passkey接入见[实施报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-device-credentials-passkey-validation-report.md)。C可选 `webAuthn:{rpId,origins,androidOrigins}` 固定策略；省略／null保持Passkey禁用，CORS不选择RP或Android签名白名单。`authdev init` 可显式传 `-webauthn-rp-id`、`-webauthn-https-origins`、`-webauthn-android-origins`，不生成虚构部署值。平台关联步骤见[原生包](../../packages/auth_passkey/README.md)，loopback TLS材料不代证手机关联／信任。
 
 `GET /api/v1/auth/credential-change-result` 使用当前Bearer、原 `Credential-Change-ID`／`Idempotency-Key` 核对轮换、绑定、移除，三态均200。缺记录不推断失败，已知意图的不可逆终止和所有成功结论均经最终Gate；过期结果410。返回权威 `Session-Expires-At`，不重放新码或证明，结构复用既有迁移。本轮SQL／HTTP／origin／配置测试缺Go未执行。
 
 `cmd/api` 是社区 C：新注册、密码／恢复／会话、目录与后台注销／收据。`cmd/verifier` 是 V：校邮 OTP、资格、退役续办与收据处理。两方各有独立数据库、运行角色、公开 HTTPS 和内部 mTLS 监听。C 的全部认证与目录授权使用 Safety Gate；新库从 FROZEN 建立，API 启动不解冻。开发配置样例为 `community.config.example.json`、`verifier.config.example.json`；样例中仅有路径与无密码 DSN。 C 标准模板已包含评论及专用 Redis 快照：默认 Redis 新建，保留 PG 旧游标读取；必须提供独立 Redis、密码文件和已初始化的 epoch。启用评论但缺快照配置会启动失败，日志原因为 `comment_snapshot_configuration`，不自动退 PG。显式回退见[运行配置](../../docs/design/comment-snapshot-redis/runtime-and-rollback.md)。
 
-开发初始化与隔离验证不代表当前部署状态或生产验收。历史环境与未执行项见其[对应版本报告](../../docs/design/auth-privacy-runtime-business-integration-validation-report.md)；执行前核实本机实际工具与配置。
+开发初始化与隔离验证不代表当前部署状态或生产验收。历史环境与未执行项见其[对应版本报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-runtime-business-integration-validation-report.md)；执行前核实本机实际工具与配置。
 
 ## 工具与边界
 
@@ -113,7 +113,7 @@ docker compose -p "$DEV_AUTH_PROJECT" -f ../../infra/docker-compose.yml stop
 
 Mailpit SMTP为literal `127.0.0.1:1025`，仅此地址允许无STARTTLS；邮箱UI `http://127.0.0.1:8025`。OTP生成、加密排队与真实SMTP使用已有状态机；未知DATA结果不会自动重投。仅开发操作员在Mailpit UI读取合成测试邮件；C／公共API无取码接口，`cmd/runtimeprobe` 内只读Mailpit latest/raw并验证唯一合成收件人，且要求隔离marker和私有目录，永不打印码。
 
-AC01 已为 V 装配独立 `v_auth` Gate：`eligibility_otp.go` 的发码／等待／预算／锁／验证／投递claim与清理、`eligibility_confirmation.go` 的资格时窗／签名落库／原确认／退役续办与清理，以及 `verifier.go` 的配额／收据裁决均使用可信时间与最终事务授权。V 证据、库外锚点、代次、受限恢复角色和连接池独立于 C；恢复使旧 pending 作业失效。实施与证明边界见 [AC01方案](../../docs/design/auth-verifier-safety-gate-plan.md)和[验证报告](../../docs/design/auth-verifier-safety-gate-validation-report.md)。开发文件锚点不代证生产独立授时／库外存储／灾备运营。
+AC01 已为 V 装配独立 `v_auth` Gate：`eligibility_otp.go` 的发码／等待／预算／锁／验证／投递claim与清理、`eligibility_confirmation.go` 的资格时窗／签名落库／原确认／退役续办与清理，以及 `verifier.go` 的配额／收据裁决均使用可信时间与最终事务授权。V 证据、库外锚点、代次、受限恢复角色和连接池独立于 C；恢复使旧 pending 作业失效。实施与证明边界见 [AC01方案](../../docs/design/auth-verifier-safety-gate-plan.md)和[验证报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-verifier-safety-gate-validation-report.md)。开发文件锚点不代证生产独立授时／库外存储／灾备运营。
 
 WSL2的服务与文件保持WSL所属；Docker published ports必须能从WSL literal loopback连接，先用psql和curl核对当前Docker集成。Android模拟器的10.0.2.2或真实设备LAN访问需要单独显式的HTTPS开发入口、匹配SAN／origin与平台信任步骤；当前生成的loopback证书不代表设备已验收。不要为此开放整个PG／SMTP／Mailpit／内部mTLS。
 
@@ -136,6 +136,6 @@ GOTOOLCHAIN=local GOPROXY=off go vet ./...
 
 本人身份 API 接入相同 C runtime 和最终 Safety Gate：`GET/POST /api/v1/identities`、`PATCH/DELETE /api/v1/identities/{id}`，原结果 `GET /api/v1/identity-change-result`。变更及核对使用独立16字节规范base64url `Idempotency-Key`（与32字节认证操作键不同）；全部成功响应携带同Bearer权威 `Session-Expires-At`。仅本人列表；默认头像 `default-v1`，自定义上传后续媒体实现。
 
-正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。runtime最小版本12并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](../../docs/design/identity-management-validation-report.md)和[AC02本轮报告](../../docs/design/auth-identity-account-closure-validation-report.md)。各版本的服务端、客户端与设备结果分别看对应任务；当前帖内身份绑定和内容／聊天投影已有业务调用，不沿用 B02 基础阶段的“未实现”状态。
+正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。runtime最小版本12并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/identity-management-validation-report.md)和[AC02本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-identity-account-closure-validation-report.md)。各版本的服务端、客户端与设备结果分别看对应任务；当前帖内身份绑定和内容／聊天投影已有业务调用，不沿用 B02 基础阶段的“未实现”状态。
 
 七天缓冲和取消保留身份资料；最终C Gate关闭事务同时擦除全部活动身份的昵称、头像及改名时间，用最终可信时间建立墓碑，不等待V释放ACK。原累计创建状态、已有删除墓碑和成功／拒绝回执保持不变；零身份关闭不自动创建身份，CLOSED不得恢复活动身份。身份生命周期DML只支持现有显式READ COMMITTED事务，其他隔离级别由延迟约束拒绝。旧CLOSED遗留资料升级修复只使用已持久Gate高水位的维护marker，证据不足则迁移失败，不冒称原关闭时间。纯注销投影仅含身份级opaque token、统一头像键和状态；没有新增任意身份查询接口，编号界面格式与真实内容／聊天调用留对应业务片。

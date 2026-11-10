@@ -1,7 +1,7 @@
 # B11 / B08 举报、审核与最小系统通知契约
 
-2026-10-19。帖子治理基础 [PR #18](https://github.com/zewbby/HnuHole/pull/18) 和真实评论 [PR #19](https://github.com/zewbby/HnuHole/pull/19) 已合入 main；阶段1的[报告](report-moderation-validation-report.md)与[机器证据](report-moderation-verification.json)保留原版本范围。
-当前 `codex/feat/comment-report-moderation` 在实际完整评论主线接通评论举报闭环，验证与合并状态见[任务详情](../branches/feat-comment-report-moderation.md)、[新增报告](comment-report-validation-20261019.md)。未部署／发布，完整 B08／B11 仍为 PARTIAL。
+2026-10-19。帖子治理基础 [PR #18](https://github.com/zewbby/HnuHole/pull/18) 和真实评论 [PR #19](https://github.com/zewbby/HnuHole/pull/19) 已合入 main；阶段1的[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/report-moderation-validation-report.md)与[机器证据](report-moderation-verification.json)保留原版本范围。
+当前 `codex/feat/comment-report-moderation` 在实际完整评论主线接通评论举报闭环，验证与合并状态见[任务详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-comment-report-moderation.md)、[新增报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-report-validation-20261019.md)。未部署／发布，完整 B08／B11 仍为 PARTIAL。
 评论发布、图片、失败任务及原任务重试／放弃仍由评论模块拥有；当前直接复用 #19 成果，不开发第二份 provider 或发送状态机。
 
 ## 通知事件与任务
@@ -91,4 +91,4 @@ App 详情复用 `CommentFailureView` 和 `CommentRuntime`，由评论拥有者�
 基础迁移0015保持只依赖原账号、身份和帖子表；真实评论0016／0017已经合入。
 本任务新增0018，在实际评论表上增加案件目标及下架投影、删除终结和发布保护；前向升级，不覆盖既有迁移，不允许跳号，Down拒绝。
 评论举报已完成本任务范围接通，真实失败通知直接沿用 #19；完整互动收件箱、私信证据及系统推送仍不在范围。
-当前实现／验证及最终合并状态见[本任务详情](../branches/feat-comment-report-moderation.md)、[新增证据](comment-report-verification-20261019.json)与[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)，B08／B11不计全平台／生产完整 PASS。
+当前实现／验证及最终合并状态见[本任务详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-comment-report-moderation.md)、[新增证据](comment-report-verification-20261019.json)与[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)，B08／B11不计全平台／生产完整 PASS。

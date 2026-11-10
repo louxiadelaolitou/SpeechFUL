@@ -1,10 +1,10 @@
 # HnuHole 独立图片查看组件
 
-> **2026-10-26 当前本地修复：** `fix/image-viewer-gestures` 使用 `HnuImageViewerRoute` 保留底层页面绘制；普通图上拉/下拉跟手缩小并渐隐黑底，短拖回弹，220ms 动画完成后通知宿主退出。长图仅在手势开始时已到对应边界且为基准缩放才可退出；阅读回顶同一手势不会退出。切图准备即将露出的相邻页，本会话最多保留3页，尺寸总和不超过 `2 * maxPixels`；邻页只保留首帧并卸下监听。源码与验证见[本轮任务](../../docs/branches/fix-image-viewer-gestures.md)。未合并，真机手感/iOS本轮未验。
+> **2026-10-26 当前本地修复：** `fix/image-viewer-gestures` 使用 `HnuImageViewerRoute` 保留底层页面绘制；普通图上拉/下拉跟手缩小并渐隐黑底，短拖回弹，220ms 动画完成后通知宿主退出。长图仅在手势开始时已到对应边界且为基准缩放才可退出；阅读回顶同一手势不会退出。切图准备即将露出的相邻页，本会话最多保留3页，尺寸总和不超过 `2 * maxPixels`；邻页只保留首帧并卸下监听。源码与验证见[本轮任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-image-viewer-gestures.md)。未合并，真机手感/iOS本轮未验。
 
-> **2026-10-15 当前交付：**Android 10/API29 起默认启用原文件保存，iOS 默认关闭，两个平台独立决策。包112＋示例7、分析、bundle、ARM64 debug/release构建和验签通过；S18/API35实际Release 20263021完成47项真实解码/资源检查，补齐有限/无限WebP保存字节与结算清理。TalkBack保留此前人工通过，不重复测试。见[本轮报告](../../docs/design/image-viewer-android-saving-report.md)。下方有日期的段落保留历史状态。
+> **2026-10-15 当前交付：**Android 10/API29 起默认启用原文件保存，iOS 默认关闭，两个平台独立决策。包112＋示例7、分析、bundle、ARM64 debug/release构建和验签通过；S18/API35实际Release 20263021完成47项真实解码/资源检查，补齐有限/无限WebP保存字节与结算清理。TalkBack保留此前人工通过，不重复测试。见[本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/image-viewer-android-saving-report.md)。下方有日期的段落保留历史状态。
 
-> **本轮Android证据：**包108＋示例5、分析/bundle/两份原生构建通过；S18/API35实际20263019，修复缩放旋转并固定资源边界。原格式保存及选定Fossify回放通过；默认保存关闭、iOS与未取证子项单列，见[收尾报告](../../docs/design/image-viewer-android-completion-report.md)。下方旧日期记录保留原证明范围。
+> **本轮Android证据：**包108＋示例5、分析/bundle/两份原生构建通过；S18/API35实际20263019，修复缩放旋转并固定资源边界。原格式保存及选定Fossify回放通过；默认保存关闭、iOS与未取证子项单列，见[收尾报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/image-viewer-android-completion-report.md)。下方旧日期记录保留原证明范围。
 
 > **当前 Android 基线（2026-10-14）：**最低 Android 10 / API29，所有设计遵循 [ADR 0006](../../docs/adr/0006-android-platform-support.md)，不再适配旧系统。示例已移除旧存储权限，保存仍须调用方显式启用。原文件保存与外部相册回放分别验收；vivo Gallery9.4.6.13存在已复现缺陷，Fossify1.14.0已有版本限定证据。
 
@@ -16,11 +16,11 @@
 
 `resourceUsage` 提供当前真实 Flutter 解码器的字节/尺寸/帧数/已解码帧计数。它不是进程内存估算，不发额外通知或调度UI帧；调用方可采样。切图后统计跟随目标页的实际解码器（命中缓存时计数延续），重试/关闭清除本选择统计，背景状态保留真实计数供检测，不能以“忽略后台计数”证明停播。提高上限须自行取得相应设备证据。Android 实际资源量测与本轮状态将在收尾报告登记，未测上限不视为通过。
 
-2026-10-13 接续进入宿主成果保存与 Android 构建/单台平台验证准备。宿主实现已保存至 `3287607cb30887f9df02d2b8dd1cd3fbf3a390cc` 并普通推送；Android 构建及待验状态以 [Android 交接](../../docs/design/image-viewer-android-report.md) 和 [单台清单](../../docs/design/image-viewer-android-checklist.md) 为准。示例使用独立 `component`/`nativecheck` Android flavor；正常查看版保持保存关闭，限定保存实验需两个开关同时满足。核心公共 API 不变，未接入主 App。
+2026-10-13 接续进入宿主成果保存与 Android 构建/单台平台验证准备。宿主实现已保存至 `3287607cb30887f9df02d2b8dd1cd3fbf3a390cc` 并普通推送；Android 构建及待验状态以 [Android 交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/image-viewer-android-report.md) 和 [单台清单](../../docs/design/image-viewer-android-checklist.md) 为准。示例使用独立 `component`/`nativecheck` Android flavor；正常查看版保持保存关闭，限定保存实验需两个开关同时满足。核心公共 API 不变，未接入主 App。
 
 下文的封装交付段落保留 2026-10-12 宿主版本范围；当前平台结果与保存/设备验收不得从旧宿主结果推导。
 
-版本仍为 `0.0.0`。本轮交付独立封装与宿主证据；Android/iOS 原生构建、真实权限、相册动画回放和真机交互待验，不能称双端完整通过。现行范围见 [本轮报告](../../docs/design/image-viewer-component-host-report.md)、[机器交接](../../docs/design/image-viewer-machine-handoff.md) 和 [完整计划](../../docs/design/image-viewer-component-plan.md)。M1 probe 和条件 GIF 实验继续保留为技术研究，不能代证正式组件验收。
+版本仍为 `0.0.0`。本轮交付独立封装与宿主证据；Android/iOS 原生构建、真实权限、相册动画回放和真机交互待验，不能称双端完整通过。现行范围见 [本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/image-viewer-component-host-report.md)、[机器交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/image-viewer-machine-handoff.md) 和 [完整计划](../../docs/design/image-viewer-component-plan.md)。M1 probe 和条件 GIF 实验继续保留为技术研究，不能代证正式组件验收。
 
 ## 公共入口
 

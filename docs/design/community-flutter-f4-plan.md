@@ -2,15 +2,15 @@
 
 ## 2026-10-13 当前接续（下方早期计划与未提交状态为历史）
 
-固定认证d859cb05c772cdf8d8b75e439a2bfedf0414dd46已按用户新指令整合；整合前20文件保存提交7452dadefb52e7b695cdd1079d21083fcb6cae02已正常推送。当前联合主机七stage、mobile320及原生构建PASS，单台Android验收用户明确延期，所有设备用例NOT_RUN；第二台Android、iOS和生产不纳入本轮通过。最终443项源码指纹599757bf3bb84043d5903e8dad375b0650b469dc5088fcc82a16f1b45e1173c7及命令/失败修复/复验条件详见[20261013联合报告](community-auth-integration-report-20261013.md)、[机器记录](community-auth-integration-20261013.json)、[整合差异](community-flutter-f4-auth-integration-diff-20261012.md)和[设备清单](community-single-android-acceptance-20261013.md)。旧“不得提交/未指定认证/20未提交”的指令与结果仅适用其原日期；本轮用户授权正常提交推送本分支，禁止强推、main合并、Release发布与生产部署。F1–F3不重新开发。
+固定认证d859cb05c772cdf8d8b75e439a2bfedf0414dd46已按用户新指令整合；整合前20文件保存提交7452dadefb52e7b695cdd1079d21083fcb6cae02已正常推送。当前联合主机七stage、mobile320及原生构建PASS，单台Android验收用户明确延期，所有设备用例NOT_RUN；第二台Android、iOS和生产不纳入本轮通过。最终443项源码指纹599757bf3bb84043d5903e8dad375b0650b469dc5088fcc82a16f1b45e1173c7及命令/失败修复/复验条件详见[20261013联合报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-auth-integration-report-20261013.md)、[机器记录](community-auth-integration-20261013.json)、[整合差异](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-flutter-f4-auth-integration-diff-20261012.md)和[设备清单](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-single-android-acceptance-20261013.md)。旧“不得提交/未指定认证/20未提交”的指令与结果仅适用其原日期；本轮用户授权正常提交推送本分支，禁止强推、main合并、Release发布与生产部署。F1–F3不重新开发。
 
 ## 2026-10-12 本轮执行边界与收尾
 
-本轮以实际起始 `4d58116bdde2c1d2d406b965590bc1625a5c7955` 的独立clone接续，改动仅未提交；用户明确禁止本轮提交／推送／合并／部署，覆盖下方历史步骤5。F1–F3页面不重做、不扩业务。详情见 [当前验证报告](community-flutter-f4-validation-report-20261012.md) 和 [机器记录](community-flutter-f4-validation-20261012.json)。
+本轮以实际起始 `4d58116bdde2c1d2d406b965590bc1625a5c7955` 的独立clone接续，改动仅未提交；用户明确禁止本轮提交／推送／合并／部署，覆盖下方历史步骤5。F1–F3页面不重做、不扩业务。详情见 [当前验证报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-flutter-f4-validation-report-20261012.md) 和 [机器记录](community-flutter-f4-validation-20261012.json)。
 
 posts-privileges先复现社区授权遗漏，获用户明确确认后仅在本任务SQL源码补入固定514a944文字授权29行。最后修改后六stage全部重跑PASS：全mobile311、R05、本轮F4主机8项、6包server/race、真实受限权限PostSchema9顶层及4生命周期、最终vet；新SDK／缓存／fresh一次性库隔离与最终指纹已核对。授权前FAIL保留历史，旧证据不计本轮；当前host scoped PASS，F4最终BLOCKED_DEPENDENCY等待最终认证SHA，不提交／合并／推送／部署。
 
-认证已提交候选及精确SHA详见 [整合差异清单](community-flutter-f4-auth-integration-diff-20261012.md)，尚无明确最终整合SHA。本轮只比较已提交快照，未合并认证、未复制脏工作树；设备／iOS和实际部署权限／升级／运营不借主机handler结果验收。
+认证已提交候选及精确SHA详见 [整合差异清单](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-flutter-f4-auth-integration-diff-20261012.md)，尚无明确最终整合SHA。本轮只比较已提交快照，未合并认证、未复制脏工作树；设备／iOS和实际部署权限／升级／运营不借主机handler结果验收。
 
 日期：2026-10-10（Asia/Shanghai）。分支 `codex/community-flutter-pages`；前端基线 `d44c5ebe83b5fb20727f3d0d040d7ff93364a265`。
 

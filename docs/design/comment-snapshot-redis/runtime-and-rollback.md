@@ -2,7 +2,7 @@
 
 > **2026-10-27 PR84已合并，main默认Redis：** [PR #84](https://github.com/zewbby/HnuHole/pull/84)合并 `ad0c47ce98cc13093be9b00b48e5d8ea37443cdb`。默认Redis新建及PG/Redis双读，标准C模板接通；启用评论却缺快照配置时启动明确失败，显式PG回退保留。配置5项、build/vet、独立只读审查和12个适用自动workflow通过。现有开发Redis接线只读核对一致，运行环境未改；性能/真机/30分钟未追加验收，生产未发布。见[实现与验证](main-default-20261027.md)；下方默认PG/待合并状态保留原历史时点。
 
-> **2026-10-27 PR80已合并 main：** 合并 `4e7b0fb7d05daa579eb37138d374bb495d4fea30` 与已测 head `a2e98eb` 完整tree一致，既有适用CI通过。一次指定性能场景PASS，历史FAIL及其他未验项保留；同机开发Redis已授权启用并保留PG旧游标读取，仓库默认仍PG，生产未发布。本次仅合并与文档收尾，无新产品测试、性能采样或部署。见[最终合并交接](merge-receipt-20261027.md)。下方待提交／未合并／未启用状态均保留原历史时点。
+> **2026-10-27 PR80已合并 main：** 合并 `4e7b0fb7d05daa579eb37138d374bb495d4fea30` 与已测 head `a2e98eb` 完整tree一致，既有适用CI通过。一次指定性能场景PASS，历史FAIL及其他未验项保留；同机开发Redis已授权启用并保留PG旧游标读取，仓库默认仍PG，生产未发布。本次仅合并与文档收尾，无新产品测试、性能采样或部署。见[最终合并交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/merge-receipt-20261027.md)。下方待提交／未合并／未启用状态均保留原历史时点。
 
 > **2026-10-26 当前交付限制：** 默认配置、缺省配置及交付模板均为 PostgreSQL 新建、readPostgres=true、readRedis=false。阶段6三项修复及有限复核已通过；steady 回复展开 P95 +7.5716285574% 原 FAIL 保留，性能待可靠环境验证／Redis 启用前待验。下列初始化、双读、Redis 新建和停止 PG 读取仅为未来发布步骤；可靠环境性能项处理并取得显式启用授权前不执行。本机性能尝试与环境搭建已停止，合并、部署、启用均未授权。
 

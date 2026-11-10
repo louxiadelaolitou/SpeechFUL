@@ -4,19 +4,19 @@
 
 旧交接台账及仅检查其字段／摘要的工具已退役；历史 JSON 中的原路径、命令和摘要不改写，复核时使用[固定 Git 提交](../../../docs/archive/README.md)。本轮没有删除真实行为测试或隔离数据库 runner。
 
-2026-10-01 真实 Flutter→隔离 C/V HTTPS／PostgreSQL 联调与原生存储收尾见[本轮报告](../../../docs/design/auth-privacy-mobile-native-integration-validation-report.md)及 `mobile-native-integration-verification.json`。新增 `run-mobile-isolated.sh` 创建分离 C/V 库，完成后自动停止并删除临时集群。先在 `apps/mobile` 执行 `flutter pub get`，设置 `AUTHLAB_MOBILE_FLUTTER` 为现有 Flutter 可执行文件，再在本目录上级 `services/api` 执行 `sh authlab/run-mobile-isolated.sh`。测试使用产品 Dart 传输和真实处理器／SQL；内存存储替身不证明平台持久性，历史报告的业务目录尚未接入；当前源码已将目录与新认证统一装配，新的实际 cmd runner 尚待工具齐全电脑执行。
+2026-10-01 真实 Flutter→隔离 C/V HTTPS／PostgreSQL 联调与原生存储收尾见[本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-mobile-native-integration-validation-report.md)及 `mobile-native-integration-verification.json`。新增 `run-mobile-isolated.sh` 创建分离 C/V 库，完成后自动停止并删除临时集群。先在 `apps/mobile` 执行 `flutter pub get`，设置 `AUTHLAB_MOBILE_FLUTTER` 为现有 Flutter 可执行文件，再在本目录上级 `services/api` 执行 `sh authlab/run-mobile-isolated.sh`。测试使用产品 Dart 传输和真实处理器／SQL；内存存储替身不证明平台持久性，历史报告的业务目录尚未接入；当前源码已将目录与新认证统一装配，新的实际 cmd runner 尚待工具齐全电脑执行。
 
-移动端核心状态机历史交付见[原报告](../../../docs/design/auth-privacy-mobile-auth-validation-report.md)和 `mobile-auth-verification.json`。客户端代码在 `apps/mobile`、原生安全存储在 `packages/auth_vault`；历史验证记录保留。用户要求本轮临时工具、缓存和 APK 收尾删除，并推送远端给另一电脑复验；只保留源码、脚本和小型记录。
+移动端核心状态机历史交付见[原报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-mobile-auth-validation-report.md)和 `mobile-auth-verification.json`。客户端代码在 `apps/mobile`、原生安全存储在 `packages/auth_vault`；历史验证记录保留。用户要求本轮临时工具、缓存和 APK 收尾删除，并推送远端给另一电脑复验；只保留源码、脚本和小型记录。
 
 用户已授权进入 Phase E；本隔离切片已实现第 0 步 Authorization Safety Gate、用户名密码登录与服务端会话管理，并继续加入恢复码重设、七天注销和恢复凭据管理。代码在 `internal/authprivacy`、`internal/authprivacy/protocol` 与 `internal/authprivacyhttp`。本目录使用独立实验数据库与合成材料；当前 `cmd/api`／`cmd/verifier` 已装配新认证、目录与有界 worker；正式 Goose SQL 是唯一迁移源。此处历史报告的通过记录不证明这些新进程已验收。
 
-校邮与 HTTP 切片的交付见[历史报告](../../../docs/design/auth-privacy-eligibility-http-validation-report.md)；首条数据库切片见[更早报告](../../../docs/design/auth-privacy-isolated-validation-report.md)。`verification.json` 固定首轮证据，`eligibility-http-verification.json` 固定上一轮证据；第 0 步另有新记录。
+校邮与 HTTP 切片的交付见[历史报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-eligibility-http-validation-report.md)；首条数据库切片见[更早报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-isolated-validation-report.md)。`verification.json` 固定首轮证据，`eligibility-http-verification.json` 固定上一轮证据；第 0 步另有新记录。
 
-第 0 步实现与门槛见[Authorization Safety Gate 交付报告](../../../docs/design/auth-authorization-safety-gate-validation-report.md)，机器记录在 `authorization-safety-gate-verification.json`。登录／会话切片见[交付报告](../../../docs/design/auth-privacy-session-lifecycle-validation-report.md)与 `session-lifecycle-verification.json`。历史验证 JSON 保持不改。
+第 0 步实现与门槛见[Authorization Safety Gate 交付报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-authorization-safety-gate-validation-report.md)，机器记录在 `authorization-safety-gate-verification.json`。登录／会话切片见[交付报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-session-lifecycle-validation-report.md)与 `session-lifecycle-verification.json`。历史验证 JSON 保持不改。
 
-恢复码／注销的交付见[历史报告](../../../docs/design/auth-privacy-recovery-closure-validation-report.md)与 `recovery-closure-verification.json`；这些服务已装配到开发入口；生产部署继续在范围外。
+恢复码／注销的交付见[历史报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-recovery-closure-validation-report.md)与 `recovery-closure-verification.json`；这些服务已装配到开发入口；生产部署继续在范围外。
 
-恢复凭据管理的交付见[本轮报告](../../../docs/design/auth-privacy-recovery-credentials-validation-report.md)与 `recovery-credentials-verification.json`；包含新鲜密码换码和可选WebAuthn绑定／恢复／移除。
+恢复凭据管理的交付见[本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-recovery-credentials-validation-report.md)与 `recovery-credentials-verification.json`；包含新鲜密码换码和可选WebAuthn绑定／恢复／移除。
 
 ## 已实现
 

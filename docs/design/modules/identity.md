@@ -1,18 +1,18 @@
 # 预设身份与匿名边界
 
-> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
+> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
 
 > **2026-10-24 SHARED-RATE-LIMIT-01送审追加：** CI记录时[Draft PR73](https://github.com/zewbby/HnuHole/pull/73)已提交推送，指定Android场景PASS；6e50244远端13workflow/23job全SUCCESS，见[版本化CI证据](../shared-rate-limit-remote-ci-verification.json)。runtime沿原生已测33bdcc0，后续只CI/旧host工具修复；待独立成员review、未合并发布。本次回执编写时纯文档更新CI待新head；CI记录时为Draft，后续检查/送审状态以live PR为准，历史模块总裁决及旧计数不变。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实Android账号隔离及帖评原身份/目标/图片SQL匹配已限定PASS；四阶段未改日常包或用户数据，不外推所有身份生命周期场景。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
+> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实Android账号隔离及帖评原身份/目标/图片SQL匹配已限定PASS；四阶段未改日常包或用户数据，不外推所有身份生命周期场景。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 账号经真实会话/Gate解析后所有身份共用动作额度，不由客户端自报身份决定主体。帖子grant与头像/评论/DM上传在读body前验证主体，四用途共享attempt/实际wire bytes预算；最终SQL继续资源归属和policy围栏，不新增账号全身份表。B02及上传只增加本任务限定证据。 [当前任务](../../branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
+> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 账号经真实会话/Gate解析后所有身份共用动作额度，不由客户端自报身份决定主体。帖子grant与头像/评论/DM上传在读body前验证主体，四用途共享attempt/实际wire bytes预算；最终SQL继续资源归属和policy围栏，不新增账号全身份表。B02及上传只增加本任务限定证据。 [当前任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
 
-> IDENTITY-AVATAR-01：本次头像上传与首次入口已随 [PR #63](https://github.com/zewbby/HnuHole/pull/63) 合入 main，开发后端及真我日常2315已配套更新，未生产发布；[任务与版本证据](../../branches/identity-avatar-onboarding.md)区分宿主／隔离 SQL 与真我原生限定通过的版本及范围，不提升历史整模块结论。
+> IDENTITY-AVATAR-01：本次头像上传与首次入口已随 [PR #63](https://github.com/zewbby/HnuHole/pull/63) 合入 main，开发后端及真我日常2315已配套更新，未生产发布；[任务与版本证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/identity-avatar-onboarding.md)区分宿主／隔离 SQL 与真我原生限定通过的版本及范围，不提升历史整模块结论。
 
 更新：2026-10-23。当前模型为进入社区前至少完成一个身份、最多三个预设身份、同一账号在每帖固定使用一个身份；私信仍按身份对隔离并可跨帖延续。首次入口按本次用户要求更新；旧讨论与旧图仅用于追溯。
 
-> 2026-10-08图稿接续：用户明确将身份三态定稿，F1-08身份选择v1／F1-09首次尚无身份v1／F1-10草稿原选择失效v2均FINAL／USER_APPROVED，见[身份状态定稿](../ui-reviews/post-identity-and-save-states-v1.md)及UI产品图正式文件。选择与重新选择发生在实际受理之前，不表示已绑定，也不能为已受理任务更换身份。此处仅登记图稿，不修改身份数量／创建／删除规则或既有验收证明范围，Flutter社区业务与平台验收NOT_RUN。
+> 2026-10-08图稿接续：用户明确将身份三态定稿，F1-08身份选择v1／F1-09首次尚无身份v1／F1-10草稿原选择失效v2均FINAL／USER_APPROVED，见[身份状态定稿](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-identity-and-save-states-v1.md)及UI产品图正式文件。选择与重新选择发生在实际受理之前，不表示已绑定，也不能为已受理任务更换身份。此处仅登记图稿，不修改身份数量／创建／删除规则或既有验收证明范围，Flutter社区业务与平台验收NOT_RUN。
 
 ## 范围
 
@@ -95,7 +95,7 @@
 - 删除身份立即释放名额；能否创建新身份还须满足 MASK-CREATE-01 的频率限制。新身份从零开始，不继承旧聊天或旧内容。
 - 曾绑定已删除身份的旧帖子仍可阅读，但不能换新身份继续在这些帖子发言；删除不解除同账号每帖固定身份约束。
 - 原始身份也可删除，但必须还有其他身份；删除后优先切换到最近使用过的剩余身份作为“我的”顶部展示，都未使用过则选创建较早的身份，不要求事先手动选择。
-- 点击已删除身份的头像／昵称，顶部短提示“身份已删除”，不弹确认且不进入私信；整账号正式注销时提示“账户已注销”。当前详情图见[F1-20](../ui-reviews/post-detail-states-v1.md)，不把删除一个身份等同为关闭整账号；真实公共投影与点击行为仍待实现验收。
+- 点击已删除身份的头像／昵称，顶部短提示“身份已删除”，不弹确认且不进入私信；整账号正式注销时提示“账户已注销”。当前详情图见[F1-20](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)，不把删除一个身份等同为关闭整账号；真实公共投影与点击行为仍待实现验收。
 
 
 ### MASK-DELETE-CHAT-01：删除身份清除该身份聊天框和记录
@@ -164,8 +164,8 @@
 - 原 NAME-01 每帖临时取名和 AVATAR-01 每帖临时选头像由预设身份替代；同帖固定一个身份按最新 MASK-02 恢复执行，不恢复每帖创建新身份的流程。
 - 原 PRIVACY-01 按帖子强制分离双方会话，由 PRIVACY-02 按身份隔离替代；不同身份不可被平台串联、无公开历史入口的原则继续适用。
 - 原 IDENTITY-02 首次发布时新建帖内身份的流程不再直接适用；预设身份选择的具体 UI 待设计。
-- [首次发送身份选择 v3](../../../UI产品图/首次发送-身份选择-v3.png)与[带说明版本](../../../UI产品图/首次发送-身份选择-说明-v3.png)保留为旧稿，不能据此实现新的身份模型。
-- [首次私信身份选择 L v2](../../../UI产品图/私信聊天-首发身份选择-配色L-v2.png)于 2026-09-21 获用户“下一张”确认，当前私信选择以此紧凑列表为准；L v1 的大字与大选项框已否决。选择不绑定、发送才绑定；该帖已有身份不再提供换身份入口，交互见 DM-IDENTITY-02。配色未锁为全局主题。
+- 首次发送身份选择 v3（原文件 `UI产品图/首次发送-身份选择-v3.png` 未随当前仓库交付）与带说明版本（原文件 `UI产品图/首次发送-身份选择-说明-v3.png` 未随当前仓库交付）保留为旧稿，不能据此实现新的身份模型。
+- 首次私信身份选择 L v2（原文件 `UI产品图/私信聊天-首发身份选择-配色L-v2.png` 未随当前仓库交付）于 2026-09-21 获用户“下一张”确认，当前私信选择以此紧凑列表为准；L v1 的大字与大选项框已否决。选择不绑定、发送才绑定；该帖已有身份不再提供换身份入口，交互见 DM-IDENTITY-02。配色未锁为全局主题。
 
 ## 依赖模块
 
@@ -179,8 +179,8 @@
 ## 决策来源
 
 - 2026-09-10 用户将预设身份上限改为总共三个（含原始身份），随后明确修正为“一个帖子理应只能选择一个身份”，撤回同帖换身份和各身份分别点赞的方案。当前按 MASK-02 固定同帖身份，点赞按[帖子详情 LIKE-ACCOUNT-01](post-detail.md)执行；按身份隔离私信与消息页切换收件身份继续适用。
-- [初期需求记录](../../discussions/2026-09-06-hainanu-treehole.md)、[按帖面具讨论](../../discussions/2026-09-08-post-contact-design.md)及[旧身份弹框讨论](../../discussions/2026-09-09-first-send-identity-preview.md)只用于追溯被替代方案。
+- [初期需求记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)、[按帖面具讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-08-post-contact-design.md)及[旧身份弹框讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-09-first-send-identity-preview.md)只用于追溯被替代方案。
 
 ## 匿名基础与后续接入
 
-当前 AC01／AC02／AC03 的实现和核对结果见 [隐私边界报告](../auth-privacy-boundary-validation-report.md)。后续业务必须遵守 [匿名业务接入契约](../auth-privacy-business-contract.md)，包括最终发送任务受理时的账号＋帖子绑定、按身份对隔离和各身份独立注销占位；公共内容／聊天／管理消费者尚未集成，不能由当前本人身份管理或纯投影代证。
+当前 AC01／AC02／AC03 的实现和核对结果见 [隐私边界报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-boundary-validation-report.md)。后续业务必须遵守 [匿名业务接入契约](../auth-privacy-business-contract.md)，包括最终发送任务受理时的账号＋帖子绑定、按身份对隔离和各身份独立注销占位；公共内容／聊天／管理消费者尚未集成，不能由当前本人身份管理或纯投影代证。

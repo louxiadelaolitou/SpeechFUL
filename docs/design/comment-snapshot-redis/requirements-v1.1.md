@@ -1,8 +1,8 @@
 # 评论分页快照 Redis 迁移需求说明书
 
-> **2026-10-26 修复后的配置边界：** 交付模板createBackend=postgres、readPostgres=true、readRedis=false；省略配置及DefaultConfig也保持PG。Redis双读、新建及关闭PG读取，须在可靠环境性能项处理完成并取得启用授权后才执行；当前不部署或启用。测试夹具仅在归属明确的隔离Lab中显式选Redis，与发布默认分离。R6-01–03已实现且定点验证、有限复核通过，阶段6完成；下一步为阶段7 PR及适用CI；性能原FAIL保留，详见[当前计划](execution-plan.md)。
+> **2026-10-26 修复后的配置边界：** 交付模板createBackend=postgres、readPostgres=true、readRedis=false；省略配置及DefaultConfig也保持PG。Redis双读、新建及关闭PG读取，须在可靠环境性能项处理完成并取得启用授权后才执行；当前不部署或启用。测试夹具仅在归属明确的隔离Lab中显式选Redis，与发布默认分离。R6-01–03已实现且定点验证、有限复核通过，阶段6完成；下一步为阶段7 PR及适用CI；性能原FAIL保留，详见[当前计划](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/execution-plan.md)。
 
-> **2026-10-26 用户确认的交付顺序变更：** 停止本机性能试跑且不再为本任务搭性能环境；性能保留“待可靠环境验证／启用Redis前待验”，不修改原5%目标、不将既有FAIL改为PASS。功能、授权、一致性、容量与故障恢复仍须满足，复用未改动部分的有效证据；允许继续最终审查及PR。默认交付须保持PG/关闭Redis，待验功能不得自动启用。合并/部署/启用分别另需授权。阶段6已列3项P2待最小修复，详见[当前实施计划](execution-plan.md)。
+> **2026-10-26 用户确认的交付顺序变更：** 停止本机性能试跑且不再为本任务搭性能环境；性能保留“待可靠环境验证／启用Redis前待验”，不修改原5%目标、不将既有FAIL改为PASS。功能、授权、一致性、容量与故障恢复仍须满足，复用未改动部分的有效证据；允许继续最终审查及PR。默认交付须保持PG/关闭Redis，待验功能不得自动启用。合并/部署/启用分别另需授权。阶段6已列3项P2待最小修复，详见[当前实施计划](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-snapshot-redis/execution-plan.md)。
 
 版本：V1.1。日期：2026-10-24。
 

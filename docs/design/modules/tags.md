@@ -4,13 +4,13 @@
 
 > **2026-11-06 CUSTOM-TAGS-01：**本次用户确认公开主题标签、独立添加面板、每帖零至三个且每个最多十字；点击标签进入全站精确匹配、按最新发布混排的独立列表，可切分类；普通搜索包含标签。本次覆盖旧通道内多标签 AND 筛选设计。首页「筛选」继续用于屏蔽分类。实现、验证、合并及发布状态见[任务记录](../../tasks/CUSTOM-TAGS-01.md)，本条不宣告主线或生产已交付。
 
-> **2026-10-19 FEED-UI-01（本分支）：**新版列表使用单列正文／真实浏览，推荐为跨通道时间序；页内纯文字切通道与账号级开启即屏蔽按本次用户确认覆盖旧“页内不切通道／无跨通道入口／双列／标签AND筛选”在此列表的规则。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](../../branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
+> **2026-10-19 FEED-UI-01（本分支）：**新版列表使用单列正文／真实浏览，推荐为跨通道时间序；页内纯文字切通道与账号级开启即屏蔽按本次用户确认覆盖旧“页内不切通道／无跨通道入口／双列／标签AND筛选”在此列表的规则。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
 
 > **2026-10-19 FEED-BACKEND-01：**本次明确授权账号级通道屏蔽，保存零至七个目录 UUID，在新列表分页前过滤，全部屏蔽是合法空态。仅作用于 `/api/v1/feed`，不扩展主题／标签屏蔽、目录、搜索、正文、我的、通知或私信；旧“主题屏蔽后续版本”范围继续保留。见[接线契约](../feed-backend-contract.md)，本分支尚未合并／部署。
 
 更新：2026-11-06。本次确认依据及交付范围见 CUSTOM-TAGS-01；历史来源保留原时点。
 
-- 状态：通道必选、用户自定义 `#标签` 选填；不做统一中间分类和标签治理；主题屏蔽留到后续版本设计。业务决定见[第二十二轮答复](../../discussions/2026-09-19-grilling-round22.md)。
+- 状态：通道必选、用户自定义 `#标签` 选填；不做统一中间分类和标签治理；主题屏蔽留到后续版本设计。业务决定见[第二十二轮答复](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round22.md)。
 
 ## 范围
 
@@ -94,4 +94,4 @@
 
 第二十二轮最终答复取代 CATEGORY-BLOCK-01、CATEGORY-EDIT-01 的中间分类方案，以及 TAG-04 / TAG-05、TAG-OWN-01、TAG-MESSAGE-01、TAG-DM-01 的主题屏蔽及其例外。旧规则不再是首版交付要求，不据旧问题继续追问。
 
-历史脉络见[初期讨论](../../discussions/2026-09-06-hainanu-treehole.md)、[第四轮](../../discussions/2026-09-15-grilling-round4.md)与[第二十二轮](../../discussions/2026-09-19-grilling-round22.md)。当前没有标签专项定稿图；发帖画面由[新建帖子](post-composer.md)维护。
+历史脉络见[初期讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)、[第四轮](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-15-grilling-round4.md)与[第二十二轮](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round22.md)。当前没有标签专项定稿图；发帖画面由[新建帖子](post-composer.md)维护。

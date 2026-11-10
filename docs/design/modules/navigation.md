@@ -2,17 +2,17 @@
 
 > **2026-11-06 GLOBAL-HOTLIST-01（本分支）**：首页、发布、屏蔽与搜索统一使用“分类”。分类选择器固定目录顺序，推荐第一。搜索选中分类限定关键词结果及既有历史范围，空输入的“大家都在看”统一为全站总榜并标注范围；点击按帖子的实际分类进入详情。下文历史“通道”指分类，原分类榜及热度排序以本次确认取代。见[任务记录](../../tasks/GLOBAL-HOTLIST-01.md)。
 
-> **2026-10-26 MEDIA-SEAMLESS-RENEWAL-01已合并：** [PR #76](https://github.com/zewbby/HnuHole/pull/76) 已Squash进入main `048a3e5`；测试head `06448b3` 的9个远端workflow／17项检查全部SUCCESS，合并后的产品文件与被测版本一致。本地相关回归228 PASS／0 FAIL／0 SKIP、分析0问题、Android ARM64 debug构建PASS。帖子图片在前台可见时提前续验，权限与图片元数据未变就保留画面、缓存和查看器；截止及撤权围栏保留。用户取消vivo覆盖安装，未装机／部署；独立成员review、iOS及真机长时间浏览未验，B03／B06历史整模块裁决不提升。见[任务](../../branches/fix-media-seamless-renewal.md)与[合并及CI回执](../media-seamless-renewal-merge-verification-20261026.json)。
+> **2026-10-26 MEDIA-SEAMLESS-RENEWAL-01已合并：** [PR #76](https://github.com/zewbby/HnuHole/pull/76) 已Squash进入main `048a3e5`；测试head `06448b3` 的9个远端workflow／17项检查全部SUCCESS，合并后的产品文件与被测版本一致。本地相关回归228 PASS／0 FAIL／0 SKIP、分析0问题、Android ARM64 debug构建PASS。帖子图片在前台可见时提前续验，权限与图片元数据未变就保留画面、缓存和查看器；截止及撤权围栏保留。用户取消vivo覆盖安装，未装机／部署；独立成员review、iOS及真机长时间浏览未验，B03／B06历史整模块裁决不提升。见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-media-seamless-renewal.md)与[合并及CI回执](../media-seamless-renewal-merge-verification-20261026.json)。
 
-> **2026-10-24 FEED-REFRESH-CANCEL-01（已合并PR #69）：**[PR #69](https://github.com/zewbby/HnuHole/pull/69) Squash进入main `4933bff`，最终head `217bd4e` 的15项CI全部成功，main产品差异与已测版本为空。按参考视频改为 `:)` 字形内部深色高亮循环，移除外部圆弧；刷新按松手时剩余拉伸判断，同次回滑不进入纯享模式，长拉不积累不可见取消距离。最终聚焦17项、此前相关信息流／导航74项、分析0及Flutter bundle通过，vivo2402已安装，原环境恢复后用户确认可以并授权合并（未逐项记录设备手势矩阵）；B03／B06／B10原整模块结论不变。见[修复记录](../../branches/fix-feed-refresh-cancel.md)。
+> **2026-10-24 FEED-REFRESH-CANCEL-01（已合并PR #69）：**[PR #69](https://github.com/zewbby/HnuHole/pull/69) Squash进入main `4933bff`，最终head `217bd4e` 的15项CI全部成功，main产品差异与已测版本为空。按参考视频改为 `:)` 字形内部深色高亮循环，移除外部圆弧；刷新按松手时剩余拉伸判断，同次回滑不进入纯享模式，长拉不积累不可见取消距离。最终聚焦17项、此前相关信息流／导航74项、分析0及Flutter bundle通过，vivo2402已安装，原环境恢复后用户确认可以并授权合并（未逐项记录设备手势矩阵）；B03／B06／B10原整模块结论不变。见[修复记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-feed-refresh-cancel.md)。
 
-> **2026-10-23 FEED-SCROLL-SMILE-01 已合并：**[PR #65](https://github.com/zewbby/HnuHole/pull/65) Squash进入main `df484b1`；最终head `fad2a5c` 的8组工作流15项检查全PASS，Sol xhigh独立只读复核无剩余重要问题。首页上下导航随阅读收起／反向恢复、发帖双位置交接与小字距 `:)` 刷新已接入。宿主844 PASS／3 SKIP、分析0和Android构建通过；主线产品输入与被测SHA-256一致。未安装、设备视觉／原生TalkBack／帧性能及iOS未验、未发布，不提升历史完整模块结论。见[任务](../../branches/feat-feed-scroll-smile-refresh.md)。
+> **2026-10-23 FEED-SCROLL-SMILE-01 已合并：**[PR #65](https://github.com/zewbby/HnuHole/pull/65) Squash进入main `df484b1`；最终head `fad2a5c` 的8组工作流15项检查全PASS，Sol xhigh独立只读复核无剩余重要问题。首页上下导航随阅读收起／反向恢复、发帖双位置交接与小字距 `:)` 刷新已接入。宿主844 PASS／3 SKIP、分析0和Android构建通过；主线产品输入与被测SHA-256一致。未安装、设备视觉／原生TalkBack／帧性能及iOS未验、未发布，不提升历史完整模块结论。见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-scroll-smile-refresh.md)。
 
-> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；四栏共用底栏，用户已在真我2303确认切换无重影。下方“未合并／视觉待确认”为历史快照，限定证据见[任务](../../branches/fix-mobile-navigation-refresh.md)。
+> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；四栏共用底栏，用户已在真我2303确认切换无重影。下方“未合并／视觉待确认”为历史快照，限定证据见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)。
 
-> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并，续）：**用户已授权前后端更新、真我安装2303并统一验收五项。开发C后端已更新、ready且原授权代次／会话数量未变；真我同签保数据覆盖2303，2306回退包保留。五项基础结构／断网刷新／有界缓存往返／真缩略图与原图查看／个人空态回归通过；系统录屏失败，切换瞬间重影及帧性能尚未确认，用户验收PENDING。完整宿主742 PASS／1 SKIP，构建镜像744 PASS／1 SKIP；历史模块结论不变。见[任务](../../branches/fix-mobile-navigation-refresh.md)及任务内真机证据。
+> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并，续）：**用户已授权前后端更新、真我安装2303并统一验收五项。开发C后端已更新、ready且原授权代次／会话数量未变；真我同签保数据覆盖2303，2306回退包保留。五项基础结构／断网刷新／有界缓存往返／真缩略图与原图查看／个人空态回归通过；系统录屏失败，切换瞬间重影及帧性能尚未确认，用户验收PENDING。完整宿主742 PASS／1 SKIP，构建镜像744 PASS／1 SKIP；历史模块结论不变。见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)及任务内真机证据。
 
-> **2026-10-19 FEED-UI-01（本分支）：**新版列表使用单列正文／真实浏览，推荐为跨通道时间序；页内纯文字切通道与账号级开启即屏蔽按本次用户确认覆盖旧“页内不切通道／无跨通道入口／双列／标签AND筛选”在此列表的规则。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](../../branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
+> **2026-10-19 FEED-UI-01（本分支）：**新版列表使用单列正文／真实浏览，推荐为跨通道时间序；页内纯文字切通道与账号级开启即屏蔽按本次用户确认覆盖旧“页内不切通道／无跨通道入口／双列／标签AND筛选”在此列表的规则。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
 
 > **2026-10-19 FEED-BACKEND-01：**本次明确授权新版跨通道列表，暂按发布时间＋唯一序号倒序，账号屏蔽在分页前过滤。新 `/api/v1/feed` 的单通道筛选同样执行屏蔽；“推荐”不表示已有推荐算法。仅本分支后端实现、前端待接，旧接口兼容，见[接线契约](../feed-backend-contract.md)。
 
@@ -41,7 +41,7 @@
 
 ### ENTRY-01：登录入口与推荐首页
 
-2026-10-21 用户确认的 LOGIN-HOME-01 覆盖此前节点树、拖动探索及位置恢复方案。本分支实现与测试边界见[任务](../../branches/feat-login-home-recommended.md)，未合并主线。
+2026-10-21 用户确认的 LOGIN-HOME-01 覆盖此前节点树、拖动探索及位置恢复方案。本分支实现与测试边界见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-login-home-recommended.md)，未合并主线。
 
 - 未登录时提供登录／注册入口，不展示受保护社区内容。登录成功直接进入附图所示主信息流，不经过通道／节点选择页；本次运行首次进入默认“推荐”，底部“首页”选中，同次运行的后续登录选择按下一条保留。
 - 每次彻底启动程序默认推荐；启动后按账号保留所选通道，详情、个人页、消息页返回及点击首页均不重置，同次运行的同账号重新登录仍保留选择。跨账号不混用选择，不跨彻底重启持久化；同 token 续期保留阅读状态。
@@ -62,7 +62,7 @@
 - 提供最新排序，列表上方采用左侧“最新发布”、右侧“筛选”的紧凑工具栏；不设置孤立的单页签下划线或只有一个选项的排序下拉。底部筛选面板与已选标签操作继续按[标签模块 TAG-FILTER-02](tags.md)执行。
 - 点击通道搜索后，在搜索区域下方展示当前通道的帖子热度排行榜，见 SEARCH-02 及[热度与排行榜 HEAT-03](popularity.md)。
 - 新帖发布成功后进入当前通道“最新”列表顶部；若用户已滚动到其他位置，保持其浏览位置，不强制拉回顶部。帖子展示仍遵循当前标签筛选及内容访问规则。
-- 2026-10-09用户重申点击确认发布后直接返回原通道主页面，不显示发布状态整页；发布中与失败在我的帖子卡片中处理。成功公开时当前前台页上部短暂显示小型浮层“发布成功！”；本次附件正式选中[暗蓝提示款](../../../UI产品图/通道-发布成功提示.png)，覆盖此前黑色候选。不强制跳往我的、不新增对话框确认步骤；未知结果不能提前提示成功，具体恢复与归属限制见POST-FLOW-01。
+- 2026-10-09用户重申点击确认发布后直接返回原通道主页面，不显示发布状态整页；发布中与失败在我的帖子卡片中处理。成功公开时当前前台页上部短暂显示小型浮层“发布成功！”；本次附件正式选中暗蓝提示款（原文件 `UI产品图/通道-发布成功提示.png` 未随当前仓库交付），覆盖此前黑色候选。不强制跳往我的、不新增对话框确认步骤；未知结果不能提前提示成功，具体恢复与归属限制见POST-FLOW-01。
 - 底栏固定提供“首页／中央加号／消息／我的”，列表滚动时保持可见。“首页”回到当前通道的信息流并保留阅读状态，不再进入导航树；消息与我的分别沿用对应模块。
 - 中央“＋”为[发帖入口](post-composer.md)，点击始终新建当前通道帖子，不自动打开已有草稿；续写从“我的”进入，见 POST-NEW-ENTRY-01。按钮尺寸、安全区与内容避让在Flutter实现时校准。
 - 通道列表F1-01／02／03的v9三状态布局与本组配色已正式定稿：白色整体框架、局部偏暗偏灰的原蓝色UI元素。确认范围为这三张通道图，不自动作为全局主题。v6为此前布局确认，v7整页林绿／炭黑与v8整页暗蓝已废弃，不沿用其背景或配色。图稿规则不代表图片上传、点赞、搜索、筛选或消息功能已实现，当次代码范围仍按文字发布／阅读任务与契约执行。
@@ -137,14 +137,14 @@
 
 ## 设计图与来源
 
-用户明确“定稿这三个”，通道列表[v9三图](../ui-reviews/channel-feed-v9.md)的布局与本组三状态配色正式定稿；白色整体框架与局部偏暗偏灰蓝色仅适用于本组三状态，不等于全局主题确认。
+用户明确“定稿这三个”，通道列表[v9三图](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/channel-feed-v9.md)的布局与本组三状态配色正式定稿；白色整体框架与局部偏暗偏灰蓝色仅适用于本组三状态，不等于全局主题确认。
 
 | 图稿ID | 正式文件 | 状态 |
 |---|---|---|
-| F1-01 | [通道最新列表](../../../UI产品图/通道最新列表.png) | v9正式定稿 |
-| F1-02 | [通道暂无帖子](../../../UI产品图/通道暂无帖子.png) | v9正式定稿 |
-| F1-03 | [通道首次加载失败](../../../UI产品图/通道首次加载失败.png) | v9正式定稿 |
+| F1-01 | 通道最新列表（原文件 `UI产品图/通道最新列表.png` 未随当前仓库交付） | v9正式定稿 |
+| F1-02 | 通道暂无帖子（原文件 `UI产品图/通道暂无帖子.png` 未随当前仓库交付） | v9正式定稿 |
+| F1-03 | 通道首次加载失败（原文件 `UI产品图/通道首次加载失败.png` 未随当前仓库交付） | v9正式定稿 |
 
-原v9主图`channel-feed-populated-v9.png`、`channel-feed-empty-v9.png`、`channel-feed-error-v9.png`继续保留在`docs/design/ui-drafts/`。[v6三状态](../ui-reviews/channel-feed-v6.md)保留此前布局确认范围，v7／v8整页暗色方案已废弃；导航树等其他入口参考不等于定稿。下一张按既有指令继续第二类第一张文字编辑页v1（`docs/design/ui-drafts/post-composer-edit-v1.png`、[评审记录](../ui-reviews/post-composer-edit-v1.md)），状态DRAFT，不计入本组三张定稿。
+原v9主图`channel-feed-populated-v9.png`、`channel-feed-empty-v9.png`、`channel-feed-error-v9.png`继续保留在`docs/design/ui-drafts/`。[v6三状态](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/channel-feed-v6.md)保留此前布局确认范围，v7／v8整页暗色方案已废弃；导航树等其他入口参考不等于定稿。下一张按既有指令继续第二类第一张文字编辑页v1（`docs/design/ui-drafts/post-composer-edit-v1.png`、[评审记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-composer-edit-v1.md)），状态DRAFT，不计入本组三张定稿。
 
-来源：[需求记录 ENTRY / NAV / FEED / SEARCH](../../discussions/2026-09-06-hainanu-treehole.md)、[入口体验讨论](../../discussions/2026-09-07-entry-experience.md)。
+来源：[需求记录 ENTRY / NAV / FEED / SEARCH](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)、[入口体验讨论](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-07-entry-experience.md)。

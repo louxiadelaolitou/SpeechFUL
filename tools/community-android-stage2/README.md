@@ -1,6 +1,6 @@
 # 任务2：原生存储与生命周期
 
-> Windows 默认仍为 **BLOCKED_KEY_ISOLATION**。2026-10-15 用户已明确批准本轮复用既有 USB 身份，stage2 增加显式 `--allow-existing-host-usb-identity`，调用 stage1 的真实 OS profile 逐层 metadata 校验；不读取、复制、hash 或改变 key，不新建默认 key。原有窗口、安装、认证释放和自有包强停授权仍全部必需，所有授权前置于 manifest/socket/ADB。该例外不等于独立 key 已被证明，不能推广到其他会话或设备。历史默认阻断见[报告](../../docs/design/community-android-device-blocked-20261015.md)；本轮结果见[任务2实测](../../docs/design/community-android-stage2-device-validation-20261015.md)。
+> Windows 默认仍为 **BLOCKED_KEY_ISOLATION**。2026-10-15 用户已明确批准本轮复用既有 USB 身份，stage2 增加显式 `--allow-existing-host-usb-identity`，调用 stage1 的真实 OS profile 逐层 metadata 校验；不读取、复制、hash 或改变 key，不新建默认 key。原有窗口、安装、认证释放和自有包强停授权仍全部必需，所有授权前置于 manifest/socket/ADB。该例外不等于独立 key 已被证明，不能推广到其他会话或设备。历史默认阻断见[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-android-device-blocked-20261015.md)；本轮结果见[任务2实测](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-android-stage2-device-validation-20261015.md)。
 
 以下保留原准备步骤和现场 SOP。设备 35 项原生测试、3 组认证进程中断、真实插件跨进程/整机重启，以及实际账号/IME/读屏检查，按每轮实际证据分别登记。构建成功不能代证设备通过。
 

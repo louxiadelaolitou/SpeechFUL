@@ -26,7 +26,7 @@ This host test and Swift syntax parsing do not certify iOS Keychain. A full
 Xcode/device environment is absent. Dependency versions follow the generated Flutter
 3.47.5 platform templates. Release signing and operational endpoints are not
 configured. Reproduction commands and current limits are in the
-[native/integration report](../../docs/design/auth-privacy-mobile-native-integration-validation-report.md).
+[native/integration report](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-mobile-native-integration-validation-report.md).
 Large temporary runtimes, dedicated caches and generated APKs are removed after
 this handoff; test source and small verification records remain in Git.
 

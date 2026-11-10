@@ -2,9 +2,26 @@
 
 当前开发从[文档入口](../README.md)开始；当前工作状态由[具体任务](../tasks/)维护。
 
-## 已从当前版本退役的材料
+## 本轮退役的过程文档（2026-11-10）
 
-本轮整理前的完整仓库固定在
+清理前的完整文档固定在
+[`50baa3c2768b69188f2d6562cdb8b6c51e9fa674`](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs)。
+本轮删除 267 个 Markdown 文件，使 `docs` 从 406 个减至 139 个；保留的引用直接指向该提交中的原文，历史无需在当前目录再复制一份。
+
+| 退役内容 | 数量 | 历史入口与保留边界 |
+| --- | ---: | --- |
+| 旧分支说明、交付和合并回执 | 77 | [原 branches](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches)；当前状态由任务维护 |
+| 早期讨论、逐轮问答和图稿说明 | 45 | [原 discussions](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions)；当前模块规则与来源链接保留 |
+| 逐轮 UI 评审与出图提示 | 36 | [原 ui-reviews](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews)；图片、实际组件和 UI 工作流保留 |
+| 阶段执行、换机交接、历史验证与专项报告 | 108 | [原 design](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design)；现行契约、架构、威胁模型、回退手册和原始 JSON 保留 |
+| 协作规范最初落地过程 | 1 | [原落地记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/engineering/collaboration-rollout.md)；当前规则见 AGENTS 与 CONTRIBUTING |
+
+本地可用 `git show 50baa3c2768b69188f2d6562cdb8b6c51e9fa674:<原路径>` 查看任一原文。
+删除清单以本轮提交的差异为准，验证和交付见[整理任务](../tasks/REPOSITORY-CLEANUP-01.md)。这次清理不删除 Git 历史，不重写原始证据中的版本、路径、摘要或 PASS／FAIL。
+
+## 前一轮已退役的材料
+
+前一轮整理前的完整仓库固定在
 [`3db6fac2351d3fe4d3824aeca5aa0cbdb562693a`](https://github.com/zewbby/SpeechFUL/tree/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a)。
 在任意本地完整克隆中可用 `git show 3db6fac2351d3fe4d3824aeca5aa0cbdb562693a:<原路径>` 读取；不要在当前运行目录恢复旧部署或执行旧清理脚本。
 
@@ -33,4 +50,4 @@
 - [早期讨论](../discussions/README.md)：产品决定来源，不是当前状态。
 - [旧分支记录](../branches/README.md)：对应任务与交付时点，不代表现在仍未合并。
 - [文字帖原始归档](community-text-posting-20261008/README.md)：有独立原始字节与契约校验，保持其格式。
-- `docs/design` 中的日期化报告、评审和截图：按各自版本和证明范围阅读；当前规则入口见[设计索引](../design/README.md)。
+- 本轮退役的报告与评审通过上方固定提交阅读；当前目录仍保留的 JSON、截图和有校验依赖的原始资料按各自版本解释。当前规则入口见[设计索引](../design/README.md)。

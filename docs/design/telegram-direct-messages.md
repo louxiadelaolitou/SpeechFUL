@@ -1,6 +1,6 @@
 # Telegram Android 私信展示层改造
 
-2026-10-21，DM-TELEGRAM-01，B08/B09。分支 `feat/telegram-direct-messages`；实现未合并，生产私信未接线。任务分析与接口缺口见[分支记录](../branches/feat-telegram-direct-messages.md)。
+2026-10-21，DM-TELEGRAM-01，B08/B09。分支 `feat/telegram-direct-messages`；实现未合并，生产私信未接线。任务分析与接口缺口见[分支记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-telegram-direct-messages.md)。
 
 ## 截图与还原范围
 

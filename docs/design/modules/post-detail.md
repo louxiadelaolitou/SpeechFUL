@@ -1,14 +1,14 @@
 # 帖子详情
 
-> **2026-10-26 MEDIA-SEAMLESS-RENEWAL-01已合并：** [PR #76](https://github.com/zewbby/HnuHole/pull/76) 已Squash进入main `048a3e5`；测试head `06448b3` 的9个远端workflow／17项检查全部SUCCESS，合并后的产品文件与被测版本一致。本地相关回归228 PASS／0 FAIL／0 SKIP、分析0问题、Android ARM64 debug构建PASS。帖子图片在前台可见时提前续验，权限与图片元数据未变就保留画面、缓存和查看器；截止及撤权围栏保留。用户取消vivo覆盖安装，未装机／部署；独立成员review、iOS及真机长时间浏览未验，B03／B06历史整模块裁决不提升。见[任务](../../branches/fix-media-seamless-renewal.md)与[合并及CI回执](../media-seamless-renewal-merge-verification-20261026.json)。
+> **2026-10-26 MEDIA-SEAMLESS-RENEWAL-01已合并：** [PR #76](https://github.com/zewbby/HnuHole/pull/76) 已Squash进入main `048a3e5`；测试head `06448b3` 的9个远端workflow／17项检查全部SUCCESS，合并后的产品文件与被测版本一致。本地相关回归228 PASS／0 FAIL／0 SKIP、分析0问题、Android ARM64 debug构建PASS。帖子图片在前台可见时提前续验，权限与图片元数据未变就保留画面、缓存和查看器；截止及撤权围栏保留。用户取消vivo覆盖安装，未装机／部署；独立成员review、iOS及真机长时间浏览未验，B03／B06历史整模块裁决不提升。见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-media-seamless-renewal.md)与[合并及CI回执](../media-seamless-renewal-merge-verification-20261026.json)。
 
 > **2026-10-24 合并回执：** 本需求已通过 PR [#71](https://github.com/zewbby/HnuHole/pull/71) Squash 合入 main，合并 SHA `a715dc7e8b6a3b1395bc968274bce3865f63f21b`。最终产品源码 `ed1b5e3`，送审 HEAD `aef7618`（仅追加交接文档）；21 项远端检查全部 PASS，包含 Android 构建、完整契约、评论真实隔离 PostgreSQL/TLS 及受影响模块。最终本地 Flutter 924 PASS / 3 SKIP、分析 0；独立审查两处 P2 均已修复且复核无阻断。已构建同签名 2428 Profile 包，尚未安装；真我仍为实测 2427，其 20.3 分钟/28 轮和弱网证据保留原版本，不视作最终 HEAD 真机验收。iOS、完整模块、生产未发布等边界不提升。下文“本地未提交/未合并”属于历史快照。
 
-> **2026-10-24 最新真我2427（本地未合并）：** 20.3分钟/28轮连续操作、限速/断连后图片恢复、实际发表去重清理及35秒读取超时恢复限定PASS；补修旧上下文覆盖新计数/权限、恢复后错误残留及图片传输失败关闭查看器，包含首条立即展示。统一回归232 PASS，分析0；[新报告](../post-detail-comments-weak-soak-20261024.md)按设备/版本保留证据，完整模块与生产结论不提升。
+> **2026-10-24 最新真我2427（本地未合并）：** 20.3分钟/28轮连续操作、限速/断连后图片恢复、实际发表去重清理及35秒读取超时恢复限定PASS；补修旧上下文覆盖新计数/权限、恢复后错误残留及图片传输失败关闭查看器，包含首条立即展示。统一回归232 PASS，分析0；[新报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comments-weak-soak-20261024.md)按设备/版本保留证据，完整模块与生产结论不提升。
 
-> 2026-10-24 最终提交展示：本地持久任务保存成功即在评论区首条显示本人原内容，不显示发送中；发布成功自动去重并保持首条，无成功提示或刷新动作，失败撤回本地展示并提醒、保留原材料。117项宿主回归PASS，源码冻结但新逻辑真机待统一包验收，见[报告](../post-detail-comment-optimistic-submit-20261024.md)。这一明确新要求覆盖此前“正在发送评论…”占位文字。
+> 2026-10-24 最终提交展示：本地持久任务保存成功即在评论区首条显示本人原内容，不显示发送中；发布成功自动去重并保持首条，无成功提示或刷新动作，失败撤回本地展示并提醒、保留原材料。117项宿主回归PASS，源码冻结但新逻辑真机待统一包验收，见[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comment-optimistic-submit-20261024.md)。这一明确新要求覆盖此前“正在发送评论…”占位文字。
 
-> 2026-10-24 最新2424：评论操作提示在顶部独立占位，发送失败只进系统消息；键盘浮动输入栏不缩放阅读区，长列表懒构建及按需回复读取，正文/评论/身份读取并行。隐藏首页不跟随键盘布局，普通会话期限更新不重建首页；授权变化仍正常退出保护内容。vivo2424同签安装、原生相册取消及图片往返限定通过，性能与各版本证据见[最新报告](../post-detail-comments-status-report-20261024.md)。本地未合并，完整模块结论不提升。
+> 2026-10-24 最新2424：评论操作提示在顶部独立占位，发送失败只进系统消息；键盘浮动输入栏不缩放阅读区，长列表懒构建及按需回复读取，正文/评论/身份读取并行。隐藏首页不跟随键盘布局，普通会话期限更新不重建首页；授权变化仍正常退出保护内容。vivo2424同签安装、原生相册取消及图片往返限定通过，性能与各版本证据见[最新报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comments-status-report-20261024.md)。本地未合并，完整模块结论不提升。
 
 > 2026-10-24 视频续修：历史任务不在重进详情时重放定位；后台发布定位不弹删除提示，新评论回读和数量回调同步当前页面。未知发言身份用中性占位，已知身份展开不变。评论图占满160dp单图区域，图片自然到期可前台重新授权读取，加载/失败/重读保持网格高度；授权拒绝仍停止。已有身份账号启动等待不展示初始身份设置。范围及版本见[续修证据](../post-detail-comments-video-verification-20261024.json)，未合并。
 
@@ -18,29 +18,29 @@
 
 用户本轮附件与明确要求覆盖下方旧分屏／独立输入页描述：详情正文操作栏后直接连接评论，正文和评论连续滚动；“相关”打开“对回复排序”，最近／最相关／最多点赞为单选。默认最相关保持既有热评前十后按时间，另外两项分别为全主评论时间倒序／赞数降序，服务端分页固定快照。楼中楼原排序与具体回复关系保留。
 
-回复栏固定底部，头像、图片、放大分别可操作；文字输入在键盘上方展开，收起保留临时草稿和对象，离开帖子清除。GIF沿原图链路选择、校验、预览、移除和发送，不新增在线素材服务。详情见[任务与验证](../../branches/feat-post-detail-comments.md)。仅本分支已实现，未合并／发布；下方未被覆盖的身份、权限与发送可靠性规则继续适用。
+回复栏固定底部，头像、图片、放大分别可操作；文字输入在键盘上方展开，收起保留临时草稿和对象，离开帖子清除。GIF沿原图链路选择、校验、预览、移除和发送，不新增在线素材服务。详情见[任务与验证](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-post-detail-comments.md)。仅本分支已实现，未合并／发布；下方未被覆盖的身份、权限与发送可靠性规则继续适用。
 ## POST-REPOST-01 最新规则（2026-10-23）
 
 首页与详情提供独立“转帖”入口，明确选择本人发言身份，已转帖身份可以取消。转帖仅加入本人私人归档，不进入他人信息流，不改变原帖作者／正文／图片，不创建新帖或绑定评论身份；复制链接、系统分享与收藏均不调用转帖写入接口。本次不实现引用评论式转帖或公开个人主页。
 
-保存成功以服务器真实响应为准；未确认结果显示待核对，重复点击和重试沿用条件版本，旧创建不得覆盖已取消结果。首页、详情和私人归档共用同一 controller；退出、会话失效与账号切换清空状态并拒绝旧页面操作。详见[接线契约](../post-reposts-contract.md)、[分支与验证范围](../../branches/feat-post-reposts.md)。个人页整合分支已提交推送至[PR #68](https://github.com/zewbby/HnuHole/pull/68)，限定Android真实HTTPS/SQL及双主题验收PASS，未合并／生产部署；最新范围见[整合交接](../../branches/personal-reposts-integration.md)。
+保存成功以服务器真实响应为准；未确认结果显示待核对，重复点击和重试沿用条件版本，旧创建不得覆盖已取消结果。首页、详情和私人归档共用同一 controller；退出、会话失效与账号切换清空状态并拒绝旧页面操作。详见[接线契约](../post-reposts-contract.md)、[分支与验证范围](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-post-reposts.md)。个人页整合分支已提交推送至[PR #68](https://github.com/zewbby/HnuHole/pull/68)，限定Android真实HTTPS/SQL及双主题验收PASS，未合并／生产部署；最新范围见[整合交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/personal-reposts-integration.md)。
 
-> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；开发C缩略图与真我2303预览／原图、GIF/WebP原字节保存完成限定验证。下方“未合并／未部署”为历史快照；生产未部署，见[任务](../../branches/fix-mobile-navigation-refresh.md)。
+> **2026-10-23主线回执：**[PR #57](https://github.com/zewbby/HnuHole/pull/57)已合并main `1686a06`；开发C缩略图与真我2303预览／原图、GIF/WebP原字节保存完成限定验证。下方“未合并／未部署”为历史快照；生产未部署，见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)。
 
-> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并）：**列表与详情预览共用受保护媒体仓库；新增有界闲置缓存和按需缩略图，列表先按feed尺寸预留布局。动图预览标注“动图”，点击及保存继续使用完整原格式；到期／退出／删帖按原租约撤销。此扩展尚未部署或真机验收，见[任务与证据](../../branches/fix-mobile-navigation-refresh.md)。
+> **2026-10-23 MOBILE-NAV-REFRESH-01（本地实现／未合并）：**列表与详情预览共用受保护媒体仓库；新增有界闲置缓存和按需缩略图，列表先按feed尺寸预留布局。动图预览标注“动图”，点击及保存继续使用完整原格式；到期／退出／删帖按原租约撤销。此扩展尚未部署或真机验收，见[任务与证据](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)。
 
-> **2026-10-21 UI-ANDROID-APPEARANCE-01／PR37（本分支）：**用户明确确认X详情校准稿并授权按规范合并，当前详情采用作者／通道、标题、正文媒体、日期浏览量、图标计数互动栏、连续评论与固定回复入口；字号字体与颜色统一Telegram近似体系。此明确新指令覆盖下方历史DETAIL-02与分屏拖动的默认视觉规则，兼容组件保留旧模式。无Logo／关注／相关／引用。身份、精确回复、分页快照、图片权限、删除／举报语义不变。见[校准与确认](../ui-reviews/post-detail-x-layout-20261021.md)、[本轮验证](../telegram-android-appearance.md)。
+> **2026-10-21 UI-ANDROID-APPEARANCE-01／PR37（本分支）：**用户明确确认X详情校准稿并授权按规范合并，当前详情采用作者／通道、标题、正文媒体、日期浏览量、图标计数互动栏、连续评论与固定回复入口；字号字体与颜色统一Telegram近似体系。此明确新指令覆盖下方历史DETAIL-02与分屏拖动的默认视觉规则，兼容组件保留旧模式。无Logo／关注／相关／引用。身份、精确回复、分页快照、图片权限、删除／举报语义不变。见[校准与确认](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-x-layout-20261021.md)、[本轮验证](../telegram-android-appearance.md)。
 
 
-> **2026-10-20 FEED-INTERACTIONS-01：**按下方 LIKE-ACCOUNT-01 账号级规则补帖子点赞／收藏幂等设置与批量／单帖计数，复用原评论总数；不绑定发言身份，不公开参与者，不改变本页布局。仅后端本分支，前端正式接线／设备／生产未验；见[接线契约](../feed-backend-contract.md#点赞收藏与评论数接线)及[任务](../../branches/feat-feed-interactions.md)。
+> **2026-10-20 FEED-INTERACTIONS-01：**按下方 LIKE-ACCOUNT-01 账号级规则补帖子点赞／收藏幂等设置与批量／单帖计数，复用原评论总数；不绑定发言身份，不公开参与者，不改变本页布局。仅后端本分支，前端正式接线／设备／生产未验；见[接线契约](../feed-backend-contract.md#点赞收藏与评论数接线)及[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-interactions.md)。
 
-> **2026-10-19 FEED-UI-01（本分支）：**详情原布局／评论／完整图片查看保持，正文实际显示后登记 HEAT-07；列表单图按尺寸、极端比例限预览及完整入口，多图横向轨道，取代本次列表的固定比例预览。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](../../branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
+> **2026-10-19 FEED-UI-01（本分支）：**详情原布局／评论／完整图片查看保持，正文实际显示后登记 HEAT-07；列表单图按尺寸、极端比例限预览及完整入口，多图横向轨道，取代本次列表的固定比例预览。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
 
-> **最新三图明确批准：**本次用户附正常阅读、身份停用与本人删除确认三图明确“要这三张”，[F1-19—21正式文件](../ui-reviews/post-detail-selected-final.md)与附件逐字节一致；不改布局／颜色，不恢复已取消的删除后独立页，真实图片查看和删除／返回行为仍待实现验收。
+> **最新三图明确批准：**本次用户附正常阅读、身份停用与本人删除确认三图明确“要这三张”，[F1-19—21正式文件](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-selected-final.md)与附件逐字节一致；不改布局／颜色，不恢复已取消的删除后独立页，真实图片查看和删除／返回行为仍待实现验收。
 
 更新：2026-10-09。当前规则只在本模块维护。
 
-> **F1当前详情：**用户明确认可[F1-19统一缩略图正常阅读v2](../ui-reviews/post-detail-normal-v2.md)，白色框架与暗蓝细节作为该正常页正式稿。后续[身份停用与本人删除确认](../ui-reviews/post-detail-states-v1.md)按既定无意见规则归档；用户取消删除后独立已删除页，删除成功直接返回上一级来源页。历史深色v2档案保留，当前正常阅读以本轮正式图为准；展开评论未在本批重画。图稿不代表业务或平台验收。
+> **F1当前详情：**用户明确认可[F1-19统一缩略图正常阅读v2](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-normal-v2.md)，白色框架与暗蓝细节作为该正常页正式稿。后续[身份停用与本人删除确认](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)按既定无意见规则归档；用户取消删除后独立已删除页，删除成功直接返回上一级来源页。历史深色v2档案保留，当前正常阅读以本轮正式图为准；展开评论未在本批重画。图稿不代表业务或平台验收。
 
 ## 范围
 
@@ -124,7 +124,7 @@
 
 ### POST-DETAIL-01：正式画面与状态基准
 
-- 默认阅读当前以[F1-19正常阅读v2正式图](../../../UI产品图/帖子详情-正常阅读.png)为准：白色框架、黑色正文、暗蓝细节与统一紧凑缩略图；该页颜色和布局由用户本次明确认可。历史默认阅读／展开评论深色v2档案保留用于追溯，展开评论尚未同步本轮视觉，不推定全局主题或评论页改版已批准。
+- 默认阅读当前以F1-19正常阅读v2正式图（原文件 `UI产品图/帖子详情-正常阅读.png` 未随当前仓库交付）为准：白色框架、黑色正文、暗蓝细节与统一紧凑缩略图；该页颜色和布局由用户本次明确认可。历史默认阅读／展开评论深色v2档案保留用于追溯，展开评论尚未同步本轮视觉，不推定全局主题或评论页改版已批准。
 - 正式稿手机画板为 402 × 874。基准可用内容高度为 738，其中正文 492、评论 246；顶部状态栏与导航、底部安全区不计入比例。其他屏幕适配未定。
 - 回复输入采用 DETAIL-03 的近全屏输入状态，不沿用浏览状态的三分之二／三分之一比例。主动收起未发送输入后恢复分屏及两区原浏览位置；具体输入、草稿与发送流程统一见[评论与回复](comments.md)。
 - 正文、昵称、时间和计数均为占位示例；图外比例、动作说明不是 App 文案。定稿不代表静态图已实现或验证真实手势。
@@ -141,20 +141,20 @@
 
 | 画面 | 当前文件 |
 | --- | --- |
-| 当前正常阅读 | [帖子详情-正常阅读](../../../UI产品图/帖子详情-正常阅读.png) |
-| 当前身份停用 | [帖子详情-身份停用](../../../UI产品图/帖子详情-身份停用.png) |
-| 当前本人删除确认 | [帖子详情-本人删除确认](../../../UI产品图/帖子详情-本人删除确认.png) |
-| 删除成功后 | 直接返回来源页，无独立删除后页面，见[流程修订](../ui-reviews/post-detail-states-v1.md) |
-| 历史深色默认阅读 | [读帖子页面（当前文件缺失）](../../../UI产品图/读帖子页面.png) |
-| 历史展开评论 | [进入帖子后上拉评论页面（当前文件缺失）](../../../UI产品图/进入帖子后上拉评论页面.png) |
-| 历史两种浏览状态总览 | [读帖子上拉评论流程图（当前文件缺失）](../../../UI产品图/读帖子上拉评论流程图.png) |
+| 当前正常阅读 | 帖子详情-正常阅读（原文件 `UI产品图/帖子详情-正常阅读.png` 未随当前仓库交付） |
+| 当前身份停用 | 帖子详情-身份停用（原文件 `UI产品图/帖子详情-身份停用.png` 未随当前仓库交付） |
+| 当前本人删除确认 | 帖子详情-本人删除确认（原文件 `UI产品图/帖子详情-本人删除确认.png` 未随当前仓库交付） |
+| 删除成功后 | 直接返回来源页，无独立删除后页面，见[流程修订](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md) |
+| 历史深色默认阅读 | 读帖子页面（当前文件缺失）（原文件 `UI产品图/读帖子页面.png` 未随当前仓库交付） |
+| 历史展开评论 | 进入帖子后上拉评论页面（当前文件缺失）（原文件 `UI产品图/进入帖子后上拉评论页面.png` 未随当前仓库交付） |
+| 历史两种浏览状态总览 | 读帖子上拉评论流程图（当前文件缺失）（原文件 `UI产品图/读帖子上拉评论流程图.png` 未随当前仓库交付） |
 
 历史三条路径与深色v2档案对应，在本工作树缺失；实际结构参考保存在discussions/assets。文件名中的“上拉”不新增手势要求，展开动作仍为点击评论入口。楼中楼局部结构图在[评论与回复](comments.md)维护，不据局部放大图增加评论面板高度。
 
 ## 来源
 
 - [正式图稿档案](../post-detail-dark-final.md)：POST-DETAIL-01，2026-09-08 确认的深色 v2 浏览状态、尺寸与视觉基线。
-- [帖子详情与联系设计记录](../../discussions/2026-09-08-post-contact-design.md)：DETAIL-01、DETAIL-02、LIKE-01；DETAIL-03 的浏览与输入状态边界。
-- [需求共识记录](../../discussions/2026-09-06-hainanu-treehole.md)：DETAIL-02 及媒体、身份关联规则。
+- [帖子详情与联系设计记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-08-post-contact-design.md)：DETAIL-01、DETAIL-02、LIKE-01；DETAIL-03 的浏览与输入状态边界。
+- [需求共识记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)：DETAIL-02 及媒体、身份关联规则。
 
 历史讨论和图稿档案用于追溯；本模块后续确认和修订统一更新到本文件。

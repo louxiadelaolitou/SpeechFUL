@@ -29,8 +29,8 @@
 ## 继承的证据
 
 - [原预发布合并回执](android-prerelease-main-merge-20261019.json) 和[运行手册](android-prerelease.md) 已交付/清理，不恢复旧环境或重跑全套注册、图文和 V 恢复。
-- [评论限定 Android 报告](../design/comments-connected-report-20261019.md)、[机器记录](../design/comments-connected-verification-20261019.json)：原生 journal、真实进程恢复、单图、选图、失败通知/重试等沿用原 APK 范围。固定 main 的57项输入中45项相同，12项差异来自后续治理入口/可见性及对应测试。
-- [评论举报报告](../design/comment-report-validation-20261019.md)、[机器记录](../design/comment-report-verification-20261019.json)：固定 main 的699项产品/测试输入与已测清单一致，指纹 `bdda093c4c40ff60e8ff4d4820f2f7b5d0cdec2c5f5ebeb89c34638b853654a6`。既有 SQL、迁移/权限、Dart HTTPS 和业务闭环直接继承。
+- [评论限定 Android 报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comments-connected-report-20261019.md)、[机器记录](../design/comments-connected-verification-20261019.json)：原生 journal、真实进程恢复、单图、选图、失败通知/重试等沿用原 APK 范围。固定 main 的57项输入中45项相同，12项差异来自后续治理入口/可见性及对应测试。
+- [评论举报报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-report-validation-20261019.md)、[机器记录](../design/comment-report-verification-20261019.json)：固定 main 的699项产品/测试输入与已测清单一致，指纹 `bdda093c4c40ff60e8ff4d4820f2f7b5d0cdec2c5f5ebeb89c34638b853654a6`。既有 SQL、迁移/权限、Dart HTTPS 和业务闭环直接继承。
 - 旧网页自动测试使用了仅测试上下文的 `ignoreHTTPSErrors:true`；其页面功能证明不作为本轮严格 TLS 的证明，本轮不得复用此例外。
 
 ## 必要新增恢复影响
@@ -64,6 +64,6 @@
 
 候选、私有运行材料、安装/运行/恢复入口及清理回执见[复现说明](android-integration-reproduction-20261019.md)。后端私有凭据仅存专用本地材料；不进普通交付包或仓库。
 
-任务与接续：[任务详情](../branches/ci-android-integration-candidate.md)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)。
+任务与接续：[任务详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/ci-android-integration-candidate.md)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)。
 
 服务/数据库/构建进程均已停，私有归档6605文件读回验摘要通过，Linux运行环境与SDK/cache已删除。Windows专属ADB SDK目录删除被自动审批拦截，固定字面路径的更安全尝试也仅返回“blocked by policy”；该目录已停用但未删除，不计清理PASS。详见[实际清理回执](android-integration-cleanup-20261019.json)。此补记只反映交付和收尾事实，不重新构建或重验产品。

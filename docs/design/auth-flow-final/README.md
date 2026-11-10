@@ -2,7 +2,7 @@
 
 > 历史设计资产：本目录记录 2026-10 的确认与核对。当前恢复码／Passkey 用户流程已暂停，注册不再要求保存或确认恢复码，找回密码使用校邮；依据见 [AUTH-EMAIL-RESET-01](../../tasks/AUTH-EMAIL-RESET-01.md)。下方的“当前”“定稿”及合并状态均属于当时版本，交互稿不作为当前产品流程。
 
-> 2026-10-21 当前注册设计：用户已确认[三步注册 v3](registration-v3/registration-three-steps.png)（“可以，就这样”）。index.html／source.html 已保存：邮箱验证→用户名密码→账号安全，恢复码框内复制、移除“暂不设置”、Passkey可选。欢迎／登录延续原确认版。仅本地设计获确认，产品、Sites、APK未更新；[核对记录](registration-v3/verification.json)与[评审](../ui-reviews/registration-wizard-v3.md)。v2及旧版Git b80452c保留。
+> 2026-10-21 当前注册设计：用户已确认[三步注册 v3](registration-v3/registration-three-steps.png)（“可以，就这样”）。index.html／source.html 已保存：邮箱验证→用户名密码→账号安全，恢复码框内复制、移除“暂不设置”、Passkey可选。欢迎／登录延续原确认版。仅本地设计获确认，产品、Sites、APK未更新；[核对记录](registration-v3/verification.json)与[评审](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/registration-wizard-v3.md)。v2及旧版Git b80452c保留。
 
 > 实施更新：[PR #42](https://github.com/zewbby/HnuHole/pull/42)已将v3接入Flutter现有注册流程，恢复码点击复制、完整确认及可选通行密钥入口均已实施；[实际核对](../validation/registration-wizard-20261021/verification.json)。上方“产品未更新”仅描述设计确认当时；已合并main `09498b2`，五项CI通过，[合并回执](../validation/registration-wizard-20261021/main-merge.json)已核对；Sites仍保留原发布版本。
 
@@ -18,7 +18,7 @@
 - [可编辑源稿 source.html](source.html)：与用户最后确认的对话内源稿保持一致。
 - [归档核对记录 verification.json](verification.json)：源稿摘要、实际浏览器检查、布局测量与截图摘要。
 - [第三方许可](THIRD_PARTY_NOTICES.md)：独立交互稿内嵌的固定版本图标与展示依赖。
-- [分支交付记录](../../branches/docs-auth-flow-final.md)：范围、推送／PR 状态和后续入口。
+- [分支交付记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/docs-auth-flow-final.md)：范围、推送／PR 状态和后续入口。
 
 交互稿不连接账号服务，不发送邮件、不访问设备通行密钥、不执行登录或创建账号，也不保存输入的用户名、密码、邮箱或验证码。交互状态仅记录当前页面、登录方式、语言和主题。
 
@@ -82,4 +82,4 @@
 
 归档核对以 [verification.json](verification.json) 为准：导出文件的实际浏览器运行、原位切换几何一致、两种方式往返、获取验证码示意、语言／主题切换、窄屏与运行错误检查，以及源稿与用户确认稿一致性。
 
-App 编译／单元测试、真实邮件／登录／注册、SQL、Android／iOS 和生产验收均为 `NOT_RUN`：本任务只交付设计，不提升任何产品模块验收结论。仓库协作检查另记于[分支交付记录](../../branches/docs-auth-flow-final.md)。
+App 编译／单元测试、真实邮件／登录／注册、SQL、Android／iOS 和生产验收均为 `NOT_RUN`：本任务只交付设计，不提升任何产品模块验收结论。仓库协作检查另记于[分支交付记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/docs-auth-flow-final.md)。

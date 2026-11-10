@@ -63,4 +63,4 @@ fixture 只存在本任务运行目录，字段为 `url`、`reviewerUsername`、
 使用 Windows Node 时，fixture／output 参数与截图目录须为 Windows 可访问的路径；从 WSL 调用前用 `wslpath -w` 转换本任务路径。
 该脚本本身不是通过证明，须随固定候选、真实服务与独立一次性数据库执行后记录结果；fixture 文件不得提交。
 
-本分支已通过上述真实 Go C／SQL／Dart／Edge 链路，实际配置、首位管理员引导和最终证据见 [API 运行说明](../../services/api/README.md)与[阶段1报告](../../docs/design/report-moderation-validation-report.md)。不扩大到真机或生产验收。
+本分支已通过上述真实 Go C／SQL／Dart／Edge 链路，实际配置、首位管理员引导和最终证据见 [API 运行说明](../../services/api/README.md)与[阶段1报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/report-moderation-validation-report.md)。不扩大到真机或生产验收。

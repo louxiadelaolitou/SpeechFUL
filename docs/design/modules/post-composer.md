@@ -1,18 +1,18 @@
 # 新建帖子
 
-> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
+> **2026-10-25 SHARED-RATE-LIMIT-01合并回执：** [PR73](https://github.com/zewbby/HnuHole/pull/73) 已Squash进入main c051981（北京时间10:12:38），最终5ef371d与合并完整树一致；指定Android四阶段及13workflow/23job限定通过。见[合并证据](../shared-rate-limit-merge-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。未部署/生产发布；iOS、整机重启/掉电、容量及历史整模块结论不提升。下方送审/未合并为历史时点。
 
 > **2026-10-24 SHARED-RATE-LIMIT-01送审追加：** CI记录时[Draft PR73](https://github.com/zewbby/HnuHole/pull/73)已提交推送，指定Android场景PASS；6e50244远端13workflow/23job全SUCCESS，见[版本化CI证据](../shared-rate-limit-remote-ci-verification.json)。runtime沿原生已测33bdcc0，后续只CI/旧host工具修复；待独立成员review、未合并发布。本次回执编写时纯文档更新CI待新head；CI记录时为Draft，后续检查/送审状态以live PR为准，历史模块总裁决及旧计数不变。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实429完整草稿及图片/身份/通道恢复、过等待后3秒不自动发表、手动同原键一次受理与SQL原材料匹配已限定PASS。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](../../branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
+> **2026-10-24 SHARED-RATE-LIMIT-01 Android增量：** 真实429完整草稿及图片/身份/通道恢复、过等待后3秒不自动发表、手动同原键一次受理与SQL原材料匹配已限定PASS。 测试包2433，final-r11四阶段，见[脱敏证据](../shared-rate-limit-device-verification.json)/[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md)。用户已授权后续PR/远端CI，当前尚未提交PR、remoteCI NOT_RUN；历史模块总裁决不提升，旧未真机描述保留原时点。
 
-> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 429完整持久草稿/原身份/图片任务及等待，用户到期手动同键重试，不自动发表；22字符canonical base64url键解码16字节，不能与内部32字节摘要混淆。post.create独立SW，原SQL120新回执/60秒及128存活任务继续。上传按实际body字节。B05仅本任务限定证据。 [当前任务](../../branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
+> **2026-10-24 SHARED-RATE-LIMIT-01（仅feat/shared-rate-limit-abuse-control，本地未提交/未合并/未部署）：** 429完整持久草稿/原身份/图片任务及等待，用户到期手动同键重试，不自动发表；22字符canonical base64url键解码16字节，不能与内部32字节摘要混淆。post.create独立SW，原SQL120新回执/60秒及128存活任务继续。上传按实际body字节。B05仅本任务限定证据。 [当前任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-shared-rate-limit-abuse-control.md) / [配置](../shared-rate-limit-plan.md) / [证据](../shared-rate-limit-verification.json)。旧原文及整模块验收结论保留，未做真机/iOS/生产验收。
 
 更新：2026-10-09。当前规则只在本模块维护。
 
 ## 范围
 
-本文件是新建帖子内容编辑、发布与草稿规则的当前维护处。适用于首版手机 App；F1-04文字编辑正常态、F1-05键盘状态、F1-06发布确认v1及F1-07保存失败厚重版v3均已正式定稿。F1-08／09／10身份三状态已正式定稿，见[本批评审](../ui-reviews/post-identity-and-save-states-v1.md)。图稿定稿不等于代码实现或平台验收通过，当次Flutter文字切片未实现、业务验收NOT_RUN。通道入口见[导航与通道](navigation.md)，标签见[分类与标签](tags.md)，昵称和头像见[预设身份](identity.md)，已发布内容的编辑、删除见[内容管理](moderation.md)。
+本文件是新建帖子内容编辑、发布与草稿规则的当前维护处。适用于首版手机 App；F1-04文字编辑正常态、F1-05键盘状态、F1-06发布确认v1及F1-07保存失败厚重版v3均已正式定稿。F1-08／09／10身份三状态已正式定稿，见[本批评审](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-identity-and-save-states-v1.md)。图稿定稿不等于代码实现或平台验收通过，当次Flutter文字切片未实现、业务验收NOT_RUN。通道入口见[导航与通道](navigation.md)，标签见[分类与标签](tags.md)，昵称和头像见[预设身份](identity.md)，已发布内容的编辑、删除见[内容管理](moderation.md)。
 
 ## 已确认规则
 
@@ -33,7 +33,7 @@
 - 不增加“先标题／先正文”的选择弹框；标题在实际发布前仍须填写。
 - 从发布确认页返回编辑页时，保留标题、正文、图片及顺序、已选标签和身份。
 - 点击“确认发布”后立即回到原通道主页面，发送在后台继续，不打开“发布中／发布失败”等独立状态页，也不强制进入“我的”。处理中及失败只在“我的／自己的帖子”对应卡片呈现。
-- 服务端确认成功公开后，在当前前台页面上部显示小型浮层“发布成功！”，短暂显示后自动消失，不遮蔽页面或要求确认；2026-10-09本次附件定稿为暗蓝矩形＋勾形符号，见[四图定稿](../ui-reviews/post-publish-feedback-selected-v3.md)，覆盖此前黑色候选。仅提交／受理、超时或结果未知时不提示成功。成功后按[导航模块 FEED-01](navigation.md)更新最新列表，用户已滚动到其他位置时不强制拉回顶部。退出、换账号及恢复后的旧结果不在无关账号或页面重复弹成功提示，恢复以本人列表最终状态为准。
+- 服务端确认成功公开后，在当前前台页面上部显示小型浮层“发布成功！”，短暂显示后自动消失，不遮蔽页面或要求确认；2026-10-09本次附件定稿为暗蓝矩形＋勾形符号，见[四图定稿](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-feedback-selected-v3.md)，覆盖此前黑色候选。仅提交／受理、超时或结果未知时不提示成功。成功后按[导航模块 FEED-01](navigation.md)更新最新列表，用户已滚动到其他位置时不强制拉回顶部。退出、换账号及恢复后的旧结果不在无关账号或页面重复弹成功提示，恢复以本人列表最终状态为准。
 
 编辑已发布帖子时，字段权限、原身份与互动保留、“已编辑”标记由[内容管理 EDIT-POST-01](moderation.md)维护，不将编辑另作新帖发布。
 
@@ -44,7 +44,7 @@
 
 ### POST-PENDING-01：后台发送中的本人卡片
 
-- 确认发布后立即在“我的／自己的帖子”对应卡片显示仅本人可见的转圈与“发布中”；本次[F1-16正式图](../../../UI产品图/我的-帖子发布中.png)采用用户附件中的双列混排卡片尺寸，不能擅自替成未选中等高网格。主页面保持正常浏览。可主动从本人卡片查看本次只读提交内容，退出 App 后入口仍保留；这种主动查看不成为发布后的必经页。
+- 确认发布后立即在“我的／自己的帖子”对应卡片显示仅本人可见的转圈与“发布中”；本次F1-16正式图（原文件 `UI产品图/我的-帖子发布中.png` 未随当前仓库交付）采用用户附件中的双列混排卡片尺寸，不能擅自替成未选中等高网格。主页面保持正常浏览。可主动从本人卡片查看本次只读提交内容，退出 App 后入口仍保留；这种主动查看不成为发布后的必经页。
 - 可以检查任务状态，也可以取消本次上传／发布。结果未知时核对原任务，不重复提交、不编辑或直接删除处理中卡片；不能仅凭客户端点击取消宣称服务端已经取消。
 - 服务端确认成功后转正式帖；明确失败后以POST-FAIL-01的失败草稿保存内容并标醒目叹号。结果未知及取消核对仍是原任务状态，只在本人卡片／主动查询入口表达，不能提前转成可重发草稿。成功后的帖子仍可按内容管理规则编辑。
 - 用户主动取消成功不生成失败卡片；清理本次未公开任务的临时上传文件，保留草稿原始图片。已由服务端确认成功的结果以服务端最终状态为准，不将成功帖子当临时任务清理。
@@ -103,7 +103,7 @@
 
 - 用户退出编辑时，若因存储已满等原因明确无法保存草稿，留在编辑页，提示保存失败并保留当前内容，不直接退出造成未保存修改丢失。
 - 2026-10-08用户要求改为居中弹框，左侧“放弃”、右侧“重试”，仅两个动作，覆盖此前重试／复制文字／放弃退出的三入口要求。提示放弃将丢失未保存的修改；由用户明确选择，关闭弹框或系统返回不能代选放弃。
-- “放弃”放弃本次未保存修改并退出原编辑操作；“重试”再次保存，失败继续保留内容，成功后按原退出意图返回。此为明确保存失败时的例外；正常退出仍按 POST-DRAFT-01 自动保存并返回。用户已将两按钮弹框厚重版[v3图稿](../ui-reviews/post-composer-save-failed-v3.md)正式定稿；业务未实现／NOT_RUN。
+- “放弃”放弃本次未保存修改并退出原编辑操作；“重试”再次保存，失败继续保留内容，成功后按原退出意图返回。此为明确保存失败时的例外；正常退出仍按 POST-DRAFT-01 自动保存并返回。用户已将两按钮弹框厚重版[v3图稿](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-composer-save-failed-v3.md)正式定稿；业务未实现／NOT_RUN。
 
 ### POST-DRAFT-IDENTITY-01：草稿所选身份被删除
 
@@ -122,17 +122,17 @@
 
 ## 设计图
 
-F1-04[文字编辑正常态v1](../ui-reviews/post-composer-edit-v1.md)已由用户明确“可以，我同意这个”，正式定稿，正式文件为[发帖-文字编辑](../../../UI产品图/发帖-文字编辑.png)。原图`docs/design/ui-drafts/post-composer-edit-v1.png`保留。标题在上、正文在下、图片在正文后，右上“下一步”、当前通道、图片0/9与添加入口、正常“草稿已保存”提示作为本页定稿；标签与身份仍在下一步确认页，本页不增加发布／确认／预览入口。确认仅适用于这张编辑正常态，不自动确认全局配色。
+F1-04[文字编辑正常态v1](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-composer-edit-v1.md)已由用户明确“可以，我同意这个”，正式定稿，正式文件为发帖-文字编辑（原文件 `UI产品图/发帖-文字编辑.png` 未随当前仓库交付）。原图`docs/design/ui-drafts/post-composer-edit-v1.png`保留。标题在上、正文在下、图片在正文后，右上“下一步”、当前通道、图片0/9与添加入口、正常“草稿已保存”提示作为本页定稿；标签与身份仍在下一步确认页，本页不增加发布／确认／预览入口。确认仅适用于这张编辑正常态，不自动确认全局配色。
 
-F1-05[文字编辑键盘状态v1](../ui-reviews/post-composer-keyboard-v1.md)已由用户明确“这个可以”，正式定稿，正式文件为[发帖-键盘编辑](../../../UI产品图/发帖-键盘编辑.png)，原图`docs/design/ui-drafts/post-composer-keyboard-v1.png`保留。正文与光标、右上“下一步”保持可见，原标题／正文结构、图片0/9与添加入口、正常“草稿已保存”提示保留，不新增身份／标签／发布入口。本页定稿不自动推广为全局配色。
+F1-05[文字编辑键盘状态v1](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-composer-keyboard-v1.md)已由用户明确“这个可以”，正式定稿，正式文件为发帖-键盘编辑（原文件 `UI产品图/发帖-键盘编辑.png` 未随当前仓库交付），原图`docs/design/ui-drafts/post-composer-keyboard-v1.png`保留。正文与光标、右上“下一步”保持可见，原标题／正文结构、图片0/9与添加入口、正常“草稿已保存”提示保留，不新增身份／标签／发布入口。本页定稿不自动推广为全局配色。
 
-F1-06[发布确认v1](../ui-reviews/post-publish-confirm-v1.md)与F1-07[保存失败厚重版v3](../ui-reviews/post-composer-save-failed-v3.md)均已正式定稿。发布确认仍为标题／标签／发言身份、底部固定“确认发布”，不增加预览或额外确认；保存失败采用居中两按钮弹框，左放弃／右重试。全套F1当前10正式、3我的候选待评审、9未出图，共22页。身份三态已明确确认，我的和详情等后续图不属于本页定稿。
+F1-06[发布确认v1](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-confirm-v1.md)与F1-07[保存失败厚重版v3](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-composer-save-failed-v3.md)均已正式定稿。发布确认仍为标题／标签／发言身份、底部固定“确认发布”，不增加预览或额外确认；保存失败采用居中两按钮弹框，左放弃／右重试。全套F1当前10正式、3我的候选待评审、9未出图，共22页。身份三态已明确确认，我的和详情等后续图不属于本页定稿。
 
 2026-10-08历史：F1-04文字编辑正常态v1与F1-05键盘状态v1最初生成并查看时均为DRAFT／待用户评审；随后用户分别看图明确同意，当前状态以上述正式定稿为准。静态图不证明真实保存、图片或键盘能力已实现；本轮不写代码、不改模块台账或登记代码／平台验收PASS。
 
 ## 来源
 
-- [需求共识记录](../../discussions/2026-09-06-hainanu-treehole.md)：POST-01、MEDIA-01、SCOPE-01、FEED-01。
-- [帖子详情与联系设计记录](../../discussions/2026-09-08-post-contact-design.md)：IDENTITY-02 明确新建帖子发布页另行设计；DETAIL-04 仅确认评论与回复的发送行为。
+- [需求共识记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)：POST-01、MEDIA-01、SCOPE-01、FEED-01。
+- [帖子详情与联系设计记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-08-post-contact-design.md)：IDENTITY-02 明确新建帖子发布页另行设计；DETAIL-04 仅确认评论与回复的发送行为。
 
 历史讨论用于追溯；本模块后续确认和修订统一更新到本文件。
