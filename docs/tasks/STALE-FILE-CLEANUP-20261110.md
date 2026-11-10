@@ -1,11 +1,11 @@
 # STALE-FILE-CLEANUP-20261110 — 过期文件与历史远端分支退役
 
 - 模式：常规；负责人／状态维护人：当前 Session；无委派。
-- 分支／Worktree／PR：`codex/chore/prune-stale-repository-files`；独立 Worktree `SpeechFUL-stale-cleanup-20261110`；实际基线为 fetch 后的 `origin/main`：`e26d45375d6526bed72d00fd5fe42c26cc6d60ec`；PR 待创建。
+- 分支／Worktree／PR：`codex/chore/prune-stale-repository-files`；独立 Worktree `SpeechFUL-stale-cleanup-20261110`；实际基线为 fetch 后的 `origin/main`：`e26d45375d6526bed72d00fd5fe42c26cc6d60ec`；[PR #130](https://github.com/zewbby/SpeechFUL/pull/130) 已合并，远端工作分支已退役，本机分支／Worktree 保留。
 - 授权依据与边界：用户在全仓核查后明确“清了，直接合并推送就行”，并追加“把 GitHub 上的分支，已经完成的属于历史分支的全退役了，同步文档也要更新了”。允许确认过期文件退役、必要入口／文档修复、验证、推送合并和已完成历史远端分支删除。不部署，不操作业务数据、数据库或设备，不删除本机分支／Worktree，不混入另一项未提交的移动端重构。
 - 需求确认：正常功能测试、正式 SQL 迁移／权限审计、现行协议与固定原始字节归档保留。历史回执和旧设计以固定 Git 提交追溯；不能仅凭日期或无字面引用删除，执行依赖闭包仍须复核。沿用当前 pgx 手写查询，退役无生成调用的 sqlc 配置及重复查询源；不变更运行 SQL。分支以 main 包含的提交或已合并 PR 精确 head 为依据；额外文档回执先核对／归集，未完成工作保留。
 - 更新日期：2026-11-10。
-- 状态：文件实现 已完成；本地验证 PASS（工具／静态范围，3 项 POSIX 场景 SKIP）；合并 待当前 head CI；历史远端分支退役 待执行；发布 未发布。
+- 状态：文件实现 已完成；本地及远端适用验证 PASS（Windows 工具 3 SKIP；远端 dispatch 专用长测 1 SKIP）；PR130 已合并；历史远端分支退役 已完成，共 64 条；发布 未发布（本任务无需部署）。
 
 ## 范围与依赖
 
@@ -33,16 +33,19 @@
 | 依赖与行为边界 | 一次性全树引用／AST／Git diff 验证；`e26d453`＋最终差异 | PASS：删除项无保留可执行引用；146 份 Python 可解析；383 个正常命名测试、45 个迁移及 11 个授权／审计 SQL、产品 Go／Dart／原生源码、向量和锁文件均保留原字节／Git 内容。两个 B5 场景因不同验收边界保留，没有按重复直接删测试。 |
 | 文档与历史 | 全部非 original Markdown 本地链接及新增固定 Git 目标 | PASS：1093 个本地链接、32 个本轮历史目标，无新增断链；原始字节归档未更改。 |
 | 分支调查 | GitHub 65 条分支及 129 个 PR 的快照 | PASS：59 条精确匹配已合并 PR head，另外 4 条只有额外／被 main 覆盖的文档；main 和 PR75 分支保留。删除前仍须重新核对 SHA，结果见最终回执。 |
-| 合并／部署 | 当前实现差异 | 合并 NOT_RUN（待远端当前 head 检查）；部署 NOT_RUN；不把主机工具或协作检查当成 SQL／真机／生产通过。 |
+| 远端适用 CI | PR130 head `b9d851a5640921233d5d1659ab311a4cb422f233`；[Checks](https://github.com/zewbby/SpeechFUL/pull/130/checks) | PASS：11 个 workflow 均 success；21 个检查中 20 success、actual-process-acceptance 按 workflow_dispatch 条件 SKIP。包含真实隔离 SQL、Dart→HTTPS、Flutter、Android 候选及迁移／恢复演练；新增 F4 隔离 job 通过。不冒充真机或生产验收。 |
+| 合并 | [0d26f0b](https://github.com/zewbby/SpeechFUL/commit/0d26f0b4187985781e7e063db828e6f55d2f01fc) | PASS：核对 head 未移动、base 仍为 e26d453、所有检查完成、mergeable=true/clean 后按用户授权 Squash Merge。fetch 后核对合并 tree 与已测 b9d851a 完全相同；不自批或冒充 GitHub 成员独立批准。 |
+| 远端分支退役 | 下表 63 条历史分支＋本次 PR130 工作分支 | PASS：删除前再次 ls-remote 校对；旧 63 条使用原子 push 和逐引用期望 SHA 删除，拒绝分支移动。PR130 合并后，按原 b9d851a head 删除其远端工作分支。Git ls-remote 与 GitHub API 均复核仅剩 main、docs/shared-rate-limit-deployment。未删除本机分支／Worktree。 |
+| 交付文档／部署 | 本记录、branches 索引及 RECENT_WORK | 仅在已合并 main 上补充上述实际结果，继承同一被测实现，不重跑未改变的产品矩阵；最终提交的协作检查另核。部署 NOT_RUN，没有操作业务数据库或手机。 |
 
 ## 阻碍与下一步
 
-本地适用验证已完成，提交并等待当前 head 的适用 CI 后合并。旧分支按本清单核对实际 SHA 后退役，不推进部署；PR75 的未合入 operator ACL 变更保留待其原任务处理。
+本轮实现、验证、合并及分支退役已完成。PR75 的未合入 operator ACL 变更保留待其原任务处理；不推进部署或删除未完成工作。后续新分支按实际任务维护，本记录中的数量仅为本轮完成快照。
 
 
 ## 历史远端分支核对清单
 
-下表为删除前快照，删除只接受表中期望 SHA；最终执行结果以本任务的合并／退役回执为准。`docs/shared-rate-limit-deployment`／PR #75 保留：main 的 operator ACL 样例尚不含该 PR 的 `+setnx` 修正，本任务不替用户合入这项权限变更。`main` 和本机活动 Worktree 保留。
+下表 63 条历史分支均已按所列期望 SHA 删除；此外，本任务远端分支在 PR130 合并后按 head `b9d851a5640921233d5d1659ab311a4cb422f233` 删除，共 64 条。`docs/shared-rate-limit-deployment`／PR #75 保留：main 的 operator ACL 样例尚不含该 PR 的 `+setnx` 修正，本任务不替用户合入这项权限变更。`main` 和本机活动 Worktree 保留。
 
 合并后回执：标签分支的原 `961020c` 文档已补入 `CUSTOM-TAGS-01`；Android `c1dd912` 的 PR113 最终回执已存在于 main；个人页 `ca0580b` 仅补记 PR68 已 squash 为 `ce140d57e0bf6feb27165352394c9946a1b72aef`、原 head `22498e8` 的 12 个 workflow 及原本地 20 项测试通过，无新增产品改动或部署。本段只归集原记录，不声称本轮重跑。官网 README 链接已在 main，早期 WEBSITE-01 状态已标明由 PR127 正式发布任务接替。
 

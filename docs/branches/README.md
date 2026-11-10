@@ -2,7 +2,14 @@
 
 日常开发从 `main` 建立任务分支；已合并且没有新增产品提交的远端分支在核对后退役，历史内容通过 main、PR 和固定 Git 提交追溯。删除远端名称不代表删除本机 Worktree、功能代码或任务记录。
 
-2026-11-10 本次核对 GitHub 共 65 条分支：63 条已完成历史分支列入退役计划，`main` 保留；`docs/shared-rate-limit-deployment` 对应 [PR #75](https://github.com/zewbby/SpeechFUL/pull/75) 仍未合并，含 operator SETNX 的未接纳修正，保留。合并后额外回执先核对并归集，再删除远端名称；本次工作分支也在自身 PR 合并后退役。实际执行结果、期望 SHA 和名单集中见[唯一任务记录](../tasks/STALE-FILE-CLEANUP-20261110.md)，不把这里的快照当作实时 GitHub 清单。
+2026-11-10 核对并退役 63 条已完成历史分支；[PR #130](https://github.com/zewbby/SpeechFUL/pull/130) 检查通过并合并后，其工作远端分支也已删除，合计退役 64 条。GitHub 复核只剩下表两条；实际执行结果、删除前 SHA 和名单集中见[唯一任务记录](../tasks/STALE-FILE-CLEANUP-20261110.md)。这是完成时快照，后续以[GitHub 分支列表](https://github.com/zewbby/SpeechFUL/branches)为准。
+
+| 保留分支 | 原因 |
+| --- | --- |
+| `main` | 当前主线 |
+| `docs/shared-rate-limit-deployment` | [PR #75](https://github.com/zewbby/SpeechFUL/pull/75) 仍未合并，含 main 尚未接纳的 operator SETNX 修正；不将未完成变更误删 |
+
+额外文档回执已先核对并归集。本机活动分支、未提交改动和 Worktree 均未删除。
 
 ## 已退役的分支过程文档
 
