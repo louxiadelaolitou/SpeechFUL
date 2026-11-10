@@ -35,7 +35,7 @@
 
 命令 `python3 -m unittest discover -s tools/feed_staging -p 'test_*.py' -v`：真实loopback TLS与私有控制/范围/帧检查自动回归，由 `.github/workflows/feed-staging-tools.yml` 配套产品工具CI。替身TLS测试只证明入口机制，不代证业务SQL。
 
-自有fault_*账号分别在CAS和共享c923上执行7项真实C HTTPS/SQL：真实200后drop与事实/旧412、超时旧请求释放412、合成GET401/503一次性、真实GET hold与另一账号透传、真实会话替代后旧401、真实评论202丢响应后原command恢复且单个published。消费者账号未由宿主登录，设备通过结论由Android维护。[部署证据](feed-staging-verification-20261020.json)记录具体版本/receipt/源码哈希。
+自有fault_*账号分别在CAS和共享c923上执行7项真实C HTTPS/SQL：真实200后drop与事实/旧412、超时旧请求释放412、合成GET401/503一次性、真实GET hold与另一账号透传、真实会话替代后旧401、真实评论202丢响应后原command恢复且单个published。消费者账号未由宿主登录，设备通过结论由Android维护。[部署证据](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/feed-staging-verification-20261020.json)记录具体版本/receipt/源码哈希。
 
 两环境各以正常API、上传grant/bytes、原worker发表5种有网格/中心/边界的单图：640×360、360×640、640×640、4096×128、256×4096；严格protected manifest与原bytes逐字节一致，SHA/帖子ID在 `cas-grid-fixtures.json`／`shared-grid-fixtures.json` 本机及脱敏汇总中。夹具不代证手机正常发帖、精确4x或所有设备比例通过。
 

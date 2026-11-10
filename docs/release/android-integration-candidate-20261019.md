@@ -24,11 +24,11 @@
 | CA 有效期（UTC） | 2026-10-19 04:47:27 至 2026-11-18 04:48:27 |
 | C / V 迁移 | 正式0001..0018 / 0001..0004，逐文件摘要见构建回执 |
 
-[原始构建 manifest](android-integration-build-20261019.json) 保留构建时 device NOT_RUN 快照，另用[实际设备回执](android-integration-device-20261019.json)记录后续验收。实际调用配方 SHA256 `c60238bfa7a5a6cd31b04e9cf27ec5cbe621fa8f1e5e683e9908acef6f7a7152`；审查后补守卫的最终 `build.py` 为 `e0b7dc994d7460cffc8ef6a5ca2b83f7a6ad7324b909a900ae1dd18c2afd00b0`。该 APK 由前者构建，不能称由后者构建；产品输入不变，因此复用 APK。
+[原始构建 manifest](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-integration-build-20261019.json) 保留构建时 device NOT_RUN 快照，另用[实际设备回执](android-integration-device-20261019.json)记录后续验收。实际调用配方 SHA256 `c60238bfa7a5a6cd31b04e9cf27ec5cbe621fa8f1e5e683e9908acef6f7a7152`；审查后补守卫的最终 `build.py` 为 `e0b7dc994d7460cffc8ef6a5ca2b83f7a6ad7324b909a900ae1dd18c2afd00b0`。该 APK 由前者构建，不能称由后者构建；产品输入不变，因此复用 APK。
 
 ## 继承的证据
 
-- [原预发布合并回执](android-prerelease-main-merge-20261019.json) 和[运行手册](android-prerelease.md) 已交付/清理，不恢复旧环境或重跑全套注册、图文和 V 恢复。
+- [原预发布合并回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-main-merge-20261019.json) 和[运行手册](android-prerelease.md) 已交付/清理，不恢复旧环境或重跑全套注册、图文和 V 恢复。
 - [评论限定 Android 报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comments-connected-report-20261019.md)、[机器记录](../design/comments-connected-verification-20261019.json)：原生 journal、真实进程恢复、单图、选图、失败通知/重试等沿用原 APK 范围。固定 main 的57项输入中45项相同，12项差异来自后续治理入口/可见性及对应测试。
 - [评论举报报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/comment-report-validation-20261019.md)、[机器记录](../design/comment-report-verification-20261019.json)：固定 main 的699项产品/测试输入与已测清单一致，指纹 `bdda093c4c40ff60e8ff4d4820f2f7b5d0cdec2c5f5ebeb89c34638b853654a6`。既有 SQL、迁移/权限、Dart HTTPS 和业务闭环直接继承。
 - 旧网页自动测试使用了仅测试上下文的 `ignoreHTTPSErrors:true`；其页面功能证明不作为本轮严格 TLS 的证明，本轮不得复用此例外。
@@ -41,7 +41,7 @@
 
 0018前的 #19 后端在新配置/新schema下实测拒绝启动。独立审查要求收紧泛化 runtime marker 的归因后，又在真实恢复库以受限角色执行旧/新 checker 的只读精确谓词：旧版本多出不允许 UPDATE 的 `moderation_hidden`，新版本零项；旧/新 checker 源码摘要与结果已保留。旧 `WithComments → CheckCommentSchema` 无法满足0018新增授权契约，未撤回所需权限去迁就旧 binary，不将其列为安全回滚版本。不执行 Down，也不以旧 binary 能启动代证新评论下架语义兼容。当前固定1a810944后端已恢复可用。
 
-工具失败历史保留：SDK下载超时后仅续装缺失组件；合成准备客户端首次漏32字节登录幂等头、帖子状态读取层级错误；最终原图读取使用了错误字段名。均修正交付工具后窄范围继续，没有改业务或重跑旧全套。见[真实恢复及精确兼容诊断回执](android-integration-restore-20261019.json)。
+工具失败历史保留：SDK下载超时后仅续装缺失组件；合成准备客户端首次漏32字节登录幂等头、帖子状态读取层级错误；最终原图读取使用了错误字段名。均修正交付工具后窄范围继续，没有改业务或重跑旧全套。见[真实恢复及精确兼容诊断回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-integration-restore-20261019.json)。
 
 ## 本轮实际设备治理连接
 
@@ -60,7 +60,7 @@
 
 未重验完整注册、图片发布、评论恢复；沿用有效原证据。新增治理补图/系统选图、实体 TalkBack、多机型矩阵、iOS、跨设备 Passkey、云端及生产/独立运营均 NOT_RUN。未弱化 TLS、Gate 或权限检查。
 
-普通与 `-O` 下各8项交付边界测试通过；当前受限 seed helper 编译成功但未重复播种；Go1.22.2、Goose3.22.1、PostgreSQL16.15、Python3.12.3/Pillow12.3.0、Flutter3.47.5、Java17.0.20.1、build-tools36、NDK28.2.13676358/CMake3.22.1已固定。独立只读复审无剩余 P1/P2，agent 审查不冒充 GitHub 成员批准。最终head `6baa40fd18c2ba7c4bc8eba7b358fe79326c04b8` 的 policy 与 integration-boundaries 两项最新检查均SUCCESS；普通 Squash 合并树与该head一致，见[实际合并回执](android-integration-main-merge-20261019.json)。无GitHub成员批准，按用户授权及独立agent审查正常合并，无旁路。
+普通与 `-O` 下各8项交付边界测试通过；当前受限 seed helper 编译成功但未重复播种；Go1.22.2、Goose3.22.1、PostgreSQL16.15、Python3.12.3/Pillow12.3.0、Flutter3.47.5、Java17.0.20.1、build-tools36、NDK28.2.13676358/CMake3.22.1已固定。独立只读复审无剩余 P1/P2，agent 审查不冒充 GitHub 成员批准。最终head `6baa40fd18c2ba7c4bc8eba7b358fe79326c04b8` 的 policy 与 integration-boundaries 两项最新检查均SUCCESS；普通 Squash 合并树与该head一致，见[实际合并回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-integration-main-merge-20261019.json)。无GitHub成员批准，按用户授权及独立agent审查正常合并，无旁路。
 
 候选、私有运行材料、安装/运行/恢复入口及清理回执见[复现说明](android-integration-reproduction-20261019.md)。后端私有凭据仅存专用本地材料；不进普通交付包或仓库。
 

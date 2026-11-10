@@ -99,7 +99,7 @@ C/V原入口严格TLS各200，原33923不动。保留原失败历史及随后同
 任务正常恢复，不能单独证明同进程
 40次轮询耗尽的stale已修；根因修复另由确定性宿主回归证明。旧2010失败与修复后
 结果分开记录，保留各自被测版本。全部证据见
-[机器记录](../design/feed-supplement-support-verification-20261020.json)。本轮没有
+[机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/feed-supplement-support-verification-20261020.json)。本轮没有
 数据库迁移/权限/材料/Gate变更，不执行数据库恢复；已有正式发布与恢复方案仍为
 [原方案](feed-staging-20261020.md)，历史备份不包含之后的设备数据，不盲目回灌。
 

@@ -17,7 +17,7 @@
 | `downloads/`、`tool-download-receipt.json`、`browser-tools-receipt.json` | 固定安装器及来源/摘要；不是恢复后的SDK或其他session缓存 |
 | 本目录的准备/执行 `.py` | 实际bootstrap、原构建调用配方、窄范围继续、严格浏览器与收尾脚本；历史失败保留，不盲目重跑有副作用入口 |
 
-提交内的[构建](android-integration-build-20261019.json)、[新增恢复](android-integration-restore-20261019.json)、[设备](android-integration-device-20261019.json)是脱敏证明。原始构建 manifest 保留 device NOT_RUN 时间快照，后续验收见设备回执。后端配置摘要在 manifest 中，私有配置内容不提交。
+提交内的[构建](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-integration-build-20261019.json)、[新增恢复](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-integration-restore-20261019.json)、[设备](android-integration-device-20261019.json)是脱敏证明。原始构建 manifest 保留 device NOT_RUN 时间快照，后续验收见设备回执。后端配置摘要在 manifest 中，私有配置内容不提交。
 
 ## 使用已固定 APK
 

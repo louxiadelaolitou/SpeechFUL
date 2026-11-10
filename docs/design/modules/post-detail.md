@@ -10,7 +10,7 @@
 
 > 2026-10-24 最新2424：评论操作提示在顶部独立占位，发送失败只进系统消息；键盘浮动输入栏不缩放阅读区，长列表懒构建及按需回复读取，正文/评论/身份读取并行。隐藏首页不跟随键盘布局，普通会话期限更新不重建首页；授权变化仍正常退出保护内容。vivo2424同签安装、原生相册取消及图片往返限定通过，性能与各版本证据见[最新报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/post-detail-comments-status-report-20261024.md)。本地未合并，完整模块结论不提升。
 
-> 2026-10-24 视频续修：历史任务不在重进详情时重放定位；后台发布定位不弹删除提示，新评论回读和数量回调同步当前页面。未知发言身份用中性占位，已知身份展开不变。评论图占满160dp单图区域，图片自然到期可前台重新授权读取，加载/失败/重读保持网格高度；授权拒绝仍停止。已有身份账号启动等待不展示初始身份设置。范围及版本见[续修证据](../post-detail-comments-video-verification-20261024.json)，未合并。
+> 2026-10-24 视频续修：历史任务不在重进详情时重放定位；后台发布定位不弹删除提示，新评论回读和数量回调同步当前页面。未知发言身份用中性占位，已知身份展开不变。评论图占满160dp单图区域，图片自然到期可前台重新授权读取，加载/失败/重读保持网格高度；授权拒绝仍停止。已有身份账号启动等待不展示初始身份设置。范围及版本见[续修证据](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/post-detail-comments-video-verification-20261024.json)，未合并。
 
 > 2026-10-24 用户追加定稿：详情回复栏仅保留图片入口（支持 GIF），移除独立 GIF 图标；展开/收起保持发言身份，取消相册后收起回复栏并保留草稿。适用于本地 `codex/feat/post-detail-comments`，未合并。
 
@@ -34,7 +34,7 @@
 
 > **2026-10-20 FEED-INTERACTIONS-01：**按下方 LIKE-ACCOUNT-01 账号级规则补帖子点赞／收藏幂等设置与批量／单帖计数，复用原评论总数；不绑定发言身份，不公开参与者，不改变本页布局。仅后端本分支，前端正式接线／设备／生产未验；见[接线契约](../feed-backend-contract.md#点赞收藏与评论数接线)及[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-interactions.md)。
 
-> **2026-10-19 FEED-UI-01（本分支）：**详情原布局／评论／完整图片查看保持，正文实际显示后登记 HEAT-07；列表单图按尺寸、极端比例限预览及完整入口，多图横向轨道，取代本次列表的固定比例预览。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)／[机器证据](../feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
+> **2026-10-19 FEED-UI-01（本分支）：**详情原布局／评论／完整图片查看保持，正文实际显示后登记 HEAT-07；列表单图按尺寸、极端比例限预览及完整入口，多图横向轨道，取代本次列表的固定比例预览。未扩展搜索、热度算法、私信或其他页面屏蔽；[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)／[机器证据](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/feed-ui-verification-20261019.json)限定宿主与真实接口范围，未合并／部署或升级完整设备验收。
 
 > **最新三图明确批准：**本次用户附正常阅读、身份停用与本人删除确认三图明确“要这三张”，[F1-19—21正式文件](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-selected-final.md)与附件逐字节一致；不改布局／颜色，不恢复已取消的删除后独立页，真实图片查看和删除／返回行为仍待实现验收。
 

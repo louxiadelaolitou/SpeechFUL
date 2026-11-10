@@ -114,4 +114,4 @@ FeedPost 示例：
 
 Linux 文件系统内使用现有 Go1.22.2、PG16、Goose v3.22.1：在 `services/api` 执行 `FEED_GOOSE=/absolute/path/to/goose PGPORT=55439 sh authlab/run-feed-isolated.sh`。脚本只建本次私有 socket／一次性库，结束自动停机清理，不接受外部 DSN。另执行 `go test -mod=readonly ./...`、`go build -mod=readonly ./...`、`go vet -mod=readonly ./...`。
 
-仓库根执行 `python -X utf8 packages/openapi/check-specs.py` 和 `python -X utf8 tools/check-community-text-contract.py`。专属 [CI](../../.github/workflows/feed-backend.yml)执行同类产品检查。实际结果见[机器记录](feed-backend-verification-20261019.json)；正式前端接线、Android/iOS 设备与生产不在本次验收范围。
+仓库根执行 `python -X utf8 packages/openapi/check-specs.py` 和 `python -X utf8 tools/check-community-text-contract.py`。专属 [CI](../../.github/workflows/feed-backend.yml)执行同类产品检查。实际结果见[机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/feed-backend-verification-20261019.json)；正式前端接线、Android/iOS 设备与生产不在本次验收范围。

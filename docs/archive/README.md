@@ -2,7 +2,13 @@
 
 当前开发从[文档入口](../README.md)开始；当前工作状态由[具体任务](../tasks/)维护。
 
-## 本轮退役的过程文档（2026-11-10）
+## 后续全仓核对的退役范围（2026-11-10）
+
+固定旧机器的两个迁移清理器、旧图稿渲染器、旧私信交接，以及确认无现行执行依赖的阶段 JSON 和旧认证交互稿，已从当前树退役。它们从[本轮清理前的 e26d453](https://github.com/zewbby/SpeechFUL/tree/e26d45375d6526bed72d00fd5fe42c26cc6d60ec)追溯，精确清单以[清理任务](../tasks/STALE-FILE-CLEANUP-20261110.md)及其提交差异为准；保留的 JSON 不改写其原字节或历史 PASS。
+
+本轮同时退役未进入运行链路的 sqlc 配置和重复查询源；实际 pgx 查询、45 个正式迁移、11 个授权／审计 SQL、正常功能测试和有校验依赖的 `original/` 字节归档保留。下方“原始 JSON 保留”描述前一轮范围，不表示阶段回执须永久留在当前树。旧认证设计统一从[历史入口](../design/auth-flow-final/README.md)阅读。
+
+## 前一轮退役的过程文档（2026-11-10）
 
 清理前的完整文档固定在
 [`50baa3c2768b69188f2d6562cdb8b6c51e9fa674`](https://github.com/zewbby/SpeechFUL/tree/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs)。

@@ -1,6 +1,6 @@
 # 第三项：准备工具与实测交接
 
-2026-10-16补验已收口：[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-android-stage3-closure-20261016.md)/[机器记录](../../docs/design/community-android-stage3-closure-20261016.json)。第三项批准的单Android范围PASS；明确关联拒绝由当前Google provider证据核验，主动取消由用户操作，活跃旧会话由真实C/SQL补证。`check-association.py`使用真实HnuHole工具User-Agent并保持全部TLS/重定向/内容检查，不伪装浏览器或降低网站安全配置。手机窗口已结束，vivo设置已恢复；以下20261015部分完成及更早准备均保留历史，不能盲重放其ADB或一次性wrapper。
+2026-10-16补验已收口：[报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-android-stage3-closure-20261016.md)/[机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/community-android-stage3-closure-20261016.json)。第三项批准的单Android范围PASS；明确关联拒绝由当前Google provider证据核验，主动取消由用户操作，活跃旧会话由真实C/SQL补证。`check-association.py`使用真实HnuHole工具User-Agent并保持全部TLS/重定向/内容检查，不伪装浏览器或降低网站安全配置。手机窗口已结束，vivo设置已恢复；以下20261015部分完成及更早准备均保留历史，不能盲重放其ADB或一次性wrapper。
 
 > 2026-10-15 后续实测已进行，状态 **PARTIAL**。用户批准的独立RP和额外正向包已落地，真实系统正向创建/可发现恢复及原键跨进程核对PASS；坏签名/未关联的明确拒绝与严格HTTPS403仍阻塞。最终七阶段及mobile334通过。当前入口为[实测报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-android-stage3-device-validation-20261015.md)、[机器记录](../../docs/design/community-android-stage3-device-validation-20261015.json)、[实际执行源码归档](execution-20261015/README.md)和[当前公开关联](../../docs/design/community-android-stage3-applied-20261015/proposal.json)。设备窗口已结束，不再调用ADB；原默认守卫不放宽。**下方是此前无手机准备阶段的原范围，关于未审批/未部署/NOT_RUN的叙述仅适用当时。**
 

@@ -5,7 +5,7 @@
 - 授权依据与边界：2026-11-06 用户要求「需求：新增 自定义标签 功能」，完成 Q1–Q6 后回复「可以，按这个方案实现。」；随后明确要求「推送，合并，部署」，授权本任务 Push、PR、检查通过后合并及部署到现有日常开发环境。保留其他工作区及正式数据，不将日常环境交付冒充生产发布。
 - 需求确认：2026-11-06 用户逐项回复 Q1–Q5，依据见下方；Q6 已由用户最终确认，以下方案无未决取舍。
 - 更新日期：2026-11-06。
-- 状态：实现已完成；验证 PASS（下列本地范围，远程产品 CI 与设备验收待验）；正在推送送审，尚未合并；部署准备中，尚未发布。
+- 状态：PR #109 已合并 main；最终 e9b953d 的适用 CI、2026-11-06 日常开发部署及覆盖装机历史回执已归集至文末。回执仅证明各自旧版本，当前公网发布见 ANDROID-BETA-LAUNCH-20261109，不据此重新宣称完整真机／iOS 或生产通过。
 
 ## 目标与范围
 
@@ -61,3 +61,17 @@
 ## 阻碍与下一步
 
 无本地开发阻碍。按用户「推送，合并，部署」继续完成远程产品 CI、合并和现有日常开发环境部署。设备状态与实际运行基线将在部署前核实；不自动推进其他未合并功能。
+
+
+## 历史分支退役前归集（2026-11-10）
+
+以下为原分支 `961020c` 的 2026-11-06 交付回执，补齐 main 遗漏的两次文档提交；本轮没有再次部署或装机，不改变旧测试的版本及边界。
+
+| 项目 | 被测版本／环境 | 原交付记录 |
+| --- | --- | --- |
+| 最终产品 CI | PR head `e9b953d392144cbe8cf664edc900b5bca9dd51a5` | PASS：14 个适用 workflow 全部通过，[完整运行清单](E:/Hnuhole-env/custom-tags-validation-20261106/final-pr-ci.json)。[标签 Dart→HTTPS→SQL](https://github.com/zewbby/SpeechFUL/actions/runs/42179529386)、[后端／真实迁移](https://github.com/zewbby/SpeechFUL/actions/runs/42179529268)、[身份与精确角色审计](https://github.com/zewbby/SpeechFUL/actions/runs/42179529297)、[治理](https://github.com/zewbby/SpeechFUL/actions/runs/42179529367)、[Android 与发布演练](https://github.com/zewbby/SpeechFUL/actions/runs/42179529344) 均 PASS。真实恢复演练验证两新实例数据／权限摘要一致、旧服务回退拒绝且数据不变、候选重新启用；不将此描述为旧服务兼容回退。独立审查及成员批准 NOT_RUN。 |
+| 推送与合并 | [PR #109](https://github.com/zewbby/SpeechFUL/pull/109)；合并 `be6d07ab2c35c859d7176569e1a99b5e1ec74de5` | PASS：按用户明确授权推送与 Squash Merge；合并前核对最终 head 的全部适用 workflow。合并提交与被测 head 的产品目录 `apps/mobile`、`packages`、`services/api`、`infra` 完全相同。 |
+| 日常后端部署 | 合并提交 `be6d07a`；`HnuHole-Ubuntu-24.04`、原 `hnuhole` 用户；`/home/hnuhole/custom-tags-daily-be6d07ab2c35` | PASS：原 C/V 停写并创建两份完整备份、验证备份目录后，C30 前向升级到 C33；V7 不变。迁移前后原有列投影／sequence 摘要一致；Gate 保持 C generation=11/RECOVER=11、V generation=8/RECOVER=8，未调用 recover。新二进制、回执及私有恢复清单已固定；重复 resume 启动服务数为 0。C/V 原 CA 严格 TLS ready，Windows 51245/54948 均 HTTP 200。标签两接口及关键词搜索在缺少 bearer 时返回 401/no-store；业务完整链路由上述隔离真实 CI 证明，未用日常账号写入测试内容。[部署回执](E:/Hnuhole-env/custom-tags-release-20261106/backend-receipt.json)。 |
+| 日常 Android 交付 | `2026110601`、`0.1.0-custom-tags`、ARM64 profile；编译自 `e9b953d`，产品源码与已部署 `be6d07a` 相同 | PASS：使用原端点／开发 CA 与原升级证书，依赖锁不变、实际 APK 验签及包名／ABI／versionCode 核对通过。[APK](E:/Hnuhole-env/deliveries/SpeechFUL-2026110601-profile.apk)，SHA256 `e544ce3115451d20e35e39ae981cdf7387f55f911616299e4ea0d6c0a9a83877`；[交付回执](E:/Hnuhole-env/custom-tags-release-20261106/android-package-receipt.json)。已更新本机 current-development-deployment 与 latest-android-package 指针，[恢复入口](E:/Hnuhole-env/custom-tags-release-20261106/resume-custom-tags.ps1) 实际调用 PASS。当前仅 x86 模拟器在线，未安装 ARM64 手机包，真机及 iOS NOT_RUN。 |
+
+推送、合并与现有日常环境部署已完成。用户随后要求「把最新版安装到手机上」，已在 vivo V2323A（10CEAG17RY003M7）覆盖升级至 `2026110604 / 0.1.0-custom-tags` 并成功启动，未卸载或清空数据。原手机动效包为 2026110603、开发证书 1538fb…；最初日常签名包被系统拒绝，随后核对已安装 APK 证书，使用原手机开发密钥及 `AUTH_DEV_PROFILE=true` 重新构建签名升级。USB 映射与严格开发 CA 后端就绪均 PASS。[安装回执](E:/Hnuhole-env/custom-tags-release-20261106/phone-install-receipt.json)，新 APK SHA256 `0934fbda071a443be13fa92ce62cd4ab420e6eef99f67d3835a894f88df344e5`。本机最新安装包／部署指针已更新；此回执取代上方 0601 包的「未安装」状态，仅证明安装与启动，完整真机功能验收及 iOS 仍 NOT_RUN。未做生产部署；C33 故障处理必须前向修复或经验证的数据恢复，不能直接回退旧服务或执行 down。不自动推进其他未合并功能。

@@ -1,6 +1,8 @@
 # 通信与持久化基线
 
-状态：accepted（2026-09-22）。Go 服务端使用标准库 `net/http` 配合 `chi`，核心数据使用 PostgreSQL 并通过 `pgx` 与 `sqlc` 访问；移动端使用 Drift/SQLite 保存本机业务副本，并用系统安全存储保存敏感凭据。客户端与服务端的业务接口采用 REST/JSON + OpenAPI，前台在线实时事件按需使用 WebSocket，后台通知以后接入 APNs/FCM。
+状态：accepted（2026-09-22）。Go 服务端使用标准库 `net/http` 配合 `chi`，核心数据使用 PostgreSQL，通过 `pgx` 执行显式 SQL；移动端使用 Drift/SQLite 保存本机业务副本，并用系统安全存储保存敏感凭据。客户端与服务端的业务接口采用 REST/JSON + OpenAPI，前台在线实时事件按需使用 WebSocket，后台通知以后接入 APNs/FCM。
+
+2026-11-10 实装核对：原 sqlc 分类查询生成方案未进入运行链路，当前使用 `channels/postgres.go` 的查询常量和 pgx。清理已退役未使用的生成配置和重复查询源，运行 SQL、正式 Goose 迁移和权限审计不变；见[清理任务](../tasks/STALE-FILE-CLEANUP-20261110.md)。
 
 ## 边界
 

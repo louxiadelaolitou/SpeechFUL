@@ -1,5 +1,7 @@
 # WEBSITE-01 — SpeechFUL 官网改版与交互演示
 
+> 本页保留早期改稿与预览范围，原“未合并／未发布”描述当时快照。正式官网及 Android 下载入口已通过 [PR #127](https://github.com/zewbby/SpeechFUL/pull/127) 合入 main，发布与下载验证见[正式入口任务](WEBSITE-ANDROID-DOWNLOAD-20261109.md)。历史 README 官网链接分支的目的已被该交付覆盖，不将旧设计证据当作当前发布验收。
+
 - 模式：常规；负责人／状态维护人：当前 Session。用户明确要求演示组件使用 Astra High，因此该组件交由 `gpt-6-astra`、High 推理强度实现；未调用 orchestrator。唯一任务记录由主 Session 维护。
 - 分支／Worktree／PR：`codex/feat/speechful-website-redesign`；`E:/Hnuhole-env/source/SpeechFUL-website-redesign`；PR 未创建。实际依赖基线为官网首版 `f9b1199e2fcc101b34cd325e8ac0aa75a86163f3`，不是重置到 main。首版历史证据保留在该基线的本任务记录中。
 - 授权依据与边界：用户提供官网源码 ZIP，要求搜索至少 50 个热门 App，评价特效／颜色／字体／布局，提供修改后的代码；随后逐轮确认页面改稿与本地预览。允许实现、本地验证和源码包交付；未授权 Push、PR、合并、DNS 或正式部署。

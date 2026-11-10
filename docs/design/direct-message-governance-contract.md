@@ -31,4 +31,4 @@ Android 本地通知仅对已经可靠落地的新消息触发，免打扰和已
 - 需要人工解锁、安装、系统权限确认的 Android 原生增量验收按用户要求跳过；宿主测试和 APK 构建不代替真机结论。
 - iOS、生产部署、运营证据保留策略及正式发布未验收。B08/B09 不提升为整体通过。
 
-验证命令和版本见 [机器记录](direct-message-governance-verification-20261023.json)，接续入口见 [任务详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-direct-message-governance.md)。
+验证命令和版本见 [机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/direct-message-governance-verification-20261023.json)，接续入口见 [任务详情](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-direct-message-governance.md)。

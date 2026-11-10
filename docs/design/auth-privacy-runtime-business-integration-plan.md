@@ -1,5 +1,7 @@
 # C/V 开发服务与业务授权接入实施计划
 
+> 2026-11-10 现状补注：下文 sqlc 属于原规划；当前运行 SQL 通过 pgx 显式执行，旧生成配置已退役。其余历史范围与结果不改写；当前实现见[开发导览](../development.md)。
+
 日期：2026-10-01。规划时范围与必要决策已收口；随后用户授权按 T0–T6 实施，当前代码与 runner 已落盘，编译和动态验收因本机缺工具仍待执行。实际状态见[实施／验证记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-runtime-business-integration-validation-report.md)。下文保留规划时的范围、顺序与完成标准，“拟新增”路径的当前状态以报告为准。
 
 ## 1. 目标、范围与约束

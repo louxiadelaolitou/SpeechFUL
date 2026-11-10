@@ -43,7 +43,7 @@
 
 最终候选包 **2026102123**，生产 `lib/main.dart`，110,944,461 bytes，SHA256 `540934686caedfb44cb17708a930e2386d99edab52f4c6d9e4d8a543bef31ac9`；测试签名保留，非正式发布。2121 先前已升级安装，但截至本记录 ADB 仍未识别设备，2123 安装、真实评论发送／计数同步及点赞取消实机验证 **BLOCKED**。三张已归档图为实际 Flutter 组件的宿主渲染，不能代替真机业务证明。
 
-机器可读摘要见 [verification](telegram-android-appearance-verification-20261021.json)。远端 CI 与独立 review 尚待 PR；完成设备验证和适用检查前保持 Draft，不提前记录合并。
+机器可读摘要见 [verification](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/telegram-android-appearance-verification-20261021.json)。远端 CI 与独立 review 尚待 PR；完成设备验证和适用检查前保持 Draft，不提前记录合并。
 
 ## 2126 原生与独立审查收口
 

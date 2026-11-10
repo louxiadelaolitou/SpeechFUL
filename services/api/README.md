@@ -38,7 +38,7 @@ Linux／WSL 使用本任务专属缓存、日志及私有数据库 socket，执�
 
 ## 工具与边界
 
-模块保留 Go1.22；固定开发数据库 `postgres:16.6-alpine`、Mailpit `v1.21.8`。迁移锁 Goose **v3.22.1**，sqlc **v1.27.0**，oapi-codegen **v2.4.1**。版本依据为各自官方 [Goose go.mod](https://github.com/pressly/goose/blob/v3.22.1/go.mod)、[sqlc go.mod](https://github.com/sqlc-dev/sqlc/blob/v1.27.0/go.mod)、[oapi-codegen go.mod](https://github.com/oapi-codegen/oapi-codegen/blob/v2.4.1/go.mod)；源码最低版本不是实际兼容证据。Goose v3.24.3 需要Go1.23，故没有用于Go1.22基线。生成方式见 [OpenAPI README](../../packages/openapi/README.md)。不在此电脑安装工具链、下载 Docker images 或恢复大型缓存。
+模块保留 Go1.22；固定开发数据库 `postgres:16.6-alpine`、Mailpit `v1.21.8`。迁移使用 Goose **v3.22.1**，OpenAPI 工具为 oapi-codegen **v2.4.1**。当前数据库访问使用 pgx 和显式 SQL，不要求 sqlc 生成。Goose v3.24.3 需要 Go1.23，没有用于本 Go1.22 基线；源码最低版本不是实际兼容证据。规范生成见 [OpenAPI README](../../packages/openapi/README.md)。不为阅读说明安装工具链、下载 Docker images 或恢复大型缓存。
 
 macOS/Linux 使用现成 Go、Goose、Docker Compose v2、psql、Python3、curl。race 要求可用 C 编译器和 CGO；先记录 `go version`、`go env CGO_ENABLED CC`、`cc --version`、`docker compose version`、`psql --version`、`goose -version`。Windows 的 Go／Goose／文件锚点与 POSIX runner 在 **WSL2 Linux 文件系统**（例如 `~/src/Hnuhole`）执行；使用已启用 WSL 集成的 Docker Desktop 或 WSL 内 Docker。不要在 `/mnt/c` 中代验文件锁／持久落盘；本片未实现原生 Windows Go 锁。Windows 宿主机 Flutter／Android 可单独构建，Go fixture 直接 exec Flutter 时需同一 WSL 内 Linux Flutter。
 
@@ -134,8 +134,8 @@ GOTOOLCHAIN=local GOPROXY=off go vet ./...
 
 ## B02身份管理基础
 
-本人身份 API 接入相同 C runtime 和最终 Safety Gate：`GET/POST /api/v1/identities`、`PATCH/DELETE /api/v1/identities/{id}`，原结果 `GET /api/v1/identity-change-result`。变更及核对使用独立16字节规范base64url `Idempotency-Key`（与32字节认证操作键不同）；全部成功响应携带同Bearer权威 `Session-Expires-At`。仅本人列表；默认头像 `default-v1`，自定义上传后续媒体实现。
+本人身份 API 接入相同 C runtime 和最终 Safety Gate：`GET/POST /api/v1/identities`、`PATCH/DELETE /api/v1/identities/{id}`，原结果 `GET /api/v1/identity-change-result`。变更及核对使用独立16字节规范base64url `Idempotency-Key`（与32字节认证操作键不同）；全部成功响应携带同Bearer权威 `Session-Expires-At`。仅本人列表；默认头像 `default-v1`，自定义头像已通过 `/api/v1/identity-avatars/{id}` 接入正式授权与图片校验。
 
-正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。runtime最小版本12并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/identity-management-validation-report.md)和[AC02本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-identity-account-closure-validation-report.md)。各版本的服务端、客户端与设备结果分别看对应任务；当前帖内身份绑定和内容／聊天投影已有业务调用，不沿用 B02 基础阶段的“未实现”状态。
+正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。B02 当时以迁移12为基线；当前完整 runtime 要求 C38／V8，并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/identity-management-validation-report.md)和[AC02本轮报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-identity-account-closure-validation-report.md)。各版本的服务端、客户端与设备结果分别看对应任务；当前帖内身份绑定和内容／聊天投影已有业务调用，不沿用 B02 基础阶段的“未实现”状态。
 
 七天缓冲和取消保留身份资料；最终C Gate关闭事务同时擦除全部活动身份的昵称、头像及改名时间，用最终可信时间建立墓碑，不等待V释放ACK。原累计创建状态、已有删除墓碑和成功／拒绝回执保持不变；零身份关闭不自动创建身份，CLOSED不得恢复活动身份。身份生命周期DML只支持现有显式READ COMMITTED事务，其他隔离级别由延迟约束拒绝。旧CLOSED遗留资料升级修复只使用已持久Gate高水位的维护marker，证据不足则迁移失败，不冒称原关闭时间。纯注销投影仅含身份级opaque token、统一头像键和状态；没有新增任意身份查询接口，编号界面格式与真实内容／聊天调用留对应业务片。

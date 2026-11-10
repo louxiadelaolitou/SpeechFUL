@@ -6,7 +6,7 @@
 
 ## 2026-10-12 本轮执行边界与收尾
 
-本轮以实际起始 `4d58116bdde2c1d2d406b965590bc1625a5c7955` 的独立clone接续，改动仅未提交；用户明确禁止本轮提交／推送／合并／部署，覆盖下方历史步骤5。F1–F3页面不重做、不扩业务。详情见 [当前验证报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-flutter-f4-validation-report-20261012.md) 和 [机器记录](community-flutter-f4-validation-20261012.json)。
+本轮以实际起始 `4d58116bdde2c1d2d406b965590bc1625a5c7955` 的独立clone接续，改动仅未提交；用户明确禁止本轮提交／推送／合并／部署，覆盖下方历史步骤5。F1–F3页面不重做、不扩业务。详情见 [当前验证报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/community-flutter-f4-validation-report-20261012.md) 和 [机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/community-flutter-f4-validation-20261012.json)。
 
 posts-privileges先复现社区授权遗漏，获用户明确确认后仅在本任务SQL源码补入固定514a944文字授权29行。最后修改后六stage全部重跑PASS：全mobile311、R05、本轮F4主机8项、6包server/race、真实受限权限PostSchema9顶层及4生命周期、最终vet；新SDK／缓存／fresh一次性库隔离与最终指纹已核对。授权前FAIL保留历史，旧证据不计本轮；当前host scoped PASS，F4最终BLOCKED_DEPENDENCY等待最终认证SHA，不提交／合并／推送／部署。
 

@@ -4,12 +4,30 @@ on:
   pull_request:
     paths:
       - 'tools/android_integration/**'
+      - 'tools/run-community-flutter-f4-linux.sh'
+      - 'tools/tests/test-community-f4-runner-isolation.sh'
+      - 'services/api/authlab/run-mobile-isolated.sh'
+      - 'services/api/authlab/run-isolated.sh'
+      - 'services/api/authlab/run-post-schema-isolated.sh'
       - '.github/workflows/android-integration-tools.yml'
 
 permissions:
   contents: read
 
 jobs:
+  host-runner-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Owned host orchestration with synthetic tools
+        run: bash tools/tests/test-community-f4-runner-isolation.sh
+
   integration-boundaries:
     runs-on: ubuntu-24.04
     timeout-minutes: 5

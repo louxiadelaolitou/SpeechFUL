@@ -39,7 +39,7 @@
 4. 建4个新合成账号、42条7通道帖子，含单图和三图。真实HTTPS/SQL通过：43条含旧帖的分页无重复、8并发每日浏览去重、跨账号计数／作者排除、分页前屏蔽和旧游标失效、赞藏幂等与私有旗标、主评论／楼中楼总数2、批量摘要、4张受保护原图。
 5. 夹具脚本初次将正确204误期望200；读回原已受理任务后继续，没有重发新帖。源码bundle只有remote main引用，首次clone拒绝后以显式fetch恢复，发生在服务／库启动前。失败历史保留，不计产品缺陷。
 
-原始脱敏回执在同一runtime目录的 `isolation-preflight.json`、`backup-restore-preupgrade.json`、`deployment.json`、`fixtures.json`、`smoke-0020.json`；[汇总证据](feed-staging-verification-20261020.json)随本分支保存。手机由Android验收chat唯一操作，本环境任务不操作设备，也不把旧APK通过当新版通过。
+原始脱敏回执在同一runtime目录的 `isolation-preflight.json`、`backup-restore-preupgrade.json`、`deployment.json`、`fixtures.json`、`smoke-0020.json`；[汇总证据](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/feed-staging-verification-20261020.json)随本分支保存。手机由Android验收chat唯一操作，本环境任务不操作设备，也不把旧APK通过当新版通过。
 
 前端[PR #31](https://github.com/zewbby/HnuHole/pull/31)的生产Dart HTTP探针已分别通过共享0020的A/B登录／分页／批量与评论context一致／单图三图原字节4项，以及独立aab1061/0021的条件赞藏／账号隔离／取消后旧条件412等5项。两版结果保留各自源码和范围；0021探针当时媒体NOT_RUN，不能与0020媒体结果混称同一版本全通过。Android普通UI的状态核对、评论删除可见性、文字发布和三PNG原字节由设备chat报告；环境负责人只读提供SQL回执，不代写设备验收结论。删除标记不等于正文/WAL/备份物理擦除。
 

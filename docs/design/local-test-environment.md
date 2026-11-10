@@ -1,5 +1,7 @@
 # Windows＋WSL 本机认证验证环境
 
+> 本页保留原环境和 R00 等历史结果。2026-11-10 核对后，sqlc 不再是当前构建依赖，旧配置已退役；现行构建／验证见[开发导览](../development.md)，历史工具版本不表示需要重新安装。
+
 > **2026-10-05 AC03 当前交付：**当前数据／角色／HTTP／客户端持久状态及日志已完成有范围核对，修复应用错误／HTTP、PostgreSQL普通错误和移动端通道诊断三项差异；后续匿名业务契约已固定。完整Go／SQL／race／vet、R03实际C/V角色／日志与AC01／AC02回归、Flutter analyze与179项测试、R05真实Dart→HTTPS→SQL均PASS。见 [AC03报告](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/auth-privacy-boundary-validation-report.md)、[三步任务单](auth-privacy-boundary-plan.md)、[后续契约](auth-privacy-business-contract.md)及[机器记录](../../services/api/authlab/privacy-boundary-verification.json)。B02整模块继续BLOCKED，公共内容／聊天／管理消费者尚未实现，原生设备／生产证据单列。未提交／推送／部署。
 
 以下 AC02／AC01及更早记录保留原日期、摘要和证明范围；“AC03未实施”等仅描述历史版本。currentFeature旧SQL／Flutter等字段明确保留为历史快照；本轮结果见currentAC03，历史平台不代证当前native验收。
@@ -83,7 +85,7 @@ flutter build apk --debug --target-platform android-arm64
 
 # WSL checkout/services/api：runner 只用自身建立的一次性库
 sh authlab/run-mobile-isolated.sh
-sqlc generate
+# 旧 sqlc 生成入口已退役；当前分类 SQL 由 pgx 查询常量执行。
 go test ./internal/channels/...
 go vet ./internal/channels/...
 

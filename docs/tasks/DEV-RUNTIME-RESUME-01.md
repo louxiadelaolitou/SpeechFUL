@@ -26,7 +26,7 @@
 | --- | --- | --- |
 | 源码与安装 | fe8cba1中的resume.py，SHA256 0b22952d8554c8d32b86528628f145108137038ec559238435ec46357427628c；后继仅整合规则/任务文档 | 本机三个旧入口备份后替换，实际部署已完成 |
 | 单元与编排 | Linux Python普通和-O，unittest discover -s tools/development_runtime/tests -v | 10项各PASS；依赖缺项、动态证据、失败顺序、归属与幂等 |
-| 真实依赖冷启动 | 同一非root WSL原数据，最终安装源码；原入口全停再启及重复调用 | PASS，见[脱敏记录](../design/validation/development-runtime-resume-20261030.json) |
+| 真实依赖冷启动 | 同一非root WSL原数据，最终安装源码；原入口全停再启及重复调用 | PASS，见[脱敏记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/validation/development-runtime-resume-20261030.json) |
 | 独立审查 | 新规则整合前按原AGENTS安排的只读agent review，源码摘要与安装相同 | 无阻断；不是GitHub成员批准。未由审查agent复跑私有环境 |
 | 附加手机 | 当前主体无可启动activity | NOT_RUN，不重装/重登代证；原PR89隔夜结果保持原范围 |
 

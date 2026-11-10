@@ -2,7 +2,7 @@
 
 ## 主线合并交付（2026-10-19）
 
-PR [#16](https://github.com/zewbby/HnuHole/pull/16) 已转正式送审并普通Squash合并为 `32cb87b73e2feb518e1c5ec75ea11bb4d3414df1`，与最终head `a6f8f60` 完整文件树一致。合并前八项最新检查全SUCCESS，实际CI release APK及恢复回执已下载核验；源码、版本、包名、签名证书与制品摘要见[合并回执](android-prerelease-main-merge-20261019.json)。独立agent审查无阻断；没有GitHub成员批准，不伪造批准或绕过规则。
+PR [#16](https://github.com/zewbby/HnuHole/pull/16) 已转正式送审并普通Squash合并为 `32cb87b73e2feb518e1c5ec75ea11bb4d3414df1`，与最终head `a6f8f60` 完整文件树一致。合并前八项最新检查全SUCCESS，实际CI release APK及恢复回执已下载核验；源码、版本、包名、签名证书与制品摘要见[合并回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-main-merge-20261019.json)。独立agent审查无阻断；没有GitHub成员批准，不伪造批准或绕过规则。
 
 CI release默认.invalid，手机验收仍只属于8691/d80c debug包；两者不混用摘要或设备结论。保留Flutter首轮超时及重跑记录，不把树一致写成合并SHA重新构建。应用回滚只换二进制，数据库兼容单独核对，不执行down。手机窗口已结束，自有连接和服务已收回；后续不要自动重启设备窗口。未验范围、跨设备Passkey/iOS延期和生产NOT_RUN继续有效。下方待合并/draft及准备期NOT_RUN为原时点快照，由本节更新合并状态。
 
@@ -78,12 +78,12 @@ PR #13/main 986477b。该轮正式迁移C0014/V0004；0015/0016未进入该轮�
 
 | 检查 | 被测版本与实际结果 | 证据 |
 | --- | --- | --- |
-| 本地完整隔离演练 | 0d107191556b650fb0e8363e46dc6fc2f510baf0；11检查PASS、60份表/sequence恢复摘要一致 | [本地机器回执](android-prerelease-local-20261018.json) |
-| 独立CLI启停 | 同一0d10719，start/recover/health/stop四个独立进程调用均exit0 | [启停回执](android-prerelease-manual-lifecycle-20261018.json) |
-| 独立CI后台 | 6b2927c；原Go test/build/vet、真实PostSchema/image SQL、11项实际进程演练PASS | [CI机器回执](android-prerelease-ci-rehearsal-20261018.json)、[运行39115461923](https://github.com/zewbby/HnuHole/actions/runs/39115461923) |
+| 本地完整隔离演练 | 0d107191556b650fb0e8363e46dc6fc2f510baf0；11检查PASS、60份表/sequence恢复摘要一致 | [本地机器回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-local-20261018.json) |
+| 独立CLI启停 | 同一0d10719，start/recover/health/stop四个独立进程调用均exit0 | [启停回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-manual-lifecycle-20261018.json) |
+| 独立CI后台 | 6b2927c；原Go test/build/vet、真实PostSchema/image SQL、11项实际进程演练PASS | [CI机器回执](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-ci-rehearsal-20261018.json)、[运行39115461923](https://github.com/zewbby/HnuHole/actions/runs/39115461923) |
 | 工具回归 | Linux6/6 PASS；Windows5 PASS、1项POSIX明确SKIP | tools/prerelease/tests |
-| 独立审查 | REVIEW_PASS_SCOPED，清理错误路径等阻断已修复 | [审查记录](android-prerelease-review-20261018.json) |
-| Android候选 | 6b2927c，实际main.dart ARM64 release构建/测试签名/验签/元数据核对PASS；下载后再次核APK SHA256与大小 | [制品manifest](android-candidate-20261018.json)、[运行39115461923](https://github.com/zewbby/HnuHole/actions/runs/39115461923) |
+| 独立审查 | REVIEW_PASS_SCOPED，清理错误路径等阻断已修复 | [审查记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-review-20261018.json) |
+| Android候选 | 6b2927c，实际main.dart ARM64 release构建/测试签名/验签/元数据核对PASS；下载后再次核APK SHA256与大小 | [制品manifest](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-candidate-20261018.json)、[运行39115461923](https://github.com/zewbby/HnuHole/actions/runs/39115461923) |
 
 首个成功候选：0.1.0+2026101801、包名org.hnuhole.hnuhole_mobile、minSdk29/targetSdk36，
 APK22531056字节，SHA256 `f7a723c304c6a832e025eb2290263fa774a36dc0a8477a1f73f3d9e2d4ae8890`；
@@ -184,7 +184,7 @@ APK→服务文字图片与Passkey全部NOT_RUN。未运行ADB、未连接手机
 现由本任务恢复流程显式重建deny ACL后应用主线canonical grants，lab-09重跑通过。
 本地回归初次缺图片fixture、随后提前设置Goose触发无DSN保护，均保留FAIL日志，纠正入口环境和顺序后重跑。
 
-[宿主/真实SQL回归](android-prerelease-schema15-regression-20261018.json)及[Windows到WSL严格HTTPS与独立启停](android-prerelease-schema15-host-preflight-20261018.json)已通过；本地Dart/browser专用入口明确SKIP，既有治理CI单独核对，不计入本地通过项。
+[宿主/真实SQL回归](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-schema15-regression-20261018.json)及[Windows到WSL严格HTTPS与独立启停](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/release/android-prerelease-schema15-host-preflight-20261018.json)已通过；本地Dart/browser专用入口明确SKIP，既有治理CI单独核对，不计入本地通过项。
 WSL官方Gradle下载超时后，从同一官方URL经Windows新下载并核对wrapper固定SHA256，放入本任务缓存。
 后续Maven下载临时使用本任务loopback CONNECT转发至Windows网络，TLS仍端到端验证；构建后关闭转发，不修改系统代理/证书或原依赖仓库。
 
