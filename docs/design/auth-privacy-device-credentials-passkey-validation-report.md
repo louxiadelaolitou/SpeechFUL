@@ -4,7 +4,7 @@
 
 ## 基线与实现
 
-只在 `codex/auth-privacy-handoff`，实际 checkout `/Users/zewbao/Desktop/workspace/Hnuhole/remote-auth-privacy-handoff`，HEAD `3edf8c4c2f888f3d0cf9783d6ea358e2ab30383e`。保留此前 T0–T6 和模块验收文档的未提交改动，本片未提交／推送。当前源码摘要和命令结果见[小型机器记录](../../services/api/authlab/device-credentials-passkey-verification.json)；[模块台账](module-acceptance-ledger.json)更新 B01/N03/A09 及受影响模块，不改历史报告的通过版本。
+只在 `codex/auth-privacy-handoff`，实际 checkout `/Users/zewbao/Desktop/workspace/Hnuhole/remote-auth-privacy-handoff`，HEAD `3edf8c4c2f888f3d0cf9783d6ea358e2ab30383e`。保留此前 T0–T6 和模块验收文档的未提交改动，本片未提交／推送。当前源码摘要和命令结果见[小型机器记录](../../services/api/authlab/device-credentials-passkey-verification.json)；[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)更新 B01/N03/A09 及受影响模块，不改历史报告的通过版本。
 
 | 用户要求 | 已写源码 | 证据边界 |
 | --- | --- | --- |

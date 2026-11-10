@@ -1,14 +1,22 @@
 # OpenAPI 契约
 
+本目录包含完整 OpenAPI 文档和分阶段组件契约。下表按业务提供入口；文件中的早期“评审稿”或恢复凭据说明不代表当前开放流程。认证的后续确认见 [AUTH-EMAIL-RESET-01](../../docs/tasks/AUTH-EMAIL-RESET-01.md)，具体实现和验收见对应任务与 HTTP 回归。
+
 | 契约 | 范围与状态 |
 | --- | --- |
 | [feed-api.yaml](feed-api.yaml) | 跨通道时间列表、账号屏蔽、真实浏览；FEED-INTERACTIONS-01新增账号点赞／收藏与评论数摘要，严格feed／旧post响应不变；前端接线见[说明](../../docs/design/feed-backend-contract.md) |
 | [channel-api.yaml](channel-api.yaml) | 当前通道目录切片的接口唯一来源；服务端和客户端据此实现目录 |
 | [identity-api.yaml](identity-api.yaml) | B02本人身份列表／创建／改名／删除与账号归属幂等结果核对；业务联动随对应模块实现 |
-| [verifier-auth-api.yaml](verifier-auth-api.yaml) | 独立验证方 V，6 个操作：OTP申请／确认、原结果核对、内部正式释放与退役收据持久确认；实施前评审稿 |
-| [community-auth-api.yaml](community-auth-api.yaml) | 社区方 C，22 个操作：开户、用户名密码登录、会话／设备、独立恢复、凭据管理、注销与内部退役；实施前评审稿 |
+| [verifier-auth-api.yaml](verifier-auth-api.yaml) | V 的校邮资格、原结果核对和内部收据；登录／重置的用途及当前边界结合对应任务和实现核对 |
+| [community-auth-api.yaml](community-auth-api.yaml) | C 的开户、登录、会话、注销及凭据协议；保留的恢复码／Passkey 接口不表示当前用户流程开放 |
+| [post-api.yaml](post-api.yaml)、[post-image-api.yaml](post-image-api.yaml) | 帖子命令、读取和受保护图片 |
+| [post-share-api.yaml](post-share-api.yaml)、[repost-api.yaml](repost-api.yaml) | 原帖分享与私人转帖 |
+| [comment-api.yaml](comment-api.yaml)、[comment-business-component.yaml](comment-business-component.yaml) | 评论基础与完整业务；[comment-text-component.yaml](comment-text-component.yaml) 保留早期文字阶段范围 |
+| [direct-message-text.yaml](direct-message-text.yaml)、[direct-message-chat.yaml](direct-message-chat.yaml)、[direct-message-governance.yaml](direct-message-governance.yaml) | 私信文字、聊天与治理 |
+| [report-api.yaml](report-api.yaml)、[moderation-api.yaml](moderation-api.yaml) | 举报、处理、处罚与申诉 |
+| [system-notification-api.yaml](system-notification-api.yaml)、[notification-inbox-component.yaml](notification-inbox-component.yaml) | 系统消息与通知收件箱 |
 
-四份文件采用 OpenAPI 3.0.3。认证架构和固定签名字节分别以[逻辑契约](../../docs/design/auth-privacy-data-api-contract.md)与[注册协议](../../docs/design/auth-privacy-registration-protocol.md)为准；表约束、事务、留存和升级顺序见[数据库迁移设计](../../docs/design/auth-privacy-database-migration-design.md)。认证隔离实现和本次运行时实施范围见[实施计划](../../docs/design/auth-privacy-runtime-business-integration-plan.md)。
+认证架构和固定签名字节见[逻辑契约](../../docs/design/auth-privacy-data-api-contract.md)与[注册协议](../../docs/design/auth-privacy-registration-protocol.md)；表约束、事务、留存和升级顺序见[数据库迁移设计](../../docs/design/auth-privacy-database-migration-design.md)及正式迁移。早期设计中的限制按[当前设计索引](../../docs/design/README.md)列出的明确变更理解，不通过本次文档整理修改协议文件。
 
 目录 `200` body 仍为 `{channels:[…]}`、七记录与五字段。增加必需 `Session-Expires-At`、`X-Request-ID`、`Cache-Control: no-store`，错误统一为 `error:{code,message,details?}`＋顶层 `requestId`；公共边界的 400／403／429 与会话 401／服务或目录 503 均列入契约。只有最终授权事务提交成功后才能发送截止和目录；客户端持久写截止后发布节点。缺失或非法截止不能当作目录成功。
 
@@ -22,7 +30,7 @@ V/C 使用真实独立 HTTPS origin。`servers: /` 只是相对部署位置，�
 
 ## 校验与生成
 
-历史三份文件曾通过 `openapi-spec-validator 0.9.0` 完整规范检查；本次改动的实际验证状态应以运行时交付报告为准。锁定 Python 校验依赖见 `requirements-check.txt`；脚本拒绝重复 YAML 键和缺失本地引用，并核对目录五字段、七记录以及各响应必需 header。用已有工具环境执行：
+锁定 Python 校验依赖见 `requirements-check.txt`；脚本拒绝重复 YAML 键和缺失本地引用，并核对分类目录与身份契约。默认选择 `*-api.yaml`；可传入完整 OpenAPI 文件路径。`*-component.yaml` 等组件和私信分阶段文件不应仅因默认命令通过就视为已验证，按对应产品 CI 的契约及实现测试核对。用已有工具环境执行：
 
 ```sh
 python packages/openapi/check-specs.py

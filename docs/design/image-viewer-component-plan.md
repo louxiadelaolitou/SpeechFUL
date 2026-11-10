@@ -198,7 +198,7 @@ MIV01–MIV14编号与证明范围保留。当前完整MIV01–MIV14仍NOT_RUN�
 
 ## 10. 交接与本轮检查
 
-稳定模块IV01关联B06/B07/B09与X05。修订本计划、[模块交接](module-acceptance-handoff.md)、[台账](module-acceptance-ledger.json)、[HANDOFF](HANDOFF.md)、[progress](progress.md)及产品模块中的实现路线说明；既有匿名/业务记录保持原版本与状态。
+稳定模块IV01关联B06/B07/B09与X05。修订本计划、[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)、[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[progress](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)及产品模块中的实现路线说明；既有匿名/业务记录保持原版本与状态。
 
 2026-10-10执行M1本机可行部分：独立技术源码、示例、锁文件、合成fixture、36项Windows宿主测试、本包/示例分析、bundle编译、许可证/发布源码审查和条件GIF试验。实际范围与缺口见[报告](image-viewer-m1-report.md)、[机器记录](image-viewer-m1-verification.json)和[换机入口](image-viewer-machine-handoff.md)。历史计划检查保留在image-viewer-planning-verification.json，不能代证当前源码/新修订。
 

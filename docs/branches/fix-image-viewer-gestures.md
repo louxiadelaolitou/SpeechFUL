@@ -19,7 +19,7 @@
 
 ## 验证与交接
 
-- 沿用模块 IV01 / PM01 / B05 / B06 / B10，旧模块总裁决不提升。见[机器证据](../design/image-viewer-gestures-verification.json)、[模块台账](../design/module-acceptance-ledger.json)、[交接](../design/module-acceptance-handoff.md)。
+- 沿用模块 IV01 / PM01 / B05 / B06 / B10，旧模块总裁决不提升。见[机器证据](../design/image-viewer-gestures-verification.json)、[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)、[交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)。
 - 实际Flutter渲染帧已复核上下拖动、松手和横滑邻页；使用合成底页，非手机录屏或设备帧性能证据。
 - 最终命令、源码SHA256、APK SHA256、成功计数及未验范围见机器证据。依赖锁文件未改。
 - 现有 `.github/workflows/post-images.yml` 已覆盖图片包和移动端路径的分析、回归及bundle；PR77最终head的18条远端检查记录均SUCCESS，详见合并回执。

@@ -91,4 +91,4 @@ App 详情复用 `CommentFailureView` 和 `CommentRuntime`，由评论拥有者�
 基础迁移0015保持只依赖原账号、身份和帖子表；真实评论0016／0017已经合入。
 本任务新增0018，在实际评论表上增加案件目标及下架投影、删除终结和发布保护；前向升级，不覆盖既有迁移，不允许跳号，Down拒绝。
 评论举报已完成本任务范围接通，真实失败通知直接沿用 #19；完整互动收件箱、私信证据及系统推送仍不在范围。
-当前实现／验证及最终合并状态见[本任务详情](../branches/feat-comment-report-moderation.md)、[新增证据](comment-report-verification-20261019.json)与[模块交接](module-acceptance-handoff.md)，B08／B11不计全平台／生产完整 PASS。
+当前实现／验证及最终合并状态见[本任务详情](../branches/feat-comment-report-moderation.md)、[新增证据](comment-report-verification-20261019.json)与[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)，B08／B11不计全平台／生产完整 PASS。

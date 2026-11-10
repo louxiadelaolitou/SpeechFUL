@@ -40,7 +40,7 @@ sh authlab/run-isolated.sh
 
 共享授权影响重新打开 A03/P01 及调用方宿主回归，按上述实际版本与范围关闭；不提升完整模块/生产结论。原固定 Android APK 及旧证据保留原 SHA，不能说旧后端/旧归档已包含本修复。没有部署或正式发布，没有新手机验收。真实磁盘/COMMIT故障全集、独立生产运营与原事件请求级归因仍不在此限定证明内。
 
-交付前同步[HANDOFF](../design/HANDOFF.md)、[progress](../design/progress.md)、[模块交接](../design/module-acceptance-handoff.md)、[模块台账](../design/module-acceptance-ledger.json)与README。合并事实以后续PR/API回执为准，不为记录自身递归创建文档PR；本任务新工具/测试库收尾及保留路径写入本地最终回执。
+交付前同步[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[progress](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)、[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)与README。合并事实以后续PR/API回执为准，不为记录自身递归创建文档PR；本任务新工具/测试库收尾及保留路径写入本地最终回执。
 
 ## 已确认合并与收尾
 

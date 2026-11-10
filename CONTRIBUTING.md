@@ -18,7 +18,7 @@ git remote -v
 git worktree list
 ```
 
-保留已有暂存、未暂存和未跟踪文件，不擅自 stash、reset、clean、覆盖或提交。历史 `docs/design/HANDOFF.md`、`docs/design/progress.md` 和 `docs/branches/` 保留原时点事实；只有产品契约或既有验收结论确实改变时才更新相应材料，不为同步状态重复改写它们。
+保留已有暂存、未暂存和未跟踪文件，不擅自 stash、reset、clean、覆盖或提交。当前工作从[开发文档](docs/README.md)及对应任务记录进入；旧交接和进度台账通过[固定 Git 提交](docs/archive/README.md)追溯，`docs/branches/` 保留原时点事实，不为同步状态改写历史验收结论。
 
 ## 分支与 Worktree
 

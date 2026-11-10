@@ -11,7 +11,7 @@
 | ID | 当前场景 | 文件 | 尺寸 |
 |---|---|---|---|
 | F1-11 | 我的：双列对齐正常布局 | [本人网格v2](../ui-drafts/my-content-aligned-v2.png) | 853×1844 |
-| F1-14 | 确认发布后返回原通道 | [返回通道v2](../ui-drafts/post-publish-return-channel-v2.png) | 851×1848 |
+| F1-14 | 确认发布后返回原通道 | [返回通道v2](../ui-drafts/channel-feed-populated-v9.png) | 851×1848 |
 | F1-15 | 当前前台页顶部成功提示 | [我的顶部成功提示v2](../ui-drafts/post-publish-success-my-v2.png) | 853×1844 |
 | F1-16 | 本人帖子中的发布中卡片 | [发布中网格v2](../ui-drafts/post-publish-pending-my-v2.png) | 853×1844 |
 | F1-17 | 本人失败草稿＋醒目叹号 | [失败草稿网格v2](../ui-drafts/post-publish-failed-draft-my-v2.png) | 853×1844 |

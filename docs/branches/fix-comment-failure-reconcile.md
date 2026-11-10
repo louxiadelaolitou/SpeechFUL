@@ -36,4 +36,4 @@
 
 本地 profile/release 同测试证书签名前置检查已通过，原环境构建参数和采集准备留在独立 `HnuHole-feed-performance-support` 的 ignored build 材料；真正入口 ready 后再按 Android 预先确定的设备口径采集。profile 的 `Flutter.Frame` UI/raster 数据方案依据 [Flutter 性能说明](https://docs.flutter.dev/perf/ui-performance)及本机 SDK SchedulerBinding；此处不宣称任何性能数值或项目级 SLA。2011 原性能规划从未构建，现明确用于 debug 修复，后续模式版本重新排号。
 
-相关入口：[HANDOFF](../design/HANDOFF.md) · [进度](../design/progress.md) · [模块交接](../design/module-acceptance-handoff.md) · [台账](../design/module-acceptance-ledger.json)。最终 CI 未通过、存在新阻断或未获新合并授权时保持 Draft；前端未操作设备、更新共享环境或正式发布。
+相关入口：[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md) · [进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md) · [模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md) · [台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。最终 CI 未通过、存在新阻断或未获新合并授权时保持 Draft；前端未操作设备、更新共享环境或正式发布。

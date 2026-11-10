@@ -1,6 +1,6 @@
 # Flutter 社区文字页面 F3 实现与验证
 
-日期：2026-10-09（Asia/Shanghai）。分支：`codex/community-flutter-pages`。对应任务：[F0–F5计划](community-flutter-pages-plan.md)。本轮实现按F2锁定的`514a944560988e3d8d599e6f9fe9d5d99fe07f88`逐文件复用，不合并后端工作树及未提交T4，不代入后端历史通过记录。
+日期：2026-10-09（Asia/Shanghai）。分支：`codex/community-flutter-pages`。对应任务：[F0–F5计划](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/community-flutter-pages-plan.md)。本轮实现按F2锁定的`514a944560988e3d8d599e6f9fe9d5d99fe07f88`逐文件复用，不合并后端工作树及未提交T4，不代入后端历史通过记录。
 
 源码版本：`eb6c9143d785a01fcc8b141b323accf0fbf812d2`；当前F3完成，分析0问题、20文件308项PASS（其中SQLite30、controller34、screens23含14帧），FAIL0／SKIP0。92文件源码与实际Linux测试镜像和此Git提交一致，源指纹见机器记录。全部平台／真实系统链仍按下方NOT_RUN。
 
@@ -12,7 +12,7 @@ F3覆盖文字编辑、确认、默认／选择身份、通道最新列表、详
 
 ## 页面及状态
 
-[F1 22场景清单](ui-reviews/f1-completion-audit.md)是图稿依据，正式PNG没有改动。文字片的通道／本人采用批准的双列自然高度混排，详情沿用标题、作者、正文阅读顺序；编辑、确认及身份面板映射现有白框／灰蓝页面。未来图片、评论、点赞、收藏、搜索、标签筛选与置顶没有接口，本片隐藏入口，图稿保留完整产品范围。
+[F1 22场景清单](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/ui-reviews/f1-completion-audit.md)是图稿依据，正式PNG没有改动。文字片的通道／本人采用批准的双列自然高度混排，详情沿用标题、作者、正文阅读顺序；编辑、确认及身份面板映射现有白框／灰蓝页面。未来图片、评论、点赞、收藏、搜索、标签筛选与置顶没有接口，本片隐藏入口，图稿保留完整产品范围。
 
 确认后先持久原发布意图，再立即返回原通道；处理中、失败和未知入口留在本人列表。保存或ACCEPTED不产生成功提示，仅本机原CREATE／RETRY意图首次持久核对到PUBLISHED才生成当前通道短提示，重复核对不重复提示。失败重试保留原身份／通道／attempt关联；UNKNOWN、RESULT_EXPIRED不能当成可以新发的失败草稿。本人删除确认与丢回包核对成功后清正文、移除列表、直接返回来源页，已删围栏阻止迟到详情／分页重新显示正文。
 

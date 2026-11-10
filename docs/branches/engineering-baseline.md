@@ -18,7 +18,7 @@
 
 早期交接的未完成事项须结合当前任务记录读取，不把旧设计阶段当成当前产品验收。
 
-本次退役不推进 iOS、完整产品或生产验收，不清理 SDK、缓存、数据库、设备或其他会话目录。实际云服务、外部主体与部署等后续决策仍按[主线进度](../design/progress.md)和[最新接续说明](../design/HANDOFF.md)推进；旧交接中的“认证尚未实现”等描述仅属于原历史版本。
+本次退役不推进 iOS、完整产品或生产验收，不清理 SDK、缓存、数据库、设备或其他会话目录。实际云服务、外部主体与部署等后续决策仍按[主线进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)和[最新接续说明](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)推进；旧交接中的“认证尚未实现”等描述仅属于原历史版本。
 
 核对提交：[`9d69213`](https://github.com/zewbby/HnuHole/commit/9d69213cefc322d752726cd12e860946ed87de5b)。
 

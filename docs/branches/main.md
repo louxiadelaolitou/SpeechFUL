@@ -49,7 +49,7 @@ PR #38 的登录注册设计定稿及 PR #39 的真实 App 接入已合入 main�
 
 ## 详细记录
 
-- [主线进度](../design/progress.md)
+- [主线进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)
 - [Android候选与隔离预发布交付](ci-android-prerelease.md)
 - [举报审核阶段1](feat-report-moderation.md)
 - [社区PR #13交付与验证范围](community-flutter-pages.md)

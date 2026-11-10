@@ -1,13 +1,10 @@
-# Hnuhole C/V 开发服务
+# SpeechFUL C/V 开发服务
 
-> 2026-10-20 `feat/feed-interactions` 分支增量：新增0020，提供账号级点赞／收藏设置及批量／单帖互动摘要，评论数复用原可见性统计；保留已合入 #27／#28 的严格 feed／旧帖子响应。合并状态见[任务](../../docs/branches/feat-feed-interactions.md)，迁移、权限和前端接入见[接线契约](../../docs/design/feed-backend-contract.md)。未部署。
+当前入口为 `cmd/api`（社区 C）和 `cmd/verifier`（校邮验证 V），共用一个 Go 模块，各自使用独立数据库、运行角色、公开 HTTPS 和内部 mTLS 监听。代码与验证分层见[开发导览](../../docs/development.md)，已有部署的恢复／升级见[运行索引](../../docs/operations/README.md)。
 
-> 分支增量 #19：文字评论/回复真实后端、0016与最小授权已实现，使用方式见[数据库/运行说明](comment-schema/README.md)，[限定验证报告](../../docs/design/comments-backend-text-report-20261018.md)。依赖核心 #17；未合并/未发布，图片、客户端、原生日志和系统通知provider未接入。
+注册、密码／校邮登录、校邮重置、身份、帖子、评论、私信、通知和审核均已有接线。恢复码／Passkey 用户流程暂停，保留实现与数据，依据见 [AUTH-EMAIL-RESET-01](../../docs/tasks/AUTH-EMAIL-RESET-01.md)。这不表示所有平台和生产边界均已验收。
 
-本分支新增的举报／审核／通知运行说明见下节；下文其余认证历史报告仍保持各自原版本的证明范围。
-
-2026-10-19 当前接续：完整评论 #19 已合入 main；上方“文字后端／provider未接入”为原版本快照。
-评论举报新增0018，真实失败通知、原任务重试／放弃／移除直接复用0017，见[评论举报任务](../../docs/branches/feat-comment-report-moderation.md)与[新增限定报告](../../docs/design/comment-report-validation-20261019.md)。
+本页提供开发初始化与配置说明。发布与实际环境以[Android 上线任务](../../docs/tasks/ANDROID-BETA-LAUNCH-20261109.md)及对应部署任务为准；旧分支新增说明和历史机器工具状态不再作为启动前提。原文及当时证据可从[固定提交](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/services/api/README.md)追溯。
 
 ## 帖子举报、审核和最小系统通知
 
@@ -37,7 +34,7 @@ Linux／WSL 使用本任务专属缓存、日志及私有数据库 socket，执�
 
 `cmd/api` 是社区 C：新注册、密码／恢复／会话、目录与后台注销／收据。`cmd/verifier` 是 V：校邮 OTP、资格、退役续办与收据处理。两方各有独立数据库、运行角色、公开 HTTPS 和内部 mTLS 监听。C 的全部认证与目录授权使用 Safety Gate；新库从 FROZEN 建立，API 启动不解冻。开发配置样例为 `community.config.example.json`、`verifier.config.example.json`；样例中仅有路径与无密码 DSN。 C 标准模板已包含评论及专用 Redis 快照：默认 Redis 新建，保留 PG 旧游标读取；必须提供独立 Redis、密码文件和已初始化的 epoch。启用评论但缺快照配置会启动失败，日志原因为 `comment_snapshot_configuration`，不自动退 PG。显式回退见[运行配置](../../docs/design/comment-snapshot-redis/runtime-and-rollback.md)。
 
-本轮只供开发。本机 Go／PostgreSQL／Docker／Flutter 已清理，新增进程、Go 测试、正式迁移及 PG16/Go1.22 兼容尚未执行。历史 Go1.27.1／PG18.6 回归仅对应历史代码。实际证据与未执行项见 [本轮报告](../../docs/design/auth-privacy-runtime-business-integration-validation-report.md)。
+开发初始化与隔离验证不代表当前部署状态或生产验收。历史环境与未执行项见其[对应版本报告](../../docs/design/auth-privacy-runtime-business-integration-validation-report.md)；执行前核实本机实际工具与配置。
 
 ## 工具与边界
 
@@ -139,6 +136,6 @@ GOTOOLCHAIN=local GOPROXY=off go vet ./...
 
 本人身份 API 接入相同 C runtime 和最终 Safety Gate：`GET/POST /api/v1/identities`、`PATCH/DELETE /api/v1/identities/{id}`，原结果 `GET /api/v1/identity-change-result`。变更及核对使用独立16字节规范base64url `Idempotency-Key`（与32字节认证操作键不同）；全部成功响应携带同Bearer权威 `Session-Expires-At`。仅本人列表；默认头像 `default-v1`，自定义上传后续媒体实现。
 
-正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。runtime最小版本12并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](../../docs/design/identity-management-validation-report.md)和[AC02本轮报告](../../docs/design/auth-identity-account-closure-validation-report.md)。当前服务端SQL／race／vet与实际C/V R03通过；客户端／设备历史结果保留原版本，帖内绑定和帖子／聊天投影调用仍未实现。
+正式迁移11保留累计创建、稳定删除墓碑以及账号归属成功／拒绝终态回执；迁移12接入身份整账号正式关闭。runtime最小版本12并检查表／非owner／必要DML及关闭shape触发器。每个新意图用新键；超时、丢响应、`NOT_FOUND`只重试原键和原参数；`COMMITTED`与`REJECTED`为永久终态，拒绝不消耗创建或改名机会。详见[契约](../../packages/openapi/identity-api.yaml)、[身份报告](../../docs/design/identity-management-validation-report.md)和[AC02本轮报告](../../docs/design/auth-identity-account-closure-validation-report.md)。各版本的服务端、客户端与设备结果分别看对应任务；当前帖内身份绑定和内容／聊天投影已有业务调用，不沿用 B02 基础阶段的“未实现”状态。
 
 七天缓冲和取消保留身份资料；最终C Gate关闭事务同时擦除全部活动身份的昵称、头像及改名时间，用最终可信时间建立墓碑，不等待V释放ACK。原累计创建状态、已有删除墓碑和成功／拒绝回执保持不变；零身份关闭不自动创建身份，CLOSED不得恢复活动身份。身份生命周期DML只支持现有显式READ COMMITTED事务，其他隔离级别由延迟约束拒绝。旧CLOSED遗留资料升级修复只使用已持久Gate高水位的维护marker，证据不足则迁移失败，不冒称原关闭时间。纯注销投影仅含身份级opaque token、统一头像键和状态；没有新增任意身份查询接口，编号界面格式与真实内容／聊天调用留对应业务片。

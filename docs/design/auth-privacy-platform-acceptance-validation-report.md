@@ -46,7 +46,7 @@ Windows 沙箱身份访问已有 Flutter SDK 时触发 Git ownership 检查，�
 | --- | --- | --- |
 | 系统 Passkey 绑定、移除、可发现恢复与取消／冻结／接替 | BLOCKED：缺实际 RP／发布签名／平台关联部署 | [Passkey 包说明](../../packages/auth_passkey/README.md)、R08／R09；准备配置后执行真实系统交互与实际 C/V |
 | iOS 完整构建、原生链接、Keychain／双进程与 AuthenticationServices | BLOCKED：无 macOS／完整 Xcode、签名与设备 | [iOS 测试入口](../../apps/mobile/ios/RunnerTests/RunnerTests.swift)、R06／R09；marker／codec 历史证据不能代证 |
-| Android 物理设备／厂商锁屏与硬件差异、OEM 中文／日文组合输入、辅助服务 | NOT_RUN：本机只有模拟器；合成事件覆盖有限 | R09／R10 与 [模块交接](module-acceptance-handoff.md) 的 B02 设备矩阵 |
+| Android 物理设备／厂商锁屏与硬件差异、OEM 中文／日文组合输入、辅助服务 | NOT_RUN：本机只有模拟器；合成事件覆盖有限 | R09／R10 与 [模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md) 的 B02 设备矩阵 |
 | 系统备份／跨设备恢复、真实卸载重装生命周期 | NOT_RUN：本轮故障注入与进程探针不含系统级备份 | N01／N02 和 R09；独立准备可确认归属的设备／备份材料 |
 | 完整手机 App→实际 C/V→SQL | NOT_RUN：本轮设备 API 为替身，R03 和 R05 为不同证明边界 | R03／R05／R09 需整合真实端点、TLS／RP与设备配置后补测 |
 | 帖子、评论、聊天等消费者及生产分权／灾备／独立审计 | NOT_RUN：消费者未实现，生产证据未提供 | 后续[业务契约](auth-privacy-business-contract.md)；本分支不扩展 B03／B05 等完整业务片 |

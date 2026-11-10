@@ -21,7 +21,7 @@
 
 固定候选可用、必要新增影响验证完成、制品与记录交付、相关 PR 按规范独立审查/检查后合并、临时资源收尾后结束。用户已授权本范围提交、推送、PR及检查通过后的合并；不部署或正式发布，不扩展 iOS、跨设备 Passkey、多机型及生产证明。
 
-接续：[HANDOFF](../design/HANDOFF.md)、[进度](../design/progress.md)、[既有预发布复现入口](../release/android-prerelease.md)。
+接续：[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[既有预发布复现入口](../release/android-prerelease.md)。
 
 ## 固定成果及审查
 

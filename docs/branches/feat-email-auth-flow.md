@@ -27,7 +27,7 @@ WSL升级前做V私有pg_dump、配置备份；仅前向迁移、替换C/V二进
 
 未验：iOS、正式部署、独立第三方安全/运营证据、所有设备矩阵和完整双机接替；未升级A02/A03/A06/A12整模块结论。真实校园邮箱人工收件确认仅沿用本轮用户确认，不将出站观察误写为再次人工确认。
 
-证据：[机器摘要](../design/validation/email-auth-20261021/verification.json)；交接 [HANDOFF](../design/HANDOFF.md)、[progress](../design/progress.md)、[模块表](../design/module-acceptance-handoff.md)、[台账](../design/module-acceptance-ledger.json)。下一步：vivo USB重连后保留数据覆盖安装2143，并做限定启动冒烟；完整双机/iOS/生产仍独立待验。
+证据：[机器摘要](../design/validation/email-auth-20261021/verification.json)；交接 [HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[progress](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[模块表](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)、[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。下一步：vivo USB重连后保留数据覆盖安装2143，并做限定启动冒烟；完整双机/iOS/生产仍独立待验。
 
 ## 2026-10-22 远端回归补齐
 

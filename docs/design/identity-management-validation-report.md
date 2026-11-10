@@ -41,6 +41,6 @@
 
 ## 接续与资源
 
-环境安装、各runner和原生两阶段命令见[本机环境](local-test-environment.md)；总体范围见[匿名清单](auth-privacy-closure-checklist.md)、[模块交接](module-acceptance-handoff.md)和[台账](module-acceptance-ledger.json)。所有测试源码保留；缓存清理后复验需重新pub get及获取wrapper。工具SDK／JDK／AVD配置按用户选择留在D盘，测试产物／缓存／临时库清理状态以最新机器记录为准。
+环境安装、各runner和原生两阶段命令见[本机环境](local-test-environment.md)；总体范围见[匿名清单](auth-privacy-closure-checklist.md)、[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)和[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。所有测试源码保留；缓存清理后复验需重新pub get及获取wrapper。工具SDK／JDK／AVD配置按用户选择留在D盘，测试产物／缓存／临时库清理状态以最新机器记录为准。
 
 历史检查保留当时命令、失败、版本及摘要；旧缺工具结果在机器记录的历史部分，不描述当前测试结论。

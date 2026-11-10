@@ -26,4 +26,4 @@
 
 自然 same-token 设备续期、失败 worker 重试、iOS／跨设备 Passkey、release/profile 真实 HTTPS／性能及完整生产安全验收仍 NOT_RUN；不以旧版本或宿主替身升级完整模块。前端未操作验收设备、更新共享环境或正式发布。
 
-相关入口：[HANDOFF](../design/HANDOFF.md) · [进度](../design/progress.md) · [模块交接](../design/module-acceptance-handoff.md) · [台账](../design/module-acceptance-ledger.json) · [#31 历史](feat-feed-interactions-ui.md)。
+相关入口：[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md) · [进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md) · [模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md) · [台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json) · [#31 历史](feat-feed-interactions-ui.md)。

@@ -116,7 +116,7 @@
 
 ## 当前事实
 
-- HEAD 为 `3edf8c4c2f888f3d0cf9783d6ea358e2ab30383e`，工作区有大量未提交实现。本次盘点沿用[模块台账](module-acceptance-ledger.json)中的源码摘要；HEAD 单独不能标识当前实现。
+- HEAD 为 `3edf8c4c2f888f3d0cf9783d6ea358e2ab30383e`，工作区有大量未提交实现。本次盘点沿用[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)中的源码摘要；HEAD 单独不能标识当前实现。
 - 注册／退役／释放、密码登录、恢复、七天注销、C Gate、运行时、设备／凭据管理、原生桥和 B02 基础已有源码。历史隔离测试证据保留，但不能代证本次工作区。
 - B02 状态保持 **基础管理已实现，业务联动待实现**。完整 Go／SQL／Flutter／设备验收仍为 `NOT_RUN`，不能写成匿名链路已通过。
 - 明确未实现项与尚未取得证明的项分开。下表 AC03 是核对任务，不能据此推断当前已存在敏感数据泄漏；AC02 是源代码未接入的生命周期缺口，尚无真实运行复现。
@@ -138,7 +138,7 @@
 - AC02：`services/api/internal/authprivacy/community_closure.go` 的 `finalizeAccountClosure`／`lockClosureDependents` 和 `workers.go` 尚未引用身份表；`services/api/migrations/0011_identity_management.sql` 约束已初始化账号至少一项活动身份且回执／墓碑不可变。规则见[账号 ACCOUNT-CLOSE-01](modules/accounts.md) 与[身份规则](modules/identity.md)。这里需要限定的身份生命周期修补，不要求先实现帖子或聊天。
 - AC03：规格依据为[架构决策](auth-privacy-architecture-decision.md)、[数据/API 契约](auth-privacy-data-api-contract.md)、[跨方威胁模型](auth-privacy-threat-model.md) 和身份 PRIVACY-02。当前 worker 日志只记录任务类别／数量等摘要，不能从这一处推出所有应用、代理、供应商日志都已审计。检查范围为 `services/api/internal/authprivacy*`、当前 OpenAPI、`infra/postgres`、移动端 auth/identity 与原生 vault/passkey；外部日志／备份归下方生产门槛。
 - AC04：确认位置为 `services/api/cmd/runtimeprobe/main.go`、`services/api/internal/authprivacyhttp/mobile_client_postgres_test.go`、`apps/mobile/integration/auth_public_https_postgres_test.dart`。已有 B02 测试及缺口记在[身份报告](identity-management-validation-report.md)。复用 R03/R05 的真实流程，不能发明现存 runner 没有的模块参数。
-- AC05：命令与逐项证明范围见[模块测试交接 R00–R10](module-acceptance-handoff.md)、[设备／Passkey 报告](auth-privacy-device-credentials-passkey-validation-report.md)和[身份报告](identity-management-validation-report.md)。当前机器缺 Go／Flutter／数据库工具、完整 OpenAPI validator 等环境；本清单没有重新运行动态测试。将来按实际可用环境登记，内存 vault、同进程对象重建、Swift parse 和无 DSN 的跳过均不能代证设备／SQL通过。
+- AC05：命令与逐项证明范围见[模块测试交接 R00–R10](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)、[设备／Passkey 报告](auth-privacy-device-credentials-passkey-validation-report.md)和[身份报告](identity-management-validation-report.md)。当前机器缺 Go／Flutter／数据库工具、完整 OpenAPI validator 等环境；本清单没有重新运行动态测试。将来按实际可用环境登记，内存 vault、同进程对象重建、Swift parse 和无 DSN 的跳过均不能代证设备／SQL通过。
 - AC06：本次只做文档链接、台账状态、源码摘要和补丁检查；结果写在本页末尾，不改变功能验收结果。
 
 ## 后续业务模块承担的匿名联动

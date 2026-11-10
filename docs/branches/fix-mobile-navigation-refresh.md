@@ -39,7 +39,7 @@
 - 此前2302只含1／2／5的候选包保留为历史制品，未安装；本轮2303也未安装。没有操作手机业务界面或改动共享服务。
 - 真缩略图和feed准确几何需要部署本轮服务端及可信helper，并更新validatorSHA256后重启；仅装新APK连接旧服务时仍使用兼容原图／稳定占位。此次未部署，不宣称手机已生效。
 - 待用户恢复验收后：四栏快速往返／详情返回、刷新断网恢复、长列表上下滚动后的缓存／内存与帧表现、横竖与动图原图查看／保存、过期／退出／删帖、“我的”首次及往返。独立review、远端CI、真机视觉和帧性能均NOT_RUN。
-- B03／B06／B10／PM01／IV01仅记录本轮限定证据，不升级历史完整模块、iOS或生产结论。相关[台账](../design/module-acceptance-ledger.json)、[总交接](../design/HANDOFF.md)、[媒体契约](../design/post-image-media-contract.md)已同步。
+- B03／B06／B10／PM01／IV01仅记录本轮限定证据，不升级历史完整模块、iOS或生产结论。相关[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)、[总交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[媒体契约](../design/post-image-media-contract.md)已同步。
 
 ## 2026-10-23 续：已授权并执行更新／真我统一验收
 

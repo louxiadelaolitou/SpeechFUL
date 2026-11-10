@@ -1,12 +1,14 @@
 # Hnuhole 认证与匿名隐私架构决策
 
+> 本页保留早期 C/V 架构与威胁边界。日常登录和账号恢复中“校邮只用于注册／不能重置旧号／独立恢复凭据必需”等限制已被后续明确决定替代，当前依据见 [AUTH-EMAIL-RESET-01](../tasks/AUTH-EMAIL-RESET-01.md) 与[账号规则](modules/accounts.md)；其余隐私边界按对应协议和实际实现核对。
+
 > **2026-10-21 AUTH-EMAIL-LOGIN-01 用户更新（本分支，未合并）：**校邮验证码可独立登录已有账号，V成为账号控制入口；新密码10–128位可见ASCII、无空格，旧密码仍兼容。新增用途隔离的登录OTP与限时绑定证明，注册流程和敏感凭据管理仍独立。覆盖本文历史冲突承诺；见[当前需求与协议](email-login-requirements-20261021.md)。
 
 > **2026-10-05 AC06 当前交接：**匿名基础源码与本地交接材料已整理，详细结论见[最终交接报告](auth-privacy-final-handoff-report.md)、[AC06任务单](auth-privacy-final-handoff-plan.md)和[最终记录](../../services/api/authlab/final-handoff-verification.json)。后端／真实客户端回归保留AC04原证据，Android模拟器范围保留AC05；AC05整项、B02整模块及生产仍未通过。当前AC04–AC06修改尚未提交／推送，本地交接完成不代表远端已发布。历史规格／AI评审／旧台账按原日期、源码摘要与证明范围理解；下一步补外部平台配置与设备证据，或按当次授权发布当前材料，不自动开发完整业务片。
 
 > **2026-10-05 当前实现入口：**匿名基础按 AC01／AC02／AC03 推进。本文原日期中的“实施前／未实现／未核对”等状态是历史设计快照；当前源码、隐私核对和诊断差异见 [AC03任务单](auth-privacy-boundary-plan.md)、[验证报告](auth-privacy-boundary-validation-report.md) 与 [业务接入契约](auth-privacy-business-contract.md)，实际检查结果以报告及机器台账为准。既定共享槽位串通边界与生产分权／灾备／独立审计门槛继续有效。
 
-> **当前状态入口（2026-10-03）：**本文的实施前状态及待填写材料保留形成时的证明范围；认证基础已有后续实现，当前缺口、未执行验收及分支结束条件统一见[匿名收口清单](auth-privacy-closure-checklist.md)与[模块台账](module-acceptance-ledger.json)。不将历史规格状态读作当前全部未实现，也不将现有源码读作验收或生产批准。
+> **当前状态入口（2026-10-03）：**本文的实施前状态及待填写材料保留形成时的证明范围；认证基础已有后续实现，当前缺口、未执行验收及分支结束条件统一见[匿名收口清单](auth-privacy-closure-checklist.md)与[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。不将历史规格状态读作当前全部未实现，也不将现有源码读作验收或生产批准。
 
 日期：2026-09-26。基于 `codex/auth-privacy-handoff` @ `680f863` 及本轮用户最终确定的入口：**每次创建账号都验证学校邮箱验证码；日常只用私有用户名和密码登录；同一精确邮箱地址同时最多一个有效账号。**
 

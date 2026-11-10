@@ -1,6 +1,6 @@
 # AC06 最终交付与状态统一任务单
 
-日期：2026-10-05。只在 `codex/auth-privacy-handoff`，基线 `cbc99b010ba23bba42f76e2523269e3952b14392`，保留 AC04／AC05 全部未提交改动。依据[匿名清单](auth-privacy-closure-checklist.md)、[HANDOFF](HANDOFF.md)与[模块交接](module-acceptance-handoff.md)。
+日期：2026-10-05。只在 `codex/auth-privacy-handoff`，基线 `cbc99b010ba23bba42f76e2523269e3952b14392`，保留 AC04／AC05 全部未提交改动。依据[匿名清单](auth-privacy-closure-checklist.md)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)与[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)。
 
 1. 核对 AC01–AC05 记录、被测源码与证明范围，固定当前实现摘要；确认历史规格／验收记录没有被换绑为当前通过，列出尚未实现的消费者和缺设备／配置的验收。
 2. 整理[最终交接报告](auth-privacy-final-handoff-report.md)，同步 HANDOFF／progress、模块台账与机器入口，修正总入口和过时下一步，补架构／独立评审入口的当前状态。分开登记本地交接完成、完整验收未闭合和远端发布待执行。

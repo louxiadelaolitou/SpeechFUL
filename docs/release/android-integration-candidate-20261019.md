@@ -64,6 +64,6 @@
 
 候选、私有运行材料、安装/运行/恢复入口及清理回执见[复现说明](android-integration-reproduction-20261019.md)。后端私有凭据仅存专用本地材料；不进普通交付包或仓库。
 
-任务与接续：[任务详情](../branches/ci-android-integration-candidate.md)、[HANDOFF](../design/HANDOFF.md)、[进度](../design/progress.md)。
+任务与接续：[任务详情](../branches/ci-android-integration-candidate.md)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)。
 
 服务/数据库/构建进程均已停，私有归档6605文件读回验摘要通过，Linux运行环境与SDK/cache已删除。Windows专属ADB SDK目录删除被自动审批拦截，固定字面路径的更安全尝试也仅返回“blocked by policy”；该目录已停用但未删除，不计清理PASS。详见[实际清理回执](android-integration-cleanup-20261019.json)。此补记只反映交付和收尾事实，不重新构建或重验产品。

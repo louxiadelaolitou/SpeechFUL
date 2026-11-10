@@ -2,7 +2,7 @@
 
 状态：FLUTTER_HOST_REVIEWED；设备／平台验收NOT_RUN。日期2026-10-09，源码提交`eb6c9143d785a01fcc8b141b323accf0fbf812d2`，92文件指纹`3b6b061167d43e620fc1092df0ba290dabe0c2367ff05d9a4be4c4ab4b002fcf`。
 
-依据[F1已定22场景](f1-completion-audit.md)，本轮仅文字切片；正式PNG未替换。实际渲染入口在`apps/mobile/test/post_screens_test.dart`，输出402×874逻辑尺寸、2倍像素的14张PNG，包含通道正常／空／首次失败／真实PUBLISHED通知、文字编辑／确认／身份／保存失败／绑定失败重试、本人混排／空、详情与两种删除确认。新图是实现证据，非新产品稿审批。
+依据[F1已定22场景](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/ui-reviews/f1-completion-audit.md)，本轮仅文字切片；正式PNG未替换。实际渲染入口在`apps/mobile/test/post_screens_test.dart`，输出402×874逻辑尺寸、2倍像素的14张PNG，包含通道正常／空／首次失败／真实PUBLISHED通知、文字编辑／确认／身份／保存失败／绑定失败重试、本人混排／空、详情与两种删除确认。新图是实现证据，非新产品稿审批。
 
 [root与UI复审均逐项核对] 顶部中文、作者、通道、自然高度双列、错误／未知／处理中区分、确认按钮、宋体问题行、弹窗遮罩及正文阅读顺序。首轮AppBar独立TextStyle丢font继承、overlay动画采样过早和CTA尚在过渡的缺陷已修；最终帧中中文正常、白字确认、身份面板与三个居中弹窗完整进入画面。未发现阻止当前文字片提交的排版／遮挡／状态缺陷。
 

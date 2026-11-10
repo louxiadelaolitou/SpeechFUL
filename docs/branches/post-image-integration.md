@@ -33,7 +33,7 @@
 
 ## 已完成的工作和验证
 
-工作项：独立图片查看组件 → 真实帖子图片业务接入；交付分支 `codex/post-image-integration`，功能与真机记录固定在 `1c8ad33`（修复实现 `fd2e4c0`）。2026-10-16 已通过 [PR #2](https://github.com/zewbby/HnuHole/pull/2) 合并 main，合并提交 `4fc19baf8655da4b012a0a6dd2c8c9a7b2bab398`；来源分支保留。详见 [progress](../design/progress.md) 与[合并回执](../design/post-image-main-delivery-20261016.json)，未发布或部署。
+工作项：独立图片查看组件 → 真实帖子图片业务接入；交付分支 `codex/post-image-integration`，功能与真机记录固定在 `1c8ad33`（修复实现 `fd2e4c0`）。2026-10-16 已通过 [PR #2](https://github.com/zewbby/HnuHole/pull/2) 合并 main，合并提交 `4fc19baf8655da4b012a0a6dd2c8c9a7b2bab398`；来源分支保留。详见 [progress](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md) 与[合并回执](../design/post-image-main-delivery-20261016.json)，未发布或部署。
 
 本任务除 iOS 外的约定范围已完成：
 

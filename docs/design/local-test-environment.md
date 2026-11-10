@@ -135,6 +135,6 @@ flutter build apk --debug --target-platform android-x64 --target integration_tes
 
 iOS 完整 app／Keychain／系统 Passkey 需 macOS 和完整 Xcode。真实 Passkey ceremony 仍缺 RP 域名、Android 发布签名、iOS Team／关联部署。API 36 模拟器通过不覆盖物理设备硬件安全等级、锁屏、OEM、完整备份与平台矩阵。B02 输入法／无障碍设备矩阵和身份专属草稿跨进程场景未验；当前两进程 Flutter 探针覆盖共享认证状态。
 
-AC01 V 独立 Gate、AC02 现有身份整账号关闭联动及后续业务投影仍未实现；P02–P06 的生产／独立审计证据仍缺。B02 整模块继续 BLOCKED。最新状态以[模块台账](module-acceptance-ledger.json)和[验证报告](identity-management-validation-report.md)为准。
+AC01 V 独立 Gate、AC02 现有身份整账号关闭联动及后续业务投影仍未实现；P02–P06 的生产／独立审计证据仍缺。B02 整模块继续 BLOCKED。最新状态以[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)和[验证报告](identity-management-validation-report.md)为准。
 
 按用户最终选择，SDK、JDK、固定工具与 AVD 配置留在 D 盘；下载包、pub／Gradle／Go／pip 缓存、APK、大日志、AVD 测试运行磁盘／快照、临时库／测试私钥和一次性 checkout 均已清理。D 盘实测空闲空间增加约 12.54 GiB；WSL 清除 checkout／Go 构建缓存并执行 TRIM，TRIM 的总块数不计为本次释放量。首次复验需要重新获取依赖和 Gradle wrapper，AVD 会重建干净运行磁盘。不做 Docker 全局 prune，保留原有镜像。

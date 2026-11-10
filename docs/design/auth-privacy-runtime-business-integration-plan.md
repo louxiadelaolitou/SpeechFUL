@@ -27,7 +27,7 @@
 
 ## 2. 实际缺口与阅读顺序
 
-新会话先读本计划、[HANDOFF](HANDOFF.md)、[最新原生／真实联调报告](auth-privacy-mobile-native-integration-validation-report.md)、[Safety Gate 设计](auth-authorization-safety-gate.md)、[迁移设计](auth-privacy-database-migration-design.md)及[实验 README](../../services/api/authlab/README.md)。涉及具体规则时查对应 OpenAPI 与当前实现，不从历史节点重新推导需求。
+新会话先读本计划、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[最新原生／真实联调报告](auth-privacy-mobile-native-integration-validation-report.md)、[Safety Gate 设计](auth-authorization-safety-gate.md)、[迁移设计](auth-privacy-database-migration-design.md)及[实验 README](../../services/api/authlab/README.md)。涉及具体规则时查对应 OpenAPI 与当前实现，不从历史节点重新推导需求。
 
 | 现有文件／符号 | 已核实的现状 | 本片应得到的结果 |
 | --- | --- | --- |

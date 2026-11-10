@@ -67,7 +67,7 @@ A1–A6各子项分别登记PASS/NOT_RUN，不笼统全PASS。A1两个真实TLS 
 
 ### 交接入口
 
-[当前配置与接口](../design/shared-rate-limit-plan.md) · [实际架构](../design/shared-rate-limit-architecture.md) · [部署/恢复/回退](../design/shared-rate-limit-runbook.md) · [模块交接](../design/module-acceptance-handoff.md) · [模块台账](../design/module-acceptance-ledger.json)。
+[当前配置与接口](../design/shared-rate-limit-plan.md) · [实际架构](../design/shared-rate-limit-architecture.md) · [部署/恢复/回退](../design/shared-rate-limit-runbook.md) · [模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md) · [模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。
 
 涉及A01/A02/A03/A04/A06/A10/A12/A13、B02/B05/B06/B07/B08/B09；只增加本任务限定证据，历史整模块总裁决保留。文档静态核对PASS（124变更文件/15 Markdown、相对链接0缺失、策略0错误、历史ledger原entry深相等、107产品文件hash未变）；证据在Windows evidenceRoot/final-docs-static-check.json。后续按授权再做远端CI、真实客户端集成/设备、容量及生产观察，未授权自动提交发布。
 

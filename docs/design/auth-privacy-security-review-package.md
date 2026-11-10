@@ -2,7 +2,7 @@
 
 > **2026-10-05 AC06 当前交接：**匿名基础源码与本地交接材料已整理，详细结论见[最终交接报告](auth-privacy-final-handoff-report.md)、[AC06任务单](auth-privacy-final-handoff-plan.md)和[最终记录](../../services/api/authlab/final-handoff-verification.json)。后端／真实客户端回归保留AC04原证据，Android模拟器范围保留AC05；AC05整项、B02整模块及生产仍未通过。当前AC04–AC06修改尚未提交／推送，本地交接完成不代表远端已发布。历史规格／AI评审／旧台账按原日期、源码摘要与证明范围理解；下一步补外部平台配置与设备证据，或按当次授权发布当前材料，不自动开发完整业务片。
 
-> **当前状态入口（2026-10-03）：**本文的实施前状态及待填写材料保留形成时的证明范围；认证基础已有后续实现，当前缺口、未执行验收及分支结束条件统一见[匿名收口清单](auth-privacy-closure-checklist.md)与[模块台账](module-acceptance-ledger.json)。不将历史规格状态读作当前全部未实现，也不将现有源码读作验收或生产批准。
+> **当前状态入口（2026-10-03）：**本文的实施前状态及待填写材料保留形成时的证明范围；认证基础已有后续实现，当前缺口、未执行验收及分支结束条件统一见[匿名收口清单](auth-privacy-closure-checklist.md)与[模块台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。不将历史规格状态读作当前全部未实现，也不将现有源码读作验收或生产批准。
 
 日期：2026-09-28。状态：**送审材料草案；独立评审未开始，G1–G6 均未获独立签署。**
 
@@ -28,7 +28,7 @@
 | [OpenAPI 说明](../../packages/openapi/README.md) | 结构校验范围、mTLS 扩展与生成器局限 |
 | [签名字节向量说明](auth-privacy-protocol-vectors.md)、[向量 JSON](../../packages/auth-protocol-vectors/v1.json)、[内部静态记录](../../packages/auth-protocol-vectors/static-verification-report.json) | 本轮新增的可重复静态输入／期望值；以说明中的执行范围为准 |
 | [AI 交叉评审](auth-privacy-ai-cross-review.md)、[退役 ACK 静态记录](../../packages/auth-protocol-vectors/retirement-ack-static-verification.json) | 初审发现、规格修正及回归复核；接口结构／Schema 检查，不是实际收据事务或外部 Claude 结论 |
-| [当前进展](progress.md)、[交接](HANDOFF.md) | 区分现有演示切片与尚未实现的认证主链 |
+| [当前进展](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md) | 区分现有演示切片与尚未实现的认证主链 |
 
 评审范围包括原语组合、协议编码、信任前提、接口语义、数据库设计和实施验收方案。密码学安全证明、生产代码审计、实际容量、移动端桥接安全及法律主体核验不能由静态材料替代；评审者须明确哪些工作已做、哪些工作未做。
 

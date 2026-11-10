@@ -82,7 +82,7 @@ HTTP处理器使用相应独立文件。移动端放 `apps/mobile/lib/src/report
 
 当前阶段1限定范围通过。最终产品候选已完成真实SQL／Dart HTTPS／实际Go网页及CI回归；交付文档提交另核对产品输入指纹和head检查。
 管理授权初验、逐份举报原因、旧配置生命周期检查、旧处罚兼容及正常并发续期503均已修复并复验，独立agent复核无阻断；不冒充GitHub成员批准。
-[模块交接](../design/module-acceptance-handoff.md)与[机器台账](../design/module-acceptance-ledger.json)仅记录本阶段范围，B08／B11保持PARTIAL。
+[模块交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)与[机器台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)仅记录本阶段范围，B08／B11保持PARTIAL。
 
 ### 阶段2依赖与未完成范围
 

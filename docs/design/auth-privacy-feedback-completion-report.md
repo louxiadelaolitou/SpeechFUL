@@ -12,7 +12,7 @@
 
 | 用户反馈 | 判断与最终处理 | 证据及完成范围 |
 | --- | --- | --- |
-| 清理旧的邮箱唯一登录、稳定匿名凭证恢复旧号规则 | 采纳。当前交接、账号模块和进度采用新主链；历史 ADR 和讨论保留追溯，但明确失效，不能作为实施依据。 | [HANDOFF](HANDOFF.md)、[账号模块](modules/accounts.md)、[进度](progress.md)、[历史 ADR 0005](../adr/0005-privacy-preserving-email-authentication.md)。规格清理完成。 |
+| 清理旧的邮箱唯一登录、稳定匿名凭证恢复旧号规则 | 采纳。当前交接、账号模块和进度采用新主链；历史 ADR 和讨论保留追溯，但明确失效，不能作为实施依据。 | [HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[账号模块](modules/accounts.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[历史 ADR 0005](../adr/0005-privacy-preserving-email-authentication.md)。规格清理完成。 |
 | 用 bootstrap key 阻止恶意 V 抢注册 | 采纳持钥证明，但原建议不足：恶意签名者仍可给同一 slot 换公钥重签。现方案由客户端公钥散列导出 slot，C 重算该等式，并验客户端对真实 C 挑战的签名；证明还绑定开户意图与完整资格票据。 | [注册／退役／释放协议](auth-privacy-registration-protocol.md)。协议完成，真实服务未实现。 |
 | 注册必须建立独立恢复方式 | 采纳并收敛为：开户前必须保存并完整重输确认 128 位恢复码，开户后推荐可选 Passkey。没有采用“Passkey 或恢复码任选其一”，避免仅依赖平台同步；Passkey 只用于恢复及凭据管理，保留用户名密码日常登录。 | [恢复策略](auth-privacy-recovery-decision.md)。规格完成，保存效果和换机体验未做用户测试。 |
 | Argon2id 之外还要控制密码攻击面 | 采纳。规定密码阻止名单、分维度限流与异常检测、普通登录统一错误及等价计算路径、恢复码限流、凭据版本与旧会话撤销、KDF 并发上限。成本和限流阈值待真实机器测量。 | [恢复策略第 5 节](auth-privacy-recovery-decision.md)、[数据/API 契约](auth-privacy-data-api-contract.md)、[威胁模型](auth-privacy-threat-model.md)。设计完成，防御效果未实测。 |

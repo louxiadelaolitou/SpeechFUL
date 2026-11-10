@@ -8,6 +8,6 @@ AUTH-SESSION-RESUME-01 原代码由PR #48合并、PR #50交接。本次补齐此
 
 - [脱敏机器证据](../design/validation/session-overnight-20261030.json)：只归档时间/版本/通过判定及本地制品摘要，不提交账号、会话指纹原值、设备序列或秘密。
 - [当前恢复说明](../design/session-runtime-recovery.md)：C28/V7、两个限流Redis及第三个快照Redis，先同步resume再API；旧私有启动脚本未在本PR修补，不能当作当前launcher。
-- [原修复交接](fix-session-restore.md)、[进度](../design/progress.md)、[HANDOFF](../design/HANDOFF.md)、[模块表](../design/module-acceptance-handoff.md)、[台账](../design/module-acceptance-ledger.json)。
+- [原修复交接](fix-session-restore.md)、[进度](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[模块表](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)、[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json)。
 
 本次验收PASS限同机开发环境/单台vivo2702隔夜恢复，历史模块整体、生产、iOS和其他设备矩阵不变。检查范围：证据基线字段一致、JSON解析、相对链接、脱敏、diff和协作检查、独立只读审查；远端适用CI以精确提交为准。纯文档不重复运行产品或设备验收。本次PR自身不递归写入最近变动；合并后核对主线记录并保存合并回执。

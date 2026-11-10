@@ -41,7 +41,7 @@ AC03 对当前匿名基础完成有范围的数据、权限、HTTP、客户端�
 
 [匿名业务接入契约](auth-privacy-business-contract.md) 固定公共DTO不得含共同账号／本体／其他身份、每身份独立占位、最终任务受理事务的账号＋帖子绑定（含首条来源帖私信）、异步失败保留绑定和按身份对隔离会话；禁止邮箱客服恢复旧号。当前仅有B02本人管理、AC02数据库正式关闭和纯占位函数，B05–B11公共消费者、聊天本地清理／私人备注／搜索历史及媒体仍未实现，明确NOT_RUN，不仅是缺验收。
 
-Android原生vault／系统Passkey／物理设备未在本轮重跑；iOS构建／Keychain／系统绑定恢复仍缺完整证据。入口保持 [分模块交接 R07/R09/R10](module-acceptance-handoff.md) 和 [平台历史报告](auth-privacy-device-credentials-passkey-validation-report.md)。R03、R05和原生探针验证不同边界，不合并宣称完整物理App→实际C/V全流程PASS。
+Android原生vault／系统Passkey／物理设备未在本轮重跑；iOS构建／Keychain／系统绑定恢复仍缺完整证据。入口保持 [分模块交接 R07/R09/R10](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md) 和 [平台历史报告](auth-privacy-device-credentials-passkey-validation-report.md)。R03、R05和原生探针验证不同边界，不合并宣称完整物理App→实际C/V全流程PASS。
 
 P02真实主体及权限域、P03生产备份／WAL／日志留存和灾备、P04侧信道／多副本容量、P05真实域名／邮件／原生关联／签名发布、P06人类独立审计仍BLOCKED或NOT_RUN，具体见 [收口清单](auth-privacy-closure-checklist.md)。本次源码与探针审核不能批准生产。
 

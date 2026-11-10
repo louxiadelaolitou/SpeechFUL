@@ -48,6 +48,7 @@
 
 ## Related Work
 
+- [开发文档与仓库导览](docs/README.md)
 - [近期工作](docs/RECENT_WORK.md)
 - [官网源码与本地预览](apps/website/README.md)
 

@@ -1,92 +1,39 @@
-# 产品设计
+# 产品与技术设计索引
 
-> **2026-10-21 AUTH-UI-FINAL-01：**用户已确认[登录注册流程 UI 定稿](auth-flow-final/README.md)，以同页原位置切换“用户名／密码”与“邮箱／验证码”为最终版本；欢迎、注册和恢复沿用统一视觉。交互稿、截图和核对记录已独立归档，App 与邮箱登录契约接入待实现，未合并／发布；[交付记录](../branches/docs-auth-flow-final.md)。
+全仓库从[开发文档](../README.md)进入；当前术语统一见 [GLOSSARY](../../GLOSSARY.md)。本页索引规则与设计来源，不记录任务进度或累计验收结论。
 
-> **2026-10-17 B5 主线增量已合并：**[PR #9](https://github.com/zewbby/HnuHole/pull/9) 已进入 main；本轮增量验证与历史认证证据分列，见[整合报告](auth-privacy-b5-main-integration-report.md)、[机器记录](auth-privacy-b5-main-integration-verification.json)及[分支进度](../branches/fix-b5-main-integration.md)。历史 24/24 仅属于原版本；当前候选的验证与交付状态以上述入口为准。
+## 阅读顺序与新旧边界
 
-> **2026-10-15 手机窗口当前阻断：BLOCKED_KEY_ISOLATION。**用户已确认 vivo S18、30–45分钟窗口、认证会话释放、隔离包和专用USB key；原stage1实际等待90秒后exit1，未发现目标设备，未安装/启动App、注册或业务写入。Windows环境变量不能证明专用key隔离，已给stage1/2添加不可凭授权flag绕过的前置守卫；CA-A01–13全部NOT_RUN，stage2也阻断。Windows136 PASS＋3 POSIX SKIP、Linux139 PASS仅为host；自有60761 server已按exe/start/port核实后停止，既存5037未动；用户已结束本轮窗口，后续须重新确认。见[本轮报告](community-android-device-blocked-20261015.md)与[脱敏记录](community-android-device-blocked-20261015.json)。历史准备/指纹/APK证据保留原范围；先证明真正独立profile或验证专用key目录的ADB，再由原服务归属方安全释放USB并重验摘要/ready/空库。新增OS账户/安全配置或共享key例外须用户明确变更授权。
+先读对应任务中已经确认的需求变更，再读模块设计和协议细节。较新的明确变更替代同一范围的旧规则；旧报告的 PASS、旧图的“已确认”不自动成为当前版本验收。
 
-> **2026-10-05 AC06 当前交接：**匿名基础源码与本地交接材料已整理，详细结论见[最终交接报告](auth-privacy-final-handoff-report.md)、[AC06任务单](auth-privacy-final-handoff-plan.md)和[最终记录](../../services/api/authlab/final-handoff-verification.json)。后端／真实客户端回归保留AC04原证据，Android模拟器范围保留AC05；AC05整项、B02整模块及生产仍未通过。当前AC04–AC06修改尚未提交／推送，本地交接完成不代表远端已发布。历史规格／AI评审／旧台账按原日期、源码摘要与证明范围理解；下一步补外部平台配置与设备证据，或按当次授权发布当前材料，不自动开发完整业务片。
-
-> **2026-10-03 远端接续交付：**用户已授权将当前匿名收口材料、运行时／设备／B02源码与测试提交并推送到 `origin/codex/auth-privacy-handoff`，由另一台机器继续。先读[机器接续入口](auth-privacy-machine-handoff.md)，再按[匿名清单 AC01–AC06](auth-privacy-closure-checklist.md)执行；提交／推送不代表缺口已修复或动态验收通过。下方“未提交／推送”是历史记录，最新交付状态以本次提交及远端结果为准。
-
-> **2026-10-03 匿名分支范围纠正：**本分支以匿名方案及其基础实现收口，停在 B02，不进入 B05/B03 等完整业务片。当前有限缺口和结束条件见[匿名收口清单](auth-privacy-closure-checklist.md)：先补 V 独立 Gate、现有身份的整账号关闭联动，再核对隐私边界、补真实测试链与集中验收。B02继续登记为“基础管理已实现，业务联动待实现”，动态／设备未执行项保持待验；本段覆盖下方历史开发顺序，不改写历史测试证据。
-
-> **2026-10-03 B02身份管理基础：**本人身份列表／创建／改名／删除、默认头像和我的→设置入口已写入；注册零身份仍能浏览，落实最多3个／不能删最后一个、累计创建及六个月／30天限制。全部访问最终Gate／会话／归属复核，账号串行及成功／拒绝终态回执保护未知提交与迟到重试。**基础管理已实现，业务联动待实现；编译、SQL、Flutter和真机验收待执行。**帖内绑定、旧帖／聊天投影随业务模块，自定义头像随媒体实现。见[任务单](identity-management-plan.md)、[报告](identity-management-validation-report.md)、[机器记录](../../services/api/authlab/identity-management-verification.json)和[模块交接](module-acceptance-handoff.md)／[台账](module-acceptance-ledger.json)。后续按[匿名收口清单](auth-privacy-closure-checklist.md)补齐基础缺口并交付，不进入完整发帖／列表业务片；未提交／推送。
-
-2026-10-02 新增[设备与恢复凭据＋原生Passkey任务单](auth-privacy-device-credentials-passkey-plan.md)和[实施／验证报告](auth-privacy-device-credentials-passkey-validation-report.md)。页面、持久原结果核对及两平台桥源码已接；本机只有轻量与共享Swift检查，编译、动态和真机待验，RP／平台关联配置待提供。状态同步[模块交接](module-acceptance-handoff.md)／[台账](module-acceptance-ledger.json)。
-
-认证隐私已进入用户授权的 Phase E。[C/V 开发服务与目录授权计划](auth-privacy-runtime-business-integration-plan.md)的 T0–T6 实施已落盘，包括正式迁移、受限角色、实际入口、持久 worker 与移动端截止衔接；本机缺工具，编译和动态验收未执行。[本轮报告](auth-privacy-runtime-business-integration-validation-report.md)列明已执行检查与待复验项，[实验 README](../../services/api/authlab/README.md)提供 runner。历史原生／隔离联调证据见[原报告](auth-privacy-mobile-native-integration-validation-report.md)，不能证明本次改动通过。V 独立门禁、原生设备与生产安全验收仍待完成。
-
-这里是当前设计的统一入口。每项规则只在所属模块维护，跨模块通过链接引用；历史讨论用于追溯，不再作为持续追加的规则总表。
-
-2026-10-02 用户允许先继续业务开发，再集中按模块验收。完整待验队列、真实测试入口、依赖与平台边界见[分模块测试交接](module-acceptance-handoff.md)及[机器台账](module-acceptance-ledger.json)；[AGENTS.md](../../AGENTS.md)要求每个功能任务结束补充未执行测试与交接。
-
-新会话先读[接续说明](HANDOFF.md)。阶段盘点与剩余工作见[设计进度](progress.md)，业务术语见[词汇表](../../CONTEXT.md)。规则继续维护在各模块，进度页只提供交付状态与待决事项索引。
-
-2026-09-26 用户确认新的[认证与隐私架构决策](auth-privacy-architecture-decision.md)：每次注册需完成校邮验证码，日常以私有用户名和独立密码登录；同一精确邮箱同时最多一个有效账号的配额依赖 V 按协议执行。2026-09-27 的[注册与释放协议 v1](auth-privacy-registration-protocol.md)定义公钥导出的资格槽位、限时签名资格、持钥证明、未消费资格退役及正式注销释放；[恢复策略](auth-privacy-recovery-decision.md)、[逻辑数据／API 契约](auth-privacy-data-api-contract.md)和[跨方威胁模型](auth-privacy-threat-model.md)也已成稿。内部威胁建模不等于独立审计；[V OpenAPI](../../packages/openapi/verifier-auth-api.yaml)、[C OpenAPI](../../packages/openapi/community-auth-api.yaml)与[数据库迁移设计](auth-privacy-database-migration-design.md)已成稿；[固定签名／编码向量与静态复验](auth-privacy-protocol-vectors.md)及[独立安全评审输入包](auth-privacy-security-review-package.md)也已整理；隔离 SQL 验证见本轮实现报告；生产迁移／完整链路、真实独立主体运营证据及独立安全评审仍待完成。两方共享槽位，串通或共同泄漏时可连接邮箱与账号。
-
-2026-09-28 的[AI 交叉评审记录](auth-privacy-ai-cross-review.md)单列内部规格发现与修正：补齐退役收据的持久 ACK，不改变固定签名帧。人类独立评审、实际服务验收和双主体运营证据仍未完成；邮箱可用与验证服务独立运营分别登记。
-
-## 项目范围
-
-海南大学校内封闭树洞，首版围绕吐槽、避雷、安利、互助、搭子、科技、情感七个通道组织内容，核心是 behindMask：用可选择的独立身份表达和联系，不暴露不同身份属于同一账号；“想说就说”是使用体验目标。首版是同时支持 iOS 和 Android 的手机 App；网页端和小程序不在首版用户端范围。工程基线已确定为 Flutter/Dart 移动端、Go 服务端和模块化单体后端；Go HTTP、PostgreSQL、REST/OpenAPI 与移动端本地存储基线见 [ADR 0001](../adr/0001-engineering-baseline.md) 和 [ADR 0002](../adr/0002-communication-and-persistence-baseline.md)，分发方式及其余实现细节仍待决定。热度与排行榜纳入设计范围，涵盖大通道热度和各通道内的帖子热榜；具体权重仍待确定。2026-09-19 用户明确“不搞交易”，首版不做交易功能，不设独立商品、订单、支付或交易担保。首版标题手写、搜索按文字检索，不包含模型生成或意图理解功能。这里记录产品设计，不代表功能已经实现。
-
-## 模块目录
-
-| 模块 | 维护范围 | 当前状态 |
+| 范围 | 当前确认来源 | 被替代的描述 |
 | --- | --- | --- |
-| [账号与访问](modules/accounts.md) | 校邮准入、私有账号认证、设备管理、注销 | 每次注册校邮验证，用户名密码登录；独立凭据恢复、单设备、三十天会话 |
-| [预设身份](modules/identity.md) | 一至三身份、每帖固定、隔离 | 首次昵称必填头像可默认；删除身份清本人聊天备注及明确失败帖 |
-| [入口与导航](modules/navigation.md) | 入口树、通道、列表、搜索与返回 | 有效登录直进树、初始五通道；全局组按最相关／最新匹配帖，同相关度较新优先 |
-| [热度与排行榜](modules/popularity.md) | 通道热度、通道内帖子热榜、排名 | 整五分钟更新、近七天前二十；权重不公开，具体数值待定 |
-| [通道与自定义标签](modules/tags.md) | 通道、用户自定义 #标签与筛选 | 通道必选、#标签选填；无中间分类与统一治理，主题屏蔽后续设计 |
-| [新建帖子](modules/post-composer.md) | 内容编辑、标题、发布与失败处理 | 标题手写、处理中可取消、新帖草稿保护；首版文字图片 |
-| [帖子详情](modules/post-detail.md) | 阅读、作者区、赞藏、分屏、分享 | 头像昵称联系、分界可拖动，收起再展开恢复默认比例 |
-| [评论与回复](modules/comments.md) | 楼中楼、输入、图片、后台发送 | 主评论删整楼、楼中楼仅本条；回复对象可定位、本人成功滚顶、约五十条分页 |
-| [消息中心](modules/messages.md) | 私信、互动提醒、系统通知和未读 | 换机恢复会话入口但缺历史不提示；当前身份备注搜索及未读衔接 |
-| [私信与会话](modules/messaging.md) | 身份对会话、首次联系、消息操作 | 待收消息持续保存至本地确认；首次保留图片入口、尝试发送时限制；迁移首版不做 |
-| [个人内容与设置](modules/personal.md) | 头像名称、自己的帖子与草稿、收藏、设置入口 | 帖子／收藏返回保留页签与位置，草稿及发送中卡片混排 |
-| [内容管理](modules/moderation.md) | 电脑网页双角色后台、举报与处罚申诉 | 旧帖未保存修改退出丢弃；举报、处罚、复核与追加规则已定 |
+| 登录、找回密码与账号安全 | [校邮重置与暂停恢复凭据](../tasks/AUTH-EMAIL-RESET-01.md)、[账号与访问](modules/accounts.md) | 校邮仅用于注册、必须确认恢复码、用户可绑定或使用 Passkey |
+| 分类、导航与设置 | [个人页与设置](../tasks/PROFILE-SETTINGS-01.md)、[最新排序](../tasks/POST-LATEST-SORT-01.md) | 旧入口树、旧设置手势和旧界面状态不能直接作为当前验收要求 |
+| 通知 | [私信恢复与通知](../tasks/DM-RESUME-NOTIFICATIONS-01.md) | 早期系统消息与后续通知按对应版本区分 |
+| 搜索、榜单与标签 | [搜索](../tasks/POST-SEARCH-01.md)、[全站热榜](../tasks/GLOBAL-HOTLIST-01.md)、[标签](../tasks/CUSTOM-TAGS-01.md) | 早期每分类帖子榜、具体权重尚未确定等不能覆盖后续确认 |
+| 帖子编辑与分享 | [编辑](../tasks/POST-EDIT-01.md)、[分享](../tasks/POST-SHARE-01.md) | 旧静态正文、尚未接线的图稿不代表当前实现 |
+| 发布与平台状态 | [Android 上线记录](../tasks/ANDROID-BETA-LAUNCH-20261109.md)、[iOS 任务](../tasks/IOS-V1-01.md) | 旧分支“未合并／未部署／未设备验证”只属于当时版本 |
 
-## UI 设计接续
+## 模块与技术来源
 
-业务访谈已于第二十二轮收口；UI 与交互设计暂时暂停，当前进入工程方案阶段。每张图由助手先自主设计并直接给出初版，再由用户看图微调；一次一张 PNG，初稿不等于确认。2026-09-20 用户最新要求“不用prompt”，不再附作图 prompt。工程基线与后续决策见 [设计进度](progress.md) 和 [ADR 0001](../adr/0001-engineering-baseline.md)。
+以下模块文件保留设计来源和日期化增量，阅读时结合上表；不把其中旧阶段状态当成现状。
 
-2026-09-20 用户指定后续同时使用 **ui-ux-pro-max** 与 **frontend-design**：前者检查可用性，后者检查视觉与内容表达，出图前后均复审。已定稿页面有明确严重问题时可后续重画，保留旧版并重新评审，不自动推翻业务或确认状态。具体见 [UI 设计与复审流程](ui-quality-workflow.md)。
+| 模块 | 设计来源 |
+| --- | --- |
+| 账号与访问 | [账号](modules/accounts.md)、[C/V 隐私架构](auth-privacy-architecture-decision.md)、[注册协议](auth-privacy-registration-protocol.md)、[威胁模型](auth-privacy-threat-model.md) |
+| 身份 | [预设身份](modules/identity.md)、[头像与首次设置](../branches/identity-avatar-onboarding.md) |
+| 导航、分类与标签 | [导航](modules/navigation.md)、[分类与标签](modules/tags.md) |
+| 信息流与榜单 | [信息流接口](feed-backend-contract.md)、[榜单设计来源](modules/popularity.md) |
+| 帖子发布与详情 | [新建帖子](modules/post-composer.md)、[详情](modules/post-detail.md)、[发布事务](community-text-posting-backend-design.md) |
+| 评论与回复 | [评论规则](modules/comments.md)、[业务接口](../../packages/openapi/comment-business-component.yaml) |
+| 消息与私信 | [消息](modules/messages.md)、[私信](modules/messaging.md)、[私信聊天契约](../../packages/openapi/direct-message-chat.yaml) |
+| 个人内容与设置 | [设计来源](modules/personal.md) |
+| 举报、审核与申诉 | [治理规则](modules/moderation.md)、[审核工作台](../../apps/admin/README.md) |
+| 数据与工程基线 | [ADR](../adr/)、[正式迁移](../../services/api/migrations/)、[V 迁移](../../services/api/verifier-migrations/) |
 
-用户确认当前图定稿后，直接同步记录并制作下一张，不再等待“下一张”指令；下一张仍须单独评审。
+## 图稿与历史
 
-最新配色要求：保留黑底方向，正常推进新页面，每张尝试不同配色，直到用户明确“配色定稿”后再统一后续页面，旧图后续可重构。页面通过不等于配色定稿，不再锁定原冰蓝主题，也不围绕旧页反复换色出图。执行细则见 [UI 设计与复审流程](ui-quality-workflow.md)。
+[UI 设计与复审流程](ui-quality-workflow.md)说明图稿的确认范围；`ui-drafts`、`ui-reviews` 和 [auth-flow-final](auth-flow-final/README.md) 保留各阶段设计。图稿不能代替实际页面或设备验收，旧恢复码／Passkey 演示不代表当前开放流程。
 
-## 设计图
-
-图片保留在项目的 `UI产品图` 目录，模块文档链接到对应画面及确认范围。
-
-- [消息首页正常状态 v1 · 已确认主布局](../../UI产品图/消息首页-正常状态-v1.png)：原小圆点切换入口已按用户反馈替换。
-- [消息身份切换展开 v2 · 已确认](../../UI产品图/消息身份切换-展开-v2.png)：显眼切换图标与文字说明，用户已确认并要求下一张。
-- [评论与回复收到的 v2 · 已确认](../../UI产品图/评论与回复-收到的-v2.png)：取消重复身份提示，展示对方头像、两行正文及单行来源标题；头像／昵称随整条提醒回原帖。
-- [我发出的正常状态 v1 · 已确认](../../UI产品图/评论与回复-我发出的-正常状态-v1.png)：当前身份的发言回访，用回复对象／评论帖子标识目标，不重复展示本人身份。
-- [系统通知发送失败详情 v1 · 已确认](../../UI产品图/系统通知-发送失败详情-v1.png)：顶部提示点击后的处理页，保留原内容与目标，提供重试发送和删除。
-- [评论发送失败顶部提示 v1 · 已确认](../../UI产品图/评论发送失败-顶部提示-v1.png)：整块点击进入系统通知对应失败详情，不在发言列表中放失败记录。
-- [系统通知时间流 v2 · 已确认](../../UI产品图/系统通知-时间流-v2.png)：不分类、不分栏，按时间逐条展示具体通知，取代旧分类式列表。
-- [举报处理结果详情 v1 · 已确认](../../UI产品图/系统通知-举报处理结果-v1.png)：展示举报对象、类别、结论与简短原因，不泄露对方其他身份或处罚历史。
-- [违规处理通知详情 v1 · 已确认](../../UI产品图/系统通知-违规处理通知-v1.png)：展示涉及内容、原因、处理措施、本次期限与申诉入口。
-- [申诉待复核详情 v1 · 已确认](../../UI产品图/申诉-待复核详情-v1.png)：展示待复核、已提交材料和补充入口，不承诺时限。
-- [申诉结果通过 v1 · 已确认](../../UI产品图/申诉-结果通过-v1.png)：展示复核理由、撤销对应处罚、符合条件的内容恢复及记录修正。
-
-- [帖子详情图稿档案](post-detail-dark-final.md)：阅读、展开评论及楼中楼局部图。
-- [回复输入图](../../UI产品图/回复输入状态.png)：当前输入布局由评论模块维护。
-- [居中身份弹框 v3 · 旧稿](../../UI产品图/首次发送-身份选择-v3.png)：每帖临时取名流程已被预设身份替代，新选择界面待设计。
-
-后续优先交付 PNG，不要求专用编辑软件或可编辑格式；不再使用 SVG/Inkscape 作为交付要求。Figma 旧草案不代表最新设计。历史工具说明见[交付记录](editable-design.md)。
-
-## 讨论与维护方式
-
-- 每个模块集中记录范围、已确认规则、待确认问题、图稿与来源。
-- 新决定直接更新所属模块，替换被修正的当前规则；其他模块只更新必要的依赖链接，不复制整段流程。
-- UI 评审同样检查业务影响：用户确认的变更若涉及身份归属、数据范围、操作权限、跳转或已读等行为，须同步所属模块及必要的依赖、进度和交接，不能只改图。仅展示调整应明确记录业务行为不变；发现真实未决业务取舍时先核对历史，再用 grilling 提问，不把建议写成已确认。
-- 规则更改可以附上日期和简短原因；需要保留长对话、旧图或调研时放入[讨论档案](../discussions/README.md)，并从模块链接追溯。
-- 未回答的方案留在“待确认”，不能因为已经提出或绘图就视为已确认。
-- 2026-09-19 用户再次要求停止重复提问，使用 grill-with-docs 将业务收口后转入 UI、架构、语言与开发讨论。每题须核对历史答复及当前规则，只问真正未决的业务取舍；不为凑十问重复提问或拆琐碎变体。新题须标明待回答，用户未回答不视为同意。界面与实现细节留到相应阶段。
-- 首版范围与模块入口由本页维护；项目 README 只保留项目说明与导航。
+旧多轮交接、进度台账与原始设计索引通过[固定 Git 提交](../archive/README.md)追溯。历史图中未随仓库交付的 `UI产品图` 路径也应回到对应历史提交核实，不在当前入口提供失效链接。

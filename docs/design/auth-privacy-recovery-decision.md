@@ -1,5 +1,7 @@
 # Hnuhole 独立账号恢复与密码策略 v1
 
+> 本页是独立恢复凭据方案的历史决定。当前恢复码与 Passkey 用户流程全部暂停，找回密码改用校邮验证后重置；既有实现和数据保留。确认依据见 [AUTH-EMAIL-RESET-01](../tasks/AUTH-EMAIL-RESET-01.md)，不要按下文恢复历史入口。
+
 > **2026-10-21 AUTH-EMAIL-LOGIN-01 用户更新（本分支，未合并）：**校邮验证码可独立登录已有账号，V成为账号控制入口；新密码10–128位可见ASCII、无空格，旧密码仍兼容。新增用途隔离的登录OTP与限时绑定证明，注册流程和敏感凭据管理仍独立。覆盖本文历史冲突承诺；见[当前需求与协议](email-login-requirements-20261021.md)。
 
 日期：2026-09-27；修订：2026-09-28。状态：**实施前产品与安全规格；未实现，未经过独立安全审计。** 本文补足[架构决策](auth-privacy-architecture-decision.md)和[注册协议](auth-privacy-registration-protocol.md)的旧号恢复规则。精确接口与持久约束见[数据与 API 契约](auth-privacy-data-api-contract.md)。

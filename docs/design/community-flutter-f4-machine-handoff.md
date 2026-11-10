@@ -40,7 +40,7 @@
 
 root runner现在要求显式独占SDK及 `F4_SDK_OWNER_VALUE` marker，SDK的bin/cache也必须独占；不能直接套用下方历史sharedSDK例子。先只读核对工具，然后只读复制已有Flutter到本任务独占canonical目录，在其父目录建立匹配 `.owner`；F4_TASK_ROOT仅允许已登记HOME或/tmp下专用前缀，创建对应repo owner marker。显式配置Go/PG/SQLite和PGPORT，逐stage checks→auth-regression→integration→server→posts-privileges→vet；完整环境与已执行wrapper、日志位置见新报告。任何不能确认隔离的命令不运行，保留锁文件，认证资源优先。
 
-日期2026-10-10。对应分支 **codex/community-flutter-pages**，源码提交`68d35af745098be0ed52d0d448f290795665afa1`。先读[HANDOFF](HANDOFF.md)、[F4计划](community-flutter-f4-plan.md)、[报告](community-flutter-f4-report.md)、[机器记录](community-flutter-f4-verification.json)与[台账](module-acceptance-ledger.json) currentCommunityFlutterF4。F1—F3已完成，不重复画图或开发既有文字页。
+日期2026-10-10。对应分支 **codex/community-flutter-pages**，源码提交`68d35af745098be0ed52d0d448f290795665afa1`。先读[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[F4计划](community-flutter-f4-plan.md)、[报告](community-flutter-f4-report.md)、[机器记录](community-flutter-f4-verification.json)与[台账](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-ledger.json) currentCommunityFlutterF4。F1—F3已完成，不重复画图或开发既有文字页。
 
 ## 当前已完成和未完成
 

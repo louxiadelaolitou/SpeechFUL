@@ -1,5 +1,9 @@
 # 认证隐私隔离实现与验证
 
+当前开发与测试从 [API README](../README.md) 和[验证分层](../../../docs/development.md#开发与验证)进入。本目录的隔离 runner 仍用于实际 C/V、SQL、升级和故障验证；下方按日期叙述的 JSON 与报告是旧版本证据，不代表当前开放流程或机器状态。恢复码／Passkey 用户流程已暂停，当前校邮重置见 [AUTH-EMAIL-RESET-01](../../../docs/tasks/AUTH-EMAIL-RESET-01.md)。
+
+旧交接台账及仅检查其字段／摘要的工具已退役；历史 JSON 中的原路径、命令和摘要不改写，复核时使用[固定 Git 提交](../../../docs/archive/README.md)。本轮没有删除真实行为测试或隔离数据库 runner。
+
 2026-10-01 真实 Flutter→隔离 C/V HTTPS／PostgreSQL 联调与原生存储收尾见[本轮报告](../../../docs/design/auth-privacy-mobile-native-integration-validation-report.md)及 `mobile-native-integration-verification.json`。新增 `run-mobile-isolated.sh` 创建分离 C/V 库，完成后自动停止并删除临时集群。先在 `apps/mobile` 执行 `flutter pub get`，设置 `AUTHLAB_MOBILE_FLUTTER` 为现有 Flutter 可执行文件，再在本目录上级 `services/api` 执行 `sh authlab/run-mobile-isolated.sh`。测试使用产品 Dart 传输和真实处理器／SQL；内存存储替身不证明平台持久性，历史报告的业务目录尚未接入；当前源码已将目录与新认证统一装配，新的实际 cmd runner 尚待工具齐全电脑执行。
 
 移动端核心状态机历史交付见[原报告](../../../docs/design/auth-privacy-mobile-auth-validation-report.md)和 `mobile-auth-verification.json`。客户端代码在 `apps/mobile`、原生安全存储在 `packages/auth_vault`；历史验证记录保留。用户要求本轮临时工具、缓存和 APK 收尾删除，并推送远端给另一电脑复验；只保留源码、脚本和小型记录。

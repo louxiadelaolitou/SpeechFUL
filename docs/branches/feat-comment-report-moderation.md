@@ -12,4 +12,4 @@
 - 覆盖跨帖伪造、角色越权、不同评论同文不合案、同目标跨原因合案、并发唯一处罚、举报人/其他面具隐私、单图及旧游标读取、回复/整楼下架、作者删除、父帖状态和独立恢复。
 - 独立 `auth_integration` 只读安全复核已完成，不冒充GitHub成员批准。最终head CI、main包含与合并SHA由本任务PR回执固定；不为补写相同完成状态另开文档PR。
 
-接续入口：[HANDOFF](../design/HANDOFF.md)、[progress](../design/progress.md)、[B08/B11交接](../design/module-acceptance-handoff.md)。本范围交付合并即停止；私信、推送、完整消息中心、新处罚政策、Passkey、iOS、生产部署和额外手机矩阵未展开。
+接续入口：[HANDOFF](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/HANDOFF.md)、[progress](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/progress.md)、[B08/B11交接](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/module-acceptance-handoff.md)。本范围交付合并即停止；私信、推送、完整消息中心、新处罚政策、Passkey、iOS、生产部署和额外手机矩阵未展开。

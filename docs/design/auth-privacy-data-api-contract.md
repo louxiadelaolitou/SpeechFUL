@@ -1,5 +1,7 @@
 # Hnuhole 认证持久状态与 V/C API 契约 v1
 
+> 本页包含早期认证协议与数据设计。登录和恢复的当前用途边界已由 [AUTH-EMAIL-RESET-01](../tasks/AUTH-EMAIL-RESET-01.md) 等后续任务更新；不再以“校邮仅注册／不能恢复旧号”推断当前行为。路径与实现结合 [OpenAPI 索引](../../packages/openapi/README.md) 和当前 HTTP 代码核对，固定签名字节与历史证明范围不因文档整理改变。
+
 > **2026-10-21 AUTH-EMAIL-LOGIN-01 用户更新（本分支，未合并）：**校邮验证码可独立登录已有账号，V成为账号控制入口；新密码10–128位可见ASCII、无空格，旧密码仍兼容。新增用途隔离的登录OTP与限时绑定证明，注册流程和敏感凭据管理仍独立。覆盖本文历史冲突承诺；见[当前需求与协议](email-login-requirements-20261021.md)。
 
 > **2026-10-05 当前实现入口：**匿名基础按 AC01／AC02／AC03 推进。本文原日期中的“实施前／未实现／未核对”等状态是历史设计快照；当前源码、隐私核对和诊断差异见 [AC03任务单](auth-privacy-boundary-plan.md)、[验证报告](auth-privacy-boundary-validation-report.md) 与 [业务接入契约](auth-privacy-business-contract.md)，实际检查结果以报告及机器台账为准。既定共享槽位串通边界与生产分权／灾备／独立审计门槛继续有效。

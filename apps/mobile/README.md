@@ -1,46 +1,44 @@
-# Hnuhole Mobile
+# SpeechFUL Mobile
 
-本分支阶段1新增帖子菜单“举报”和最小系统消息：举报说明／图片、原提交核对、进度／结果、本人处罚与必要申诉。列表按当前身份加账号范围显示，进入列表不批量已读；详情显式标读并切至原身份。未知提交保持同一键与原材料，核对后携带最新重试令牌，不另起举报或申诉。待核对材料使用独立业务 SQLite 分块认证加密，不扩充小型认证 vault；账号／会话变化使迟到响应失效。
+Flutter／Dart 手机 App。仓库内包名仍为 `hnuhole_mobile`；产品显示名为 SpeechFUL。
 
-普通登录不可用时，“本人处理通知”入口复验既有用户名密码，只能查看本人处罚／申诉及账号级处理通知；不建立社区会话。评论失败入口的 `CommentFailureProvider` 契约已保留，评论任务合入后装配真实 provider；当前不生成占位失败通知。操作说明与实际非手机验证见[阶段1报告](../../docs/design/report-moderation-validation-report.md)。跨设备 Passkey、iOS 和真实手机整机验收继续延期。
+## 代码入口
 
-移动端认证状态机已接到原有 Material 入口树：旧号私有用户名／密码登录、V 校邮资格与 C 持钥注册、恢复码单次展示与隐藏后全量确认、独立恢复码重设、七天注销申请／状态核对、单设备接替提示、服务端权威会话恢复、活跃近到期续期及持久登出待办。
+- `lib/main.dart`：启动、认证与会话、各业务 Controller 和 API 的装配。
+- `lib/src/navigation`：主标签页和菜单；`posts`：信息流、发布、详情、搜索与互动。
+- `lib/src/auth`、`identity`、`comments`、`messaging`、`reports`、`system_notifications`：各业务界面与状态。
+- `lib/src/storage`：本地帖子及媒体；认证秘密通过 [auth_vault](../../packages/auth_vault/README.md) 保存。
+- `android`、`ios`：平台工程；复用插件在仓库 `packages`。
 
-启动先处理登出标记并移除对应社区 Bearer；独立撤销待办异步重试，不拖住后来新会话。每次恢复均查 C；本地过期时间仅用于续期调度。目录 200 必须包含完整七分类与严格 UTC `Session-Expires-At`；同 token／请求版本仍有效时，先将权威截止写入 AuthStore 并核对落盘，才发布节点。同 token 的并发迟到响应不能缩短已持久截止。登录、恢复、退出及新目录请求立即使旧请求失效；截止缺失／非法、目录不全或持久写失败均不发布节点。401 清对应令牌／节点；503、网络故障和公共边界 400／403／429 保留安全持久令牌、隐藏节点并提供前台重试。不存在后台定时保活。所有秘密与未决能力由本地 [auth_vault](../../packages/auth_vault/README.md) 保存，无普通文件降级。新恢复码／密码只留短期内存，不缓存原码、不自动复制。
+完整调用链见[代码导览](../../docs/development.md)。
 
-配置固定且不同的 C/V HTTPS origin（不得带路径、查询或响应指定的跳转地址）：
+## 配置与运行
+
+配置固定且不同的 C/V HTTPS origin，不带路径、查询或响应指定的跳转地址：
 
 ```sh
-flutter pub get
-flutter analyze
-flutter test
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub
+flutter test --no-pub
 flutter run --dart-define=AUTH_COMMUNITY_BASE_URL=https://community.example.org --dart-define=AUTH_VERIFIER_BASE_URL=https://verifier.example.org
 ```
 
-默认地址为 `.invalid`，需要运行实际隔离 C/V 公共服务。客户端验证固定帧／本地槽位和公钥绑定；权威严格票据验签由 C 执行，TLS 使用系统证书信任，不提供绕过按钮。每组固定端点使用独立安全存储 namespace／scope。
+默认地址为 `.invalid`，需要实际的 C/V 服务与系统信任的 TLS 证书。每组固定端点使用独立安全存储 scope；没有普通文件存储或证书校验绕过入口。后端初始化与 Windows／WSL 边界见 [API README](../../services/api/README.md)。
 
-核心状态机的历史验证见[原报告](../../docs/design/auth-privacy-mobile-auth-validation-report.md)。2026-10-01 历史联调完成真实客户端→隔离 C/V HTTPS／PostgreSQL 的认证请求，含未知结果、Gate 冻结／签名恢复和注销释放 ACK，当时目录使用 503 占位。本次 fixture 已换为真实 `HttpChannelRepository`、受信 TLS 和 C Gate 目录，断言七节点及 AuthStore 持久截止；此更新尚需在有 Flutter 的电脑实际复验。运行 `services/api/authlab/run-mobile-isolated.sh`，需先 `flutter pub get` 并将 `AUTHLAB_MOBILE_FLUTTER` 设为 Flutter 可执行路径。普通 `flutter test` 不会执行这条联调。
+## 当前流程与确认来源
 
-Android vault instrumentation 在历史版本曾编译／组装测试库 APK，当前完整app和设备故障验收待执行；受限 `android/prebuilt-debug.init.gradle` 不代证新增 Passkey 插件。iOS vault标记、串行和SwiftPM/CocoaPods同源打包已接入，当前完整Xcode／Keychain／插件链接未验。正式签名与关联域未配置。
+| 范围 | 入口与边界 |
+| --- | --- |
+| 登录与找回密码 | 用户名密码及校邮验证码登录；校邮重置后回登录页。恢复码和 Passkey 的用户流程暂停，保留实现与既有数据；见 [AUTH-EMAIL-RESET-01](../../docs/tasks/AUTH-EMAIL-RESET-01.md) |
+| 设置与身份 | [PROFILE-SETTINGS-01](../../docs/tasks/PROFILE-SETTINGS-01.md)、[术语表](../../GLOSSARY.md) |
+| 帖子、评论、私信与通知 | 已在启动代码中装配真实 API／运行时；入口与验证分层见[开发导览](../../docs/development.md)，发布范围见对应任务，不再沿用“评论／私信未开发”的旧阶段描述 |
+| 图片与原生能力 | [图片查看器](../../packages/image_viewer/README.md)、[原生媒体](../../packages/native_media/pubspec.yaml)；平台与格式约束按实际实现和任务证据核对 |
+| Android／iOS 验收 | [Android 上线记录](../../docs/tasks/ANDROID-BETA-LAUNCH-20261109.md)、[iOS 任务](../../docs/tasks/IOS-V1-01.md)；不能把 Android 或 host 通过外推为 iOS 通过 |
 
-## 设备与恢复凭据管理（2026-10-02）
+会话恢复以 C 为权威；成功响应的会话截止先安全持久化，再发布受保护数据。退出、换账号或新授权窗口使旧响应失效。401 与暂时不可用分开处理，不将超时视为已经退出或操作失败。
 
-首页左滑或点击左上角头像直接显示设置列表，再点“设备管理”进入当前／最近接替设备与恢复凭据页：主动退出、密码复验后恢复码轮换、一次展示／隐藏／完整确认、可选Passkey绑定和两步移除。登录页可发现Passkey证明接现有密码重设，不自动登录。权威截止先落盘；最终提交前保存原意图与键，未知结果只读核对，不保存密码、新码或系统证明。
+## 验证与历史
 
-原生桥、平台关联生成及真机矩阵见 [auth_passkey](../../packages/auth_passkey/README.md)。用户尚无RP／签名／Team配置，系统Passkey真机闭环待验。新增真实vault／跨进程入口为 `integration_test/auth_security_device_test.dart`，iOS RunnerTests直接测试Keychain；步骤见[本片报告](../../docs/design/auth-privacy-device-credentials-passkey-validation-report.md)和[模块交接](../../docs/design/module-acceptance-handoff.md)。本机共享Swift codec／marker、关联生成器及轻量检查通过；Go／Flutter／SQL／完整app与设备未验。
+`test` 是单元与组件回归；`integration_test` 是设备／跨进程等集成入口。真实客户端→C/V HTTPS／PostgreSQL 联调需要对应隔离 runner，普通 `flutter test` 不会完成这些验证。
 
-用户要求大型临时运行时、专用缓存和生成 APK 收尾删除，只保留源码和小型证据。另一台电脑的完整复验步骤及平台边界见[本轮交付报告](../../docs/design/auth-privacy-mobile-native-integration-validation-report.md)。
-
-## 独立图片查看接入钩子（2026-10-15）
-
-`HnuholeApp.loadPostImages` 可注入 `PostImagesLoader`，现有分类与“我的”进入详情都会传递它。返回 `PostImages(postId, images, accessGranted)`：每张 `PostImage` 分别提供缩略 provider 和完整查看的 `ViewerItem`，后者负责稳定内容 ID、真实尺寸、完整原文件 resolver 与保存许可。媒体层先授权，不把账号/Bearer交给查看器；撤销时通知 `accessGranted=false`，其 notifier由媒体层拥有，不能因旧异步完成恢复旧页面。
-
-启动现已装配 `PostMediaRepository` 和 `HttpPostApi` 的受保护读取，只对详情声明 `imageCount>0` 的帖子加载图片。读取契约固定于后端 `d893378a8224b9c7a3b9d2bc9681a6ea508d5587`；两个分支未自动合并或部署。每次请求使用现有宿主授权与持久续期；图片 provider 仅持内存字节，不带 Bearer header。清单校验帖子/内容ID/顺序、格式/尺寸/字节预算及最长60秒租约；超时、退出、切账号、删帖或访问拒绝终止当前组，逐个 evict 自有 provider。到期需主动重新读取，旧组不复活。
-
-`PostImage.deferred` 延迟读取预览，预览/完整查看共用同一租约内存来源，保存另发受保护原文件请求。`PostImages.onRelease` 在详情卸载、换组或丢弃迟到结果时释放租约；只有该媒体层拥有 notifier。v1 后端把完整原字节用作预览，尚无节省流量的衍生缩略图；当前字节读取并发上限2，九图/跨页整体内存预算仍须专门验证。
-
-Android发帖已增加官方 `image_picker` 原格式选图（不传缩放/质量选项）、九图等尺寸预览、移除/长按排序与读屏移动动作、原比例查看，以及正文为空的含图发布。图片进入按环境/账号隔离的业务SQLite，原字节按256KiB分块认证加密，和草稿元数据同事务写入；不持久保存picker路径或上传能力。同机重开恢复已保存的原图/顺序；未完成的外部选图会提示重新选择，不把无账号绑定的系统lost-data附到后来账号。
-
-启动使用 `HttpPostUploadApi`：media-v1黄金摘要、CREATE/RETRY清单、受保护逐项状态与短期grant、仅 `Upload` 能力的原字节PUT均已接入。发布意图先落盘再返回原分类；未知结果核对原命令，失败时只补尚未上传的项。进度及补传入口在“我的”对应任务页。明确失败后可修改文字/图片重试，原身份与分类固定；确认取消保留图片草稿，成功/明确放弃后按引用清理本机原图。
-
-锁定的iOS选图实现会经过UIImage重编码，GIF时序/循环也可能改变，原字节契约不满足，因此原生iOS选图入口先挂起，未引入fork或新原生桥。iOS默认相册保存仍关闭。评论/私信未开发；完整C进程/SQL装配及真实系统选图、主App平台验收分别登记，宿主替身不能代证。见[上传前端报告](../../docs/design/post-image-composer-report.md)、[读取接线报告](../../docs/design/image-viewer-post-media-read-report.md)；历史钩子阶段见[阶段1报告](../../docs/design/image-viewer-business-stage1-report.md)。
+近期工作看 [RECENT_WORK](../../docs/RECENT_WORK.md)，具体范围与被测提交看任务记录。原 README 中的 2026-10 阶段接线、图片租约和恢复凭据交接说明可从[历史提交](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/apps/mobile/README.md)追溯；其“未合并”“待验”和设备环境均不代表当前机器状态。

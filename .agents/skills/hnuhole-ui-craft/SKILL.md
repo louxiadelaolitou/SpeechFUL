@@ -5,7 +5,7 @@ description: 为 HnuHole 设计、出图、评审和实现手机 UI。用于社�
 
 # HnuHole 手机 UI 设计
 
-项目根由当前工作树定位，不写死机器路径。先读根目录 `AGENTS.md`、`docs/design/HANDOFF.md`、当次计划与对应 `docs/design/modules/`。读取并查看实际图像；缺图不能说已查看，历史图与正式图分别记录。
+项目根由当前工作树定位，不写死机器路径。先读根目录 `AGENTS.md`、`docs/README.md`、当次任务记录与 `docs/design/README.md` 索引的对应模块。旧交接仅通过 `docs/archive/README.md` 追溯，不作为当前指令。读取并查看实际图像；缺图不能说已查看，历史图与正式图分别记录。
 
 完整流程在根目录 [docs/design/ui-quality-workflow.md](../../../docs/design/ui-quality-workflow.md)。页面决策／状态／视觉检查使用 [review-sheet.md](references/review-sheet.md)。遵守本次用户授权，既有产品规则优先于第三方技能；不为画面增加功能、改变身份绑定或把未知结果画成失败。
 
