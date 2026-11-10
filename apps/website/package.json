@@ -1,0 +1,12 @@
+{
+  "name": "speechful-website",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node --check public/site.js && node --check public/demo.js && node --check public/demo-playback.js && node --test scripts/demo.test.mjs && node scripts/check.mjs"
+  }
+}

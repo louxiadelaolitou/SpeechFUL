@@ -1,0 +1,33 @@
+SpeechFUL website assets
+
+wordmark.svg uses outlined Roboto Black Italic lettering, including an ordinary @.
+The @ has an optical size/baseline adjustment; it is not the Threads symbol.
+Lettering: Roboto Black Italic, Apache-2.0; LICENSE-Roboto.txt.
+Roboto-Regular.ttf: Roboto, Apache-2.0; LICENSE-Roboto.txt.
+
+Android and Apple platform SVG paths: Simple Icons v13, CC0-1.0;
+LICENSE-Simple-Icons.md. Brand trademarks belong to their respective owners.
+The Android robot is reproduced or modified from work created and shared by
+Google and used according to terms described in the Creative Commons 3.0
+Attribution License: https://creativecommons.org/licenses/by/3.0/
+Android brand guidance: https://developer.android.com/distribute/marketing-tools/brand-guidelines
+
+shush.png and app-icon.png are existing SpeechFUL brand assets.
+The animated mark uses the original shush.png via SVG masks and clips;
+the original bitmap has not been redrawn or modified.
+
+welcome.png is an existing account-free app welcome preview,
+from auth-welcome-final-375px.png (2026-10-28 local design evidence).
+It is a welcome UI preview, not a current device acceptance screenshot.
+
+The interactive demonstration is locally rendered HTML, not a device recording.
+It references the app's welcome, feed, comment and direct-message layouts.
+The example posts, replies and messages are fictional website illustrations.
+No real community content or user account data is included.
+
+app-wordmark.svg is the existing SpeechFUL app welcome-page wordmark.
+demo-fonts contains WOFF2 conversions of the app's bundled Roboto and
+Noto Sans SC fonts. Their original source records and licenses are in that
+directory; the conversions preserve the complete font character sets.
+The waving-hand icon follows Google Material Icons (Apache-2.0):
+https://github.com/google/material-design-icons/blob/master/LICENSE

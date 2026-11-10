@@ -1,0 +1,32 @@
+name: Website
+
+on:
+  pull_request:
+    paths:
+      - 'apps/website/**'
+      - '.github/workflows/website.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-website:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate resources, releases and navigation
+        run: npm run check
+      - name: Build static website
+        run: npm run build

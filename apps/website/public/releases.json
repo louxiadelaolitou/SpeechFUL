@@ -1,0 +1,13 @@
+{
+  "android": {
+    "available": true,
+    "version": "1.0.0",
+    "url": "https://www.speechful.dpdns.org/downloads/SpeechFUL.apk",
+    "qr": "assets/android-download.png"
+  },
+  "ios": {
+    "available": false,
+    "version": null,
+    "url": null
+  }
+}

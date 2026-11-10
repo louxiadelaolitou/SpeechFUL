@@ -1,0 +1,307 @@
+{
+  "observed": "2026-11-07",
+  "rank_source": "https://www.blog.udonis.co/mobile-marketing/mobile-apps/top-100-apps",
+  "rank_basis": "all-time downloads; original source positions; excluding standalone games",
+  "apps": [
+    {
+      "rank": 1,
+      "name": "WhatsApp",
+      "url": "https://play.google.com/store/apps/details?id=com.whatsapp&hl=en&gl=US",
+      "title": "WhatsApp - Apps on Google Play"
+    },
+    {
+      "rank": 2,
+      "name": "TikTok",
+      "url": "https://play.google.com/store/apps/details?id=com.zhiliaoapp.musically&hl=en&gl=US",
+      "title": "TikTok - Videos, Shop & LIVE - Apps on Google Play"
+    },
+    {
+      "rank": 3,
+      "name": "Facebook",
+      "url": "https://play.google.com/store/apps/details?id=com.facebook.katana&hl=en&gl=US",
+      "title": "Facebook - Apps on Google Play"
+    },
+    {
+      "rank": 4,
+      "name": "Instagram",
+      "url": "https://apps.apple.com/us/app/instagram/id389801252?uo=4",
+      "title": "Instagram"
+    },
+    {
+      "rank": 5,
+      "name": "Messenger",
+      "url": "https://play.google.com/store/apps/details?id=com.facebook.orca&hl=en&gl=US",
+      "title": "Messenger - Apps on Google Play"
+    },
+    {
+      "rank": 6,
+      "name": "Snapchat",
+      "url": "https://play.google.com/store/apps/details?id=com.snapchat.android&hl=en&gl=US",
+      "title": "Snapchat - Apps on Google Play"
+    },
+    {
+      "rank": 7,
+      "name": "CapCut",
+      "url": "https://play.google.com/store/apps/details?id=com.lemon.lvoverseas&hl=en&gl=US",
+      "title": "CapCut - Video Editor - Apps on Google Play"
+    },
+    {
+      "rank": 8,
+      "name": "Telegram",
+      "url": "https://play.google.com/store/apps/details?id=org.telegram.messenger&hl=en&gl=US",
+      "title": "Telegram - Apps on Google Play"
+    },
+    {
+      "rank": 10,
+      "name": "Spotify",
+      "url": "https://play.google.com/store/apps/details?id=com.spotify.music&hl=en&gl=US",
+      "title": "Spotify: Music and Podcasts - Apps on Google Play"
+    },
+    {
+      "rank": 11,
+      "name": "YouTube",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.youtube&hl=en&gl=US",
+      "title": "YouTube - Apps on Google Play"
+    },
+    {
+      "rank": 12,
+      "name": "SHAREit",
+      "url": "https://apps.apple.com/us/app/shareit-transfer-share-files/id725215120?uo=4",
+      "title": "SHAREit: Transfer, Share Files"
+    },
+    {
+      "rank": 13,
+      "name": "Netflix",
+      "url": "https://play.google.com/store/apps/details?id=com.netflix.mediaclient&hl=en&gl=US",
+      "title": "Netflix - Apps on Google Play"
+    },
+    {
+      "rank": 14,
+      "name": "UC Browser",
+      "url": "https://play.google.com/store/apps/details?id=com.UCMobile.intl&hl=en&gl=US",
+      "title": "UC Browser-Safe, Fast, Private - Apps on Google Play"
+    },
+    {
+      "rank": 15,
+      "name": "Zoom",
+      "url": "https://play.google.com/store/apps/details?id=us.zoom.videomeetings&hl=en&gl=US",
+      "title": "Zoom Workplace - Apps on Google Play"
+    },
+    {
+      "rank": 16,
+      "name": "Amazon",
+      "url": "https://play.google.com/store/apps/details?id=com.amazon.mShop.android.shopping&hl=en&gl=US",
+      "title": "Amazon Shopping - Apps on Google Play"
+    },
+    {
+      "rank": 17,
+      "name": "Pinterest",
+      "url": "https://play.google.com/store/apps/details?id=com.pinterest&hl=en&gl=US",
+      "title": "Pinterest - Apps on Google Play"
+    },
+    {
+      "rank": 18,
+      "name": "X",
+      "url": "https://play.google.com/store/apps/details?id=com.twitter.android&hl=en&gl=US",
+      "title": "X - Apps on Google Play"
+    },
+    {
+      "rank": 19,
+      "name": "WhatsApp Business",
+      "url": "https://play.google.com/store/apps/details?id=com.whatsapp.w4b&hl=en&gl=US",
+      "title": "WhatsApp Business - Apps on Google Play"
+    },
+    {
+      "rank": 20,
+      "name": "Picsart",
+      "url": "https://play.google.com/store/apps/details?id=com.picsart.studio&hl=en&gl=US",
+      "title": "Picsart AI Photo Editor, Video - Apps on Google Play"
+    },
+    {
+      "rank": 24,
+      "name": "Uber",
+      "url": "https://play.google.com/store/apps/details?id=com.ubercab&hl=en&gl=US",
+      "title": "Uber: Rides, eats, hotels - Apps on Google Play"
+    },
+    {
+      "rank": 25,
+      "name": "Truecaller",
+      "url": "https://play.google.com/store/apps/details?id=com.truecaller&hl=en&gl=US",
+      "title": "Truecaller: Spam Call Blocker - Apps on Google Play"
+    },
+    {
+      "rank": 27,
+      "name": "Temu",
+      "url": "https://play.google.com/store/apps/details?id=com.einnovation.temu&hl=en&gl=US",
+      "title": "Temu: Shop Like a Billionaire - Apps on Google Play"
+    },
+    {
+      "rank": 29,
+      "name": "SHEIN",
+      "url": "https://play.google.com/store/apps/details?id=com.zzkko&hl=en&gl=US",
+      "title": "SHEIN-Shopping Online - Apps on Google Play"
+    },
+    {
+      "rank": 30,
+      "name": "imo",
+      "url": "https://play.google.com/store/apps/details?id=com.imo.android.imoim&hl=en&gl=US",
+      "title": "imo-International Calls & Chat - Apps on Google Play"
+    },
+    {
+      "rank": 31,
+      "name": "Google Maps",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.maps&hl=en&gl=US",
+      "title": "Google Maps - Apps on Google Play"
+    },
+    {
+      "rank": 33,
+      "name": "Google Meet",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.tachyon&hl=en&gl=US",
+      "title": "Google Meet - Apps on Google Play"
+    },
+    {
+      "rank": 34,
+      "name": "Google Translate",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.translate&hl=en&gl=US",
+      "title": "Google Translate - Apps on Google Play"
+    },
+    {
+      "rank": 35,
+      "name": "Shopee",
+      "url": "https://play.google.com/store/apps/details?id=com.shopee.sg&hl=en&gl=US",
+      "title": "Shopee 11.11 Big Sale - Apps on Google Play"
+    },
+    {
+      "rank": 36,
+      "name": "Kwai",
+      "url": "https://play.google.com/store/apps/details?id=com.kwai.video&hl=en&gl=US",
+      "title": "Kwai - Video & Drama - Apps on Google Play"
+    },
+    {
+      "rank": 37,
+      "name": "JioHotstar",
+      "url": "https://play.google.com/store/apps/details?id=in.startv.hotstar&hl=en&gl=US",
+      "title": "JioHotstar - Apps on Google Play"
+    },
+    {
+      "rank": 38,
+      "name": "Google Play Games",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.play.games&hl=en&gl=US",
+      "title": "Google Play Games - Apps on Google Play"
+    },
+    {
+      "rank": 39,
+      "name": "Google Chrome",
+      "url": "https://play.google.com/store/apps/details?id=com.android.chrome&hl=en&gl=US",
+      "title": "Google Chrome - Apps on Google Play"
+    },
+    {
+      "rank": 40,
+      "name": "MX Player",
+      "url": "https://play.google.com/store/apps/details?id=com.mxtech.videoplayer.ad&hl=en&gl=US",
+      "title": "MX Player - Apps on Google Play"
+    },
+    {
+      "rank": 42,
+      "name": "YouTube Music",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.youtube.music&hl=en&gl=US",
+      "title": "YouTube Music - Apps on Google Play"
+    },
+    {
+      "rank": 43,
+      "name": "AliExpress",
+      "url": "https://play.google.com/store/apps/details?id=com.alibaba.aliexpresshd&hl=en&gl=US",
+      "title": "AliExpress - Shopping App - Apps on Google Play"
+    },
+    {
+      "rank": 44,
+      "name": "Flipkart",
+      "url": "https://play.google.com/store/apps/details?id=com.flipkart.android&hl=en&gl=US",
+      "title": "Flipkart Online Shopping App - Apps on Google Play"
+    },
+    {
+      "rank": 45,
+      "name": "Prime Video",
+      "url": "https://play.google.com/store/apps/details?id=com.amazon.avod.thirdpartyclient&hl=en&gl=US",
+      "title": "Prime Video - Apps on Google Play"
+    },
+    {
+      "rank": 46,
+      "name": "WeChat",
+      "url": "https://play.google.com/store/apps/details?id=com.tencent.mm&hl=en&gl=US",
+      "title": "WeChat - Apps on Google Play"
+    },
+    {
+      "rank": 47,
+      "name": "Duolingo",
+      "url": "https://play.google.com/store/apps/details?id=com.duolingo&hl=en&gl=US",
+      "title": "Duolingo: Learn Languages - Apps on Google Play"
+    },
+    {
+      "rank": 48,
+      "name": "Likee",
+      "url": "https://play.google.com/store/apps/details?id=video.like&hl=en&gl=US",
+      "title": "Likee-Live, Chat & Party Games - Apps on Google Play"
+    },
+    {
+      "rank": 49,
+      "name": "Google Photos",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.photos&hl=en&gl=US",
+      "title": "Google Photos - Apps on Google Play"
+    },
+    {
+      "rank": 50,
+      "name": "ChatGPT",
+      "url": "https://play.google.com/store/apps/details?id=com.openai.chatgpt&hl=en&gl=US",
+      "title": "ChatGPT - Apps on Google Play"
+    },
+    {
+      "rank": 51,
+      "name": "InShot",
+      "url": "https://play.google.com/store/apps/details?id=com.camerasideas.instashot&hl=en&gl=US",
+      "title": "Video Editor & Maker - InShot - Apps on Google Play"
+    },
+    {
+      "rank": 53,
+      "name": "Gmail",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.gm&hl=en&gl=US",
+      "title": "Gmail - Apps on Google Play"
+    },
+    {
+      "rank": 55,
+      "name": "Google",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.googlequicksearchbox&hl=en&gl=US",
+      "title": "Google - Apps on Google Play"
+    },
+    {
+      "rank": 58,
+      "name": "Google Wallet",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.walletnfcrel&hl=en&gl=US",
+      "title": "Google Wallet - Apps on Google Play"
+    },
+    {
+      "rank": 60,
+      "name": "B612",
+      "url": "https://play.google.com/store/apps/details?id=com.linecorp.b612.android&hl=en&gl=US",
+      "title": "B612 AI Photo&Video Editor - Apps on Google Play"
+    },
+    {
+      "rank": 62,
+      "name": "YouTube Kids",
+      "url": "https://play.google.com/store/apps/details?id=com.google.android.apps.youtube.kids&hl=en&gl=US",
+      "title": "YouTube Kids - Apps on Google Play"
+    },
+    {
+      "rank": 64,
+      "name": "PhonePe",
+      "url": "https://play.google.com/store/apps/details?id=com.phonepe.app&hl=en&gl=US",
+      "title": "PhonePe UPI Payments, Loan App - Apps on Google Play"
+    },
+    {
+      "rank": 65,
+      "name": "Discord",
+      "url": "https://play.google.com/store/apps/details?id=com.discord&hl=en&gl=US",
+      "title": "Discord - Talk, Play, Hang Out - Apps on Google Play"
+    }
+  ]
+}

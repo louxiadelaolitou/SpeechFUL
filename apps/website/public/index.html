@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="SpeechFUL，一个关于你我的匿名社区。让世界多一些爱与真诚。">
+  <title>SpeechFUL — 让世界多一些爱与真诚</title>
+  <link rel="icon" type="image/png" href="assets/app-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="demo.css">
+  <script type="module" src="site.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <header class="site-header">
+    <div class="nav-shell wrap">
+      <a class="brand" href="#top" aria-label="SpeechFUL 首页"><img src="assets/wordmark.svg" width="163" height="30" alt="@SpeechFUL"></a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="navigation" hidden><span></span><span></span><span class="sr-only">打开导航</span></button>
+      <nav id="navigation" aria-label="主导航">
+        <a href="#moments">关于我们</a><a href="#contact">联系我们</a>
+        <a href="https://github.com/zewbby/SpeechFUL" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+        <a class="nav-download" href="#download">获取 App <span aria-hidden="true">↗</span></a>
+      </nav>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero wrap" id="top" aria-labelledby="hero-title">
+      <div class="hero-copy"><span class="hero-wordmark-wrap"><img class="hero-wordmark" src="assets/wordmark.svg" width="190" height="35" alt="@SpeechFUL"></span>
+
+        <p class="hero-description sheen-text">让世界多一些爱与真诚。</p><h1 id="hero-title"><span class="sheen-text"><span class="quote-mark">『</span>愿为江水，与君重逢</span><span class="poem-second sheen-text">同归沧溟，共载长风<span class="quote-mark">』</span></span></h1>
+        <div class="hero-actions"><a class="button button-blue" href="#download"><span class="sheen-text">获取 App</span> <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a></div>
+      </div>
+      <div class="hero-art" aria-label="SpeechFUL 嘘手势品牌动画">
+        <div class="mascot-scene"><button class="mascot-trigger" type="button" aria-label="重播 Logo 扫光与嘘手势动画" title="轻触，和 SpeechFUL 打个招呼"><span class="mascot-surface" aria-hidden="true"></span><svg class="shush-logo" viewBox="0 0 1024 1024" aria-hidden="true">
+                <defs>
+                  <mask id="mark-all" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><image href="assets/shush.png" width="1024" height="1024"/></mask>
+                  <mask id="mark-head" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><image href="assets/shush.png" width="1024" height="1024"/><path d="M200 315h230v95H200zM590 315h235v95H590zM430 480h235v510H430z" fill="black"/></mask>
+                  <clipPath id="eyes-clip"><path d="M200 315h230v95H200zM590 315h235v95H590z"/></clipPath>
+                  <clipPath id="hand-clip"><path d="M430 480h235v510H430z"/></clipPath>
+                  <linearGradient id="sweep-light"><stop stop-color="#72c8ff" stop-opacity="0"/><stop offset=".34" stop-color="#9cddff"/><stop offset=".52" stop-color="#fff"/><stop offset=".7" stop-color="#bce9ff"/><stop offset="1" stop-color="#72c8ff" stop-opacity="0"/></linearGradient>
+                </defs>
+                <g class="mark-body" fill="currentColor">
+                  <path mask="url(#mark-head)" d="M0 0h1024v1024H0z"/>
+                  <g class="mark-eyes" clip-path="url(#eyes-clip)"><path mask="url(#mark-all)" d="M0 0h1024v1024H0z"/></g>
+                  <g class="mark-hand" clip-path="url(#hand-clip)"><path mask="url(#mark-all)" d="M0 0h1024v1024H0z"/></g>
+                  <g mask="url(#mark-all)"><g class="logo-sheen"><path fill="url(#sweep-light)" d="M392-800h240v2600H392z"/></g></g>
+                </g>
+              </svg></button></div>
+      </div>
+    </section>
+
+    <section class="about-section wrap" id="moments" aria-labelledby="moments-title">
+      <h2 id="moments-title">关于我们</h2>
+      <div class="app-demo" id="app-demo" aria-label="SpeechFUL 离线交互演示">
+        <div class="demo-device" aria-label="iPhone 18 Pro Max 外观演示模型">
+          <span class="demo-device-buttons" aria-hidden="true"></span>
+          <div class="demo-phone"><div class="demo-canvas">
+            <div class="demo-statusbar" aria-hidden="true"><span>9:41</span><svg viewBox="0 0 38 12"><path d="M1 10V8m4 2V5m4 5V2m6 1c3-3 7-3 10 0m-8 3c2-2 4-2 6 0m-4 3h2"/><rect x="29" y="2" width="7" height="8" rx="1"/><path d="M38 5v2"/></svg></div>
+            <div class="demo-display">
+              <div class="demo-screen demo-welcome" id="demo-welcome" role="tabpanel" aria-labelledby="demo-tab-welcome" data-screen="welcome">
+                <h3 class="sr-only demo-screen-title" tabindex="-1">欢迎来到 SpeechFUL</h3>
+                <div class="app-welcome-tools"><button class="app-icon-button" id="demo-theme" type="button" aria-label="切换深色主题" data-icon="moon"></button></div>
+                <div class="app-welcome-center"><div class="app-welcome-brand"><div class="app-welcome-mark"><img src="assets/shush.png" width="126" height="126" alt="安静手势标志"></div><img class="app-welcome-wordmark" src="assets/app-wordmark.svg" width="162" height="30" alt="@SpeechFUL"><blockquote><span data-zh="『愿为江水，与君重逢；" data-en="“May I meet you again as river water;">『愿为江水，与君重逢；</span><span data-zh="同归沧溟，共载长风』" data-en="return to the vast sea on one wind.”">同归沧溟，共载长风』</span></blockquote></div></div>
+                <div class="app-welcome-actions"><button id="demo-language" type="button">Continue in English</button><button class="app-start" type="button" data-go="feed"><span data-zh="开始使用" data-en="Get started">开始使用</span></button></div>
+              </div>
+              <div class="demo-screen demo-feed" id="demo-feed" role="tabpanel" aria-labelledby="demo-tab-feed" data-screen="feed" hidden>
+                <div class="app-feed-header"><span class="app-feed-account" aria-label="当前演示身份：南风"><span class="app-avatar app-avatar-self" aria-hidden="true">南</span></span><h3 class="demo-screen-title app-smile" tabindex="-1" aria-label="社区首页">:)</h3><span class="app-icon-button app-display-control" data-icon="search" aria-label="搜索，仅作界面展示"></span></div>
+                <div class="app-feed-modes"><div class="app-feed-channel selected"><button type="button" data-feed-mode="recommended" aria-pressed="true">推荐</button><span class="app-display-control" data-icon="chevron" aria-label="选择分类，仅作界面展示"></span></div><button type="button" data-feed-mode="latest" aria-pressed="false">最新</button><span class="app-feed-filter app-display-control" aria-label="筛选，仅作界面展示">筛选 <span data-icon="plus"></span></span></div>
+                <div class="app-feed-scroll" tabindex="0" aria-label="演示帖子列表"><div class="app-feed-items" id="demo-posts"></div></div><div class="app-navigation" data-navigation="home" aria-label="演示 App 导航"></div>
+              </div>
+              <div class="demo-screen demo-detail" id="demo-comments-screen" role="tabpanel" aria-labelledby="demo-tab-comments" data-screen="comments" hidden>
+                <header class="app-detail-header"><button class="app-icon-button" type="button" data-go="feed" data-icon="back" aria-label="返回首页"></button><h3 class="demo-screen-title" tabindex="-1">帖子</h3></header>
+                <div class="app-detail-scroll"><article class="app-detail-post"><div class="app-detail-author"><button type="button" data-detail-contact aria-label="与作者私信"><span class="app-avatar" aria-hidden="true">松</span></button><div><button class="app-author" type="button" data-detail-contact>松间</button><span class="app-channel-name">搭子</span></div><span class="app-icon-button app-display-control" data-icon="more" aria-label="更多操作，仅作界面展示"></span></div><h4 id="demo-detail-title">周末想找个安静的自习搭子</h4><p id="demo-detail-body">打算周六上午去图书馆，各学各的，中午可以一起吃饭。有人一起吗？</p><div class="app-detail-meta">11月7日周六 09:32 · <strong id="demo-views">126</strong> 次浏览</div><div id="demo-detail-actions"></div></article>
+                <div class="app-comments-heading"><span>相关</span><span class="app-display-control" data-icon="refresh" aria-label="刷新评论，仅作界面展示"></span></div><div id="demo-comments"></div><p class="app-comments-end">没有更多评论</p></div>
+                <div class="app-detail-compose"><button class="app-reply-launch" type="button" data-compose="inline"><span class="app-avatar app-avatar-self" aria-hidden="true">南</span><span>发布你的回复</span></button><span class="app-icon-button app-display-control" data-icon="image" aria-label="选择图片，仅作界面展示"></span><button class="app-icon-button" type="button" data-compose="expanded" data-icon="expand" aria-label="展开回复输入"></button></div>
+              </div>
+              <div class="demo-screen demo-notifications" id="demo-notifications" role="tabpanel" aria-labelledby="demo-tab-notifications" data-screen="notifications" hidden>
+                <header class="app-inbox-header"><h3 class="demo-screen-title" id="demo-notifications-title" tabindex="-1">通知</h3><span aria-label="当前演示身份：南风"><span data-icon="chevron"></span> 南风 <span class="app-avatar app-avatar-self" aria-hidden="true">南</span></span></header>
+                <div class="app-notification-tabs" aria-label="通知分类"><button type="button" data-notification-category="all" aria-pressed="true">全部</button><button type="button" data-notification-category="reply" aria-pressed="false">回复</button><button type="button" data-notification-category="like" aria-pressed="false">收到的赞</button><button type="button" data-notification-category="system" aria-pressed="false">系统通知</button></div>
+                <div class="app-notification-filter"><span>通知记录</span><label><input id="demo-notification-unread" type="checkbox">仅看未读</label></div>
+                <div class="app-notification-scroll" id="demo-notification-list" aria-label="通知列表"></div><div class="app-navigation" data-navigation="notifications" aria-label="演示 App 导航"></div>
+              </div>
+              <div class="demo-screen demo-notification-detail" id="demo-notification-detail" role="tabpanel" aria-labelledby="demo-tab-notifications" data-screen="notification-detail" hidden><header class="app-detail-header"><button class="app-icon-button" type="button" data-go="notifications" data-icon="back" aria-label="返回通知"></button><h3 class="demo-screen-title" id="demo-notification-detail-title" tabindex="-1">系统通知</h3></header><article class="app-notification-content"><h4 id="demo-system-title"></h4><time id="demo-system-time"></time><p id="demo-system-body"></p></article></div>
+              <div class="demo-screen demo-inbox" id="demo-inbox" role="tabpanel" aria-labelledby="demo-tab-messages" data-screen="inbox" hidden><header class="app-inbox-header"><h3 class="demo-screen-title" tabindex="-1">私信</h3><span class="app-display-control" aria-label="当前身份：南风"><span data-icon="chevron"></span> 南风 <span class="app-avatar app-avatar-self" aria-hidden="true">南</span></span></header><label class="app-inbox-search"><span class="sr-only">搜索演示会话</span><span data-icon="search"></span><input id="demo-inbox-search" type="search" placeholder="搜索" autocomplete="off"></label><div class="app-inbox-body"><div id="demo-inbox-list"><p class="app-inbox-empty">还没有会话</p></div></div><div class="app-navigation" data-navigation="inbox" aria-label="演示 App 导航"></div></div>
+              <div class="demo-screen demo-chat" id="demo-messages-screen" role="tabpanel" aria-labelledby="demo-tab-messages" data-screen="messages" hidden>
+                <header class="app-chat-header"><button class="app-icon-button" type="button" data-go="inbox" data-icon="back" aria-label="返回私信列表"></button><div class="app-chat-person"><span class="app-avatar" aria-hidden="true">松</span><div><h3 class="demo-screen-title" tabindex="-1">松间</h3><span>私密会话</span></div></div><span class="app-icon-button app-display-control" data-icon="more" aria-label="更多会话操作，仅作界面展示"></span></header>
+                <button class="app-chat-source" type="button" data-post-open="study"><span data-icon="article"></span><span>来自：周末想找个安静的自习搭子</span><span data-icon="chevron"></span></button>
+                <div class="app-chat-scroll"><span class="app-chat-date">11月7日</span><div id="demo-chat-empty" class="app-chat-empty"><span data-icon="wave" aria-hidden="true"></span><strong>还没有消息</strong><p>打个招呼吧</p><small>对方回复前只能发送一条文字消息</small></div><div id="demo-messages"></div></div>
+                <p class="app-first-contact-note" id="demo-first-contact-note" hidden>对方回复前只能发一条消息</p><div class="app-sending-identity"><span class="app-avatar app-avatar-self" aria-hidden="true">南</span><span>南风</span><span data-icon="lock"></span></div>
+                <form class="app-message-composer" id="message-form"><span class="app-avatar app-avatar-self" aria-hidden="true">南</span><label class="sr-only" for="message-input">输入演示私信</label><textarea id="message-input" rows="1" placeholder="输入消息" maxlength="500" autocomplete="off"></textarea><span class="app-attach app-display-control" data-icon="attach" aria-label="添加图片，仅作界面展示"></span><button class="app-send" type="submit" data-icon="send" aria-label="发送演示私信" disabled></button></form>
+              </div>
+            </div>
+            <div class="app-reply-layer" id="demo-reply-layer" hidden><div class="app-reply-scrim" data-close-reply></div><form class="app-reply-dialog" id="comment-form" role="dialog" aria-modal="true" aria-labelledby="demo-reply-title"><header><h4 id="demo-reply-title">回复给 <strong id="demo-reply-person">松间</strong></h4><button class="app-icon-button" type="button" data-close-reply data-icon="close" aria-label="收起回复"></button></header><span class="app-inline-avatar app-avatar app-avatar-self" aria-hidden="true">南</span><button class="app-icon-button app-inline-expand" type="button" data-toggle-expanded data-icon="expand" aria-label="展开回复输入"></button><label class="sr-only" for="comment-input">写下你的演示回复</label><textarea id="comment-input" rows="4" placeholder="写下你的回复…" maxlength="500"></textarea><footer><span class="app-reply-identity">南风</span><span class="app-inline-attachment app-icon-button app-display-control" data-icon="image" aria-label="选择图片，仅作界面展示"></span><button class="app-reply-submit" type="submit" disabled>回复</button></footer></form></div>
+            <div class="app-identity-layer" id="demo-identity-layer" hidden><div class="app-identity-scrim" data-close-identity></div><div class="app-identity-sheet" role="dialog" aria-modal="true" aria-labelledby="demo-identity-title"><h4 id="demo-identity-title">选择本次联系使用的身份</h4><button id="demo-select-identity" type="button">南风</button></div></div>
+            <p class="app-toast" id="demo-toast" hidden></p>
+          </div><div class="demo-homebar" aria-hidden="true"></div></div>
+        </div>
+        <div class="demo-controls" hidden><div class="demo-steps" role="tablist" aria-label="选择演示片段"><button id="demo-tab-welcome" type="button" role="tab" aria-selected="true" aria-controls="demo-welcome" data-step="welcome">欢迎</button><button id="demo-tab-feed" type="button" role="tab" aria-selected="false" aria-controls="demo-feed" tabindex="-1" data-step="feed">浏览</button><button id="demo-tab-comments" type="button" role="tab" aria-selected="false" aria-controls="demo-comments-screen" tabindex="-1" data-step="comments">评论</button><button id="demo-tab-notifications" type="button" role="tab" aria-selected="false" aria-controls="demo-notifications" tabindex="-1" data-step="notifications">通知</button><button id="demo-tab-messages" type="button" role="tab" aria-selected="false" aria-controls="demo-messages-screen" tabindex="-1" data-step="messages">私信</button></div></div>
+        <p class="sr-only" id="demo-announcement" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="download-section wrap" id="download" aria-labelledby="download-title">
+      <div class="download-heading"><h2 id="download-title">获取 SpeechFUL</h2></div>
+      <div class="download-options"><article class="platform" aria-labelledby="android-title"><svg class="platform-icon android" aria-hidden="true" viewBox="0 0 24 24"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></svg><div><h3 id="android-title">Android</h3><p id="android-description">v1.0.0</p></div><figure class="download-qr" id="android-action"><a href="https://www.speechful.dpdns.org/downloads/SpeechFUL.apk" aria-label="下载 SpeechFUL Android v1.0.0"><img src="assets/android-download.png" width="164" height="164" alt="扫码或点击下载 SpeechFUL Android 安装包"></a><figcaption>扫码或点击下载</figcaption></figure></article>
+        <article class="platform" aria-labelledby="ios-title"><svg class="platform-icon apple" aria-hidden="true" viewBox="0 0 24 24"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><div><h3 id="ios-title">iOS</h3><p id="ios-description">暂未发布</p></div><span class="release-status" id="ios-action">暂未开放</span></article></div>
+    </section>
+
+    <section class="contact-section wrap" id="contact" aria-labelledby="contact-title">
+      <div class="contact-heading"><h2 id="contact-title">联系我们</h2><p>欢迎大家提出建议来帮助完善SpeechFUL。</p></div>
+      <div class="contact-details"><span class="contact-label">电子邮箱：</span><a class="email-link" href="mailto:zewbby666@gmail.com"><span class="email-address">zewbby666@gmail.com</span><span aria-hidden="true">↗</span></a></div>
+    </section>
+  </main>
+  <a class="back-top" href="#top" aria-label="回到顶部" title="回到顶部"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></a>
+</body>
+</html>
