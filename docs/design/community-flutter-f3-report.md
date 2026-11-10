@@ -29,7 +29,7 @@ F3覆盖文字编辑、确认、默认／选择身份、通道最新列表、详
 
 最终命令、计数、被测源码指纹及结果见[机器记录](community-flutter-f3-verification.json)。锁定来源与具体改动见[来源清单](community-flutter-f3-source-lock.json)。
 
-入口：`tools/run-community-flutter-f3-linux.sh prepare/analyze/test`，现成Flutter3.47.5／Dart3.13.4，`flutter pub get --enforce-lockfile`使用锁文件的pub.dev及SHA。runner仅在任务专用Linux目录复制源码与解析依赖；真实SQLite测试使用系统libsqlite3，未启服务端／数据库服务器或设备。初次将镜像源用于官方源锁文件被enforce拒绝，改回相同pub.dev后版本／摘要保持；Unicode测试夹具路径遗漏已补齐。页面复审发现的Semantics const编译错误已修复，随后实际看图补正AppBar字体继承与过渡采样，最终14帧已覆盖诊断版，并[逐帧复审](ui-reviews/community-flutter-f3-ui-review.md)；最终结果以最后源码完整回归为准。
+当次入口为[现已退役的 F3 runner](https://github.com/zewbby/SpeechFUL/blob/fbf5e6be302432db8a187a6293403b88be454bc7/tools/run-community-flutter-f3-linux.sh)的 `prepare/analyze/test`，现成Flutter3.47.5／Dart3.13.4，`flutter pub get --enforce-lockfile`使用锁文件的pub.dev及SHA。runner仅在任务专用Linux目录复制源码与解析依赖；真实SQLite测试使用系统libsqlite3，未启服务端／数据库服务器或设备。初次将镜像源用于官方源锁文件被enforce拒绝，改回相同pub.dev后版本／摘要保持；Unicode测试夹具路径遗漏已补齐。页面复审发现的Semantics const编译错误已修复，随后实际看图补正AppBar字体继承与过渡采样，最终14帧已覆盖诊断版，并[逐帧复审](ui-reviews/community-flutter-f3-ui-review.md)；最终结果以最后源码完整回归为准。
 
 主测试：`post_protocol_test.dart`（9摘要、7字素及1093个官方Unicode16边界）、`post_api_test.dart`（本机TLS fixture与14操作、header／错误／redirect）、`post_models_test.dart`、`post_storage_test.dart`（真实SQLite）、`post_controller_test.dart`、`post_screens_test.dart`、`post_closure_cleanup_test.dart`及`mobile_environment_test.dart`。API的TLS fixture有真实socket／TLS但handler是测试替身，controller和widget网络用替身，不能等同真实C/V、SQL或原生vault。
 

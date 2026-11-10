@@ -34,3 +34,7 @@ python3 tools/comment-snapshot-process/campaign.py \
 `normalized.py --diagnostic`启用额外事务/Redis客户端计时，每路径100对，只用于定位。客户端时间包含排队/传输，SQL/Gate/projection剩余时间不是纯SQL；Redis INFO的Lua执行累计值不等于逐请求排队时间。正式批次关闭观测日志。`native-probe.ps1`是指定真机和独立.commentsnapshot包的本地选择性入口，要求本任务持有lease；配合`integration_test/comment_snapshot_live_device_test.dart`验证Android真实TLS读取和九项fixture界面场景，不声称原生vault或整条生产UI端到端通过。
 
 CI 的普通快照作业包含真实 Redis/SQL 及客户端回归；约 30 分钟的独立进程批次通过同一 workflow 的 `workflow_dispatch` 专门运行，不能把 workflow 文件存在当作远端执行通过。
+
+## 已退役的一次性观测
+
+固定旧机器路径、旧源码 overlay 和单次输出的五个 `p5d1_*.py` 脚本已退役，原始内容从[固定历史目录](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools/comment-snapshot-process)追溯。它们没有被当前 campaign 或 CI 调用；现行功能、兼容、故障、性能、回退和长 TTL 验证入口保留。旧报告和 JSON 摘要不改写，清理依据见[任务记录](../../docs/tasks/TEST-RUNNER-CLEANUP-20261110.md)。

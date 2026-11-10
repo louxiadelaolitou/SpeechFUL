@@ -65,4 +65,4 @@ Windows Stopwatch基于QPC，适用于同机时间间隔，而不是UTC绝对时
 
 下一步应处理环境计时一致性，再由Sol按新调度复用已验证的观测副本。本轮不安排第二次观测或系统修复。既有失败不改标，旧通过结论保持原版本和当时证据范围。
 
-原始同步记录：`D:/HnuHole-task-storage/comment-snapshot-redis-20261024/p5d1-clock-review-observation.json`；一次性观测程序：`tools/comment-snapshot-process/p5d1_clock_observe.py`。离线重算、来源及校验见[机器证据](stage-5-clock-protocol-review-evidence.json)。
+原始同步记录：`D:/HnuHole-task-storage/comment-snapshot-redis-20261024/p5d1-clock-review-observation.json`；已退役的一次性观测程序从[固定提交](https://github.com/zewbby/SpeechFUL/blob/fbf5e6be302432db8a187a6293403b88be454bc7/tools/comment-snapshot-process/p5d1_clock_observe.py)追溯。离线重算、来源及校验见[机器证据](stage-5-clock-protocol-review-evidence.json)。

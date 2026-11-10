@@ -14,7 +14,7 @@
 
 验证已通过：受改包`go vet`、API及所需夹具工具构建、`readtiming`的race测试，以及5项顶层真实Redis/race测试（0 FAIL、0 SKIP），覆盖诊断envelope、幂等/额度/固定过期、部分写入补偿、ABORTING/过期pending恢复，以及16种畸形同账本记录拒绝。它们证明观测准备工作，不证明本次HTTP性能。
 
-精确冻结的5个Go观测文件、测试和生成驱动已从卸载的数据文件只读导出，逐文件SHA验证通过，可直接审查：`D:/HnuHole-task-storage/comment-snapshot-redis-20261024/p5d1-r1-observation-source/`。控制、准备、等价检查和离线分析工具保留在仓库`tools/comment-snapshot-process/p5d1_*.py`；实际执行脚本和冻结清单保留D盘。初次准备时曾因冻结基线缺少新增驱动停止，0 HTTP；修正为读取既有D盘驱动后继续，原失败记录及不完整副本均保留。
+精确冻结的5个Go观测文件、测试和生成驱动已从卸载的数据文件只读导出，逐文件SHA验证通过，可直接审查：`D:/HnuHole-task-storage/comment-snapshot-redis-20261024/p5d1-r1-observation-source/`。控制、准备、等价检查和离线分析工具的原始 `p5d1_*.py` 已退役，通过[固定提交](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools/comment-snapshot-process)追溯；实际执行脚本和冻结清单的 D 盘路径是当次记录。初次准备时曾因冻结基线缺少新增驱动停止，0 HTTP；修正为读取既有D盘驱动后继续，原失败记录及不完整副本均保留。
 
 ## 预检失败与停止点
 

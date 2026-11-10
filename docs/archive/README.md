@@ -17,6 +17,17 @@
 
 旧报告和 JSON 中记录的路径、命令、SHA 与 PASS／FAIL 保留原意，应结合其被测提交解读。退役清单与依赖核对见[整理任务](../tasks/REPOSITORY-CLEANUP-01.md)，不再维护新的逐文件摘要台账。
 
+## 已退役的一次性验收脚本
+
+以下脚本从当前树删除，原始字节保留在固定提交 `fbf5e6be302432db8a187a6293403b88be454bc7`：
+
+- [2026-10-15 Passkey 实验执行文件](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools/community-android-stage3/execution-20261015)：固定当次路径和一次性夹具的 8 个脚本。
+- [P5-D1 观测目录](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools/comment-snapshot-process)：五个 `p5d1_*.py` 单次实验脚本；当前 campaign 和功能／性能 runner 保留。
+- [图片媒体旧任务工具](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools/post-image-media)：仅退役写死旧结果的 `record_evidence.py` 和旧任务清理器 `cleanup_owned.py`，保留协议生成工具。
+- [旧 F3 wrapper](https://github.com/zewbby/SpeechFUL/blob/fbf5e6be302432db8a187a6293403b88be454bc7/tools/run-community-flutter-f3-linux.sh)：已由当前 Flutter 直接命令和 F4 集成 runner 替代。
+
+此次没有删除正常功能测试或现行 CI，也没有执行旧脚本。范围与验证见[清理任务](../tasks/TEST-RUNNER-CLEANUP-20261110.md)。旧 JSON 的路径和摘要描述其原版本，保持原字节。
+
 ## 仍保留的历史来源
 
 - [早期讨论](../discussions/README.md)：产品决定来源，不是当前状态。
