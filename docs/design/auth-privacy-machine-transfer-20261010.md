@@ -1,5 +1,7 @@
 # 2026-10-10 认证分支换机交接
 
+> 2026-11-10：本文涉及的部分单次实验工具已退役；原源码见[清理前固定版本](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools)，当前保留入口见[工具说明](../../tools/README.md)。下方命令和结果仅记录当时环境，不作为当前运行步骤。
+
 分支 `codex/auth-privacy-handoff`。用户要求停止当前验收，提交全部认证开发、验收及排错工作，交接缓存／测试秘密，远端确认后清理本任务本地缓存。当前入口以本文和 `auth-privacy-machine-transfer-verification.json` 为准，旧文档“缓存保留／未提交”是当时历史状态。
 
 ## 最终换机回执（2026-10-11）

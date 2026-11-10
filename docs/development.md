@@ -10,7 +10,7 @@
 | `services/api` | Go 后端；`cmd/api` 启动社区 C，`cmd/verifier` 启动验证 V |
 | `packages` | 原生安全存储、Passkey、媒体、图片查看器、OpenAPI 与共享协议向量 |
 | `infra` | 数据库角色／授权、容器和部署配置 |
-| `tools` | 当前静态检查、开发与设备工具；具体环境要求见各入口说明 |
+| `tools` | [工具导航](../tools/README.md)：当前静态检查、开发与设备工具，以及阶段材料退役边界 |
 | `docs` | 当前文档导航、设计、ADR、任务和有版本边界的历史资料 |
 
 ## 跟踪一次首页加载

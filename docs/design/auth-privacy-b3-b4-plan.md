@@ -1,5 +1,7 @@
 # B3＋B4 合批实施与验收
 
+> 2026-11-10：本文涉及的部分单次实验工具已退役；原源码见[清理前固定版本](https://github.com/zewbby/SpeechFUL/tree/fbf5e6be302432db8a187a6293403b88be454bc7/tools)，当前保留入口见[工具说明](../../tools/README.md)。下方命令和结果仅记录当时环境，不作为当前运行步骤。
+
 > **2026-10-11 换机交接最终回执：**实现、测试和排错源码已推送 4c40f90；7 个加密归档／22 个分片已逐资产核对远端 SHA-256，并通过本地认证解密和文件内容核对。已删除五个任务 WSL 根、12 个专用容器、8 个卷、4 个网络；Windows 缓存／交接暂存副本删除被自动审批拒绝，仍保留，不能宣称全部清空。B3＋B4仍8 PASS／3 FAIL，固定24项19 PASS／3 FAIL／2 BLOCKED；B6／iOS／生产未通过。新机器先读[换机交接](auth-privacy-machine-transfer-20261010.md)及[最终交付和清理实录](../../services/api/authlab/auth-privacy-machine-transfer-verification.json)，解密密钥单独交付。
 
 > **2026-10-10 ultra排错阶段历史快照：**B3＋B4保持8／11 PASS、3项原执行FAIL。用户确认本轮点“继续”，全局代理下Google批准正向仍未取得证明；原生7次失败与一次系统清理器在原生开始前强停分别保留。只读审手机实际vivo选择器v15.0：provider非RESULT_OK返回和内部失败会被统一上报selector取消，原错误信息未传到App。此机制已由安装APK静态代码证实，但Google上游失败根因和本轮精确分支仍未证实；27字符消息摘要仅作佐证，旧JDI原型未区分参数／堆对象，不作为验收证据。ultra子审触及用量上限后由主任务续审。新有界观察器源码已保留并编译，未发起新ceremony；产品APK未改、已通过8项不重验。当前Google凭据／自动填充设置临时保留，等待人工只查看密码管理工具设置，不清数据或登出；验收后须按原备份恢复，Clash全局模式须由用户恢复。固定24项仍19 PASS／3 FAIL／2 BLOCKED，B6／iOS未执行，未提交／推送。见[具体诊断记录](../../services/api/authlab/android-passkey-selector-diagnosis-verification.json)。
