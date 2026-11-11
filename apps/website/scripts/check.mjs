@@ -54,7 +54,7 @@ for (const platform of ['android', 'ios']) {
   }
   if (!release.available) assert.match(html, new RegExp(`<span class="release-status" id="${platform}-action">暂未开放`));
 }
-assert.equal((await readFile(resolve(root, '_redirects'), 'utf8')).trim(), '/downloads/SpeechFUL.apk https://gitee.com/axibass/speechful-android-release/releases/download/v1.0.0/SpeechFUL.apk 302');
+assert.equal((await readFile(resolve(root, '_redirects'), 'utf8')).trim(), `/downloads/SpeechFUL.apk https://gitee.com/axibass/speechful-android-release/releases/download/v${encodeURIComponent(releases.android.version)}/SpeechFUL.apk 302`);
 // Prevent external business calls: this site only reads its local release manifest.
 assert(!/fetch\s*\(\s*['"]https?:/.test(js), 'Website must not fetch live business APIs');
 assert.equal((js.match(/\bfetch\s*\(/g) || []).length, 0, 'Downloads must not depend on a runtime request');
