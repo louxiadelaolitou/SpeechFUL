@@ -320,7 +320,8 @@ void main() {
         find.byKey(const ValueKey('post-search-hot-posts')),
         findsOneWidget,
       );
-      expect(find.text('全站热榜'), findsOneWidget);
+      expect(find.text('大家都在看'), findsOneWidget);
+      expect(find.text('全站热榜'), findsNothing);
       expect(find.text('暂无搜索历史'), findsOneWidget);
     },
   );
@@ -414,7 +415,8 @@ void main() {
       expect(api.reads, ['all', 'all']);
       expect(find.byKey(_scope), findsNothing);
       expect(find.text('全部分类'), findsNothing);
-      expect(find.text('全站热榜'), findsOneWidget);
+      expect(find.text('大家都在看'), findsOneWidget);
+      expect(find.text('全站热榜'), findsNothing);
       expect(find.text('全站第一名'), findsOneWidget);
       expect(find.text('全站第二名'), findsOneWidget);
       expect(

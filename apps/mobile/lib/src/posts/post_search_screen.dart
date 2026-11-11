@@ -873,14 +873,6 @@ class _PostSearchScreenState extends State<PostSearchScreen> {
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            hhText(context, '全站热榜'),
-            style: TextStyle(
-              fontSize: 12,
-              color: HhTelegramPalette.of(context).secondary,
-            ),
-          ),
           const SizedBox(height: 14),
           if (_rankingLoading && rows == null)
             const Padding(
