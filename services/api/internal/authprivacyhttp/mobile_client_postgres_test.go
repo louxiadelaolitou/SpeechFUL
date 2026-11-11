@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy/protocol"
 )
 
@@ -37,7 +38,12 @@ func TestMobileClientHTTPSPostgres(t *testing.T) {
 	if flutter == "" {
 		t.Skip("mobile HTTPS/PostgreSQL runner not requested")
 	}
-	s := e2eNewServices(t)
+	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
+		if os.Getenv("AUTHLAB_REGISTRATION_FLOW_ONLY") == "1" {
+			return c.WithRecoveryPaused()
+		}
+		return c
+	})
 	s.enableCSigning()
 	// Dart's TLS ClientHello does not advertise Ed25519 certificates. Use a
 	// standard ECDSA TLS chain, retaining TLS 1.3 and full hostname validation.
@@ -50,9 +56,20 @@ func TestMobileClientHTTPSPostgres(t *testing.T) {
 	s.vPublic = e2eServer(t, s.vPublic.Config.Handler, publicTLS)
 	var faultsMu sync.Mutex
 	drops := make(map[string]bool)
+	var holdSignup bool
 	for _, server := range []*httptest.Server{s.cPublic, s.vPublic} {
 		original := server.Config.Handler
 		server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			faultsMu.Lock()
+			rejectSignup := holdSignup && r.Method == http.MethodPost && r.URL.Path == "/api/v1/auth/registrations"
+			if rejectSignup {
+				holdSignup = false
+			}
+			faultsMu.Unlock()
+			if rejectSignup {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": map[string]string{"code": "SERVICE_UNAVAILABLE"}})
+				return
+			}
 			recorder := httptest.NewRecorder()
 			original.ServeHTTP(recorder, r)
 			faultsMu.Lock()
@@ -120,6 +137,41 @@ func TestMobileClientHTTPSPostgres(t *testing.T) {
 				return
 			}
 			result = map[string]any{"code": code, "mailCalls": calls}
+		case "/hold-next-signup":
+			faultsMu.Lock()
+			holdSignup = true
+			faultsMu.Unlock()
+		case "/abandon-held-signup":
+			id, decodeErr := protocol.DecodeCanonicalBase64url(body["intentId"], 32)
+			if decodeErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			decision, snapshotErr := s.gate.Snapshot(r.Context())
+			if snapshotErr != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			tx, beginErr := s.cp.Begin(r.Context())
+			if beginErr != nil {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			defer s.gate.Abort(r.Context(), tx)
+			_, commitErr := s.gate.CommitAuthorized(r.Context(), tx, decision.Generation, func(authprivacy.AuthorizationDecision) error {
+				tag, updateErr := tx.Exec(r.Context(), `UPDATE c_auth.signup_intents SET state='ABANDONED',challenge=NULL,ticket=NULL,slot_id=NULL,bootstrap_public_key=NULL,admission_window=NULL,username=NULL,password_hash=NULL,password_salt=NULL,password_params_version=NULL,recovery_digest=NULL,installation_id=NULL WHERE intent_id=$1 AND state='OPEN'`, id)
+				if updateErr != nil {
+					return updateErr
+				}
+				if tag.RowsAffected() != 1 {
+					return authprivacy.ErrIntentInvalid
+				}
+				return nil
+			})
+			if commitErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 		case "/drop-next":
 			allowed := map[string]bool{
 				"/api/v1/auth/password-resets":                         true,

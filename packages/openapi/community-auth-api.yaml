@@ -460,6 +460,54 @@ paths:
         '503':
           "$ref": "#/components/responses/ServiceUnavailable"
       x-retry-semantics: persist-original-key-before-send-query-reset-result-no-secret-replay
+  "/api/v1/auth/registration-result":
+    get:
+      operationId: getRegistrationResult
+      summary: 核对原注册命令的非秘密结果
+      description: '只接受Authorization: SignupResult <原32字节提交键>与Signup-Intent-ID。只返回COMMITTED、NOT_COMMITTED或202 PENDING，不返回会话、密码、邮箱、用户名或账号ID。不存在结果不等于失败；锁定原意图并执行最终C Safety Gate后，只有持久拒绝／已废弃／已过期且未消费的原意图才能确定NOT_COMMITTED，迟到提交仍受最终服务端期限检查。404或410不能清除未知锚。查询不重新提交注册，也不签发会话。'
+      tags:
+      - Registration
+      security:
+      - signupResult: []
+      parameters:
+      - "$ref": "#/components/parameters/SignupIntentIdHeader"
+      responses:
+        '200':
+          description: 同键同意图已有不可变终态。
+          headers:
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/RegistrationResult"
+        '202':
+          description: 尚未确定，保留原键/意图并重试。
+          headers:
+            Cache-Control:
+              "$ref": "#/components/headers/NoStore"
+            X-Request-ID:
+              "$ref": "#/components/headers/RequestId"
+            Retry-After:
+              "$ref": "#/components/headers/RetryAfter"
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PendingResult"
+        '400':
+          "$ref": "#/components/responses/BadRequest"
+        '401':
+          "$ref": "#/components/responses/Unauthorized"
+        '404':
+          "$ref": "#/components/responses/NotFound"
+        '410':
+          "$ref": "#/components/responses/Gone"
+        '429':
+          "$ref": "#/components/responses/RateLimited"
+        '503':
+          "$ref": "#/components/responses/ServiceUnavailable"
   "/api/v1/auth/password-reset-result":
     get:
       operationId: getPasswordResetResult
@@ -1113,6 +1161,11 @@ components:
       in: header
       name: Authorization
       description: 严格SessionRevoke <43字符规范base64url秘密>；只定向撤销绑定旧会话，不可访问社区。
+    signupResult:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 严格SignupResult <原32字节注册提交键>，另须Signup-Intent-ID；不授予账号访问权限。
     resetResult:
       type: apiKey
       in: header
@@ -1132,6 +1185,13 @@ components:
         "$ref": "#/components/schemas/Base64url32"
       description: C本方一次用户操作随机32字节；发送前固定、重试共用，同键不同负载409。不能与V共用，也不能记录到日志。请求绑定用数据库外服务器HMAC密钥，不存密码/恢复码快速哈希。作用域为本operation；原完整结果有界清理后仅留域分离键摘要墓碑，旧键410
         RESULT_EXPIRED，不重新执行，不承诺原提交结论。
+    SignupIntentIdHeader:
+      name: Signup-Intent-ID
+      in: header
+      required: true
+      schema:
+        "$ref": "#/components/schemas/Base64url32"
+      description: 原注册意图ID；与原提交键一起仅核对一笔非秘密结果，禁止进入日志。
     ResetIntentIdHeader:
       name: Reset-Intent-ID
       in: header
@@ -1498,6 +1558,17 @@ components:
       required:
       - resetIntentId
       - newPassword
+    RegistrationResult:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum:
+          - COMMITTED
+          - NOT_COMMITTED
+      required:
+      - state
     ResetResult:
       type: object
       additionalProperties: false

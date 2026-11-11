@@ -16,6 +16,7 @@ import '../identity/identity_api.dart';
 class HttpAuthApi
     implements
         AuthApi,
+        RegistrationResultApi,
         EmailLoginApi,
         EmailResetApi,
         CredentialManagementApi,
@@ -948,6 +949,36 @@ class HttpAuthApi
       headers: _keyHeader(idempotencyKey),
       expected: {204},
     );
+  }
+
+  @override
+  Future<RegistrationResult> registrationResult({
+    required String intentId,
+    required String idempotencyKey,
+  }) async {
+    final r = await _send(
+      false,
+      'GET',
+      '/api/v1/auth/registration-result',
+      headers: {
+        'Signup-Intent-ID': _bytes(intentId, 32),
+        ..._capability('SignupResult', idempotencyKey),
+      },
+      expected: {200, 202},
+    );
+    return _model(() {
+      final state = _text(_record(r.body, {'state'}), 'state');
+      if (r.status == 202 && state == 'PENDING') {
+        return RegistrationResult.pending;
+      }
+      if (r.status == 200 && state == 'COMMITTED') {
+        return RegistrationResult.committed;
+      }
+      if (r.status == 200 && state == 'NOT_COMMITTED') {
+        return RegistrationResult.notCommitted;
+      }
+      throw const FormatException('Invalid registration result');
+    });
   }
 
   @override

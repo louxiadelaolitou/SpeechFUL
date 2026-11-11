@@ -2,6 +2,7 @@ name: Identity avatars and initial entry
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'apps/mobile/**'
       - 'services/api/**'
       - 'infra/postgres/**'
@@ -30,6 +31,7 @@ jobs:
           python-version: '3.12'
       - name: Full contracts and isolated image dependencies
         run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           python -m pip install -r packages/openapi/requirements-check.txt
           python packages/openapi/check-specs.py
           python tools/check-direct-message-contract.py

@@ -2,6 +2,21 @@ import 'app_language.dart';
 
 // Application-owned authentication text; interpolated values are never translated.
 const authTranslations = <String, UiTranslation>{
+  '注册成功，请重新登陆': (
+    '註冊成功，請重新登錄',
+    'Registration successful. Please sign in.',
+    '登録が完了しました。ログインしてください。',
+  ),
+  '注册结果暂未确认，请尝试登录，也可以使用校邮登录或找回账号。': (
+    '註冊結果暫未確認，請嘗試登錄，也可以使用校郵登錄或找回帳號。',
+    'Registration could not be confirmed. Try signing in, campus email sign-in or account recovery.',
+    '登録結果を確認できませんでした。ログイン、大学メールでのログイン、またはアカウント復旧をご利用ください。',
+  ),
+  '上次注册仍在处理中，请稍后重试；也可以使用校邮登录或找回账号。': (
+    '上次註冊仍在處理中，請稍後重試；也可以使用校郵登錄或找回帳號。',
+    'Your previous registration is still being processed. Try again later, or use campus email sign-in or account recovery.',
+    '前回の登録を処理中です。しばらくしてから再試行するか、大学メールでのログインやアカウント復旧をご利用ください。',
+  ),
   '账号已被封禁': ('帳號已被封禁', 'Account banned', 'アカウントは利用停止されています'),
   '该邮箱已注册': ('該郵箱已註冊', 'This email is already registered', 'このメールアドレスは登録済みです'),
   '此设备暂不支持系统通行密钥，可继续使用密码、校邮登录和恢复码。': (

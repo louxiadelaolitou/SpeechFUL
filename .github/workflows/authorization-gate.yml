@@ -3,6 +3,7 @@ name: Authorization Gate
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'services/api/internal/authprivacy/authorization_gate*.go'
       - 'services/api/authlab/run-isolated.sh'
       - 'services/api/authlab/run-shared-rate-limit-isolated.sh'
@@ -40,7 +41,7 @@ jobs:
         run: python3 -m unittest discover -s tools/ci/tests -v
       - name: PostgreSQL tools
         run: |
-          bash tools/ci/ubuntu-apt-source.sh
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y postgresql-16 redis-server python3-venv
           echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"

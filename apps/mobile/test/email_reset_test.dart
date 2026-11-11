@@ -395,7 +395,8 @@ void main() {
       );
       expect(flow.status, AuthFlowStatus.registrationComplete);
       expect(api.registrations.length, 1);
-      expect(adopted, 1);
+      expect(adopted, 0);
+      expect(original.store.current!.session, isNull);
       expect(flow.recoveryCode, isNull);
     },
   );

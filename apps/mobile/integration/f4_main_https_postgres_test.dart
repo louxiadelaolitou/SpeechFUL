@@ -188,11 +188,13 @@ void main() {
           await flows.confirmOtp(mail['code'] as String);
           await flows.createRegistration(
             username,
-            'F4 synthetic long password 2026!',
+            'F4-Synthetic-Long-Password-2026!',
           );
           final recovery = flows.recoveryCode!;
           flows.hideRecoveryCode();
           await flows.commitRegistration(recovery);
+          expect(sessions.isAuthenticated, isFalse);
+          await sessions.login(username, 'F4-Synthetic-Long-Password-2026!');
           expect(sessions.isAuthenticated, isTrue);
         }
 
@@ -252,7 +254,7 @@ void main() {
           );
           await tester.enterText(
             find.byKey(const ValueKey('login-password')),
-            'F4 synthetic long password 2026!',
+            'F4-Synthetic-Long-Password-2026!',
           );
           await tap(find.byKey(const ValueKey('login-submit')));
         }
@@ -480,7 +482,7 @@ void main() {
           expect(sessions.status, AuthStatus.signedOut);
           expect(store.current!.session, isNull);
           expect(posts.available, isFalse);
-          await sessions.login('f4_user_a', 'F4 synthetic long password 2026!');
+          await sessions.login('f4_user_a', 'F4-Synthetic-Long-Password-2026!');
           await wait(
             () => posts.available,
             'fresh session after Gate generation change',
@@ -488,7 +490,7 @@ void main() {
           expect(store.current!.session!.token == oldToken, isFalse);
           final takeover = await api.login(
             username: 'f4_user_a',
-            password: 'F4 synthetic long password 2026!',
+            password: 'F4-Synthetic-Long-Password-2026!',
             installationId: AuthCrypto.randomEncoded(16),
             idempotencyKey: AuthCrypto.randomEncoded(32),
           );
@@ -498,7 +500,7 @@ void main() {
           await api.revokeSession(
             AuthCrypto.revocationSecret(takeover.sessionToken),
           );
-          await sessions.login('f4_user_a', 'F4 synthetic long password 2026!');
+          await sessions.login('f4_user_a', 'F4-Synthetic-Long-Password-2026!');
           await wait(() => posts.available, 'explicit fresh A session');
           expect(
             (await posts.restoreDraft(state['draftId'] as String))?.title,
@@ -548,7 +550,7 @@ void main() {
           );
           await tester.enterText(
             find.byKey(const ValueKey('closure-password')),
-            'F4 synthetic long password 2026!',
+            'F4-Synthetic-Long-Password-2026!',
           );
           await tap(find.text('查看并确认注销申请'));
           await tap(find.text('申请注销'));

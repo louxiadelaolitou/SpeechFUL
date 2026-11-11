@@ -3,6 +3,7 @@ name: Feed UI
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'apps/mobile/**'
       - 'packages/auth_vault/**'
       - 'packages/auth_passkey/**'
@@ -40,6 +41,7 @@ jobs:
           cache-dependency-path: services/api/go.sum
       - name: Host dependencies
         run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev openssl postgresql-16
           echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"

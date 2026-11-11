@@ -30,7 +30,7 @@ jobs:
           cache-dependency-path: services/api/go.sum
       - name: Install isolated PostgreSQL and Redis tools
         run: |
-          bash tools/ci/ubuntu-apt-source.sh
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y postgresql-16 redis-server
           GOBIN=/usr/local/bin go install github.com/pressly/goose/v3/cmd/goose@v3.22.1
@@ -82,7 +82,7 @@ jobs:
           echo "COMMENT_SNAPSHOT_LIVE_PROBE=$RUNNER_TEMP/comment-snapshot-live-probe" >> "$GITHUB_ENV"
       - name: Install isolated runtimes
         run: |
-          bash tools/ci/ubuntu-apt-source.sh
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y postgresql-16 redis-server python3-venv
       - name: Install pinned Goose and Python tools
@@ -125,7 +125,9 @@ jobs:
           channel: stable
           cache: true
       - name: Install SQLite test link library
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+        run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
+          sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - name: Analyze, test snapshot recovery and build client
         working-directory: apps/mobile
         run: |

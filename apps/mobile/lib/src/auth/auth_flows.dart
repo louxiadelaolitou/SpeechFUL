@@ -376,7 +376,13 @@ class AuthFlows extends ChangeNotifier {
       return;
     }
     await _acceptRegistrationSession(session);
-    await _store.update((s) => s.copyWith(clearEmailLogin: true));
+    await _store.update(
+      (s) => s.copyWith(
+        clearEmailLogin: true,
+        clearRegistration: _registrationUsesEmail(s, m!['email']),
+      ),
+    );
+    if (!hasPendingRegistration) _status = AuthFlowStatus.idle;
   });
 
   bool get supportsEmailReset => _api is EmailResetApi;
@@ -589,9 +595,10 @@ class AuthFlows extends ChangeNotifier {
       if (!_current(epoch) || authority != _sessionAuthorityVersion()) return;
       await _store.update(
         (s) => s.copyWith(
+          clearRegistration: _registrationUsesEmail(s, m!['email']),
           emailReset:
               {
-                  ...m!,
+                  ...m,
                   'intentId': intent.resetIntentId,
                   'intentExpiresAt': intent.expiresAt.toUtc().toIso8601String(),
                   'username': intent.username,
@@ -619,6 +626,55 @@ class AuthFlows extends ChangeNotifier {
   /// Exact address of the existing OTP operation, including after restoration.
   String? get registrationEmail =>
       _map(_store.current?.registration?['request'])?['email'] as String?;
+
+  bool get hasPendingRegistration =>
+      _store.current?.registration?['commit'] != null;
+  bool get supportsRegistrationResult => _api is RegistrationResultApi;
+
+  Future<void> reconcileRegistration() => _run((epoch) async {
+    final state = await _store.read();
+    _validateState(state);
+    _requireNoOtherPending(state);
+    final registration = state.registration;
+    final commit = _map(registration?['commit']);
+    if (commit == null || _api is! RegistrationResultApi) {
+      throw const AuthFailure(kind: AuthFailureKind.unavailable);
+    }
+    final authority = _sessionAuthorityVersion();
+    final result = await (_api as RegistrationResultApi).registrationResult(
+      intentId: commit['intentId'] as String,
+      idempotencyKey: commit['key'] as String,
+    );
+    if (!_current(epoch) || authority != _sessionAuthorityVersion()) return;
+    await _store.update((latest) {
+      _requireNoOtherPending(latest);
+      if (_map(latest.registration?['commit'])?['key'] != commit['key']) {
+        throw const AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: 'CREDENTIAL_STATE_CHANGED',
+        );
+      }
+      if (result == RegistrationResult.pending) return latest;
+      final next = Map<String, dynamic>.from(latest.registration!);
+      if (result == RegistrationResult.committed) {
+        return latest.copyWith(clearRegistration: true);
+      } else {
+        // Preserve the original bootstrap/slot for renewed school-email proof.
+        // C has fenced the old intent before authorizing this new attempt.
+        next.remove('commit');
+        next.remove('ticket');
+        next.remove('confirmation');
+        next.remove('request');
+      }
+      return latest.copyWith(registration: next);
+    });
+    _registrationIntent = null;
+    _status = switch (result) {
+      RegistrationResult.notCommitted => AuthFlowStatus.idle,
+      RegistrationResult.committed => AuthFlowStatus.registrationComplete,
+      RegistrationResult.pending => AuthFlowStatus.registrationUnknown,
+    };
+  });
   ClosureStatus? get closureStatus => _closureStatus;
   bool get canRestartOtpVerification {
     final state = _store.current;
@@ -1151,6 +1207,7 @@ class AuthFlows extends ChangeNotifier {
     }
     _status = AuthFlowStatus.registrationUnknown;
     _notify();
+    final authority = _sessionAuthorityVersion();
     late AuthSession session;
     try {
       session = await _api.commitRegistration(
@@ -1189,25 +1246,64 @@ class AuthFlows extends ChangeNotifier {
       }
       rethrow;
     }
-    if (!_current(epoch)) {
-      return;
-    }
-    if (_map((await _store.read()).registration?['commit'])?['key'] != key) {
-      return;
-    }
-    await _acceptRegistrationSession(session);
-    if (!_current(epoch)) {
-      return;
-    }
-    await _store.update(
-      (latest) => _map(latest.registration?['commit'])?['key'] == key
-          ? latest.copyWith(clearRegistration: true)
-          : latest,
+    // Registration now finishes at the ordinary sign-in page. The compatible
+    // server response still contains a first-session capability; never install
+    // it locally, and durably queue its exact revocation before reporting success.
+    final tokenHash = AuthCrypto.encode(
+      hashes.sha256
+          .convert(AuthCrypto.decode(session.sessionToken, bytes: 32))
+          .bytes,
     );
+    final secret = AuthCrypto.revocationSecret(session.sessionToken);
+    try {
+      await _store.update(
+        (latest) => latest.copyWith(
+          clearRegistration:
+              _map(latest.registration?['commit'])?['key'] == key,
+          logouts: [
+            ...latest.logouts.where((task) => task.tokenDigest != tokenHash),
+            LogoutTask(tokenDigest: tokenHash, revocationSecret: secret),
+          ],
+        ),
+      );
+    } on Object {
+      // A failed secure write must never cause session adoption. Best-effort
+      // revocation also covers the case where the durable queue is unavailable.
+      try {
+        await _api.revokeSession(secret);
+      } on Object {
+        /* Keep the unknown anchor. */
+      }
+      rethrow;
+    }
+    unawaited(_revokeRegistrationSession(tokenHash, secret));
+    if (!_current(epoch) ||
+        authority != _sessionAuthorityVersion() ||
+        _store.current?.registration != null) {
+      return;
+    }
     _registrationIntent = null;
     _recoveryCode = null;
     _username = null;
     _status = AuthFlowStatus.registrationComplete;
+  }
+
+  Future<void> _revokeRegistrationSession(
+    String tokenHash,
+    String secret,
+  ) async {
+    try {
+      await _api.revokeSession(secret);
+      await _store.update(
+        (latest) => latest.copyWith(
+          logouts: latest.logouts
+              .where((task) => task.tokenDigest != tokenHash)
+              .toList(),
+        ),
+      );
+    } on Object {
+      // Session startup/resume retries this durable, narrowly scoped capability.
+    }
   }
 
   Future<void> beginCodeReset(String recoveryCode) => _run((epoch) async {
@@ -1941,7 +2037,6 @@ class AuthFlows extends ChangeNotifier {
   void _requireEmailResetAllowed(AuthState state) {
     if (state.pendingReset != null ||
         state.session != null ||
-        state.registration?['commit'] != null ||
         state.pendingClosure?['state'] == 'UNKNOWN' ||
         state.emailLogin?['proof'] != null) {
       throw const AuthFailure(
@@ -1950,6 +2045,9 @@ class AuthFlows extends ChangeNotifier {
       );
     }
   }
+
+  bool _registrationUsesEmail(AuthState state, Object? email) =>
+      email != null && _map(state.registration?['request'])?['email'] == email;
 
   void _requireNoOtherPending(AuthState state) {
     if (state.pendingReset != null ||

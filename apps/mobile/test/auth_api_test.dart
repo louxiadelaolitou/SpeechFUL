@@ -151,6 +151,42 @@ void main() {
     await verifier.close();
   });
 
+  for (final entry in {
+    'COMMITTED': RegistrationResult.committed,
+    'NOT_COMMITTED': RegistrationResult.notCommitted,
+    'PENDING': RegistrationResult.pending,
+  }.entries) {
+    test(
+      'registration result transports only original capability ${entry.key}',
+      () async {
+        community.respond = (request) => _json(
+          request,
+          entry.key == 'PENDING' ? 202 : 200,
+          {'state': entry.key},
+        );
+        expect(
+          await api.registrationResult(intentId: _flow, idempotencyKey: _key),
+          entry.value,
+        );
+        final sent = community.requests.single;
+        expect(sent.method, 'GET');
+        expect(sent.path, '/api/v1/auth/registration-result');
+        expect(sent.headers['authorization'], 'SignupResult $_key');
+        expect(sent.headers['signup-intent-id'], _flow);
+        expect(sent.body, isEmpty);
+        expect(verifier.requests, isEmpty);
+      },
+    );
+  }
+
+  test('registration result rejects inconsistent success body', () async {
+    community.respond = (request) => _json(request, 200, {'state': 'PENDING'});
+    await expectLater(
+      api.registrationResult(intentId: _flow, idempotencyKey: _key),
+      throwsA(_failure(AuthFailureKind.invalidResponse)),
+    );
+  });
+
   test('verified ban stays a typed login failure without a session', () async {
     community.respond = (request) =>
         _json(request, 403, _error('ACCOUNT_BANNED'));

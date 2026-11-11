@@ -353,7 +353,7 @@ func e2eNewServicesWithTLSLifetime(t *testing.T, lifetime time.Duration, configu
 		purposes []protocol.Purpose
 		target   *ed25519.PrivateKey
 	}{
-		{[]protocol.Purpose{protocol.PurposeRegister, protocol.PurposeRetireAuth}, &vPrivate},
+		{[]protocol.Purpose{protocol.PurposeRegister, protocol.PurposeRetireAuth, protocol.PurposeEmailLogin, protocol.PurposeEmailReset}, &vPrivate},
 		{[]protocol.Purpose{protocol.PurposeRetired, protocol.PurposeReleased}, &cPrivate},
 	} {
 		public, private, err := ed25519.GenerateKey(rand.Reader)
@@ -694,9 +694,18 @@ func TestHTTPSPostgresEligibilityAndSignup(t *testing.T) {
 	key := e2eKey(t)
 	body := map[string]string{"intentId": intent["intentId"].(string), "bootstrapSignature": proof, "recoveryCodeConfirmation": intent["recoveryCode"].(string)}
 	headers := map[string]string{"Idempotency-Key": protocol.EncodeCanonicalBase64url(key[:])}
+	signupResultHeaders := map[string]string{"Authorization": "SignupResult " + headers["Idempotency-Key"], "Signup-Intent-ID": intent["intentId"].(string)}
+	pendingSignup := e2eJSON(t, s.client, http.MethodGet, s.cPublic.URL+"/api/v1/auth/registration-result", nil, signupResultHeaders, http.StatusAccepted)
+	if len(pendingSignup) != 1 || pendingSignup["state"] != "PENDING" {
+		t.Fatal("early signup result did not preserve the pending command")
+	}
 	created := e2eJSON(t, s.client, http.MethodPost, s.cPublic.URL+"/api/v1/auth/registrations", body, headers, http.StatusCreated)
 	if len(created) != 3 || created["accountId"] == nil || created["sessionToken"] == nil || created["expiresAt"] == nil {
 		t.Fatal("signup response missing contract fields")
+	}
+	committedSignup := e2eJSON(t, s.client, http.MethodGet, s.cPublic.URL+"/api/v1/auth/registration-result", nil, signupResultHeaders, http.StatusOK)
+	if len(committedSignup) != 1 || committedSignup["state"] != "COMMITTED" {
+		t.Fatal("signup result disclosed authority or failed to confirm commit")
 	}
 	retried := e2eJSON(t, s.client, http.MethodPost, s.cPublic.URL+"/api/v1/auth/registrations", body, headers, http.StatusConflict)
 	if retried["sessionToken"] != nil || retried["accountId"] != nil {

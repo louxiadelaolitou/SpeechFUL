@@ -72,7 +72,7 @@ jobs:
           # The runner mirrorlist's Azure HTTP endpoint has stalled this gate;
           # keep the same signed Ubuntu repositories over their HTTPS mirror.
           printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-hnuhole-ci-network > /dev/null
-          bash tools/ci/ubuntu-apt-source.sh
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           moderation_missing_package=0
           for moderation_package in postgresql-16 python3-venv libsqlite3-dev openssl; do
             if ! dpkg-query -W -f='${Status}' "$moderation_package" 2>/dev/null | grep -qx 'install ok installed'; then

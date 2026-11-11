@@ -236,7 +236,7 @@ func (b *boundary) recoveryClosureFailure(w http.ResponseWriter, err error) {
 		b.fail(w, 409, "INTENT_INVALID", 0)
 	case errors.Is(err, authprivacy.ErrResetIntentExpired):
 		b.fail(w, 410, "INTENT_EXPIRED", 0)
-	case errors.Is(err, authprivacy.ErrResetResultNotFound), errors.Is(err, authprivacy.ErrClosureNotFound):
+	case errors.Is(err, authprivacy.ErrResetResultNotFound), errors.Is(err, authprivacy.ErrSignupResultNotFound), errors.Is(err, authprivacy.ErrClosureNotFound):
 		b.fail(w, 404, "RESOURCE_NOT_FOUND", 0)
 	case errors.Is(err, authprivacy.ErrPasswordPolicy):
 		b.fail(w, 422, "PASSWORD_POLICY_FAILED", 0)

@@ -578,7 +578,7 @@ void main() {
     (320.0, true, 1.6),
   ]) {
     testWidgets(
-      'registration security, copy and explicit finish at $width / $scale',
+      'registration copy and return to ordinary login at $width / $scale',
       (tester) async {
         tester.view.physicalSize = Size(width, 812);
         tester.view.devicePixelRatio = 1;
@@ -693,27 +693,22 @@ void main() {
           _savedCode,
         );
         await _tap(tester, '确认恢复码并创建账号');
-        expect(h.sessions.isAuthenticated, isTrue);
+        expect(h.sessions.isAuthenticated, isFalse);
         expect(
           completed,
           0,
-          reason: 'Registration keeps the optional security stage open.',
+          reason: 'Registration requires an explicit sign-in after the notice.',
         );
-        expect(find.text('暂不设置'), findsNothing);
-        expect(find.text('恢复码已保存并确认'), findsOneWidget);
+        expect(find.text('注册成功，请重新登陆'), findsOneWidget);
         expect(h.vault.value, isNot(contains(_savedCode)));
-        final setup = find.byKey(const ValueKey('registration-passkey'));
-        await tester.ensureVisible(setup);
-        await tester.tap(setup);
-        await tester.pumpAndSettle();
-        expect(securityOpened, 1);
+        await _snapshot(tester, 'registration-login-notice-${width.toInt()}');
+        await _tap(tester, '确定');
+        expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
+        expect(find.text('找回账号'), findsOneWidget);
+        expect(find.text('创建账号'), findsOneWidget);
+        expect(securityOpened, 0);
         expect(completed, 0);
-        await _snapshot(tester, 'registration-complete-${width.toInt()}');
-        final finish = find.byKey(const ValueKey('registration-finish'));
-        await tester.ensureVisible(finish);
-        await tester.tap(finish);
-        await tester.pumpAndSettle();
-        expect(completed, 1);
+        await _snapshot(tester, 'registration-login-${width.toInt()}');
         expect(tester.takeException(), isNull);
         await h.finish(tester);
       },
@@ -1479,7 +1474,12 @@ void main() {
       await _tap(tester, '确认恢复码并创建账号');
       expect(h.api.registrations, 1);
       expect(h.api.submittedConfirmation, _savedCode);
-      expect(h.sessions.isAuthenticated, isTrue);
+      expect(h.sessions.isAuthenticated, isFalse);
+      expect(find.text('注册成功，请重新登陆'), findsOneWidget);
+      await _tap(tester, '确定');
+      expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
+      expect(find.text('切换邮箱登录（待接入）'), findsOneWidget);
+      expect(find.text('找回账号'), findsOneWidget);
       expect(h.vault.value, isNot(contains(_savedCode)));
       await h.finish(tester);
     },

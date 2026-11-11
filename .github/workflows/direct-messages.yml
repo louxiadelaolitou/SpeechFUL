@@ -3,6 +3,7 @@ name: Direct message chat
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'apps/mobile/**'
       - 'packages/**'
       - 'services/api/internal/authprivacy/**'
@@ -39,6 +40,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           python -m pip install -r packages/openapi/requirements-check.txt
           python tools/check-direct-message-contract.py
           python packages/openapi/check-specs.py packages/openapi/direct-message-governance.yaml packages/openapi/report-api.yaml packages/openapi/moderation-api.yaml

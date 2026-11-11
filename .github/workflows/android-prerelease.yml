@@ -3,6 +3,7 @@ name: Android prerelease
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'tools/prerelease/**'
       - 'infra/prerelease/**'
       - 'services/api/**'
@@ -142,6 +143,9 @@ jobs:
           cache: false
       - name: Owned lab prerequisites
         run: |
+          if test -f "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"; then
+            bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
+          fi
           sudo apt-get update
           sudo apt-get install -y postgresql-16 python3-venv
           echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"

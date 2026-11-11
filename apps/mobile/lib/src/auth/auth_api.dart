@@ -70,6 +70,14 @@ abstract interface class AuthApi {
   });
 }
 
+/// Original registration result capability never grants a session.
+abstract interface class RegistrationResultApi {
+  Future<RegistrationResult> registrationResult({
+    required String intentId,
+    required String idempotencyKey,
+  });
+}
+
 /// Email authentication has its own OTP purpose and C-only session capability.
 abstract interface class EmailLoginApi {
   Future<OtpRequestAccepted> requestEmailLoginOtp({

@@ -49,3 +49,6 @@ export AUTHLAB_RUNTIME_TAG AUTHLAB_C_DSN AUTHLAB_V_DSN AUTHLAB_POSTS_RUNTIME_DSN
 post_schema_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$post_schema_script_dir/.."
 go test -race -count=1 -p 1 ./internal/authprivacy -run "${AUTHLAB_EMAIL_TEST_PATTERN:-^Test(EmailLogin|EmailReset|Password|Session|Recovery|Reset|ReplacementReset|PendingClosureDeadline)}"  -v
+if [ -n "${AUTHLAB_EMAIL_HTTP_TEST_PATTERN:-}" ]; then
+    go test -race -count=1 -p 1 ./internal/authprivacyhttp -run "$AUTHLAB_EMAIL_HTTP_TEST_PATTERN" -v
+fi

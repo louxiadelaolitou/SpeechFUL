@@ -638,35 +638,42 @@ void main() {
     },
   );
 
-  test('registration sends C only eligibility and PoP, hides code and erases bootstrap after session persistence', () async {
-    final h = Harness();
-    await h.eligibility();
-    expect(h.flows.status, AuthFlowStatus.eligibilityReady);
-    await h.flows.createRegistration('Private_User', 'secret password');
-    expect(h.flows.recoveryCode, isNotNull);
-    await h.flows.commitRegistration('confirmation');
-    expect(h.api.registrations, isEmpty);
-    h.flows.hideRecoveryCode();
-    expect(h.flows.recoveryCode, isNull);
-    await h.flows.commitRegistration('confirmation');
-    expect(h.flows.status, AuthFlowStatus.registrationComplete);
-    expect(h.adopted, 1);
-    expect((await h.store.read()).registration, isNull);
-    expect(h.api.registrationCreates.single.keys.toSet(), {
-      'ticket',
-      'username',
-      'password',
-      'installationId',
-    });
-    expect(h.api.registrationCreates.single['username'], 'private_user');
-    expect(
-      h.api.registrationCreates.single['installationId'],
-      (await h.store.read()).cInstallationId,
-    );
-    expect(h.api.registrationCreates.single.values, isNot(contains('123456')));
-    expect(h.vault.value, isNot(contains('Exact+Alias')));
-    expect(h.vault.value, isNot(contains('secret password')));
-  });
+  test(
+    'registration sends C only eligibility and PoP and finishes signed out',
+    () async {
+      final h = Harness();
+      await h.eligibility();
+      expect(h.flows.status, AuthFlowStatus.eligibilityReady);
+      await h.flows.createRegistration('Private_User', 'secret password');
+      expect(h.flows.recoveryCode, isNotNull);
+      await h.flows.commitRegistration('confirmation');
+      expect(h.api.registrations, isEmpty);
+      h.flows.hideRecoveryCode();
+      expect(h.flows.recoveryCode, isNull);
+      await h.flows.commitRegistration('confirmation');
+      expect(h.flows.status, AuthFlowStatus.registrationComplete);
+      expect(h.adopted, 0);
+      expect((await h.store.read()).session, isNull);
+      expect((await h.store.read()).registration, isNull);
+      expect(h.api.registrationCreates.single.keys.toSet(), {
+        'ticket',
+        'username',
+        'password',
+        'installationId',
+      });
+      expect(h.api.registrationCreates.single['username'], 'private_user');
+      expect(
+        h.api.registrationCreates.single['installationId'],
+        (await h.store.read()).cInstallationId,
+      );
+      expect(
+        h.api.registrationCreates.single.values,
+        isNot(contains('123456')),
+      );
+      expect(h.vault.value, isNot(contains('Exact+Alias')));
+      expect(h.vault.value, isNot(contains('secret password')));
+    },
+  );
 
   test(
     'lost registration response keeps anchor and cannot replay with a new key',

@@ -56,7 +56,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _authenticated = false;
   bool _validateOtp = false;
   bool _explicitClosureLogin = false;
-  bool _explicitRegistrationLogin = false;
+  AuthFlowStatus _lastFlowStatus = AuthFlowStatus.idle;
   bool _explicitClosureRecovery = false;
   bool _explicitResetLogin = false;
   String? _lastFlowError;
@@ -70,6 +70,7 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     _authenticated = widget.sessions.status == AuthStatus.authenticated;
     _lastFlowError = widget.flows.errorMessage;
+    _lastFlowStatus = widget.flows.status;
     _lastSessionError = widget.sessions.errorMessage;
     if (widget.flows.emailLogin != null) {
       _emailLogin = true;
@@ -122,11 +123,28 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!mounted) return;
     final flowError = widget.flows.errorMessage;
     final sessionError = widget.sessions.errorMessage;
-    if (flowError != null && flowError != _lastFlowError) {
-      // Registration already has a dedicated continuation screen for this state.
-      if (_mode != _AuthMode.register || flowError != '结果未知，请保留原请求并核对。') {
-        _queueErrorDialog(flowError);
-      }
+    final flowStatus = widget.flows.status;
+    final completed =
+        flowStatus == AuthFlowStatus.registrationComplete &&
+        _lastFlowStatus != AuthFlowStatus.registrationComplete;
+    final unknownRegistration =
+        _mode == _AuthMode.register &&
+        flowStatus == AuthFlowStatus.registrationUnknown &&
+        !widget.flows.busy;
+    _lastFlowStatus = flowStatus;
+    if (completed || unknownRegistration) {
+      _mode = _AuthMode.login;
+      _registrationFinishing = false;
+      _emailLogin = false;
+      _password.clear();
+      _confirmation.clear();
+      _otp.clear();
+      _visiblePasswords.clear();
+      _queueErrorDialog(
+        completed ? '注册成功，请重新登陆' : '注册结果暂未确认，请尝试登录，也可以使用校邮登录或找回账号。',
+      );
+    } else if (flowError != null && flowError != _lastFlowError) {
+      _queueErrorDialog(flowError);
     } else if (sessionError != null &&
         sessionError != _lastSessionError &&
         sessionError != '本地已退出，服务器撤销待确认。') {
@@ -472,7 +490,10 @@ class _AuthScreenState extends State<AuthScreen> {
       if (widget.flows.canCorrectResetPassword) {
         return [
           const _Title('本次重设未提交', '可修改密码后重试，也可重新验证校邮。'),
-          _button('重新输入密码', widget.flows.correctResetPassword),
+          _button('重新输入密码', () async {
+            setState(() => _mode = _AuthMode.recover);
+            await widget.flows.correctResetPassword();
+          }),
           _secondary('重新开始恢复', () async {
             await widget.flows.acknowledgeResetResult();
             _selectMode(_AuthMode.recover);
@@ -494,24 +515,16 @@ class _AuthScreenState extends State<AuthScreen> {
       return _showRecoveryCode(isReset: flow == AuthFlowStatus.resetCodeShown);
     }
     if (flow == AuthFlowStatus.resetCodeConfirmation &&
-        !widget.flows.legacyRecoveryEnabled) {
+        !widget.flows.legacyRecoveryEnabled &&
+        _mode == _AuthMode.recover) {
       return _emailNewPassword();
     }
     if (flow == AuthFlowStatus.registrationCodeConfirmation ||
-        flow == AuthFlowStatus.resetCodeConfirmation) {
+        (flow == AuthFlowStatus.resetCodeConfirmation &&
+            widget.flows.legacyRecoveryEnabled)) {
       return _confirmRecoveryCode(
         isReset: flow == AuthFlowStatus.resetCodeConfirmation,
       );
-    }
-    if (flow == AuthFlowStatus.registrationUnknown &&
-        !_explicitRegistrationLogin) {
-      return [
-        const _Title('开户结果待核对', '开户响应不会重发会话。请明确使用刚设置的用户名和密码登录；未建成账号时登录会失败。'),
-        _secondary('前往用户名密码登录', () async {
-          _explicitRegistrationLogin = true;
-          _selectMode(_AuthMode.login);
-        }),
-      ];
     }
     if ((session == AuthStatus.resetPending && !_explicitResetLogin) ||
         (session == AuthStatus.closurePending &&
@@ -522,7 +535,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _button('核对原结果', widget.flows.restorePending),
       ];
     }
-    if (_explicitRegistrationLogin || _explicitResetLogin) return _login();
+    if (_explicitResetLogin) return _login();
     if (_explicitClosureRecovery) {
       return [
         ..._recovery(),
@@ -563,10 +576,7 @@ class _AuthScreenState extends State<AuthScreen> {
       widget.flows.emailLogin?['email'] == _campusEmail(_loginEmail.text);
 
   List<Widget> _login() {
-    final normal =
-        !_explicitClosureLogin &&
-        !_explicitResetLogin &&
-        !_explicitRegistrationLogin;
+    final normal = !_explicitClosureLogin && !_explicitResetLogin;
     final email = normal && _emailLogin;
     final controls = <Widget>[
       const SizedBox(height: 56),
@@ -799,7 +809,34 @@ class _AuthScreenState extends State<AuthScreen> {
                               if (widget.flows.emailUnregistered) {
                                 await widget.flows.clearEmailLogin();
                               }
-                              if (mounted) _selectMode(_AuthMode.register);
+                              if (!mounted) return;
+                              final email = widget.flows.registrationEmail;
+                              if (widget.flows.hasPendingRegistration) {
+                                await widget.flows.reconcileRegistration();
+                                if (!mounted || widget.flows.error != null) {
+                                  return;
+                                }
+                                if (widget.flows.hasPendingRegistration) {
+                                  _queueErrorDialog(
+                                    '上次注册仍在处理中，请稍后重试；也可以使用校邮登录或找回账号。',
+                                  );
+                                  return;
+                                }
+                                if (widget.flows.status ==
+                                    AuthFlowStatus.registrationComplete) {
+                                  return;
+                                }
+                              }
+                              _selectMode(_AuthMode.register);
+                              if (email != null &&
+                                  widget.flows.registrationEmail == null) {
+                                _email.text = email.endsWith('@hainanu.edu.cn')
+                                    ? email.substring(
+                                        0,
+                                        email.length - '@hainanu.edu.cn'.length,
+                                      )
+                                    : email;
+                              }
                             },
                       child: Text(
                         _text('创建账号'),

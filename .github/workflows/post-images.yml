@@ -3,6 +3,7 @@ name: Post images
 on:
   pull_request:
     paths:
+      - 'tools/ci/ubuntu-apt-source.sh'
       - 'apps/mobile/**'
       - 'packages/image_viewer/**'
       - 'packages/native_media/**'
@@ -24,7 +25,7 @@ concurrency:
 
 jobs:
   flutter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +38,9 @@ jobs:
           channel: stable
           cache: true
       - name: SQLite host dependency
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev openssl
+        run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
+          sudo apt-get update && sudo apt-get install -y libsqlite3-dev openssl
       - name: Locked image package dependencies
         working-directory: packages/image_viewer
         # Match the existing lockfile's hosted source; changing hosts triggers
@@ -103,6 +106,7 @@ jobs:
           python-version: '3.12'
       - name: Private PostgreSQL and image validator dependencies
         run: |
+          bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
           sudo apt-get update
           sudo apt-get install -y postgresql-16 python3-venv
           echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"

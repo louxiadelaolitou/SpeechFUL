@@ -195,17 +195,22 @@ class _Runtime {
     await flows.confirmOtp(code!);
     await flows.createRegistration(
       'joint_media_user',
-      'Joint synthetic long password 2026!',
+      'Joint-Synthetic-Long-Password-2026!',
     );
     expect(flows.recoveryCode, isNotNull);
     final recovery = flows.recoveryCode!;
     flows.hideRecoveryCode();
     await flows.commitRegistration(recovery);
     expect(flows.status, AuthFlowStatus.registrationComplete);
+    expect(sessions.isAuthenticated, isFalse);
+    await sessions.login(
+      'joint_media_user',
+      'Joint-Synthetic-Long-Password-2026!',
+    );
     expect(
       sessions.isAuthenticated,
       isTrue,
-      reason: 'actual registration session accepted',
+      reason: 'explicit sign-in after registration accepted',
     );
     await wait(
       () =>
@@ -748,7 +753,7 @@ void main() {
             expect(r.posts.available, isFalse);
             await r.sessions.login(
               'joint_media_user',
-              'Joint synthetic long password 2026!',
+              'Joint-Synthetic-Long-Password-2026!',
             );
             await r.wait(
               () => r.posts.available,

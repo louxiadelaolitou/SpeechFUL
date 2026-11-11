@@ -299,6 +299,11 @@ func (b *boundary) wrap(internal bool, next http.HandlerFunc) http.Handler {
 				delete(r.Header, name)
 			}
 		}
+		if hasHeader(r.Header, "Signup-Intent-ID") &&
+			(internal || b.service != CommunityService || r.URL.Path != "/api/v1/auth/registration-result") {
+			b.bad(w, errMalformed)
+			return
+		}
 		if internal {
 			if r.TLS == nil || !r.TLS.HandshakeComplete || b.peer.verify(*r.TLS, x509.ExtKeyUsageClientAuth, "") != nil {
 				b.fail(w, 401, "AUTHENTICATION_FAILED", 0)
@@ -399,6 +404,9 @@ func (b *boundary) preflight(w http.ResponseWriter, r *http.Request) {
 		if route, e := parsePostRoute(r.URL.Path); e == nil && method == http.MethodPut && (route.kind == authprivacy.PostLikeSet || route.kind == authprivacy.PostFavoriteSet || route.kind == authprivacy.PostRepostState) {
 			allowed["if-interaction-version"] = true
 		}
+		if method == http.MethodGet && r.URL.Path == "/api/v1/auth/registration-result" {
+			allowed["signup-intent-id"] = true
+		}
 		allowed["reset-intent-id"] = true
 		if isPasskeyRemovalPath(r.URL.Path) || r.URL.Path == "/api/v1/auth/credential-change-result" {
 			allowed["credential-change-id"] = true
@@ -480,7 +488,7 @@ func publicMethod(service Service, path string) string {
 			"/api/v1/auth/passkeys", "/api/v1/auth/passkey-removal-intents",
 			"/api/v1/auth/passkey-reset-options", "/api/v1/auth/passkey-reset-intents":
 			return http.MethodPost
-		case "/api/v1/channels", "/api/v1/auth/session", "/api/v1/auth/devices", "/api/v1/auth/password-reset-result", "/api/v1/auth/recovery-credentials", "/api/v1/auth/credential-change-result":
+		case "/api/v1/channels", "/api/v1/auth/session", "/api/v1/auth/devices", "/api/v1/auth/registration-result", "/api/v1/auth/password-reset-result", "/api/v1/auth/recovery-credentials", "/api/v1/auth/credential-change-result":
 			return http.MethodGet
 		}
 		if isRotationConfirmationPath(path) {
@@ -891,6 +899,10 @@ func (b *boundary) communityPublic(w http.ResponseWriter, r *http.Request, backe
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/v1/account-closures") {
 		b.communityClosurePublic(w, r, closures, passwords)
+		return
+	}
+	if r.URL.Path == "/api/v1/auth/registration-result" {
+		b.signupResultPublic(w, r, backend)
 		return
 	}
 	if r.URL.Path != "/api/v1/auth/registration-intents" && r.URL.Path != "/api/v1/auth/registrations" {

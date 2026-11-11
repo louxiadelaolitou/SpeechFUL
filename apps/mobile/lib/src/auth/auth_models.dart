@@ -130,6 +130,8 @@ class PasswordResetIntent {
   final String newRecoveryCode;
 }
 
+enum RegistrationResult { committed, notCommitted, pending }
+
 enum PasswordResetResult { committed, notCommitted, pending }
 
 class ClosureAccepted {
@@ -167,7 +169,10 @@ class RecoveryCodeRotation {
 }
 
 class RecoveryCredentialSummary {
-  const RecoveryCredentialSummary({required this.passkeys, this.sessionExpiresAt});
+  const RecoveryCredentialSummary({
+    required this.passkeys,
+    this.sessionExpiresAt,
+  });
   final List<PasskeySummary> passkeys;
   final DateTime? sessionExpiresAt;
 }
