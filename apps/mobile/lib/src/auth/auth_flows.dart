@@ -1912,6 +1912,8 @@ class AuthFlows extends ChangeNotifier {
           ? '结果未知，请保留原请求并核对。'
           : failure.code == 'SESSION_CREATED_RETRY_LOGIN'
           ? '上次登录已建立会话，请重新发送验证码登录。'
+          : failure.code == 'EMAIL_UNREGISTERED'
+          ? '该邮箱未找到账户信息，请先注册'
           : failure.code == 'EMAIL_PROOF_INVALID'
           ? '验证已过期，请重新发送验证码。'
           : failure.code == 'OTP_INVALID'

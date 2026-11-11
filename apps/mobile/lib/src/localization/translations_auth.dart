@@ -492,6 +492,11 @@ const authTranslations = <String, UiTranslation>{
     'Wait for the countdown to finish.',
     'カウントダウンの終了をお待ちください。',
   ),
+  '该邮箱未找到账户信息，请先注册': (
+    '該郵箱未找到帳戶資訊，請先註冊',
+    'No account was found for this email. Please register first.',
+    'このメールアドレスのアカウント情報が見つかりません。先に登録してください。',
+  ),
   '操作未完成，请检查输入或核对原操作。': (
     '操作未完成，請檢查輸入或覈對原操作。',
     'The operation did not complete. Check your input or the original request.',

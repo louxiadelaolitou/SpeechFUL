@@ -1350,8 +1350,7 @@ class _AuthScreenState extends State<AuthScreen> {
           () => _submit(() => widget.flows.completeEmailReset(_otp.text)),
         ),
       ],
-      if (operation?['unregistered'] == true)
-        const _Notice('该校邮没有可恢复的账号，请确认邮箱或前往注册。'),
+      if (operation?['unregistered'] == true) const _Notice('该邮箱未找到账户信息，请先注册'),
       if (operation != null && operation['email'] != address)
         _Notice('当前验证码发送至：${operation['email']}。请确认邮箱后继续。'),
       const _Notice('验证码仅用于本次密码重置。完成后返回登录页；密码重置不会自动登录或撤销注销申请。'),

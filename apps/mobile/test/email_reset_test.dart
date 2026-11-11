@@ -299,6 +299,79 @@ void main() {
     expect(h.store.current!.emailReset!['unregistered'], true);
   });
 
+  for (final source in ['verifier', 'community', 'unavailable']) {
+    testWidgets('email recovery distinguishes missing account from $source', (
+      tester,
+    ) async {
+      const missingAccount = '该邮箱未找到账户信息，请先注册';
+      final h = ResetHarness();
+      h.api.unregistered = source == 'verifier';
+      if (source != 'verifier') {
+        h.api.onIntent = () async => throw AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: source == 'community'
+              ? 'EMAIL_UNREGISTERED'
+              : 'SERVICE_UNAVAILABLE',
+        );
+      }
+      final directory = ChannelDirectoryController(repository: _Channels());
+      final sessions = AuthSessionController(
+        api: h.api,
+        store: h.store,
+        directory: directory,
+      );
+      await sessions.start();
+      final flow = h.make();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(sessions: sessions, flows: flow),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('找回账号'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('reset-email')),
+        'owned',
+      );
+      await tester.tap(find.text('发送重置验证码'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('reset-otp')), '123456');
+      await tester.ensureVisible(find.text('验证校邮'));
+      await tester.tap(find.text('验证校邮'));
+      await tester.pumpAndSettle();
+
+      expect(h.api.confirms, hasLength(1));
+      expect(
+        find.text(missingAccount),
+        source == 'unavailable' ? findsNothing : findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('reset-new-password')), findsNothing);
+      expect(h.api.registrations, isEmpty);
+      expect(h.api.resetCommits, isEmpty);
+      expect(h.adopted, 0);
+      if (source == 'community') {
+        expect(flow.error?.code, 'EMAIL_UNREGISTERED');
+        expect(h.store.current!.emailReset, isNull);
+        expect(find.text('操作未完成，请检查输入或核对原操作。'), findsNothing);
+        await tester.tap(find.text('确定'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('reset-email')), findsOneWidget);
+        expect(find.text('发送重置验证码'), findsOneWidget);
+      } else if (source == 'verifier') {
+        expect(h.api.intents, isEmpty);
+        expect(h.store.current!.emailReset!['unregistered'], true);
+      } else {
+        expect(flow.error?.code, 'SERVICE_UNAVAILABLE');
+        expect(h.store.current!.emailReset!['proof'], isNotNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+      flow.dispose();
+      sessions.dispose();
+      directory.dispose();
+    });
+  }
+
   test(
     'registration commits immediately when the backend omits recovery code',
     () async {
