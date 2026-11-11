@@ -25,12 +25,6 @@
 </div>
 
 
-## Android
-
-[下载 SpeechFUL v1.0.0](https://github.com/zewbby/SpeechFUL/releases/tag/v1.0.0)
-
-适用于 Android 10 及以上的 ARM64 设备。已有公网内测版可直接覆盖升级。
-
 ## Contributor
 
 <div align="center">
@@ -44,14 +38,6 @@
   </p>
 
 </div>
-
-
-## Related Work
-
-- [开发文档与仓库导览](docs/README.md)
-- [近期工作](docs/RECENT_WORK.md)
-- [官网源码与本地预览](apps/website/README.md)
-
 
 ## Feedback & Contact
 
