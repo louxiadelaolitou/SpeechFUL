@@ -11,6 +11,7 @@ on:
       - 'services/api/**'
       - 'infra/postgres/**'
       - 'packages/openapi/**'
+      - 'tools/ci/ubuntu-apt-source.sh'
       - '.github/workflows/moderation.yml'
   workflow_dispatch:
 
@@ -71,9 +72,7 @@ jobs:
           # The runner mirrorlist's Azure HTTP endpoint has stalled this gate;
           # keep the same signed Ubuntu repositories over their HTTPS mirror.
           printf '%s\n' 'Acquire::Retries "2";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-hnuhole-ci-network > /dev/null
-          if test -f /etc/apt/apt-mirrors.txt; then
-            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
-          fi
+          bash tools/ci/ubuntu-apt-source.sh
           moderation_missing_package=0
           for moderation_package in postgresql-16 python3-venv libsqlite3-dev openssl; do
             if ! dpkg-query -W -f='${Status}' "$moderation_package" 2>/dev/null | grep -qx 'install ok installed'; then

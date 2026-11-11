@@ -277,7 +277,6 @@ Widget screen(
   home: FeedScreen(
     controller: f.controller,
     channels: channels,
-    composeChannel: channels.first,
     onManageIdentities: () async {},
     onAuthenticationRequired: () {},
     loadImages: loader,
@@ -568,7 +567,10 @@ void main() {
     await tester.pumpWidget(screen(f));
     await tester.pumpAndSettle();
     final arrow = find.descendant(
-      of: find.byKey(const ValueKey('feed-channel-picker'), skipOffstage: false),
+      of: find.byKey(
+        const ValueKey('feed-channel-picker'),
+        skipOffstage: false,
+      ),
       matching: find.byType(AnimatedRotation, skipOffstage: false),
       skipOffstage: false,
     );
@@ -779,7 +781,7 @@ void main() {
   );
 
   testWidgets(
-    'compose semantics follow selected channel and recommended picker',
+    'compose semantics stay independent of the selected browse category',
     (tester) async {
       final f = await FeedFixture.create();
       addTearDown(f.dispose);
@@ -809,19 +811,32 @@ void main() {
           find.byKey(ValueKey('choose-channel:${channels.last.id}')),
         );
         await tester.pumpAndSettle();
-        expect(find.byTooltip('发布到科技'), findsOneWidget);
+        expect(find.byTooltip('选择分类写帖子'), findsOneWidget);
         expect(
           tester
               .getSemantics(find.byKey(const ValueKey('feed-compose')))
               .getSemanticsData()
               .tooltip,
-          '发布到科技',
+          '选择分类写帖子',
         );
         expect(find.byTooltip('发布到吐槽'), findsNothing);
         await tester.tap(find.byKey(const ValueKey('feed-compose')));
         await tester.pumpAndSettle();
+        expect(find.text('选择帖子分类'), findsOneWidget);
+        expect(find.text('写帖子'), findsNothing);
+        await tester.tap(
+          find.byKey(const ValueKey('choose-channel:$channelId')),
+        );
+        await tester.pumpAndSettle();
         expect(find.text('写帖子'), findsOneWidget);
-        expect(find.text('科技'), findsWidgets);
+        expect(
+          tester
+              .widget<PostComposerScreen>(find.byType(PostComposerScreen))
+              .editor
+              .channelId,
+          channelId,
+        );
+        expect(f.controller.timelineChannelId, channels.last.id);
         expect(tester.takeException(), isNull);
       } finally {
         semantics.dispose();

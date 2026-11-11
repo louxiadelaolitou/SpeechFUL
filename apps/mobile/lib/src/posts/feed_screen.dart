@@ -40,7 +40,6 @@ class FeedScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.channels,
-    required this.composeChannel,
     required this.onManageIdentities,
     required this.onAuthenticationRequired,
     this.onOpenPersonal,
@@ -53,7 +52,6 @@ class FeedScreen extends StatefulWidget {
   final String? initialChannelId;
   final PostController controller;
   final List<Channel> channels;
-  final Channel composeChannel;
   final Future<void> Function() onManageIdentities;
   final VoidCallback onAuthenticationRequired;
   final VoidCallback? onOpenPersonal, onOpenMessages, onOpenDirectMessages;
@@ -280,33 +278,26 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _openComposer(BuildContext context) async {
     if (!current) return;
-    var channel = widget.channels
-        .where((p) => p.id == feed.timelineChannelId)
-        .firstOrNull;
-    if (channel == null) {
-      String? chosen;
-      await showFeedChannelPicker(
-        context,
-        channels: channels,
-        authority: c,
-        isCurrent: () => current,
-        selected: widget.composeChannel.id,
-        includeRecommended: false,
-        onSelected: (id) => chosen = id,
-      );
-      if (!mounted || !context.mounted || !current || chosen == null) return;
-      channel = widget.channels.where((p) => p.id == chosen).firstOrNull;
-    }
+    // A new post owns its category; browsing never supplies a default or changes
+    // when the author chooses where to publish.
+    String? chosen;
+    await showFeedChannelPicker(
+      context,
+      channels: channels,
+      authority: c,
+      isCurrent: () => current,
+      selected: null,
+      includeRecommended: false,
+      onSelected: (id) => chosen = id,
+    );
+    if (!mounted || !context.mounted || !current || chosen == null) return;
+    final channel = widget.channels.where((p) => p.id == chosen).firstOrNull;
     if (channel == null || !context.mounted) return;
-    if (feed.timelineChannelId != channel.id) {
-      await feed.loadTimeline(channelId: channel.id);
-    }
-    if (!context.mounted || !current) return;
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => PostComposerScreen(
           controller: c,
-          editor: c.newDraft(channel!.id),
+          editor: c.newDraft(channel.id),
           channelName: channel.name,
           onManageIdentities: widget.onManageIdentities,
           onAuthenticationRequired: widget.onAuthenticationRequired,
@@ -441,11 +432,9 @@ class _FeedScreenState extends State<FeedScreen> {
               : () => _selectFeed(false),
           latestSelected: _latestSelected,
           channelPickerOpen: _channelPickerOpen,
-          channelTitle: widget.composeChannel.name,
+          channelTitle: selectedChannel?.name ?? '推荐',
           feedTitle: selectedChannel?.name ?? '推荐',
-          composeTooltip: selectedChannel == null
-              ? '选择分类写帖子'
-              : '发布到${selectedChannel.name}',
+          composeTooltip: '选择分类写帖子',
           blockedCount: feed.blockedChannelIds.length,
           posts: const [],
           mediaBuilder: (_, _) => const SizedBox.shrink(),

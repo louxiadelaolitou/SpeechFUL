@@ -7,6 +7,7 @@ on:
       - 'infra/**'
       - 'packages/openapi/**'
       - 'tools/comment-snapshot-process/**'
+      - 'tools/ci/ubuntu-apt-source.sh'
       - '.github/workflows/comment-snapshot.yml'
   workflow_dispatch:
 permissions:
@@ -29,8 +30,9 @@ jobs:
           cache-dependency-path: services/api/go.sum
       - name: Install isolated PostgreSQL and Redis tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-16 redis-server
+          bash tools/ci/ubuntu-apt-source.sh
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y postgresql-16 redis-server
           GOBIN=/usr/local/bin go install github.com/pressly/goose/v3/cmd/goose@v3.22.1
       - name: Actual API processes, capacity, faults, matched performance and fixed TTL
         run: |
@@ -79,7 +81,10 @@ jobs:
           dart compile exe integration/comment_snapshot_live_probe.dart -o "$RUNNER_TEMP/comment-snapshot-live-probe"
           echo "COMMENT_SNAPSHOT_LIVE_PROBE=$RUNNER_TEMP/comment-snapshot-live-probe" >> "$GITHUB_ENV"
       - name: Install isolated runtimes
-        run: sudo apt-get update && sudo apt-get install -y postgresql-16 redis-server python3-venv
+        run: |
+          bash tools/ci/ubuntu-apt-source.sh
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y postgresql-16 redis-server python3-venv
       - name: Install pinned Goose and Python tools
         run: |
           GOBIN=/usr/local/bin go install github.com/pressly/goose/v3/cmd/goose@v3.22.1

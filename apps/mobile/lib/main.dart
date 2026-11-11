@@ -1107,7 +1107,6 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
                       showNavigation: false,
                       controller: widget.posts,
                       channels: widget.directory.channels,
-                      composeChannel: widget.directory.channels.first,
                       initialChannelId: _homeChannels[widget.posts.accountId],
                       loadImages: widget.loadPostImages,
                       onOpenMessages: widget.governance == null

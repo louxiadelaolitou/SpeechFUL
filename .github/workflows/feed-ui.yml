@@ -51,6 +51,7 @@ jobs:
         working-directory: apps/mobile
         run: |
           flutter analyze --no-pub
+          flutter test --no-pub test/publish_category_test.dart test/active_identity_test.dart
           flutter test --no-pub test/post_sharing_test.dart
           flutter test --no-pub test/motion_test.dart test/interaction_motion_test.dart test/navigation_motion_test.dart
           flutter test --no-pub test/post_reposts_test.dart test/personal_profile_test.dart test/personal_reposts_integration_test.dart test/post_search_test.dart test/post_tags_test.dart test/post_tag_layout_test.dart test/post_edit_screen_test.dart

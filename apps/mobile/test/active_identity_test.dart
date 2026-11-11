@@ -171,6 +171,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('feed-compose')));
       await tester.pumpAndSettle();
+      expect(find.text('选择帖子分类'), findsOneWidget);
+      await tester.tap(
+        find.byKey(ValueKey('choose-channel:${f.directory.channels.first.id}')),
+      );
+      await tester.pumpAndSettle();
       expect(find.byType(PostComposerScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

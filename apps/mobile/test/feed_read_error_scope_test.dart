@@ -154,7 +154,6 @@ Widget _screen(_Fixture f) => MaterialApp(
   home: FeedScreen(
     controller: f.controller,
     channels: feed.channels,
-    composeChannel: feed.channels.first,
     onManageIdentities: () async {},
     onAuthenticationRequired: () {},
   ),

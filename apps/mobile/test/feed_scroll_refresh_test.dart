@@ -49,7 +49,6 @@ Widget _screen(
           showNavigation: false,
           controller: f.controller,
           channels: feed.channels,
-          composeChannel: feed.channels.first,
           onManageIdentities: () async {},
           onAuthenticationRequired: () {},
         ),
