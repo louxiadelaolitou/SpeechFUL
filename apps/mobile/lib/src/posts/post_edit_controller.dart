@@ -40,38 +40,12 @@ extension PublishedPostEditing on PostController {
     _confirmedEdits[id] = post;
     ++_contentVersion;
     ++_feedRequest;
-    ++_timelineRequest;
-    ++_personalRequest;
+    homeFeed.applyEditedPost(post, notify: false);
+    _personal.applyEditedPost(post);
     ++_repostListRevision;
     _repostListLoading = false;
-    feedLoading = timelineLoading = personalLoading = personalProfileLoading =
-        false;
+    feedLoading = false;
     feedItems = [for (final old in feedItems) old.postId == id ? post : old];
-    _timeline = [
-      for (final old in _timeline)
-        if (old.postId == id)
-          FeedPost(
-            postId: id,
-            channelId: post.channelId,
-            title: post.title,
-            author: post.author,
-            publishedAt: post.publishedAt,
-            body: post.body,
-            tags: post.tags,
-            viewCount: old.viewCount,
-            imageCount: post.imageCount,
-          )
-        else
-          old,
-    ];
-    _own = [
-      for (final old in _own)
-        if (old.post.postId == id)
-          OwnPostCard(post: post, serverSortAt: old.serverSortAt)
-        else
-          old,
-    ];
-    _mergePersonal();
     _repostItems = [
       for (final old in _repostItems)
         if (old.postId == id)

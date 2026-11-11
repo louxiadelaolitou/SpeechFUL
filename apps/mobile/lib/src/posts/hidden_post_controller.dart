@@ -5,10 +5,7 @@ extension HiddenPostController on PostController {
 
   void _invalidateHiddenTimelineRead() {
     // An older in-flight page must not overwrite a newly committed preference.
-    if (timelineLoading) {
-      ++_timelineRequest;
-      timelineLoading = false;
-    }
+    homeFeed.invalidatePendingRead(notify: false);
   }
 
   bool hiddenPostBusy(String id) => _hiddenWrites.contains(id);

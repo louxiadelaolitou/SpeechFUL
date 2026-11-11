@@ -20,7 +20,8 @@ import '../comments/comment_models.dart';
 import '../comments/comment_runtime.dart';
 import '../comments/comment_views.dart';
 import 'feed_api.dart';
-import 'post_controller.dart';
+import 'feed_controller.dart';
+import 'post_controller.dart' hide FeedController;
 import 'post_reposts_widgets.dart';
 import 'post_sharing.dart';
 import 'post_images.dart';
@@ -80,6 +81,7 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _searchOpen = false;
   bool _channelPickerOpen = false;
   PostController get c => widget.controller;
+  FeedController get feed => c.homeFeed;
   bool get current => mounted && c.available && c.authorityVersion == _epoch;
   List<FeedChannelView> get channels => [
     for (final channel in widget.channels)
@@ -104,7 +106,7 @@ class _FeedScreenState extends State<FeedScreen> {
     scheduleMicrotask(() async {
       if (!current) return;
       setState(() => _starting = false);
-      await c.loadTimeline(channelId: widget.initialChannelId);
+      await feed.loadTimeline(channelId: widget.initialChannelId);
     });
   }
 
@@ -116,15 +118,15 @@ class _FeedScreenState extends State<FeedScreen> {
       }
       _replyEditors.clear();
     }
-    if (c.timelineGeneration != _timelineGeneration) {
-      _timelineGeneration = c.timelineGeneration;
+    if (feed.timelineGeneration != _timelineGeneration) {
+      _timelineGeneration = feed.timelineGeneration;
       _hiddenHere.clear();
     }
     final notice = c.latestPublicationNotice;
     if (current && notice != null && notice.sequence > _publication) {
       _publication = notice.sequence;
-      if (c.timelineChannelId == null ||
-          notice.channelId == c.timelineChannelId) {
+      if (feed.timelineChannelId == null ||
+          notice.channelId == feed.timelineChannelId) {
         _published = true;
         _notice?.cancel();
         _notice = Timer(const Duration(seconds: 3), () {
@@ -132,7 +134,7 @@ class _FeedScreenState extends State<FeedScreen> {
         });
         // Keep the current reading position; explicit refresh gets new posts.
         if (!_scroll.hasClients || _scroll.offset < 20) {
-          unawaited(c.loadTimeline(channelId: c.timelineChannelId));
+          unawaited(feed.loadTimeline(channelId: feed.timelineChannelId));
         }
       }
     }
@@ -233,11 +235,11 @@ class _FeedScreenState extends State<FeedScreen> {
         channels: channels,
         authority: c,
         isCurrent: () => current,
-        selected: c.timelineChannelId,
+        selected: feed.timelineChannelId,
         onSelected: (id) {
-          if (!current || c.preferencesSaving) return;
+          if (!current || feed.preferencesSaving) return;
           if (_scroll.hasClients) _scroll.jumpTo(0);
-          unawaited(c.loadTimeline(channelId: id));
+          unawaited(feed.loadTimeline(channelId: id));
         },
       );
     } finally {
@@ -246,24 +248,24 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   void _selectFeed(bool latest) {
-    if (!current || c.timelineLoading || c.preferencesSaving) return;
+    if (!current || feed.timelineLoading || feed.preferencesSaving) return;
     setState(() => _latestSelected = latest);
     if (_scroll.hasClients) _scroll.jumpTo(0);
-    unawaited(c.loadTimeline(channelId: c.timelineChannelId));
+    unawaited(feed.loadTimeline(channelId: feed.timelineChannelId));
   }
 
   Future<void> _filter(BuildContext context) => showFeedBlockFilter(
     context,
     channels: channels,
     authority: c,
-    blocked: () => c.blockedChannelIds,
-    saving: () => c.preferencesSaving || c.timelineLoading,
-    ready: () => c.feedPreferencesReady,
-    onRetry: () => c.loadTimeline(channelId: c.timelineChannelId),
+    blocked: () => feed.blockedChannelIds,
+    saving: () => feed.preferencesSaving || feed.timelineLoading,
+    ready: () => feed.feedPreferencesReady,
+    onRetry: () => feed.loadTimeline(channelId: feed.timelineChannelId),
     isCurrent: () => current,
-    error: () => c.preferencesError,
+    error: () => feed.preferencesError,
     onChanged: (ids) {
-      if (current) unawaited(c.saveBlockedChannels(ids));
+      if (current) unawaited(feed.saveBlockedChannels(ids));
     },
   );
   Future<void> _compose(BuildContext context) async {
@@ -279,7 +281,7 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _openComposer(BuildContext context) async {
     if (!current) return;
     var channel = widget.channels
-        .where((p) => p.id == c.timelineChannelId)
+        .where((p) => p.id == feed.timelineChannelId)
         .firstOrNull;
     if (channel == null) {
       String? chosen;
@@ -296,8 +298,8 @@ class _FeedScreenState extends State<FeedScreen> {
       channel = widget.channels.where((p) => p.id == chosen).firstOrNull;
     }
     if (channel == null || !context.mounted) return;
-    if (c.timelineChannelId != channel.id) {
-      await c.loadTimeline(channelId: channel.id);
+    if (feed.timelineChannelId != channel.id) {
+      await feed.loadTimeline(channelId: channel.id);
     }
     if (!context.mounted || !current) return;
     await Navigator.of(context).push<bool>(
@@ -318,7 +320,7 @@ class _FeedScreenState extends State<FeedScreen> {
     _searchOpen = true;
     final initialChannel = _starting
         ? widget.initialChannelId
-        : c.timelineChannelId;
+        : feed.timelineChannelId;
     try {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
@@ -410,9 +412,9 @@ class _FeedScreenState extends State<FeedScreen> {
             ),
           );
         }
-        final posts = _starting ? const <FeedPost>[] : c.timelineItems;
+        final posts = _starting ? const <FeedPost>[] : feed.timelineItems;
         final selectedChannel = widget.channels
-            .where((channel) => channel.id == c.timelineChannelId)
+            .where((channel) => channel.id == feed.timelineChannelId)
             .firstOrNull;
         return HhXPostFeed(
           showNavigation: widget.showNavigation,
@@ -420,17 +422,21 @@ class _FeedScreenState extends State<FeedScreen> {
               ? null
               : _FeedAccountAvatar(controller: c.activeIdentity!),
           loading:
-              posts.isNotEmpty && (c.timelineLoading || c.preferencesSaving),
+              posts.isNotEmpty &&
+              (feed.timelineLoading || feed.preferencesSaving),
           refreshEnabled:
-              !_starting && !c.timelineLoading && !c.preferencesSaving,
+              !_starting && !feed.timelineLoading && !feed.preferencesSaving,
           onRefresh: () async {
-            if (!current || c.timelineLoading || c.preferencesSaving) return;
-            await c.loadTimeline(channelId: c.timelineChannelId);
+            if (!current || feed.timelineLoading || feed.preferencesSaving) {
+              return;
+            }
+            await feed.loadTimeline(channelId: feed.timelineChannelId);
           },
-          onLatest: _starting || c.timelineLoading || c.preferencesSaving
+          onLatest: _starting || feed.timelineLoading || feed.preferencesSaving
               ? null
               : () => _selectFeed(true),
-          onRecommended: _starting || c.timelineLoading || c.preferencesSaving
+          onRecommended:
+              _starting || feed.timelineLoading || feed.preferencesSaving
               ? null
               : () => _selectFeed(false),
           latestSelected: _latestSelected,
@@ -440,7 +446,7 @@ class _FeedScreenState extends State<FeedScreen> {
           composeTooltip: selectedChannel == null
               ? '选择分类写帖子'
               : '发布到${selectedChannel.name}',
-          blockedCount: c.blockedChannelIds.length,
+          blockedCount: feed.blockedChannelIds.length,
           posts: const [],
           mediaBuilder: (_, _) => const SizedBox.shrink(),
           onPost: (_) {},
@@ -481,26 +487,27 @@ class _FeedScreenState extends State<FeedScreen> {
                   96 + MediaQuery.paddingOf(context).bottom,
                 ),
                 children: [
-                  if ((_starting || c.timelineLoading) && posts.isEmpty)
+                  if ((_starting || feed.timelineLoading) && posts.isEmpty)
                     const FeedLoadingPlaceholder(),
-                  if (!_starting && c.timelineError != null)
+                  if (!_starting && feed.timelineError != null)
                     Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(
                         children: [
-                          Text(hhText(context, c.timelineError!)),
+                          Text(hhText(context, feed.timelineError!)),
                           TextButton(
-                            onPressed: () =>
-                                c.loadTimeline(channelId: c.timelineChannelId),
+                            onPressed: () => feed.loadTimeline(
+                              channelId: feed.timelineChannelId,
+                            ),
                             child: Text(hhText(context, '重新加载')),
                           ),
                         ],
                       ),
                     ),
                   if (!_starting &&
-                      !c.timelineLoading &&
-                      !c.preferencesSaving &&
-                      c.timelineError == null &&
+                      !feed.timelineLoading &&
+                      !feed.preferencesSaving &&
+                      feed.timelineError == null &&
                       posts.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -510,7 +517,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       child: Column(
                         children: [
                           Text(hhText(context, '暂无可显示的帖子')),
-                          if (c.blockedChannelIds.isNotEmpty)
+                          if (feed.blockedChannelIds.isNotEmpty)
                             TextButton(
                               onPressed: () => _filter(context),
                               child: Text(hhText(context, '调整屏蔽设置')),
@@ -604,7 +611,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                         title: post.title,
                                         body: post.body,
                                         tags: post.tags,
-                                        views: c.postViewCount(post.postId),
+                                        views: feed.postViewCount(post.postId),
                                         comments: c
                                             .interaction(post.postId)
                                             .value
@@ -801,10 +808,10 @@ class _FeedScreenState extends State<FeedScreen> {
                       ),
                     const SizedBox(height: 12),
                   ],
-                  if (c.timelineCursor != null && !c.timelineLoading)
+                  if (feed.timelineCursor != null && !feed.timelineLoading)
                     TextButton(
-                      onPressed: () => c.loadTimeline(
-                        channelId: c.timelineChannelId,
+                      onPressed: () => feed.loadTimeline(
+                        channelId: feed.timelineChannelId,
                         more: true,
                       ),
                       child: Text(hhText(context, '加载更多')),

@@ -192,9 +192,8 @@ class HttpPostUploadApi extends HttpPostApi implements PostUploadApi {
           }
           throw HttpPostApi._failure(
             response.statusCode,
-            _PostStrictJson(
-              utf8.decode(data.takeBytes(), allowMalformed: false),
-            ).decode(),
+            PostStrictJson(utf8.decode(data.takeBytes(), allowMalformed: false))
+                .decode(),
             h,
             id,
           );

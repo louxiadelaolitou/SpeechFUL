@@ -1,10 +1,25 @@
-part of 'post_controller.dart';
+import 'post_api.dart';
+import 'post_models.dart';
+import 'post_search_api.dart';
+import 'post_ranking_api.dart';
+import 'post_tags.dart';
 
-extension PostSearchController on PostController {
-  Future<List<String>> suggestPostTags(String prefix) => _api is! PostTagApi
+typedef PostDiscoveryRequest = Future<T> Function<T>(
+  Future<PostResponse<T>> Function(String) request, {
+  bool optional,
+});
+
+/// Search, tag and ranking use cases; authority stays with the session owner.
+class PostSearchController {
+  PostSearchController({required this.api, required this.request});
+
+  final PostApi api;
+  final PostDiscoveryRequest request;
+
+  Future<List<String>> suggestPostTags(String prefix) => api is! PostTagApi
       ? Future.value(const [])
-      : _withDiscoveryAuthority(
-          (token) => (_api as PostTagApi).suggestPostTags(
+      : request(
+          (token) => (api as PostTagApi).suggestPostTags(
             sessionToken: token,
             prefix: prefix,
           ),
@@ -13,22 +28,21 @@ extension PostSearchController on PostController {
     String tag, {
     String? channelId,
     String? cursor,
-  }) => _withDiscoveryAuthority(
-    (token) => (_api as PostTagApi).taggedPosts(
+  }) => request(
+    (token) => (api as PostTagApi).taggedPosts(
       sessionToken: token,
       tag: tag,
       channelId: channelId,
       cursor: cursor,
     ),
   );
-  Future<PostDetail> readTaggedPost(String id) => _withDiscoveryAuthority(
-    (token) => _api.detail(sessionToken: token, postId: id),
-  );
-  bool get supportsPostSearch => _api is PostSearchApi;
-  bool get supportsPostRankings => _api is PostRankingApi;
+  Future<PostDetail> readTaggedPost(String id) =>
+      request((token) => api.detail(sessionToken: token, postId: id));
+  bool get supportsPostSearch => api is PostSearchApi;
+  bool get supportsPostRankings => api is PostRankingApi;
 
-  Future<PostRanking> hotPosts() => _withDiscoveryAuthority(
-    (token) => (_api as PostRankingApi).hotPosts(sessionToken: token),
+  Future<PostRanking> hotPosts() => request(
+    (token) => (api as PostRankingApi).hotPosts(sessionToken: token),
     optional: true,
   );
 
@@ -70,30 +84,5 @@ extension PostSearchController on PostController {
 
   Future<T> _withSearchAuthority<T>(
     Future<PostResponse<T>> Function(PostSearchApi, String) request,
-  ) =>
-      _withDiscoveryAuthority((token) => request(_api as PostSearchApi, token));
-
-  Future<T> _withDiscoveryAuthority<T>(
-    Future<PostResponse<T>> Function(String) request, {
-    bool optional = false,
-  }) async {
-    final authority = await _authority();
-    if (!_current(authority)) throw _StalePostAuthority();
-    try {
-      return await _accept(authority, await request(authority.token));
-    } on PostFailure catch (error) {
-      if (_current(authority)) {
-        if (error.kind == PostFailureKind.unauthorized) {
-          _sessions.sessionUnauthorized(authority.token, error.code);
-        } else if (error.code == 'AUTHORIZATION_UNAVAILABLE' ||
-            !optional &&
-                error.kind == PostFailureKind.unavailable &&
-                error.code == null ||
-            error.statusCode == 403 && error.code == 'AUTHENTICATION_FAILED') {
-          _sessions.sessionUnavailable(authority.token);
-        }
-      }
-      rethrow;
-    }
-  }
+  ) => this.request((token) => request(api as PostSearchApi, token));
 }

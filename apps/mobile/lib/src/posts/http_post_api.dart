@@ -1,4 +1,5 @@
-import '../rate_limit.dart';
+import 'post_discovery_http.dart';
+import 'post_http_transport.dart';
 import 'personal_collections_api.dart';
 
 import 'dart:async';
@@ -31,7 +32,6 @@ part 'post_upload_http.dart';
 part 'feed_http.dart';
 part 'post_interactions_http.dart';
 part 'post_reposts_http.dart';
-part 'post_tag_http.dart';
 
 /// 仅访问构造时固定的 C HTTPS origin，不跟随重定向或自动重送命令。
 class HttpPostApi
@@ -50,27 +50,21 @@ class HttpPostApi
         PostTagApi,
         DmApi {
   HttpPostApi({
-    required this.communityBaseUri,
+    required Uri communityBaseUri,
     HttpClient? client,
-    this.timeout = const Duration(seconds: 15),
-  }) : _client = client ?? HttpClient() {
-    if (communityBaseUri.scheme != 'https' ||
-        communityBaseUri.host.isEmpty ||
-        communityBaseUri.userInfo.isNotEmpty ||
-        communityBaseUri.hasQuery ||
-        communityBaseUri.hasFragment ||
-        communityBaseUri.path.isNotEmpty && communityBaseUri.path != '/' ||
-        timeout <= Duration.zero) {
-      throw ArgumentError(
-        'A fixed C HTTPS origin and positive timeout are required',
-      );
-    }
-    _client.connectionTimeout = timeout;
-  }
-  final Uri communityBaseUri;
-  final Duration timeout;
-  final HttpClient _client;
-  void close() => _client.close(force: true);
+    Duration timeout = const Duration(seconds: 15),
+  }) : _transport = PostHttpTransport(
+         communityBaseUri: communityBaseUri,
+         client: client,
+         timeout: timeout,
+       );
+
+  final PostHttpTransport _transport;
+  late final HttpPostDiscoveryApi _discovery = HttpPostDiscoveryApi(_transport);
+  Uri get communityBaseUri => _transport.communityBaseUri;
+  Duration get timeout => _transport.timeout;
+  HttpClient get _client => _transport.client;
+  void close() => _transport.close();
 
   @override
   Future<PostResponse<PostShareLink>> shareLink({
@@ -125,7 +119,7 @@ class HttpPostApi
     String? channelId,
     String? cursor,
     int limit = 20,
-  }) => _taggedPosts(
+  }) => _discovery.taggedPosts(
     sessionToken: sessionToken,
     tag: tag,
     channelId: channelId,
@@ -136,7 +130,7 @@ class HttpPostApi
   Future<PostResponse<List<String>>> suggestPostTags({
     required String sessionToken,
     required String prefix,
-  }) => _suggestPostTags(sessionToken: sessionToken, prefix: prefix);
+  }) => _discovery.suggestPostTags(sessionToken: sessionToken, prefix: prefix);
   @override
   Future<PostResponse<PostRepostSnapshot>> postReposts({
     required String sessionToken,
@@ -924,58 +918,24 @@ class HttpPostApi
     String? cursor,
     int limit = 20,
     bool recordHistory = false,
-  }) => _input(() {
-    _pageQuery(cursor, limit);
-    if (cursor != null && recordHistory) {
-      throw const FormatException('Continuation cannot record history');
-    }
-    return _send(
-      sessionToken,
-      'POST',
-      '/api/v1/post-search',
-      body: {
-        'keyword': normalizePostSearchKeyword(keyword),
-        if (postId != null) 'postId': PostProtocol.resourceId(postId),
-        if (channelId != null) 'channelId': PostProtocol.resourceId(channelId),
-        'sort': sort.name,
-        if (cursor != null) 'cursor': cursor,
-        'limit': limit,
-        if (recordHistory) 'recordHistory': true,
-      },
-      maxRequestBytes: 2048,
-      maxResponseBytes: 384 * 1024,
-      decode: (raw) {
-        final page = PostsPage.fromJson(raw, PostCard.fromJson);
-        final ids = <String>{};
-        if (page.items.length > limit ||
-            page.items.isEmpty && page.nextCursor != null ||
-            cursor != null && page.nextCursor == cursor ||
-            page.items.any(
-              (post) =>
-                  !ids.add(post.postId) ||
-                  channelId != null && post.channelId != channelId,
-            )) {
-          throw const FormatException('Invalid post search page');
-        }
-        return page;
-      },
-    );
-  });
+  }) => _discovery.searchPosts(
+    sessionToken: sessionToken,
+    keyword: keyword,
+    channelId: channelId,
+    postId: postId,
+    sort: sort,
+    cursor: cursor,
+    limit: limit,
+    recordHistory: recordHistory,
+  );
 
   @override
   Future<PostResponse<List<String>>> postSearchHistory({
     required String sessionToken,
     String? channelId,
-  }) => _input(
-    () => _send(
-      sessionToken,
-      'GET',
-      '/api/v1/me/post-search-history',
-      query: channelId == null
-          ? null
-          : {'channelId': PostProtocol.resourceId(channelId)},
-      decode: _searchHistoryFromJson,
-    ),
+  }) => _discovery.postSearchHistory(
+    sessionToken: sessionToken,
+    channelId: channelId,
   );
 
   @override
@@ -983,67 +943,21 @@ class HttpPostApi
     required String sessionToken,
     String? channelId,
     String? removeKeyword,
-  }) => _input(
-    () => _send(
-      sessionToken,
-      'POST',
-      '/api/v1/me/post-search-history',
-      body: {
-        'action': removeKeyword == null ? 'clear' : 'remove',
-        if (channelId != null) 'channelId': PostProtocol.resourceId(channelId),
-        if (removeKeyword != null)
-          'keyword': normalizePostSearchKeyword(removeKeyword),
-      },
-      decode: _searchHistoryFromJson,
-    ),
+  }) => _discovery.changePostSearchHistory(
+    sessionToken: sessionToken,
+    channelId: channelId,
+    removeKeyword: removeKeyword,
   );
 
   @override
   Future<PostResponse<PostRanking>> hotPosts({required String sessionToken}) =>
-      _send(
-        sessionToken,
-        'GET',
-        '/api/v1/feed/hot-posts',
-        requestTimeout: const Duration(seconds: 4),
-        decode: PostRanking.fromJson,
-      );
+      _discovery.hotPosts(sessionToken: sessionToken);
 
-  static List<String> _searchHistoryFromJson(Object? raw) {
-    final values = PostJson.record(raw, {'items'})['items'];
-    if (values is! List || values.length > 20) {
-      throw const FormatException('Invalid post search history');
-    }
-    final seen = <String>{};
-    return List.unmodifiable(
-      values.map((value) {
-        if (value is! String ||
-            normalizePostSearchKeyword(value) != value ||
-            !seen.add(value)) {
-          throw const FormatException('Invalid post search history entry');
-        }
-        return value;
-      }),
-    );
-  }
+  static Map<String, String> _pageQuery(String? cursor, int limit) =>
+      PostHttpTransport.pageQuery(cursor, limit);
 
-  static Map<String, String> _pageQuery(String? cursor, int limit) {
-    if (limit < 1 || limit > 50) {
-      throw const FormatException('Invalid page limit');
-    }
-    PostProtocol.cursor(cursor);
-    return {'limit': '$limit', if (cursor != null) 'cursor': cursor};
-  }
-
-  Future<T> _input<T>(Future<T> Function() call) async {
-    try {
-      return await call();
-    } on FormatException {
-      throw const PostFailure(
-        kind: PostFailureKind.rejected,
-        code: 'CLIENT_INPUT_INVALID',
-      );
-    }
-  }
+  Future<T> _input<T>(Future<T> Function() call) =>
+      PostHttpTransport.input(call);
 
   Future<PostResponse<T>> _send<T>(
     String token,
@@ -1062,342 +976,32 @@ class HttpPostApi
     Uint8List? uploadBytes,
     String? uploadMime,
     Duration? requestTimeout,
-  }) async {
-    AuthCrypto.decode(token, bytes: 32);
-    final bytes = body == null ? uploadBytes : utf8.encode(jsonEncode(body));
-    if (bytes != null && bytes.length > maxRequestBytes) {
-      throw const FormatException('Post request too large');
-    }
-    HttpClientRequest? active;
-    int? status;
-    var expired = false;
-    try {
-      return await (() async {
-        final uri = communityBaseUri
-            .resolve(path)
-            .replace(queryParameters: query);
-        final request = await _client.openUrl(method, uri);
-        active = request;
-        if (expired) {
-          request.abort();
-          throw const PostFailure(
-            kind: PostFailureKind.transport,
-            code: 'TIMEOUT',
-          );
-        }
-        request.followRedirects = false;
-        request.maxRedirects = 0;
-        request.persistentConnection = false;
-        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-        request.headers.set('X-Post-Tags', 'v1');
-        request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
-        for (final entry in headers.entries) {
-          request.headers.set(entry.key, entry.value);
-        }
-        if (bytes != null) {
-          request.headers.set(
-            HttpHeaders.contentTypeHeader,
-            uploadMime ?? 'application/json; charset=utf-8',
-          );
-          request.contentLength = bytes.length;
-          request.add(bytes);
-        }
-        final response = await request.close();
-        status = response.statusCode;
-        final limit = status == expected ? maxResponseBytes : 32768;
-        if (response.contentLength > limit) {
-          throw const FormatException('Oversized post response');
-        }
-        final data = BytesBuilder(copy: false);
-        await for (final chunk in response) {
-          if (data.length + chunk.length > limit) {
-            throw const FormatException('Oversized post response');
-          }
-          data.add(chunk);
-        }
-        final h = response.headers;
-        final requestId = _single(h, 'x-request-id');
-        AuthCrypto.decode(requestId, bytes: 16);
-        if (_single(h, 'cache-control') != 'no-store' ||
-            h[HttpHeaders.setCookieHeader] != null) {
-          throw const FormatException('Invalid post cache or cookie policy');
-        }
-        final type = ContentType.parse(
-          _single(h, HttpHeaders.contentTypeHeader),
-        );
-        final responseBytes = data.takeBytes();
-        final Object? payload;
-        if (status == expected && binaryImage != null) {
-          if (type.mimeType != binaryImage.mimeType ||
-              type.parameters.isNotEmpty ||
-              responseBytes.isEmpty ||
-              binaryImage.exactLength &&
-                  responseBytes.length != binaryImage.byteLength ||
-              _single(h, 'x-content-type-options') != 'nosniff' ||
-              _single(h, 'content-disposition') != 'attachment') {
-            throw const FormatException('Invalid protected image bytes');
-          }
-          payload = responseBytes;
-        } else {
-          if (type.mimeType != 'application/json' ||
-              type.charset != null && type.charset!.toLowerCase() != 'utf-8') {
-            throw const FormatException('Invalid post response type');
-          }
-          payload = _PostStrictJson(
-            utf8.decode(responseBytes, allowMalformed: false),
-          ).decode();
-        }
-        if (status != expected) throw _failure(status!, payload, h, requestId);
-        final serverTime = PostJson.utc(_single(h, 'server-time'));
-        final sessionExpiry = PostJson.utc(_single(h, 'session-expires-at'));
-        if (!sessionExpiry.isAfter(serverTime)) {
-          throw const FormatException('Invalid post session deadline');
-        }
-        final interactionVersion = readInteractionVersion
-            ? _single(h, 'interaction-version')
-            : null;
-        if (interactionVersion != null &&
-            !_validInteractionVersion(interactionVersion)) {
-          throw const FormatException('Invalid interaction version');
-        }
-        var value = decode(payload);
-        if (withEditedAt != null && h['post-edited-at'] != null) {
-          final editedAt = PostJson.utc(_single(h, 'post-edited-at'));
-          if (editedAt.isAfter(serverTime)) {
-            throw const FormatException('Invalid last modification time');
-          }
-          value = withEditedAt(value, editedAt);
-        }
-        return PostResponse<T>(
-          value: value,
-          serverTime: serverTime,
-          sessionExpiresAt: sessionExpiry,
-          requestId: requestId,
-          statusCode: status!,
-          interactionVersion: interactionVersion,
-        );
-      })().timeout(requestTimeout ?? timeout);
-    } on PostFailure {
-      rethrow;
-    } on TimeoutException {
-      expired = true;
-      active?.abort();
-      throw const PostFailure(kind: PostFailureKind.transport, code: 'TIMEOUT');
-    } on FormatException {
-      active?.abort();
-      throw PostFailure(
-        kind: status == 401
-            ? PostFailureKind.unauthorized
-            : status == 503
-            ? PostFailureKind.unavailable
-            : PostFailureKind.invalidResponse,
-        statusCode: status,
-      );
-    } on IOException {
-      active?.abort();
-      // 接口不复制异常文本；命令是否受理只能在原账号、原 command 下核对。
-      throw const PostFailure(kind: PostFailureKind.transport);
-    }
-  }
+  }) => _transport.send(
+    token,
+    method,
+    path,
+    decode: decode,
+    body: body,
+    headers: headers,
+    query: query,
+    expected: expected,
+    maxRequestBytes: maxRequestBytes,
+    maxResponseBytes: maxResponseBytes,
+    binaryImage: binaryImage,
+    readInteractionVersion: readInteractionVersion,
+    withEditedAt: withEditedAt,
+    uploadBytes: uploadBytes,
+    uploadMime: uploadMime,
+    requestTimeout: requestTimeout,
+  );
 
-  static String _single(HttpHeaders headers, String key) {
-    final values = headers[key];
-    if (values == null || values.length != 1 || values.single.isEmpty) {
-      throw const FormatException('Missing or ambiguous post response header');
-    }
-    return values.single;
-  }
+  static String _single(HttpHeaders headers, String key) =>
+      PostHttpTransport.singleHeader(headers, key);
 
   static PostFailure _failure(
     int status,
     Object? raw,
     HttpHeaders headers,
     String requestId,
-  ) {
-    // HTTP 错误不得提供成功续期元数据，尤其不能续期已持久拒绝的命令。
-    if (headers['session-expires-at'] != null ||
-        headers['server-time'] != null) {
-      throw const FormatException('Unexpected renewal on post failure');
-    }
-    final m = PostJson.record(raw, {'error', 'requestId'});
-    if (m['requestId'] != requestId) {
-      throw const FormatException('Mismatched post request ID');
-    }
-    final e = PostJson.record(m['error'], {'code', 'message'});
-    final code = PostJson.text(e, 'code');
-    PostJson.text(e, 'message', maxLength: 256);
-    final allowed = switch (status) {
-      400 => {'MALFORMED_REQUEST', 'CURSOR_INVALID', 'POST_CONTENT_INVALID'},
-      401 => {'AUTHENTICATION_FAILED', 'SESSION_INVALID', 'session_replaced'},
-      403 => {
-        'AUTHENTICATION_FAILED',
-        'AUTHORIZATION_UNAVAILABLE',
-        'POSTING_RESTRICTED',
-        'ACCOUNT_CLOSING',
-        'MEDIA_UPLOAD_DENIED',
-      },
-      404 => {
-        'TASK_NOT_FOUND',
-        'POST_NOT_FOUND',
-        'POST_CHANNEL_UNAVAILABLE',
-        'MEDIA_NOT_FOUND',
-      },
-      409 => {
-        'COMMAND_CONFLICT',
-        'COMMAND_SEALED',
-        'RESULT_EXPIRED',
-        ...PostJson.businessRejections,
-        'MEDIA_UPLOAD_CLOSED',
-        'POST_EDIT_DELETED',
-        'POST_EDIT_HIDDEN',
-        'POST_EDIT_CONFLICT',
-        'POST_EDIT_MEDIA_LIMIT',
-      },
-      413 => {'PAYLOAD_TOO_LARGE'},
-      412 => {'INTERACTION_VERSION_CONFLICT'},
-      415 => {'UNSUPPORTED_MEDIA_TYPE'},
-      429 => {'RATE_LIMITED'},
-      422 => {'MEDIA_INVALID'},
-      503 => {
-        'RANKINGS_UNAVAILABLE',
-        'SHARED_RATE_UNAVAILABLE',
-        'SERVICE_UNAVAILABLE',
-        'AUTHORIZATION_UNAVAILABLE',
-        'MEDIA_VALIDATOR_UNAVAILABLE',
-      },
-      _ => const <String>{},
-    };
-    if (!allowed.contains(code)) {
-      throw const FormatException('Invalid post error status or code');
-    }
-    int? retry;
-    if (status == 429) {
-      final value = _single(headers, 'retry-after');
-      retry = parseRetryAfterSeconds(value);
-    } else if (headers['retry-after'] != null) {
-      throw const FormatException('Unexpected post retry delay');
-    }
-    return PostFailure(
-      kind: status == 401
-          ? PostFailureKind.unauthorized
-          : status == 503
-          ? PostFailureKind.unavailable
-          : PostFailureKind.rejected,
-      code: code,
-      statusCode: status,
-      requestId: requestId,
-      retryAfterSeconds: retry,
-    );
-  }
-}
-
-/// JSON 原生 decoder 会覆盖重复键；这里先做有界严格解析再校验 DTO。
-class _PostStrictJson {
-  _PostStrictJson(this.input);
-  final String input;
-  int at = 0;
-  Object? decode() {
-    final value = _value(0);
-    _space();
-    if (at != input.length) throw const FormatException('Trailing JSON data');
-    return value;
-  }
-
-  void _space() {
-    while (at < input.length && ' \t\r\n'.contains(input[at])) {
-      at++;
-    }
-  }
-
-  Object? _value(int depth) {
-    if (depth > 16) throw const FormatException('JSON nesting too deep');
-    _space();
-    if (at >= input.length) throw const FormatException('Missing JSON value');
-    final c = input[at];
-    if (c == '{') {
-      at++;
-      _space();
-      final result = <String, Object?>{};
-      if (_consume('}')) return result;
-      while (true) {
-        _space();
-        final key = _string();
-        _space();
-        if (!_consume(':') || result.containsKey(key)) {
-          throw const FormatException('Invalid JSON key');
-        }
-        result[key] = _value(depth + 1);
-        _space();
-        if (_consume('}')) return result;
-        if (!_consume(',')) throw const FormatException('Invalid JSON object');
-      }
-    }
-    if (c == '[') {
-      at++;
-      _space();
-      final result = <Object?>[];
-      if (_consume(']')) return result;
-      while (true) {
-        if (result.length >= 50) {
-          throw const FormatException('JSON list too large');
-        }
-        result.add(_value(depth + 1));
-        _space();
-        if (_consume(']')) return result;
-        if (!_consume(',')) throw const FormatException('Invalid JSON array');
-      }
-    }
-    if (c == '"') return _string();
-    if (input.startsWith('true', at)) {
-      at += 4;
-      return true;
-    }
-    if (input.startsWith('false', at)) {
-      at += 5;
-      return false;
-    }
-    if (input.startsWith('null', at)) {
-      at += 4;
-      return null;
-    }
-    final match = RegExp(r'-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?')
-        .matchAsPrefix(input, at);
-    if (match == null) throw const FormatException('Invalid JSON value');
-    at = match.end;
-    final number = num.tryParse(match.group(0)!);
-    if (number == null || !number.isFinite) {
-      throw const FormatException('Invalid JSON number');
-    }
-    return number;
-  }
-
-  String _string() {
-    if (at >= input.length || input[at] != '"') {
-      throw const FormatException('Missing JSON string');
-    }
-    final start = at++;
-    while (at < input.length) {
-      final c = input[at++];
-      if (c == '"') {
-        final value = jsonDecode(input.substring(start, at)) as String;
-        PostContentRules.scalarText(value);
-        return value;
-      }
-      if (c == '\\') {
-        if (at >= input.length) {
-          throw const FormatException('Incomplete JSON escape');
-        }
-        at++;
-      }
-    }
-    throw const FormatException('Incomplete JSON string');
-  }
-
-  bool _consume(String c) {
-    if (at < input.length && input[at] == c) {
-      at++;
-      return true;
-    }
-    return false;
-  }
+  ) => PostHttpTransport.failure(status, raw, headers, requestId);
 }

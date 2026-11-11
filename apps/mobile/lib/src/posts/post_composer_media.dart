@@ -46,7 +46,7 @@ extension PostComposerMedia on PostController {
 
   void clearEditorMedia(PostDraftEditor e) {
     e.images.clear();
-    e._originals.clear();
+    e.clearOriginals();
     e.mediaError = null;
   }
 
@@ -95,7 +95,7 @@ extension PostComposerMedia on PostController {
             mediaId: mediaId,
             selection: result.selection,
           );
-          e._originals[blobId] = result.bytes;
+          e.keepOriginal(blobId, result.bytes);
         } catch (_) {
           if (!editorCurrent(e)) return;
           e.mediaError = '部分图片无法读取或不符合格式、大小限制，请重新选择或移除。';
@@ -132,7 +132,7 @@ extension PostComposerMedia on PostController {
     if (!editorCurrent(e) || image.selection == null) {
       throw const PostStorageFailure();
     }
-    final pending = e._originals[image.blobId];
+    final pending = e.originalFor(image.blobId);
     if (pending != null) return pending;
     final a = await _authority(storage: true);
     final selection = image.selection!;
@@ -194,10 +194,10 @@ extension PostComposerMedia on PostController {
         return;
       }
       if (entry.data['rateLimitWait'] is Map) {
-        final wait = _rateWait(
+        final wait = _submissions.remainingRateLimit(
           id,
           entry.data['rateLimitWait'] as Map,
-        ).remaining(_clock());
+        );
         if (automatic || wait > 0) {
           errorMessage = rateLimitDraftMessage(wait);
           return;

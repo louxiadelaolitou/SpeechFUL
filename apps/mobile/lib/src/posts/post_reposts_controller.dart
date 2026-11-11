@@ -98,7 +98,7 @@ extension PostRepostsController on PostController {
     } catch (error) {
       if (_repostCurrent(authorityVersion) && ticket == state.revision) {
         state.error = '转帖状态读取失败，请重试。';
-        _propagateFeedAuthorityFailure(error, a);
+        _propagateReadAuthorityFailure(error, a);
       }
     } finally {
       if (_repostCurrent(authorityVersion) && ticket == state.revision) {
@@ -141,7 +141,7 @@ extension PostRepostsController on PostController {
     } catch (error) {
       if (_repostCurrent(authorityVersion) && ticket == _repostListRevision) {
         _repostListError = '转帖列表读取失败，请重试。';
-        _propagateFeedAuthorityFailure(error, a);
+        _propagateReadAuthorityFailure(error, a);
       }
     } finally {
       if (_repostCurrent(authorityVersion) && ticket == _repostListRevision) {
@@ -239,7 +239,7 @@ extension PostRepostsController on PostController {
       _finishRepost(id, state, actual);
     } catch (error) {
       if (!_repostCurrent(epoch)) return;
-      _propagateFeedAuthorityFailure(error, a);
+      _propagateReadAuthorityFailure(error, a);
       if (!_repostCurrent(epoch)) return;
       final conflict =
           error is PostFailure && error.code == 'INTERACTION_VERSION_CONFLICT';
@@ -260,7 +260,7 @@ extension PostRepostsController on PostController {
           }
         } catch (readError) {
           if (_repostCurrent(epoch)) {
-            _propagateFeedAuthorityFailure(readError, a);
+            _propagateReadAuthorityFailure(readError, a);
           }
         }
       } else {

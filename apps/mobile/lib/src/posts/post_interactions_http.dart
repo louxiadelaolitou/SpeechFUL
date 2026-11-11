@@ -35,4 +35,4 @@ extension _PostInteractionsHttp on HttpPostApi {
 }
 
 bool _validInteractionVersion(String version) =>
-    RegExp(r'^"[0-9a-f]{64}"$').hasMatch(version);
+    PostHttpTransport.validInteractionVersion(version);

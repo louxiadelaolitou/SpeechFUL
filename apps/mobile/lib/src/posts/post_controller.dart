@@ -1,3 +1,13 @@
+export 'post_draft_controller.dart' show PostDraftEditor;
+export 'personal_post_controller.dart' show PersonalPostItem;
+import 'personal_post_controller.dart';
+import 'post_task_maintenance_controller.dart';
+import 'post_draft_controller.dart';
+import 'post_submission_controller.dart';
+import 'post_result_reconciler.dart';
+import 'post_publication_context.dart';
+import 'post_search_controller.dart';
+import 'feed_controller.dart' as feed;
 import '../rate_limit.dart';
 import 'personal_collections_api.dart';
 
@@ -33,12 +43,10 @@ import 'post_upload_models.dart';
 import 'post_photo_picker.dart';
 
 part 'post_composer_media.dart';
-part 'feed_controller.dart';
 part 'hidden_post_controller.dart';
 part 'post_interactions_controller.dart';
 part 'post_reposts_controller.dart';
 part 'post_edit_controller.dart';
-part 'post_search_controller.dart';
 part 'post_sharing_controller.dart';
 
 typedef PostStoreFactory = Future<PostStore> Function(String accountId);
@@ -54,86 +62,6 @@ class PostPublicationNotice {
   final String postId, channelId;
 }
 
-/// 编辑输入只属于创建它的授权窗口；已受理重试永远保留原身份和分类。
-class PostDraftEditor {
-  PostDraftEditor({
-    required this.id,
-    required this.channelId,
-    required this.accountId,
-    required this.authorityVersion,
-    this.identityId,
-    this.title = '',
-    this.body = '',
-    this.revision = 0,
-    this.persisted = false,
-    this.isRetry = false,
-    this.taskId,
-    this.attemptVersion,
-    this.bufferId,
-    this.bufferRevision = 0,
-    List<DraftPostImage>? images,
-    List<String> tags = const [],
-  }) : tags = PostTags.normalizeAll(tags),
-       images = images ?? [];
-  final String id, channelId, accountId;
-  final int authorityVersion;
-  final bool isRetry;
-  final String? taskId;
-  final int? attemptVersion;
-  final String? bufferId;
-  int bufferRevision;
-  String? identityId;
-  String title, body;
-  int revision;
-  bool persisted, saved = false, saving = false, submitted = false;
-  String? error;
-  final List<DraftPostImage> images;
-  List<String> tags;
-  final _originals = <String, Uint8List>{};
-  bool mediaBusy = false, mediaTouched = false, pickerPending = false;
-  String? mediaError;
-}
-
-class PersonalPostItem {
-  const PersonalPostItem({
-    required this.id,
-    required this.title,
-    required this.sortAt,
-    this.local,
-    this.task,
-    this.post,
-  });
-  final String id, title;
-  final DateTime sortAt;
-  final StoredPostEntry? local;
-  final PostTask? task;
-  final PostCard? post;
-  bool get isDraft => local?.isDraft ?? false;
-  bool get rateLimitedDraft => local?.data['rateLimitWait'] is Map;
-  String get body => task != null
-      ? task!.content?.body ?? ''
-      : local?.data['body'] as String? ?? '';
-  String get channelId =>
-      post?.channelId ??
-      task?.channelId ??
-      local?.data['channelId'] as String? ??
-      '';
-  String get state => post != null
-      ? 'PUBLISHED'
-      : rateLimitedDraft
-      ? 'RATE_LIMITED'
-      : {
-          'submitted',
-          'UNKNOWN',
-          'RESULT_EXPIRED',
-          'NOT_ACCEPTED',
-          'REJECTED',
-        }.contains(local?.state)
-      ? local!.state.toUpperCase()
-      : task?.state.name.toUpperCase() ??
-            (isDraft ? 'DRAFT' : local?.state ?? 'UNKNOWN');
-}
-
 class _PostAuthority {
   const _PostAuthority(this.epoch, this.token, this.accountId, this.store);
   final int epoch;
@@ -141,7 +69,68 @@ class _PostAuthority {
   final PostStore? store;
 }
 
-class _StalePostAuthority implements Exception {}
+class _StalePostAuthority extends StalePostPublication {}
+
+/// Binds a captured session to publication ports without exposing the owner.
+class _PostPublicationContext implements PostPublicationContext {
+  _PostPublicationContext(this._owner, this._authority);
+  final PostController _owner;
+  final _PostAuthority _authority;
+  @override
+  String get accountId => _authority.accountId;
+  @override
+  int get epoch => _authority.epoch;
+  @override
+  String get token => _authority.token;
+  @override
+  PostStore get store => _authority.store!;
+  @override
+  bool get isCurrent => _owner._current(_authority);
+  @override
+  Future<T> accept<T>(PostResponse<T> response) =>
+      _owner._accept(_authority, response);
+  @override
+  void reportFailure(Object error, {String? commandId}) =>
+      _owner._failure(error, _authority, commandId);
+  @override
+  Future<void> refreshLocal() => _owner._refreshLocal(_authority);
+  @override
+  void submissionRecorded(String id) {
+    _owner._imageProgress.remove(id);
+  }
+
+  @override
+  void setCommandMessage(String message) {
+    _owner.errorMessage = message;
+  }
+
+  @override
+  Future<void> preserveCancelledImages(StoredPostEntry entry) =>
+      _owner._preserveCancelledImages(_authority, entry);
+  @override
+  Future<void> resumeImageUpload(String id) => _owner.resumeImageUpload(id);
+  @override
+  Future<void> resultRecorded(PostResultUpdate update) =>
+      _owner._projectPublicationResult(_authority, update);
+}
+
+/// Adapts the shared session owner to the feed's narrow read boundary.
+class _FeedReadSession implements feed.FeedReadSession {
+  _FeedReadSession(this._owner, this._authority);
+  final PostController _owner;
+  final _PostAuthority _authority;
+
+  @override
+  bool get isCurrent => _owner._current(_authority);
+
+  @override
+  Future<T> request<T>(Future<PostResponse<T>> Function(String) send) async =>
+      _owner._accept(_authority, await send(_authority.token));
+
+  @override
+  void reportFailure(Object error) =>
+      _owner._propagateReadAuthorityFailure(error, _authority);
+}
 
 /// SQLite 保存先于发送；每次网络响应先持久续期，再更新原授权窗口的视图。
 class PostController extends ChangeNotifier {
@@ -161,20 +150,167 @@ class PostController extends ChangeNotifier {
     this.channelDirectory,
   }) : _clock = clock ?? DateTime.now,
        _newId = newId ?? (() => AuthCrypto.randomEncoded(16)) {
+    _homeFeed.addListener(_notify);
+    _personal.addListener(_notify);
+    _maintenance.addListener(_notify);
+    _drafts.addListener(_notify);
+    _submissions.addListener(_notify);
     _sessions.addListener(_authorityChanged);
     _authStore.addListener(_authorityChanged);
     _authorityChanged();
-    if (pollInterval > Duration.zero) {
-      _poller = Timer.periodic(pollInterval, (_) {
-        if (!available) return;
-        for (final entry in List<StoredPostEntry>.of(_local)) {
-          if (_needsQuery(entry)) unawaited(reconcile(entry.id));
+    _results.startPolling(pollInterval);
+  }
+
+  late final PostDraftController _drafts = PostDraftController(
+    openContext: _openPublicationContext,
+    editorCurrent: editorCurrent,
+    onFailure: _failure,
+    clock: _clock,
+    newId: _newId,
+  );
+  late final PostResultReconciler _results = PostResultReconciler(
+    api: _api,
+    openContext: _openPublicationContext,
+    onFailure: _failure,
+    available: () => available,
+    entries: () => _personal.localEntries,
+  );
+  late final PostSubmissionController _submissions = PostSubmissionController(
+    api: _api,
+    drafts: _drafts,
+    results: _results,
+    openContext: _openPublicationContext,
+    editorCurrent: editorCurrent,
+    onFailure: _failure,
+    newId: _newId,
+    clock: _clock,
+    accountId: () => accountId,
+    entries: () => _personal.localEntries,
+    uploadApi: _uploadApi,
+  );
+  Future<PostPublicationContext> _openPublicationContext() async =>
+      _PostPublicationContext(this, await _authority(storage: true));
+
+  late final PersonalPostController _personal = PersonalPostController(
+    api: _api,
+    openContext: _openPublicationContext,
+    readIdentities: _readPersonalIdentities,
+    results: _results,
+    available: () => available,
+    accountId: () => accountId,
+    onFailure: _failure,
+    isPostDeleted: (id) => _deletedPostIds.contains(id),
+    markPostDeleted: _markPostDeleted,
+    updatePublishedFeed: _updatePublishedFeed,
+  );
+  late final PostTaskMaintenanceController _maintenance =
+      PostTaskMaintenanceController(
+        api: _api,
+        drafts: _drafts,
+        results: _results,
+        submissions: _submissions,
+        openContext: _openPublicationContext,
+        onFailure: _failure,
+        newId: _newId,
+        clock: _clock,
+        isPostDeleted: (id) => _deletedPostIds.contains(id),
+        markPostDeleted: _markPostDeleted,
+        canDelete: canDelete,
+      );
+
+  Future<IdentityDirectory?> _readPersonalIdentities(
+    PostPublicationContext a,
+    bool Function() requestCurrent,
+  ) async {
+    final directory = await _identities.identities(a.token);
+    bool current() => a.isCurrent && requestCurrent();
+    if (!current() ||
+        !await _sessions.persistSessionMetadata(
+          a.token,
+          directory.sessionExpiresAt,
+          current,
+        ) ||
+        !current()) {
+      return null;
+    }
+    return directory;
+  }
+
+  late final PostSearchController _discovery = PostSearchController(
+    api: _api,
+    request: _withDiscoveryAuthority,
+  );
+
+  bool get supportsPostSearch => _discovery.supportsPostSearch;
+  bool get supportsPostRankings => _discovery.supportsPostRankings;
+  Future<List<String>> suggestPostTags(String prefix) =>
+      _discovery.suggestPostTags(prefix);
+  Future<PostsPage<PostCard>> taggedPosts(
+    String tag, {
+    String? channelId,
+    String? cursor,
+  }) => _discovery.taggedPosts(tag, channelId: channelId, cursor: cursor);
+  Future<PostDetail> readTaggedPost(String id) => _discovery.readTaggedPost(id);
+  Future<PostRanking> hotPosts() => _discovery.hotPosts();
+  Future<PostsPage<PostCard>> searchPosts({
+    required String keyword,
+    required String? channelId,
+    required PostSearchSort sort,
+    String? cursor,
+    bool recordHistory = false,
+    String? postId,
+  }) => _discovery.searchPosts(
+    keyword: keyword,
+    channelId: channelId,
+    sort: sort,
+    cursor: cursor,
+    recordHistory: recordHistory,
+    postId: postId,
+  );
+  Future<List<String>> postSearchHistory(String? channelId) =>
+      _discovery.postSearchHistory(channelId);
+  Future<List<String>> changePostSearchHistory(
+    String? channelId, {
+    String? removeKeyword,
+  }) => _discovery.changePostSearchHistory(
+    channelId,
+    removeKeyword: removeKeyword,
+  );
+
+  Future<T> _withDiscoveryAuthority<T>(
+    Future<PostResponse<T>> Function(String) request, {
+    bool optional = false,
+  }) async {
+    final authority = await _authority();
+    if (!_current(authority)) throw _StalePostAuthority();
+    try {
+      return await _accept(authority, await request(authority.token));
+    } on PostFailure catch (error) {
+      if (_current(authority)) {
+        if (error.kind == PostFailureKind.unauthorized) {
+          _sessions.sessionUnauthorized(authority.token, error.code);
+        } else if (error.code == 'AUTHORIZATION_UNAVAILABLE' ||
+            !optional &&
+                error.kind == PostFailureKind.unavailable &&
+                error.code == null ||
+            error.statusCode == 403 && error.code == 'AUTHENTICATION_FAILED') {
+          _sessions.sessionUnavailable(authority.token);
         }
-      });
+      }
+      rethrow;
     }
   }
 
-  List<FeedPost> _timeline = [];
+  late final feed.FeedController _homeFeed = feed.FeedController(
+    api: _api is FeedApi ? _api as FeedApi : null,
+    available: () => available,
+    openSession: () async => _FeedReadSession(this, await _authority()),
+    invalidateInteractionReads: _invalidateInteractionReads,
+    loadInteractions: loadInteractions,
+    isPostDeleted: (id) => _deletedPostIds.contains(id),
+  );
+  feed.FeedController get homeFeed => _homeFeed;
+
   final _interactions = <String, PostInteractionState>{};
   final _hiddenWrites = <String>{};
   final _hiddenUncertainVersions = <String, ({bool desired, String version})>{};
@@ -184,14 +320,6 @@ class PostController extends ChangeNotifier {
   String? _repostCursor, _repostListError;
   bool _repostListLoading = false, _repostListOpened = false;
   int _repostListRevision = 0;
-  Set<String> _blockedChannels = {};
-  final _postViews = <String, int>{};
-  bool _preferencesReady = false;
-  int _timelineRequest = 0;
-  int timelineGeneration = 0;
-  String? timelineChannelId, timelineCursor, timelineError, preferencesError;
-  bool timelineLoading = false, preferencesSaving = false;
-  Future<void> _preferenceWrites = Future.value();
   final List<Channel> Function()? channelDirectory;
   List<Channel> get postTagChannels =>
       available ? (channelDirectory?.call() ?? const []) : const [];
@@ -212,13 +340,9 @@ class PostController extends ChangeNotifier {
   PostStore? _store;
   Future<void> _opening = Future.value();
   String? _token, _accountId;
-  int _epoch = 0, _sessionVersion = -1, _pending = 0;
+  int _epoch = 0, _sessionVersion = -1;
   bool _disposed = false;
   bool _storageRetrying = false;
-  Timer? _poller;
-  final _checking = <String, Future<void>>{};
-  final _publishing = <String>{};
-  final _deleting = <String, Future<bool>>{};
   final _sharingPosts = <String, int>{};
   final _deletedPostIds = <String>{};
   final _postMediaRevisions = <String, int>{};
@@ -226,83 +350,40 @@ class PostController extends ChangeNotifier {
   int _contentVersion = 0;
   int get contentVersion => _contentVersion;
   PostDetail? confirmedEdit(String id) => _confirmedEdits[id];
-  final _saving = <String, Future<bool>>{};
-  final _sending = <String>{};
   final _retired = <String, Future<void>>{};
   final _activating = <String, Future<void>>{};
-  final _remoteTasks = <String, PostTask>{};
-  List<StoredPostEntry> _local = [];
-  List<OwnPostCard> _own = [];
-  String? _ownCursor, _taskCursor;
-  int _feedRequest = 0, _personalRequest = 0;
+  int _feedRequest = 0;
   int _publicationSequence = 0;
   PostPublicationNotice? _latestPublicationNotice;
-  String? currentChannelId, feedCursor, feedError, personalError, errorMessage;
+  String? currentChannelId, feedCursor, feedError, errorMessage;
   String? _errorCommandId;
-  bool feedLoading = false, personalLoading = false;
+  bool feedLoading = false;
   List<PostCard> feedItems = [];
-  List<PersonalPostItem> personalItems = [];
-  ManagedIdentity? personalIdentity;
-  List<ManagedIdentity> personalIdentities = [];
-  ActiveIdentityController? activeIdentity;
-  void bindActiveIdentity(ActiveIdentityController? value) {
-    activeIdentity?.removeListener(_activeIdentityChanged);
-    activeIdentity = value;
-    value?.addListener(_activeIdentityChanged);
-    _activeIdentityChanged();
-  }
+  ActiveIdentityController? get activeIdentity => _personal.activeIdentity;
+  void bindActiveIdentity(ActiveIdentityController? value) =>
+      _personal.bindActiveIdentity(value);
+  Future<void> selectPersonalIdentity(String id, {bool broadcast = true}) =>
+      _personal.selectPersonalIdentity(id, broadcast: broadcast);
+  List<PersonalPostItem> get personalItems => _personal.personalItems;
+  ManagedIdentity? get personalIdentity => _personal.personalIdentity;
+  List<ManagedIdentity> get personalIdentities => _personal.personalIdentities;
+  String? get personalError => _personal.personalError;
+  bool get personalLoading => _personal.personalLoading;
+  String? get personalProfileError => _personal.personalProfileError;
+  bool get personalProfileLoading => _personal.personalProfileLoading;
+  bool get personalHasMore => _personal.personalHasMore;
 
-  void _activeIdentityChanged() {
-    final id = activeIdentity?.selectedId;
-    if (!available ||
-        activeIdentity?.accountId != accountId ||
-        id == null ||
-        personalIdentity?.id == id) {
-      return;
-    }
-    if (personalIdentities.any((i) => i.id == id)) {
-      unawaited(selectPersonalIdentity(id, broadcast: false));
-    }
-  }
-
-  Future<void> selectPersonalIdentity(
-    String id, {
-    bool broadcast = true,
-  }) async {
-    final identity = personalIdentities.where((i) => i.id == id).firstOrNull;
-    if (!available || identity == null) return;
-    if (broadcast) {
-      activeIdentity?.selectConfirmed(
-        id,
-        personalIdentities.map((i) => i.id),
-        account: accountId,
-      );
-    }
-    if (personalIdentity?.id == id) return;
-    ++_personalRequest;
-    ++_personalProfileRequest;
-    personalIdentity = identity;
-    _own = [];
-    _ownCursor = _taskCursor = null;
-    _mergePersonal();
-    _notify();
-    await loadPersonal();
-  }
-
-  String? personalProfileError;
-  bool personalProfileLoading = false;
-
-  bool get supportsFeed => _api is FeedApi;
+  bool get supportsFeed => _homeFeed.supportsFeed;
   bool get supportsInteractions => _api is PostInteractionsApi;
   bool get supportsPostSharing => _api is PostSharingApi;
-  bool get feedPreferencesReady => _preferencesReady;
+  bool get feedPreferencesReady => _homeFeed.feedPreferencesReady;
   String? get accountId => _accountId;
   int get authorityVersion => _epoch;
   PostPublicationNotice? get latestPublicationNotice =>
       available ? _latestPublicationNotice : null;
   bool isPostDeleted(String postId) =>
       available && _deletedPostIds.contains(postId);
-  bool get busy => _pending > 0;
+  bool get busy => _submissions.busy;
   bool get available =>
       !_disposed &&
       _accountId != null &&
@@ -331,37 +412,32 @@ class PostController extends ChangeNotifier {
     _accountId = account;
     final epoch = ++_epoch;
     _clearReposts();
-    _clearTimeline();
+    _interactions.clear();
+    _hiddenWrites.clear();
+    _hiddenUncertainVersions.clear();
+    hiddenPostError = null;
     final old = _store;
     _store = null;
     if (old != null) {
       _retired[old.accountId] = old.close();
       unawaited(_retired[old.accountId]!.catchError((Object _) {}));
     }
-    _local = [];
-    _own = [];
-    _remoteTasks.clear();
+    _personal.reset(notify: false);
     _deletedPostIds.clear();
     _postMediaRevisions.clear();
     _confirmedEdits.clear();
     ++_contentVersion;
     _latestPublicationNotice = null;
     _imageProgress.clear();
-    personalItems = [];
-    personalIdentity = null;
-    personalIdentities = [];
-    personalProfileError = null;
-    personalProfileLoading = false;
     feedItems = [];
-    currentChannelId = feedCursor = feedError = personalError = errorMessage =
-        null;
+    currentChannelId = feedCursor = feedError = errorMessage = null;
     _errorCommandId = null;
-    _ownCursor = _taskCursor = null;
-    feedLoading = personalLoading = false;
-    _publishing.clear();
-    _deleting.clear();
-    _checking.clear();
-    _notify();
+    feedLoading = false;
+    _submissions.reset();
+    _maintenance.reset();
+    _results.reset();
+    // Publish the completed account reset to both feed and legacy listeners.
+    _homeFeed.reset();
     if (account != null) {
       _opening = _activate(account, epoch);
       _activating[account] = _opening;
@@ -382,12 +458,9 @@ class PostController extends ChangeNotifier {
       if (epoch != _epoch) return;
       final recovered = await _restorePickerCheckpoint(store, entries, epoch);
       if (_disposed || epoch != _epoch || account != _accountId) return;
-      _local = recovered;
-      _rememberDeletedPosts(entries);
-      _mergePersonal();
-      _notify();
+      _personal.replaceLocal(recovered);
       // 恢复只核对已有命令，不重发 CREATE，也不自动替用户重试失败任务。
-      for (final entry in _local.where(_needsQuery)) {
+      for (final entry in _personal.localEntries.where(_needsQuery)) {
         unawaited(reconcile(entry.id));
       }
     } on Object {
@@ -399,10 +472,7 @@ class PostController extends ChangeNotifier {
   }
 
   static bool _needsQuery(StoredPostEntry e) =>
-      !e.isDraft && {'submitted', 'UNKNOWN', 'ACCEPTED'}.contains(e.state);
-  static bool _unresolved(StoredPostEntry e) =>
-      e.data['rateLimitWait'] is Map ||
-      {'submitted', 'UNKNOWN', 'RESULT_EXPIRED'}.contains(e.state);
+      PostResultReconciler.needsQuery(e);
 
   Future<void> retryStorage() async {
     if (!available || _store != null) return;
@@ -449,7 +519,7 @@ class PostController extends ChangeNotifier {
   }
 
   void _failure(Object error, [_PostAuthority? authority, String? commandId]) {
-    if (error is _StalePostAuthority ||
+    if (error is StalePostPublication ||
         authority != null && !_current(authority)) {
       return;
     }
@@ -490,6 +560,20 @@ class PostController extends ChangeNotifier {
       errorMessage = '暂时无法完成操作，请重试。';
     }
     _notify();
+  }
+
+  void _propagateReadAuthorityFailure(Object error, _PostAuthority? authority) {
+    // Read surfaces own their retry messages. Transient reads must not replace
+    // another command's error or its clearing owner.
+    if (error is PostFailure &&
+            {
+              PostFailureKind.unauthorized,
+              PostFailureKind.unavailable,
+            }.contains(error.kind) ||
+        error is AuthFailure &&
+            (error.unauthorized || error.kind == AuthFailureKind.unavailable)) {
+      _failure(error, authority);
+    }
   }
 
   void _clearCommandError(String commandId) {
@@ -573,18 +657,10 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> readPersonalProfileState() async {
-    final a = await _authority(storage: true);
-    final value = await a.store!.readProfile();
-    if (!_current(a)) throw _StalePostAuthority();
-    return value;
-  }
-
-  Future<void> savePersonalProfileState(Map<String, dynamic> value) async {
-    final a = await _authority(storage: true);
-    await a.store!.writeProfile(value);
-    if (!_current(a)) throw _StalePostAuthority();
-  }
+  Future<Map<String, dynamic>> readPersonalProfileState() =>
+      _personal.readPersonalProfileState();
+  Future<void> savePersonalProfileState(Map<String, dynamic> value) =>
+      _personal.savePersonalProfileState(value);
 
   Future<PostDetail?> loadDetail(String postId, {String? sharedUrl}) async {
     final contentVersion = _contentVersion;
@@ -711,268 +787,13 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  int _personalProfileRequest = 0;
-
-  Future<void> loadPersonal({bool more = false}) async {
-    if (more && personalLoading) return;
-    Future<void>? profile;
-    final request = ++_personalRequest;
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      if (!_current(a) || request != _personalRequest) return;
-      personalLoading = true;
-      personalError = null;
-      if (!more) {
-        personalProfileError = null;
-        personalProfileLoading = true;
-      }
-      _notify();
-      final scoped = a;
-      if (!more) {
-        profile = _loadPersonalProfile(a, ++_personalProfileRequest);
-        await profile;
-      }
-      if (!_current(a) || request != _personalRequest) return;
-      // Independent reads start together. Future.wait keeps the original typed
-      // failure so 401/503 still pass through the authority gate below.
-      final reads = await Future.wait<Object?>([
-        if (personalIdentity != null && (!more || _ownCursor != null))
-          _api
-              .ownPosts(
-                sessionToken: a.token,
-                cursor: more ? _ownCursor : null,
-                identityId: personalIdentity?.id,
-              )
-              .then((response) => _accept(scoped, response))
-        else
-          Future<Object?>.value(),
-        if (!more || _taskCursor != null)
-          _api
-              .tasks(sessionToken: a.token, cursor: more ? _taskCursor : null)
-              .then((response) => _accept(scoped, response))
-        else
-          Future<Object?>.value(),
-        a.store!.list(),
-      ], eagerError: true);
-      if (!_current(a) || request != _personalRequest) return;
-      final posts = reads[0] as PostsPage<OwnPostCard>?;
-      final tasks = reads[1] as PostsPage<PostTask>?;
-      var local = reads[2] as List<StoredPostEntry>;
-      final queriedTasks = <String, PostTask>{};
-      // 已隐藏失败项不在分页中；点查已知任务，避免本机旧正文重新出现。
-      for (final entry in local.where((e) => e.state == 'FAILED')) {
-        final taskId = entry.data['taskId'] as String?;
-        if (taskId == null) continue;
-        final task = await _accept(
-          a,
-          await _api.task(sessionToken: a.token, taskId: taskId),
-        );
-        await _applyTask(a, entry, task);
-        queriedTasks[task.taskId] = task;
-      }
-      local = await a.store!.list();
-      if (!_current(a) || request != _personalRequest) return;
-      if (!more) {
-        _own = [];
-        _remoteTasks.clear();
-      }
-      final ids = _own.map((p) => p.post.postId).toSet();
-      if (posts != null) {
-        _own = [
-          ..._own,
-          ...posts.items.where(
-            (p) =>
-                !_deletedPostIds.contains(p.post.postId) &&
-                ids.add(p.post.postId),
-          ),
-        ];
-        _ownCursor = posts.nextCursor;
-      }
-      if (tasks != null) {
-        for (final task in tasks.items) {
-          _remoteTasks[task.taskId] = task;
-        }
-        _taskCursor = tasks.nextCursor;
-      }
-      // 点查晚于分页快照，旧分页不能覆盖更新的终态或尝试版本。
-      _remoteTasks.addAll(queriedTasks);
-      _local = local;
-      _rememberDeletedPosts(local);
-      _mergePersonal();
-      for (final task in queriedTasks.values.where(
-        (t) => t.state == PostTaskState.published,
-      )) {
-        unawaited(_insertPublished(a, task.postId));
-      }
-      personalLoading = false;
-      _notify();
-    } catch (error) {
-      if (a != null && (!_current(a) || request != _personalRequest)) return;
-      _failure(error, a);
-      if (a != null && _current(a)) personalError = '暂时无法核对本人内容，请重试。';
-    } finally {
-      if (a != null && _current(a) && request == _personalRequest) {
-        personalLoading = false;
-        _notify();
-      }
-      // Profile selection is resolved before requesting identity-scoped posts.
-      await profile;
-    }
-  }
-
-  Future<void> _loadPersonalProfile(_PostAuthority a, int request) async {
-    try {
-      final directory = await _identities.identities(a.token);
-      if (!_current(a) || request != _personalProfileRequest) return;
-      if (!await _sessions.persistSessionMetadata(
-        a.token,
-        directory.sessionExpiresAt,
-        () => _current(a) && request == _personalProfileRequest,
-      )) {
-        return;
-      }
-      if (!_current(a) || request != _personalProfileRequest) return;
-      final originals = directory.identities.where((i) => i.isOriginal);
-      final context = originals.isNotEmpty
-          ? null
-          : await _accept(a, await _api.composerContext(sessionToken: a.token));
-      if (!_current(a) || request != _personalProfileRequest) return;
-      final previousIdentity = personalIdentity?.id;
-      personalIdentities = List.unmodifiable(directory.identities);
-      personalIdentity = directory.identities
-          .where(
-            (i) => i.id == (activeIdentity?.selectedId ?? personalIdentity?.id),
-          )
-          .firstOrNull;
-      personalIdentity ??= originals.isNotEmpty
-          ? originals.first
-          : directory.identities
-                .where((i) => i.id == context?.defaultIdentityId)
-                .firstOrNull;
-      personalIdentity ??=
-          (List<ManagedIdentity>.of(directory.identities)..sort((x, y) {
-                final byTime = x.createdAt.compareTo(y.createdAt);
-                return byTime != 0 ? byTime : x.id.compareTo(y.id);
-              }))
-              .firstOrNull;
-      if (previousIdentity != personalIdentity?.id) {
-        _own = [];
-        _ownCursor = null;
-        _mergePersonal();
-      }
-    } catch (error) {
-      if (!_current(a) || request != _personalProfileRequest) return;
-      // Access/storage failures still follow the existing failure policy; a temporary
-      // profile failure leaves successfully loaded posts and empty states.
-      if (error is AuthStorageFailure ||
-          error is PostStorageFailure ||
-          error is AuthFailure &&
-              (error.unauthorized ||
-                  error.kind == AuthFailureKind.unavailable) ||
-          error is PostFailure &&
-              {
-                PostFailureKind.unauthorized,
-                PostFailureKind.unavailable,
-              }.contains(error.kind)) {
-        _failure(error, a);
-      }
-      if (_current(a)) {
-        personalProfileError = '身份资料暂时无法读取，请下拉重试。';
-      }
-    } finally {
-      if (_current(a) && request == _personalProfileRequest) {
-        personalProfileLoading = false;
-        _notify();
-      }
-    }
-  }
-
-  bool get personalHasMore => _ownCursor != null || _taskCursor != null;
-
-  void _mergePersonal() {
-    // 删除后到达的旧本人页也不能把正文留回任务缓存。
-    _remoteTasks.removeWhere(
-      (_, task) => _deletedPostIds.contains(task.postId),
-    );
-    _own = _own
-        .where((post) => !_deletedPostIds.contains(post.post.postId))
-        .toList();
-    final items = <PersonalPostItem>[];
-    final knownTasks = <String>{};
-    for (final entry in _local) {
-      if (personalIdentity != null &&
-          entry.data['identityId'] != personalIdentity!.id) {
-        continue;
-      }
-      if (entry.data['isRetryBuffer'] == true ||
-          _deletedPostIds.contains(entry.data['postId']) ||
-          entry.data['abandoned'] == true ||
-          {
-            'PUBLISHED',
-            'CANCELLED',
-            'HIDDEN',
-            'DELETED',
-          }.contains(entry.state)) {
-        continue;
-      }
-      final taskId = entry.data['taskId'] as String?;
-      final task = taskId == null ? null : _remoteTasks[taskId];
-      if (taskId != null) knownTasks.add(taskId);
-      if (task != null && !task.visible) continue;
-      items.add(
-        PersonalPostItem(
-          id: entry.id,
-          title: task != null
-              ? task.content?.title ?? '内容不可用'
-              : entry.data['title'] as String? ?? '',
-          sortAt:
-              task?.serverSortAt ??
-              DateTime.parse(entry.data['editedAt'] as String),
-          local: entry,
-          task: task,
-        ),
-      );
-    }
-    for (final task in _remoteTasks.values) {
-      if ((personalIdentity == null ||
-              task.identityId == personalIdentity!.id) &&
-          task.visible &&
-          !_deletedPostIds.contains(task.postId) &&
-          !knownTasks.contains(task.taskId)) {
-        items.add(
-          PersonalPostItem(
-            id: 'task:${task.taskId}',
-            title: task.content?.title ?? '内容不可用',
-            sortAt: task.serverSortAt,
-            task: task,
-          ),
-        );
-      }
-    }
-    for (final post in _own) {
-      items.add(
-        PersonalPostItem(
-          id: 'post:${post.post.postId}',
-          title: post.post.title,
-          sortAt: post.serverSortAt,
-          post: post.post,
-        ),
-      );
-    }
-    items.sort((a, b) {
-      final time = b.sortAt.compareTo(a.sortAt);
-      return time != 0 ? time : a.id.compareTo(b.id);
-    });
-    personalItems = List.unmodifiable(items);
-  }
+  Future<void> loadPersonal({bool more = false}) =>
+      _personal.loadPersonal(more: more);
 
   PostDraftEditor newDraft(String channelId) {
     if (!available) throw _StalePostAuthority();
-    PostProtocol.resourceId(channelId);
-    return PostDraftEditor(
-      id: _newId(),
-      channelId: channelId,
+    return _drafts.newDraft(
+      channelId,
       accountId: _accountId!,
       authorityVersion: _epoch,
       identityId: activeIdentity?.accountId == _accountId
@@ -981,154 +802,10 @@ class PostController extends ChangeNotifier {
     );
   }
 
-  Future<PostDraftEditor?> restoreDraft(String id) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          !entry.isDraft ||
-          entry.data['isRetryBuffer'] == true) {
-        return null;
-      }
-      return PostDraftEditor(
-          id: entry.id,
-          channelId: entry.data['channelId'] as String,
-          accountId: a.accountId,
-          authorityVersion: a.epoch,
-          identityId: entry.data['identityId'] as String?,
-          title: entry.data['title'] as String,
-          body: entry.data['body'] as String,
-          revision: entry.revision,
-          persisted: true,
-          images: DraftPostImage.list(entry.data['images']),
-          tags: PostTags.parse(entry.data['tags']),
-        )
-        ..saved = true
-        ..mediaError = entry.data['pickerInterrupted'] == true
-            ? '上次选图被中断，请重新选择；已保存的图片仍保留。'
-            : null;
-    } catch (error) {
-      _failure(error, a);
-      return null;
-    }
-  }
-
-  Map<String, dynamic> _editorData(PostDraftEditor e) => {
-    'channelId': e.channelId,
-    'identityId': e.identityId,
-    'title': e.title,
-    'body': e.body,
-    'tags': e.tags,
-    'editedAt': _clock().toUtc().toIso8601String(),
-    if (e.taskId != null) 'taskId': e.taskId,
-    if (e.attemptVersion != null) 'attemptVersion': e.attemptVersion,
-    if (e.images.isNotEmpty || e.mediaTouched)
-      'images': [for (final image in e.images) image.toJson()],
-    if (e.pickerPending) 'pickerPending': true,
-  };
-
-  Future<bool> saveDraft(PostDraftEditor e) {
-    if (e.submitted) return Future.value(false);
-    final previous = _saving[e.id];
-    final future = _saveDraft(e, previous);
-    _saving[e.id] = future;
-    future.whenComplete(() {
-      if (identical(_saving[e.id], future)) _saving.remove(e.id);
-    });
-    return future;
-  }
-
-  Future<bool> _saveDraft(PostDraftEditor e, Future<bool>? previous) async {
-    if (previous != null) await previous;
-    if (!editorCurrent(e) || e.submitted) return false;
-    e.saving = true;
-    e.error = null;
-    final data = _editorData(e);
-    try {
-      final a = await _authority(storage: true);
-      if (!editorCurrent(e)) return false;
-      // 空白新稿不落盘，也不能覆盖其他草稿。
-      if (!e.persisted &&
-          !PostContentRules.hasMeaningfulText(e.title) &&
-          !PostContentRules.hasMeaningfulText(e.body) &&
-          e.images.isEmpty &&
-          !e.pickerPending) {
-        e.saved = true;
-        return true;
-      }
-      if (e.isRetry) data['isRetryBuffer'] = true;
-      final id = e.bufferId ?? e.id;
-      final revision = e.isRetry ? e.bufferRevision : e.revision;
-      final originals = Map<String, Uint8List>.of(e._originals);
-      final entry = e.images.isNotEmpty || e.mediaTouched || e.pickerPending
-          ? await a.store!.saveMediaDraft(
-              id,
-              e.persisted ? revision : null,
-              data,
-              originals,
-            )
-          : e.persisted
-          ? await a.store!.saveDraft(id, revision, data)
-          : await a.store!.createDraft(id, data);
-      if (!_current(a) || !editorCurrent(e)) return false;
-      if (e.isRetry) {
-        e.bufferRevision = entry.revision;
-      } else {
-        e.revision = entry.revision;
-      }
-      e.persisted = true;
-      for (final key in originals.keys) {
-        if (identical(e._originals[key], originals[key])) {
-          e._originals.remove(key);
-        }
-      }
-      e.saved =
-          e.title == data['title'] &&
-          e.body == data['body'] &&
-          listEquals(e.tags, PostTags.parse(data['tags'])) &&
-          e.identityId == data['identityId'] &&
-          jsonEncode(e.images.map((e) => e.toJson()).toList()) ==
-              jsonEncode(data['images'] ?? []);
-      await _refreshLocal(a);
-      return true;
-    } catch (error) {
-      if (editorCurrent(e)) {
-        e.error = '保存失败，请重试、复制文字，或明确放弃退出。';
-        _failure(error);
-      }
-      return false;
-    } finally {
-      e.saving = false;
-      _notify();
-    }
-  }
-
-  Future<bool> discardDraft(PostDraftEditor e) async {
-    if (!editorCurrent(e) || e.submitted) return false;
-    _PostAuthority? a;
-    try {
-      final prior = _saving[e.id];
-      if (prior != null) await prior;
-      a = await _authority(storage: true);
-      if (!editorCurrent(e)) return false;
-      if (e.persisted) {
-        await a.store!.deleteDraft(
-          e.bufferId ?? e.id,
-          e.isRetry ? e.bufferRevision : e.revision,
-        );
-      }
-      if (!_current(a)) return false;
-      e.persisted = false;
-      e.revision = 0;
-      await _refreshLocal(a);
-      return true;
-    } catch (error) {
-      _failure(error, a);
-      return false;
-    }
-  }
+  Future<PostDraftEditor?> restoreDraft(String id) => _drafts.restoreDraft(id);
+  Future<bool> saveDraft(PostDraftEditor editor) => _drafts.saveDraft(editor);
+  Future<bool> discardDraft(PostDraftEditor editor) =>
+      _drafts.discardDraft(editor);
 
   Future<List<ManagedIdentity>> prepareComposer(PostDraftEditor e) async {
     _PostAuthority? a;
@@ -1174,142 +851,7 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<bool> publish(PostDraftEditor e) async {
-    if (!editorCurrent(e) || e.submitted || !_publishing.add(e.id)) {
-      return false;
-    }
-    _PostAuthority? a;
-    try {
-      PostContentRules.validate(e.title, e.body, imageCount: e.images.length);
-      if (e.mediaBusy || e.images.any((image) => !image.ready)) {
-        e.error = '请移除或重新选择无法读取的图片。';
-        return false;
-      }
-      if (e.images.isNotEmpty && _uploadApi == null) {
-        e.error = '当前图片发布不可用，请稍后重试。';
-        return false;
-      }
-      if (e.identityId == null) {
-        e.error = '请先选择有效身份。';
-        return false;
-      }
-      if (!await saveDraft(e)) return false;
-      a = await _authority(storage: true);
-      if (!editorCurrent(e)) return false;
-      StoredPostEntry? retryOriginal;
-      if (e.isRetry) {
-        final original = await a.store!.get(e.id);
-        final task = await _accept(
-          a,
-          await _api.task(sessionToken: a.token, taskId: e.taskId!),
-        );
-        if (original == null ||
-            _unresolved(original) ||
-            !task.canRetry ||
-            task.state != PostTaskState.failed ||
-            task.attemptVersion != e.attemptVersion ||
-            task.channelId != e.channelId ||
-            task.identityId != e.identityId) {
-          e.error = '请先核对原任务；重试只能使用原身份、分类和当前失败版本。';
-          return false;
-        }
-        e.revision = original.revision;
-        retryOriginal = original;
-      }
-      final payload = e.isRetry
-          ? <String, dynamic>{
-              'taskId': e.taskId!,
-              'expectedAttemptVersion': e.attemptVersion!,
-              'title': e.title,
-              'body': e.body,
-              'tags': e.tags,
-            }
-          : <String, dynamic>{
-              'channelId': e.channelId,
-              'identityId': e.identityId!,
-              'title': e.title,
-              'body': e.body,
-              'tags': e.tags,
-            };
-      final selections = [
-        for (final image in e.images) image.selection!.toJson(),
-      ];
-      if (selections.isNotEmpty) payload['images'] = selections;
-      final operation = e.isRetry ? PostOperation.retry : PostOperation.create;
-      final digest = PostProtocol.digest(
-        PostProtocol.withTags(
-          PostProtocol.withImages(
-            e.isRetry
-                ? PostProtocol.retry(
-                    taskId: e.taskId!,
-                    expectedAttemptVersion: e.attemptVersion!,
-                    title: e.title,
-                    body: e.body,
-                  )
-                : PostProtocol.create(
-                    channelId: e.channelId,
-                    identityId: e.identityId!,
-                    title: e.title,
-                    body: e.body,
-                  ),
-            selections,
-          ),
-          e.tags,
-        ),
-      );
-      final intent = StoredPostIntent(
-        commandId: _newId(),
-        operation: operation.wire,
-        digest: digest,
-        payload: payload,
-      );
-      final data = <String, dynamic>{
-        if (retryOriginal != null) ...retryOriginal.data,
-        ..._editorData(e),
-        'commandState': 'UNKNOWN',
-      }..remove('mediaUploadPaused');
-      final entry = e.isRetry
-          ? await a.store!.appendIntent(e.id, e.revision, intent, data)
-          : await a.store!.submitDraft(e.id, e.revision, intent, data);
-      if (!_current(a) || !editorCurrent(e)) return false;
-      // A newly durable attempt must not inherit the previous upload's pause.
-      // Old in-flight work still checks its original command/attempt fence.
-      _imageProgress.remove(e.id);
-      e.revision = entry.revision;
-      e.submitted = true;
-      e.saved = true;
-      if (e.isRetry && e.persisted) {
-        // 提交意图已落盘；旧编辑缓冲只含该尝试的副本，不能成为第二次提交。
-        try {
-          await a.store!.deleteDraft(e.bufferId!, e.bufferRevision);
-        } on PostStorageFailure {
-          // 重启后以未决命令围栏阻止恢复这个缓冲；不重复发送来补偿清理失败。
-        }
-      }
-      await _refreshLocal(a);
-      // 只有原提交上下文确实写入 SQLite 后，确认页才可以返回分类。
-      unawaited(_send(a, entry));
-      return true;
-    } catch (error) {
-      if (editorCurrent(e)) {
-        e.error = '未能保存发布操作，内容仍保留，请重试。';
-        _failure(error, a);
-      }
-      return false;
-    } finally {
-      _publishing.remove(e.id);
-      _notify();
-    }
-  }
-
-  void _rememberDeletedPosts(List<StoredPostEntry> entries) {
-    for (final entry in entries) {
-      final postId = entry.data['postId'];
-      if (entry.state == 'DELETED' && postId is String) {
-        _markPostDeleted(postId);
-      }
-    }
-  }
+  Future<bool> publish(PostDraftEditor editor) => _submissions.publish(editor);
 
   void _markPostDeleted(String postId) {
     _deletedPostIds.add(postId);
@@ -1317,26 +859,7 @@ class PostController extends ChangeNotifier {
       _latestPublicationNotice = null;
     }
     feedItems = feedItems.where((p) => p.postId != postId).toList();
-    _own = _own.where((p) => p.post.postId != postId).toList();
-    _remoteTasks.removeWhere((_, task) => task.postId == postId);
-  }
-
-  bool _isLocalPublicationTransition(StoredPostEntry entry, PostTask task) {
-    if (task.state != PostTaskState.published ||
-        !{'submitted', 'UNKNOWN', 'ACCEPTED'}.contains(entry.state) ||
-        entry.intents.isEmpty) {
-      return false;
-    }
-    final intent = entry.intents.last;
-    final int? version = switch (intent.operation) {
-      'CREATE' => 1,
-      'RETRY' =>
-        (intent.payload['expectedAttemptVersion'] as int?) == null
-            ? null
-            : (intent.payload['expectedAttemptVersion'] as int) + 1,
-      _ => null,
-    };
-    return version == task.attemptVersion;
+    _personal.removeDeletedPost(postId);
   }
 
   void _noticePublication(_PostAuthority a, PostTask task) {
@@ -1349,938 +872,126 @@ class PostController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> _refreshLocal(_PostAuthority a) async {
-    final entries = await a.store!.list();
-    if (!_current(a)) return;
-    _local = entries;
-    _rememberDeletedPosts(entries);
-    _mergePersonal();
-    _notify();
-  }
-
-  Future<void> _send(_PostAuthority a, StoredPostEntry entry) async {
-    final intent = entry.intents.last;
-    if (!_current(a) || !_sending.add(intent.commandId)) return;
-    _pending++;
-    _notify();
-    try {
-      final p = intent.payload;
-      final response = switch (intent.operation) {
-        'CREATE' when p['images'] is List && (p['images'] as List).isNotEmpty =>
-          await _uploadApi!.createWithImages(
-            sessionToken: a.token,
-            commandId: intent.commandId,
-            channelId: p['channelId'] as String,
-            identityId: p['identityId'] as String,
-            title: p['title'] as String,
-            body: p['body'] as String,
-            tags: PostTags.parse(p['tags']),
-            images: PostImageSelection.list(p['images']),
-          ),
-        'CREATE' => await _api.create(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          channelId: p['channelId'] as String,
-          identityId: p['identityId'] as String,
-          title: p['title'] as String,
-          body: p['body'] as String,
-          tags: PostTags.parse(p['tags']),
-        ),
-        'RETRY' when p['images'] is List && (p['images'] as List).isNotEmpty =>
-          await _uploadApi!.retryWithImages(
-            sessionToken: a.token,
-            commandId: intent.commandId,
-            taskId: p['taskId'] as String,
-            expectedAttemptVersion: p['expectedAttemptVersion'] as int,
-            title: p['title'] as String,
-            body: p['body'] as String,
-            tags: PostTags.parse(p['tags']),
-            images: PostImageSelection.list(p['images']),
-          ),
-        'RETRY' => await _api.retry(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          taskId: p['taskId'] as String,
-          expectedAttemptVersion: p['expectedAttemptVersion'] as int,
-          title: p['title'] as String,
-          body: p['body'] as String,
-          tags: PostTags.parse(p['tags']),
-        ),
-        'CANCEL' => await _api.cancel(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          taskId: p['taskId'] as String,
-          expectedAttemptVersion: p['expectedAttemptVersion'] as int,
-        ),
-        'HIDE_TASK' => await _api.hide(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          taskId: p['taskId'] as String,
-          expectedAttemptVersion: p['expectedAttemptVersion'] as int,
-        ),
-        'DELETE_POST' => await _api.delete(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          postId: p['postId'] as String,
-        ),
-        _ => throw const FormatException('Unknown original operation'),
-      };
-      await _applyResult(a, entry.id, intent, await _accept(a, response));
-    } catch (error) {
-      if (error is PostFailure && error.statusCode == 429 && _current(a)) {
-        await _saveRateLimitedDraft(a, entry.id, error.retryAfterSeconds ?? 1);
-        return;
-      }
-      // mutation 的409也先核对原回执；超时、503或写盘失败都不能变成新草稿。
-      _failure(error, a, intent.commandId);
-      if (_current(a)) unawaited(reconcile(entry.id));
-    } finally {
-      _sending.remove(intent.commandId);
-      _pending--;
-      _notify();
-    }
-  }
-
-  final _retryingRateLimited = <String>{};
-  final _rateLimitWaits = <String, RateLimitWait>{};
-  RateLimitWait _rateWait(String id, Map raw) {
-    final key = '$accountId:$id';
-    final old = _rateLimitWaits[key];
-    if (old != null &&
-        old.recordedAt.toIso8601String() == raw['recordedAt'] &&
-        old.seconds == raw['seconds']) {
-      return old;
-    }
-    if (_rateLimitWaits.length >= 512) {
-      _rateLimitWaits.remove(_rateLimitWaits.keys.first);
-    }
-    return _rateLimitWaits[key] = RateLimitWait.fromJson(raw);
-  }
-
-  int rateLimitedSeconds(String id) {
-    final entry = _local.where((e) => e.id == id).firstOrNull;
-    final raw = entry?.data['rateLimitWait'];
-    return raw is Map ? _rateWait(id, raw).remaining(_clock()) : 0;
-  }
-
+  Future<void> _refreshLocal(_PostAuthority a) =>
+      _personal.refreshLocal(_PostPublicationContext(this, a));
+  int rateLimitedSeconds(String id) => _submissions.rateLimitedSeconds(id);
+  Future<void> retryRateLimited(String id) => _submissions.retryRateLimited(id);
   Future<void> _saveRateLimitedDraft(
     _PostAuthority a,
     String id,
     int seconds,
-  ) async {
-    final latest = await a.store!.get(id);
-    if (!_current(a) || latest == null) return;
-    final data = Map<String, dynamic>.of(latest.data)
-      ..['rateLimitWait'] = RateLimitWait(_clock(), seconds).toJson()
-      ..['mediaUploadPaused'] = true;
-    await a.store!.recordResult(id, latest.revision, latest.state, data);
-    if (!_current(a)) return;
-    errorMessage = rateLimitDraftMessage(seconds);
-    await _refreshLocal(a);
-  }
+  ) => _submissions.saveRateLimitedDraft(
+    _PostPublicationContext(this, a),
+    id,
+    seconds,
+  );
 
-  /// A user action resumes the original immutable key. An unknown old request
-  /// never turns into a fresh CREATE, even if this attempt received a 429.
-  Future<void> retryRateLimited(String id) async {
-    if (!_retryingRateLimited.add(id)) return;
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      var entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          entry.data['rateLimitWait'] is! Map) {
-        return;
+  Future<void> reconcile(String id) => _results.reconcile(id);
+  Future<void> seal(String id) => _results.seal(id);
+  Future<void> _dropRetryBuffers(_PostAuthority a, PostTask task) =>
+      _results.dropRetryBuffers(_PostPublicationContext(this, a), task);
+
+  Future<void> _projectPublicationResult(
+    _PostAuthority a,
+    PostResultUpdate update,
+  ) async {
+    final entry = update.previous;
+    final state = update.state;
+    final data = update.data;
+    if (update.fromTask) {
+      final task = update.task!;
+      _personal.recordTask(task);
+      _clearCommandError(entry.intents.last.commandId);
+      if (state == 'ACCEPTED' &&
+          data['images'] is List &&
+          (data['images'] as List).isNotEmpty) {
+        unawaited(resumeImageUpload(entry.id, automatic: true));
       }
-      final wait = _rateWait(
-        id,
-        entry.data['rateLimitWait'] as Map,
-      ).remaining(_clock());
-      if (wait > 0) {
-        errorMessage = rateLimitDraftMessage(wait);
+      await _refreshLocal(a);
+      if (!_current(a)) return;
+      if (update.announcePublication) {
+        _noticePublication(a, task);
+      }
+      if (!_current(a)) return;
+      await _dropRetryBuffers(a, task);
+      if (!_current(a)) return;
+      if (state == 'PUBLISHED') unawaited(_insertPublished(a, task.postId));
+    } else {
+      final id = entry.id;
+      final intent = entry.intents.last;
+      final observedTask = update.task;
+      final taskId = data['taskId'] as String?;
+      if (observedTask != null) {
+        _personal.recordTask(observedTask);
+      }
+      if (update.commandState != PostCommandState.unknownNotObserved &&
+          update.commandState != PostCommandState.resultExpired) {
+        _clearCommandError(intent.commandId);
+      }
+      await _refreshLocal(a);
+      if (!_current(a)) return;
+      if (update.announcePublication && observedTask != null) {
+        _noticePublication(a, observedTask);
+      }
+      if (!_current(a)) return;
+      final currentTask = taskId == null ? null : _personal.taskById(taskId);
+      if (state == 'ACCEPTED' &&
+          data['images'] is List &&
+          (data['images'] as List).isNotEmpty) {
+        unawaited(resumeImageUpload(id, automatic: true));
+      }
+      if (currentTask != null) await _dropRetryBuffers(a, currentTask);
+      if (!_current(a)) return;
+      if (state == 'DELETED') {
+        _markPostDeleted(data['postId'] as String);
         _notify();
-        return;
+      } else if (state == 'PUBLISHED') {
+        unawaited(_insertPublished(a, data['postId'] as String));
       }
-      final intent = entry.intents.last;
-      final result = await _accept(
-        a,
-        await _api.commandResult(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-        ),
-      );
-      if (!_current(a)) return;
-      final data = Map<String, dynamic>.of(entry.data)
-        ..remove('rateLimitWait')
-        ..remove('mediaUploadPaused');
-      entry = await a.store!.recordResult(
-        id,
-        entry.revision,
-        entry.state,
-        data,
-      );
-      if (!_current(a)) return;
-      if (result.state == PostCommandState.unknownNotObserved) {
-        await _send(a, entry);
-      } else {
-        await _applyResult(a, id, intent, result);
-        final latest = await a.store!.get(id);
-        if (_current(a) && latest?.state == 'ACCEPTED') {
-          await resumeImageUpload(id);
-        }
-      }
-      if (_current(a)) await _refreshLocal(a);
-    } catch (error) {
-      if (a != null &&
-          _current(a) &&
-          error is PostFailure &&
-          error.statusCode == 429) {
-        await _saveRateLimitedDraft(a, id, error.retryAfterSeconds ?? 1);
-      } else {
-        _failure(error, a);
-      }
-    } finally {
-      _retryingRateLimited.remove(id);
     }
   }
 
-  Future<void> reconcile(String id) async {
-    final pending = _checking[id];
-    if (pending != null) return pending;
-    final future = _reconcile(id);
-    _checking[id] = future;
-    try {
-      await future;
-    } finally {
-      if (identical(_checking[id], future)) _checking.remove(id);
-    }
-  }
+  Future<void> _insertPublished(_PostAuthority a, String postId) =>
+      _personal.insertPublished(_PostPublicationContext(this, a), postId);
 
-  Future<void> _reconcile(String id) async {
-    _PostAuthority? a;
-    String? commandId;
-    try {
-      a = await _authority(storage: true);
-      final entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          entry.isDraft ||
-          entry.data['rateLimitWait'] is Map ||
-          entry.intents.isEmpty) {
-        return;
-      }
-      if ({
-        'HIDDEN',
-        'DELETED',
-        'CANCELLED',
-        'NOT_ACCEPTED',
-      }.contains(entry.state)) {
-        return;
-      }
-      final intent = entry.intents.last;
-      commandId = intent.commandId;
-      if (intent.operation == 'TASK_ANCHOR') {
-        await _applyTask(
-          a,
-          entry,
-          await _accept(
-            a,
-            await _api.task(
-              sessionToken: a.token,
-              taskId: entry.data['taskId'] as String,
-            ),
-          ),
-        );
-        return;
-      }
-      final result = await _accept(
-        a,
-        await _api.commandResult(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-        ),
-      );
-      await _applyResult(a, id, intent, result);
-    } catch (error) {
-      _failure(error, a, commandId);
-    }
-  }
-
-  Future<void> seal(String id) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          entry.isDraft ||
-          entry.intents.isEmpty ||
-          !{'submitted', 'UNKNOWN'}.contains(entry.state)) {
-        return;
-      }
-      final intent = entry.intents.last;
-      if (intent.operation == 'TASK_ANCHOR') return;
-      final operation = PostOperation.values.firstWhere(
-        (v) => v.wire == intent.operation,
-      );
-      final result = await _accept(
-        a,
-        await _api.seal(
-          sessionToken: a.token,
-          commandId: intent.commandId,
-          operation: operation,
-          requestDigest: intent.digest,
-        ),
-      );
-      await _applyResult(a, id, intent, result);
-    } catch (error) {
-      _failure(error, a);
-    }
-  }
-
-  Future<void> _applyResult(
-    _PostAuthority a,
-    String id,
-    StoredPostIntent intent,
-    PostCommandResult result,
+  Future<void> _updatePublishedFeed(
+    PostPublicationContext a,
+    PostDetail post,
   ) async {
-    if (!_current(a)) return;
-    final entry = await a.store!.get(id);
-    if (!_current(a) ||
-        entry == null ||
-        entry.intents.last.commandId != intent.commandId) {
-      return;
-    }
-    if (result.operation != null &&
-        result.operation!.wire != intent.operation) {
-      throw const PostFailure(kind: PostFailureKind.invalidResponse);
-    }
-    if (result.taskId != null &&
-            intent.payload['taskId'] != null &&
-            result.taskId != intent.payload['taskId'] ||
-        result.postId != null &&
-            intent.payload['postId'] != null &&
-            result.postId != intent.payload['postId']) {
-      throw const PostFailure(kind: PostFailureKind.invalidResponse);
-    }
-    var state = switch (result.state) {
-      PostCommandState.unknownNotObserved => 'UNKNOWN',
-      PostCommandState.accepted => 'ACCEPTED',
-      PostCommandState.committed =>
-        result.taskState?.name.toUpperCase() ??
-            (intent.operation == 'HIDE_TASK' ? 'HIDDEN' : 'DELETED'),
-      PostCommandState.rejected => 'REJECTED',
-      PostCommandState.notAccepted => 'NOT_ACCEPTED',
-      PostCommandState.resultExpired => 'RESULT_EXPIRED',
-    };
-    var data = Map<String, dynamic>.from(entry.data)
-      ..['commandState'] = result.state.name
-      ..['errorCode'] = result.errorCode;
-    if (result.taskId != null) data['taskId'] = result.taskId;
-    if (result.postId != null) data['postId'] = result.postId;
-    if (result.attemptVersion != null) {
-      data['attemptVersion'] = result.attemptVersion;
-    }
-    // 初始ACCEPTED是历史回执；当前终态必须另读 task，不能回退已有PUBLISHED。
-    final taskId = data['taskId'] as String?;
-    PostTask? observedTask;
-    if (taskId != null &&
-        result.state != PostCommandState.unknownNotObserved &&
-        result.state != PostCommandState.resultExpired) {
-      final task = await _accept(
-        a,
-        await _api.task(sessionToken: a.token, taskId: taskId),
-      );
-      if (task.postId != data['postId'] ||
-          task.identityId != data['identityId'] ||
-          task.channelId != data['channelId']) {
-        throw const PostFailure(kind: PostFailureKind.invalidResponse);
-      }
-      observedTask = task;
-      state = task.visible
-          ? task.state.name.toUpperCase()
-          : task.state == PostTaskState.published
-          ? 'PUBLISHED'
-          : 'HIDDEN';
-      data['attemptVersion'] = task.attemptVersion;
-      data['editedAt'] = task.serverSortAt.toIso8601String();
-      if (!task.contentAvailable && state == 'FAILED') {
-        state = 'CONTENT_UNAVAILABLE';
-      }
-      if (!task.contentAvailable) {
-        data.remove('title');
-        data.remove('body');
-        data.remove('tags');
-      }
-    }
-    if ({
-      'PUBLISHED',
-      'CANCELLED',
-      'HIDDEN',
-      'DELETED',
-      'CONTENT_UNAVAILABLE',
-    }.contains(state)) {
-      data.remove('title');
-      data.remove('body');
-      data.remove('tags');
-    }
-    if (!_current(a)) return;
-    // 同一命令的并发核对可遇CAS竞争；下次核对读取最新revision即可，不重发。
-    if (observedTask?.state == PostTaskState.cancelled) {
-      await _preserveCancelledImages(a, entry);
-    }
-    if ({
-      'PUBLISHED',
-      'CANCELLED',
-      'HIDDEN',
-      'DELETED',
-      'CONTENT_UNAVAILABLE',
-    }.contains(state)) {
-      await a.store!.compactTerminal(id, entry.revision, state, data);
-    } else {
-      await a.store!.recordResult(id, entry.revision, state, data);
-    }
-    if (!_current(a)) return;
-    if (observedTask != null) _remoteTasks[observedTask.taskId] = observedTask;
-    if (result.state != PostCommandState.unknownNotObserved &&
-        result.state != PostCommandState.resultExpired) {
-      _clearCommandError(intent.commandId);
-    }
-    await _refreshLocal(a);
-    if (!_current(a)) return;
-    if (result.state == PostCommandState.accepted &&
-        observedTask != null &&
-        _isLocalPublicationTransition(entry, observedTask)) {
-      _noticePublication(a, observedTask);
-    }
-    if (!_current(a)) return;
-    final currentTask = taskId == null ? null : _remoteTasks[taskId];
-    if (state == 'ACCEPTED' &&
-        data['images'] is List &&
-        (data['images'] as List).isNotEmpty) {
-      unawaited(resumeImageUpload(id, automatic: true));
-    }
-    if (currentTask != null) await _dropRetryBuffers(a, currentTask);
-    if (!_current(a)) return;
-    if (state == 'DELETED') {
-      _markPostDeleted(data['postId'] as String);
-      _mergePersonal();
-      _notify();
-    } else if (state == 'PUBLISHED') {
-      unawaited(_insertPublished(a, data['postId'] as String));
-    }
-  }
-
-  Future<void> _applyTask(
-    _PostAuthority a,
-    StoredPostEntry entry,
-    PostTask task,
-  ) async {
-    if (!_current(a) ||
-        task.taskId != entry.data['taskId'] ||
-        task.postId != entry.data['postId'] ||
-        task.identityId != entry.data['identityId'] ||
-        task.channelId != entry.data['channelId']) {
-      throw _StalePostAuthority();
-    }
-    final data = Map<String, dynamic>.from(entry.data)
-      ..['attemptVersion'] = task.attemptVersion
-      ..['editedAt'] = task.serverSortAt.toIso8601String();
-    final state = task.visible
-        ? task.state.name.toUpperCase()
-        : task.state == PostTaskState.published
-        ? 'PUBLISHED'
-        : 'HIDDEN';
-    if (task.state == PostTaskState.cancelled) {
-      await _preserveCancelledImages(a, entry);
-    }
-    if (!task.contentAvailable && state == 'FAILED') {
-      await a.store!.compactTerminal(
-        entry.id,
-        entry.revision,
-        'CONTENT_UNAVAILABLE',
-        data,
-      );
-    } else if ({'PUBLISHED', 'CANCELLED', 'HIDDEN'}.contains(state)) {
-      await a.store!.compactTerminal(entry.id, entry.revision, state, data);
-    } else {
-      await a.store!.recordResult(entry.id, entry.revision, state, data);
-    }
-    if (!_current(a)) return;
-    _remoteTasks[task.taskId] = task;
-    _clearCommandError(entry.intents.last.commandId);
-    if (state == 'ACCEPTED' &&
-        data['images'] is List &&
-        (data['images'] as List).isNotEmpty) {
-      unawaited(resumeImageUpload(entry.id, automatic: true));
-    }
-    await _refreshLocal(a);
-    if (!_current(a)) return;
-    if (entry.state == 'ACCEPTED' &&
-        _isLocalPublicationTransition(entry, task)) {
-      _noticePublication(a, task);
-    }
-    if (!_current(a)) return;
-    await _dropRetryBuffers(a, task);
-    if (!_current(a)) return;
-    if (state == 'PUBLISHED') unawaited(_insertPublished(a, task.postId));
-  }
-
-  Future<void> _dropRetryBuffers(_PostAuthority a, PostTask task) async {
-    final buffers = (await a.store!.list())
-        .where(
-          (e) =>
-              e.isDraft &&
-              e.data['isRetryBuffer'] == true &&
-              e.data['taskId'] == task.taskId &&
-              (!task.contentAvailable ||
-                  task.state != PostTaskState.failed ||
-                  e.data['attemptVersion'] != task.attemptVersion),
-        )
-        .toList();
-    if (!_current(a)) return;
-    for (final buffer in buffers) {
-      if (!_current(a)) return;
-      await a.store!.deleteDraft(buffer.id, buffer.revision);
-    }
-  }
-
-  Future<void> _insertPublished(_PostAuthority a, String postId) async {
-    try {
-      if (!_current(a) || _deletedPostIds.contains(postId)) return;
-      final post = await _accept(
-        a,
-        await _api.detail(sessionToken: a.token, postId: postId),
+    final postId = post.postId;
+    if (currentChannelId == post.channelId) {
+      final request = _feedRequest;
+      final latest = await a.accept(
+        await _api.feed(sessionToken: a.token, channelId: post.channelId),
       );
       if (_deletedPostIds.contains(postId)) return;
-      if (currentChannelId == post.channelId) {
-        final request = _feedRequest;
-        final latest = await _accept(
-          a,
-          await _api.feed(sessionToken: a.token, channelId: post.channelId),
-        );
-        if (_deletedPostIds.contains(postId)) return;
-        if (request == _feedRequest &&
-            currentChannelId == post.channelId &&
-            latest.items.any((p) => p.postId == postId)) {
-          // 服务器给出最新页顺序；历史回执不把旧帖顶到首位，不改变原分页游标。
-          final visibleItems = latest.items
-              .where((p) => !_deletedPostIds.contains(p.postId))
-              .toList();
-          final prefixIds = visibleItems.map((p) => p.postId).toSet();
-          feedItems = [
-            ...visibleItems,
-            ...feedItems.where((p) => !prefixIds.contains(p.postId)),
-          ];
-        }
-      }
-      // 本人task证明归属，当前公共作者证明身份仍有效；第一页缺席不等于失去资格。
-      final ownedTask = _remoteTasks.values.where(
-        (task) =>
-            task.postId == postId &&
-            task.state == PostTaskState.published &&
-            (personalIdentity == null ||
-                task.identityId == personalIdentity!.id),
-      );
-      _own = [
-        if (ownedTask.isNotEmpty && post.author.state == PostAuthorState.active)
-          OwnPostCard(post: post, serverSortAt: post.publishedAt),
-        ..._own.where((p) => p.post.postId != postId),
-      ];
-      _mergePersonal();
-      _notify();
-    } catch (error) {
-      _failure(error, a);
-    }
-  }
-
-  /// 身份资料变化只刷新已加载内容；保留本人分页游标和阅读位置。
-  Future<void> refreshPersonalProjections() async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final ownIds = _own.map((p) => p.post.postId).toList();
-      for (final id in ownIds) {
-        PostDetail? post;
-        try {
-          post = await _accept(
-            a,
-            await _api.detail(sessionToken: a.token, postId: id),
-          );
-        } on PostFailure catch (error) {
-          if (error.statusCode != 404) rethrow;
-        }
-        if (!_current(a)) return;
-        _own = [
-          for (final old in _own)
-            if (old.post.postId != id)
-              old
-            else if (post != null &&
-                post.author.state == PostAuthorState.active)
-              OwnPostCard(post: post, serverSortAt: post.publishedAt),
+      if (request == _feedRequest &&
+          currentChannelId == post.channelId &&
+          latest.items.any((p) => p.postId == postId)) {
+        // 服务器给出最新页顺序；历史回执不把旧帖顶到首位，不改变原分页游标。
+        final visibleItems = latest.items
+            .where((p) => !_deletedPostIds.contains(p.postId))
+            .toList();
+        final prefixIds = visibleItems.map((p) => p.postId).toSet();
+        feedItems = [
+          ...visibleItems,
+          ...feedItems.where((p) => !prefixIds.contains(p.postId)),
         ];
       }
-      for (final taskId in _remoteTasks.keys.toList()) {
-        final task = await _accept(
-          a,
-          await _api.task(sessionToken: a.token, taskId: taskId),
-        );
-        final matching = (await a.store!.list()).where(
-          (e) => !e.isDraft && e.data['taskId'] == taskId,
-        );
-        if (matching.isNotEmpty && !_unresolved(matching.first)) {
-          await _applyTask(a, matching.first, task);
-        } else if (_current(a)) {
-          _remoteTasks[taskId] = task;
-        }
-      }
-      final directory = await _identities.identities(a.token);
-      final scoped = a;
-      if (!await _sessions.persistSessionMetadata(
-        a.token,
-        directory.sessionExpiresAt,
-        () => _current(scoped),
-      )) {
-        return;
-      }
-      final context = await _accept(
-        a,
-        await _api.composerContext(sessionToken: a.token),
-      );
-      if (!_current(a)) return;
-      final originals = directory.identities.where((i) => i.isOriginal);
-      final ordered = List<ManagedIdentity>.of(directory.identities)
-        ..sort((x, y) {
-          final byTime = x.createdAt.compareTo(y.createdAt);
-          return byTime != 0 ? byTime : x.id.compareTo(y.id);
-        });
-      final previousIdentity = personalIdentity?.id;
-      personalIdentities = List.unmodifiable(directory.identities);
-      personalIdentity =
-          directory.identities
-              .where(
-                (i) =>
-                    i.id ==
-                    (activeIdentity?.selectedId ?? personalIdentity?.id),
-              )
-              .firstOrNull ??
-          originals.firstOrNull ??
-          directory.identities
-              .where((i) => i.id == context.defaultIdentityId)
-              .firstOrNull ??
-          ordered.firstOrNull;
-      if (previousIdentity != personalIdentity?.id) {
-        _own = [];
-        _ownCursor = null;
-        ++_personalRequest;
-      }
-      _mergePersonal();
-      _notify();
-      if (previousIdentity != personalIdentity?.id &&
-          personalIdentity != null) {
-        await loadPersonal();
-      }
-    } catch (error) {
-      _failure(error, a);
     }
   }
 
-  Future<PostDraftEditor?> editFailedTask(String taskId) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final task = await _accept(
-        a,
-        await _api.task(sessionToken: a.token, taskId: taskId),
-      );
-      if (!task.canRetry ||
-          task.state != PostTaskState.failed ||
-          task.content == null) {
-        return null;
-      }
-      final entry = await _entryForTask(a, task);
-      if (!_current(a)) return null;
-      if (_unresolved(entry)) {
-        await reconcile(entry.id);
-        errorMessage = '原重试结果尚未核对完成，请先核对，不能另发新尝试。';
-        _notify();
-        return null;
-      }
-      final buffer = await a.store!.findRetryBuffer(
-        task.taskId,
-        task.attemptVersion,
-      );
-      if (!_current(a)) return null;
-      final bufferId = buffer?.id ?? _newId();
-      final images = DraftPostImage.list(
-        buffer?.data['images'] ?? entry.data['images'],
-      );
-      if (buffer == null && images.isEmpty && task.content!.imageCount > 0) {
-        errorMessage = '此设备没有原草稿图片，请回原设备处理，原任务仍保留。';
-        _notify();
-        return null;
-      }
-      return PostDraftEditor(
-        id: entry.id,
-        channelId: task.channelId,
-        accountId: a.accountId,
-        authorityVersion: a.epoch,
-        identityId: task.identityId,
-        title: buffer?.data['title'] as String? ?? task.content!.title,
-        body: buffer?.data['body'] as String? ?? task.content!.body,
-        revision: entry.revision,
-        persisted: buffer != null,
-        isRetry: true,
-        taskId: task.taskId,
-        attemptVersion: task.attemptVersion,
-        bufferId: bufferId,
-        bufferRevision: buffer?.revision ?? 0,
-        images: images,
-        tags: PostTags.parse(buffer?.data['tags'] ?? task.content!.tags),
-      )..saved = buffer != null;
-    } catch (error) {
-      _failure(error, a);
-      return null;
-    }
-  }
-
-  Future<StoredPostEntry> _entryForTask(_PostAuthority a, PostTask task) async {
-    final entries = await a.store!.list();
-    if (!_current(a)) throw _StalePostAuthority();
-    final match = entries.where(
-      (e) =>
-          !e.isDraft &&
-          e.data['isRetryBuffer'] != true &&
-          e.data['taskId'] == task.taskId,
-    );
-    if (match.isNotEmpty) return match.first;
-    // 跨设备只有任务事实时，先创建本地维护锚点；它不能被恢复为普通草稿。
-    final id = _newId();
-    final data = <String, dynamic>{
-      'channelId': task.channelId,
-      'identityId': task.identityId,
-      'title': task.content?.title ?? '',
-      'body': task.content?.body ?? '',
-      'tags': task.content?.tags ?? const <String>[],
-      'editedAt': task.serverSortAt.toIso8601String(),
-      'taskId': task.taskId,
-      'postId': task.postId,
-      'attemptVersion': task.attemptVersion,
-    };
-    final anchor = StoredPostIntent(
-      commandId: _newId(),
-      operation: 'TASK_ANCHOR',
-      digest: PostProtocol.digest(
-        PostProtocol.cancel(
-          taskId: task.taskId,
-          expectedAttemptVersion: task.attemptVersion,
-        ),
-      ),
-      payload: {'taskId': task.taskId},
-    );
-    return a.store!.createSubmitted(
-      id,
-      anchor,
-      data,
-      state: task.state.name.toUpperCase(),
-    );
-  }
-
-  Future<void> cancelTask(String taskId) => _taskCommand(taskId, false);
-  Future<void> hideTask(String taskId) => _taskCommand(taskId, true);
-  Future<void> _taskCommand(String taskId, bool hide) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final task = await _accept(
-        a,
-        await _api.task(sessionToken: a.token, taskId: taskId),
-      );
-      if (hide ? !task.canHide : !task.canCancel) return;
-      var entry = await _entryForTask(a, task);
-      if (!_current(a)) return;
-      if (_unresolved(entry)) {
-        await reconcile(entry.id);
-        return;
-      }
-      final intent = StoredPostIntent(
-        commandId: _newId(),
-        operation: hide ? 'HIDE_TASK' : 'CANCEL',
-        digest: PostProtocol.digest(
-          hide
-              ? PostProtocol.hide(
-                  taskId: task.taskId,
-                  expectedAttemptVersion: task.attemptVersion,
-                )
-              : PostProtocol.cancel(
-                  taskId: task.taskId,
-                  expectedAttemptVersion: task.attemptVersion,
-                ),
-        ),
-        payload: {
-          'taskId': task.taskId,
-          'expectedAttemptVersion': task.attemptVersion,
-        },
-      );
-      StoredPostEntry? next;
-      for (var attempt = 0; attempt < 3; attempt++) {
-        try {
-          next = await a.store!.appendIntent(
-            entry.id,
-            entry.revision,
-            intent,
-            Map<String, dynamic>.from(entry.data)..['commandState'] = 'UNKNOWN',
-          );
-          break;
-        } on PostStorageConflict {
-          // Upload progress may update this same accepted row. Retry only the
-          // unsent local CAS; never append over a newer command or attempt.
-          final latest = await a.store!.get(entry.id);
-          if (!_current(a)) return;
-          if (latest == null ||
-              _unresolved(latest) ||
-              latest.state != entry.state ||
-              latest.data['attemptVersion'] != task.attemptVersion ||
-              latest.intents.last.commandId != entry.intents.last.commandId) {
-            await reconcile(entry.id);
-            return;
-          }
-          entry = latest;
-        }
-      }
-      if (next == null) throw const PostStorageConflict();
-      if (!_current(a)) return;
-      await _refreshLocal(a);
-      await _send(a, next);
-    } catch (error) {
-      _failure(error, a);
-    }
-  }
-
-  Future<bool> deletePost(String postId) {
-    final pending = _deleting[postId];
-    if (pending != null) return pending;
-    final future = _deletePost(postId);
-    _deleting[postId] = future;
-    future.whenComplete(() {
-      if (identical(_deleting[postId], future)) _deleting.remove(postId);
-    });
-    return future;
-  }
-
-  Future<bool> _deletePost(String postId) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      if (_deletedPostIds.contains(postId)) return true;
-      final entries = await a.store!.list();
-      if (!_current(a)) return false;
-      final deleted = entries.any(
-        (e) => e.data['postId'] == postId && e.state == 'DELETED',
-      );
-      if (deleted) {
-        _markPostDeleted(postId);
-        _mergePersonal();
-        _notify();
-        return true;
-      }
-      final unresolved = entries.where(
-        (e) =>
-            e.data['postId'] == postId &&
-            e.intents.isNotEmpty &&
-            e.intents.last.operation == 'DELETE_POST' &&
-            _unresolved(e),
-      );
-      if (unresolved.isNotEmpty) {
-        await reconcile(unresolved.first.id);
-        final resolved = await a.store!.get(unresolved.first.id);
-        return _current(a) && resolved?.state == 'DELETED';
-      }
-      if (!await canDelete(postId) || !_current(a)) return false;
-      final id = _newId();
-      final data = <String, dynamic>{
-        'postId': postId,
-        'editedAt': _clock().toUtc().toIso8601String(),
-        'title': '删除结果待核对',
-        'body': '',
-      };
-      final intent = StoredPostIntent(
-        commandId: _newId(),
-        operation: 'DELETE_POST',
-        digest: PostProtocol.digest(PostProtocol.delete(postId: postId)),
-        payload: {'postId': postId},
-      );
-      final entry = await a.store!.createSubmitted(id, intent, data);
-      // Keep the durable deletion in the poll set if its first result read fails.
-      await _refreshLocal(a);
-      if (!_current(a)) return false;
-      await _send(a, entry);
-      final result = await a.store!.get(id);
-      return _current(a) && result?.state == 'DELETED';
-    } catch (error) {
-      _failure(error, a);
-      return false;
-    }
-  }
-
-  /// 明确未受理的 CREATE 才可复制为新编辑；原命令防重事实永久保留。
-  Future<PostDraftEditor?> recoverUnaccepted(String id) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          entry.intents.last.operation != 'CREATE' ||
-          !{'NOT_ACCEPTED', 'REJECTED'}.contains(entry.state) ||
-          entry.data['abandoned'] == true) {
-        return null;
-      }
-      final editor = newDraft(entry.data['channelId'] as String)
-        ..title = entry.data['title'] as String? ?? ''
-        ..body = entry.data['body'] as String? ?? ''
-        ..tags = PostTags.parse(entry.data['tags'])
-        ..identityId = entry.data['identityId'] as String?;
-      editor.images.addAll(DraftPostImage.list(entry.data['images']));
-      editor.mediaTouched = editor.images.isNotEmpty;
-      if (!await saveDraft(editor)) return null;
-      if (!_current(a)) return null;
-      await a.store!.compactTerminal(
-        id,
-        entry.revision,
-        'NOT_ACCEPTED',
-        Map<String, dynamic>.from(entry.data)..['abandoned'] = true,
-      );
-      await _refreshLocal(a);
-      return editor;
-    } catch (error) {
-      _failure(error, a);
-      return null;
-    }
-  }
-
-  Future<void> discardUnaccepted(String id) async {
-    _PostAuthority? a;
-    try {
-      a = await _authority(storage: true);
-      final entry = await a.store!.get(id);
-      if (!_current(a) ||
-          entry == null ||
-          entry.intents.last.operation != 'CREATE' ||
-          !{'NOT_ACCEPTED', 'REJECTED'}.contains(entry.state)) {
-        return;
-      }
-      await a.store!.compactTerminal(
-        id,
-        entry.revision,
-        'NOT_ACCEPTED',
-        Map<String, dynamic>.from(entry.data)..['abandoned'] = true,
-      );
-      await _refreshLocal(a);
-    } catch (error) {
-      _failure(error, a);
-    }
-  }
+  Future<void> refreshPersonalProjections() =>
+      _personal.refreshPersonalProjections();
+  Future<PostDraftEditor?> editFailedTask(String taskId) =>
+      _maintenance.editFailedTask(taskId);
+  Future<void> cancelTask(String taskId) => _maintenance.cancelTask(taskId);
+  Future<void> hideTask(String taskId) => _maintenance.hideTask(taskId);
+  Future<bool> deletePost(String postId) => _maintenance.deletePost(postId);
+  Future<PostDraftEditor?> recoverUnaccepted(String id) =>
+      _maintenance.recoverUnaccepted(id);
+  Future<void> discardUnaccepted(String id) =>
+      _maintenance.discardUnaccepted(id);
 
   /// 只由认证流程持久确认正式关闭后调用；普通退出和冻结不会到这里。
   Future<void> purgeClosedAccount(String originalAccountId) async {
@@ -2297,9 +1008,7 @@ class PostController extends ChangeNotifier {
     }
     if (current != null && current.accountId == originalAccountId) {
       await current.purgeClosedAccount();
-      _local = [];
-      personalItems = [];
-      _notify();
+      _personal.reset();
     } else {
       final store = await _openStore(originalAccountId);
       try {
@@ -2324,10 +1033,19 @@ class PostController extends ChangeNotifier {
 
   @override
   void dispose() {
-    activeIdentity?.removeListener(_activeIdentityChanged);
+    _personal.removeListener(_notify);
+    _maintenance.removeListener(_notify);
+    _personal.dispose();
+    _maintenance.dispose();
     _disposed = true;
-    _poller?.cancel();
+    _results.dispose();
+    _drafts.removeListener(_notify);
+    _submissions.removeListener(_notify);
+    _drafts.dispose();
+    _submissions.dispose();
     _epoch++;
+    _homeFeed.removeListener(_notify);
+    _homeFeed.dispose();
     _sessions.removeListener(_authorityChanged);
     _authStore.removeListener(_authorityChanged);
     final store = _store;
@@ -2335,4 +1053,32 @@ class PostController extends ChangeNotifier {
     if (store != null) unawaited(store.close().catchError((Object _) {}));
     super.dispose();
   }
+}
+
+/// Keeps the existing feed API available to callers importing this library.
+/// Home routes use [PostController.homeFeed], which owns all timeline state.
+extension FeedController on PostController {
+  List<FeedPost> get timelineItems => homeFeed.timelineItems;
+  Set<String> get blockedChannelIds => homeFeed.blockedChannelIds;
+  int? postViewCount(String id) => homeFeed.postViewCount(id);
+  int get timelineGeneration => homeFeed.timelineGeneration;
+  String? get timelineChannelId => homeFeed.timelineChannelId;
+  String? get timelineCursor => homeFeed.timelineCursor;
+  String? get timelineError => homeFeed.timelineError;
+  String? get preferencesError => homeFeed.preferencesError;
+  bool get timelineLoading => homeFeed.timelineLoading;
+  bool get preferencesSaving => homeFeed.preferencesSaving;
+  Future<void> loadTimeline({
+    String? channelId,
+    bool more = false,
+    bool recoverMissingInteractions = true,
+  }) => homeFeed.loadTimeline(
+    channelId: channelId,
+    more: more,
+    recoverMissingInteractions: recoverMissingInteractions,
+  );
+  Future<void> saveBlockedChannels(Set<String> ids) =>
+      homeFeed.saveBlockedChannels(ids);
+  Future<void> registerVisiblePost(String postId) =>
+      homeFeed.registerVisiblePost(postId);
 }

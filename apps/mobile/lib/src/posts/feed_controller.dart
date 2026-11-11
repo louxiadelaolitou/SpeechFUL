@@ -1,43 +1,111 @@
-part of 'post_controller.dart';
+import 'package:flutter/foundation.dart';
 
-extension FeedController on PostController {
-  FeedApi get _feedApi => _api as FeedApi;
+import 'feed_api.dart';
+import 'post_api.dart';
+import 'post_models.dart';
 
-  void _propagateFeedAuthorityFailure(Object error, _PostAuthority? authority) {
-    // Timeline/preferences already own their retry messages. A transient feed
-    // failure must not replace another command's error or its clearing owner.
-    if (error is PostFailure &&
-            {
-              PostFailureKind.unauthorized,
-              PostFailureKind.unavailable,
-            }.contains(error.kind) ||
-        error is AuthFailure &&
-            (error.unauthorized || error.kind == AuthFailureKind.unavailable)) {
-      _failure(error, authority);
-    }
-  }
-
-  List<FeedPost> get timelineItems => List.unmodifiable(
-    _timeline.where((p) => !_deletedPostIds.contains(p.postId)),
+/// One captured account window. The session owner persists response metadata
+/// and rejects stale responses before returning their values to the feed.
+abstract interface class FeedReadSession {
+  bool get isCurrent;
+  Future<T> request<T>(
+    Future<PostResponse<T>> Function(String sessionToken) send,
   );
+  void reportFailure(Object error);
+}
+
+/// Owns home timeline state, pagination, preferences and observed view counts.
+/// Publication, storage, sessions and shared interactions have separate owners.
+class FeedController extends ChangeNotifier {
+  FeedController({
+    required this._api,
+    required this._available,
+    required this._openSession,
+    required this._invalidateInteractionReads,
+    required this._loadInteractions,
+    required this._isPostDeleted,
+  });
+
+  final FeedApi? _api;
+  final bool Function() _available;
+  final Future<FeedReadSession> Function() _openSession;
+  final VoidCallback _invalidateInteractionReads;
+  final Future<bool> Function(List<String>) _loadInteractions;
+  final bool Function(String) _isPostDeleted;
+  List<FeedPost> _timeline = [];
+  Set<String> _blockedChannels = {};
+  final _postViews = <String, int>{};
+  bool _preferencesReady = false, _disposed = false;
+  int _epoch = 0, _timelineRequest = 0, _timelineGeneration = 0;
+  String? _timelineChannelId,
+      _timelineCursor,
+      _timelineError,
+      _preferencesError;
+  bool _timelineLoading = false, _preferencesSaving = false;
+  Future<void> _preferenceWrites = Future.value();
+
+  bool get supportsFeed => _api != null;
+  bool get available => !_disposed && _available();
+  bool get feedPreferencesReady => _preferencesReady;
+  int get timelineGeneration => _timelineGeneration;
+  String? get timelineChannelId => _timelineChannelId;
+  String? get timelineCursor => _timelineCursor;
+  String? get timelineError => _timelineError;
+  String? get preferencesError => _preferencesError;
+  bool get timelineLoading => _timelineLoading;
+  bool get preferencesSaving => _preferencesSaving;
+
+  List<FeedPost> get timelineItems =>
+      List.unmodifiable(_timeline.where((p) => !_isPostDeleted(p.postId)));
   Set<String> get blockedChannelIds => Set.unmodifiable(_blockedChannels);
   int? postViewCount(String id) => _postViews[id];
 
-  void _clearTimeline() {
-    _interactions.clear();
-    _hiddenWrites.clear();
-    _hiddenUncertainVersions.clear();
-    hiddenPostError = null;
+  /// The account owner can batch this reset with its other state changes.
+  void reset() {
+    ++_epoch;
     ++_timelineRequest;
     _timeline = [];
     _blockedChannels = {};
     _postViews.clear();
     _preferencesReady = false;
-    timelineChannelId = timelineCursor = timelineError = preferencesError =
+    _timelineChannelId = _timelineCursor = _timelineError = _preferencesError =
         null;
-    timelineLoading = preferencesSaving = false;
+    _timelineLoading = _preferencesSaving = false;
     // A new account never waits behind the old account's pending network request.
     _preferenceWrites = Future.value();
+    _notify();
+  }
+
+  /// A confirmed hide fences the page that started before that write.
+  void invalidatePendingRead({bool notify = true}) {
+    if (!_timelineLoading) return;
+    ++_timelineRequest;
+    _timelineLoading = false;
+    if (notify) _notify();
+  }
+
+  /// Apply an edit to retained rows without letting an older page restore it.
+  void applyEditedPost(PostDetail post, {bool notify = true}) {
+    ++_timelineRequest;
+    _timelineLoading = false;
+    _timeline = [
+      for (final old in _timeline)
+        if (old.postId == post.postId)
+          FeedPost(
+            postId: post.postId,
+            channelId: post.channelId,
+            title: post.title,
+            author: post.author,
+            publishedAt: post.publishedAt,
+            body: post.body,
+            tags: post.tags,
+            viewCount: old.viewCount,
+            imageCount: post.imageCount,
+          )
+        else
+          old,
+    ];
+    if (notify) _notify();
   }
 
   Future<void> loadTimeline({
@@ -45,36 +113,35 @@ extension FeedController on PostController {
     bool more = false,
     bool recoverMissingInteractions = true,
   }) async {
-    if (!supportsFeed || !available || preferencesSaving) return;
+    if (!supportsFeed || !available || _preferencesSaving) return;
     if (more &&
-        (timelineLoading ||
-            timelineCursor == null ||
-            channelId != timelineChannelId)) {
+        (_timelineLoading ||
+            _timelineCursor == null ||
+            channelId != _timelineChannelId)) {
       return;
     }
     final request = ++_timelineRequest;
     final epoch = _epoch;
-    final cursor = more ? timelineCursor : null;
+    final cursor = more ? _timelineCursor : null;
     if (!more) {
       _invalidateInteractionReads();
-      if (timelineChannelId != channelId || !_preferencesReady) {
+      if (_timelineChannelId != channelId || !_preferencesReady) {
         _timeline = [];
-        timelineCursor = null;
+        _timelineCursor = null;
       }
-      timelineChannelId = channelId;
+      _timelineChannelId = channelId;
     }
-    timelineLoading = true;
-    timelineError = null;
+    _timelineLoading = true;
+    _timelineError = null;
     _notify();
-    _PostAuthority? a;
+    FeedReadSession? a;
     try {
-      a = await _authority();
+      a = await _openSession();
       if (epoch != _epoch || request != _timelineRequest) return;
       if (!_preferencesReady || !more) {
         final reconciling = !_preferencesReady;
-        final preferences = await _accept(
-          a,
-          await _feedApi.feedPreferences(sessionToken: a.token),
+        final preferences = await a.request(
+          (token) => _api!.feedPreferences(sessionToken: token),
         );
         if (request != _timelineRequest) return;
         _blockedChannels = preferences.blockedChannelIds;
@@ -83,12 +150,11 @@ extension FeedController on PostController {
             .toList();
         _preferencesReady = true;
         _notify();
-        if (reconciling) preferencesError = null;
+        if (reconciling) _preferencesError = null;
       }
-      final page = await _accept(
-        a,
-        await _feedApi.timeline(
-          sessionToken: a.token,
+      final page = await a.request(
+        (token) => _api!.timeline(
+          sessionToken: token,
           channelId: channelId,
           cursor: cursor,
         ),
@@ -107,22 +173,22 @@ extension FeedController on PostController {
       _timeline = [
         if (more) ..._timeline,
         ...page.items.where(
-          (p) => !_deletedPostIds.contains(p.postId) && ids.add(p.postId),
+          (p) => !_isPostDeleted(p.postId) && ids.add(p.postId),
         ),
       ];
       for (final post in page.items) {
         final old = _postViews[post.postId] ?? 0;
         _postViews[post.postId] = post.viewCount > old ? post.viewCount : old;
       }
-      timelineCursor = page.nextCursor;
-      if (!more) timelineGeneration++;
+      _timelineCursor = page.nextCursor;
+      if (!more) _timelineGeneration++;
       _notify();
-      final found = await loadInteractions(
+      final found = await _loadInteractions(
         page.items.map((p) => p.postId).toList(),
       );
       if (!found &&
           recoverMissingInteractions &&
-          _current(a) &&
+          a.isCurrent &&
           request == _timelineRequest) {
         await loadTimeline(
           channelId: channelId,
@@ -131,22 +197,22 @@ extension FeedController on PostController {
       }
     } catch (error) {
       if (epoch != _epoch || request != _timelineRequest) return;
-      _propagateFeedAuthorityFailure(error, a);
-      if (a != null && _current(a)) {
+      a?.reportFailure(error);
+      if (a != null && a.isCurrent) {
         if (error is PostFailure && error.code == 'CURSOR_INVALID') {
           // Never append another scope to the current page or treat this as EOF.
-          timelineCursor = null;
+          _timelineCursor = null;
           _preferencesReady = false;
-          timelineLoading = false;
+          _timelineLoading = false;
           await loadTimeline(channelId: channelId);
           return;
         }
-        timelineError = '暂时无法加载帖子，请重试。';
-        if (!_preferencesReady) preferencesError = '暂时无法核对屏蔽设置，请重试。';
+        _timelineError = '暂时无法加载帖子，请重试。';
+        if (!_preferencesReady) _preferencesError = '暂时无法核对屏蔽设置，请重试。';
       }
     } finally {
       if (epoch == _epoch && request == _timelineRequest) {
-        timelineLoading = false;
+        _timelineLoading = false;
         _notify();
       }
     }
@@ -165,69 +231,66 @@ extension FeedController on PostController {
 
   Future<void> _saveBlockedChannels(Set<String> target, int epoch) async {
     if (!supportsFeed || !available || epoch != _epoch) return;
-    final a = await _authority();
-    if (epoch != _epoch || !_current(a)) return;
-    preferencesSaving = true;
-    preferencesError = null;
+    final a = await _openSession();
+    if (epoch != _epoch || !a.isCurrent) return;
+    _preferencesSaving = true;
+    _preferencesError = null;
     ++_timelineRequest;
-    timelineLoading = false;
-    timelineCursor = null;
+    _timelineLoading = false;
+    _timelineCursor = null;
     _timeline = [];
     _notify();
     try {
-      final result = await _accept(
-        a,
-        await _feedApi.saveFeedPreferences(
-          sessionToken: a.token,
+      final result = await a.request(
+        (token) => _api!.saveFeedPreferences(
+          sessionToken: token,
           blockedChannelIds: target,
         ),
       );
       _blockedChannels = result.blockedChannelIds;
       _preferencesReady = true;
     } catch (error) {
-      if (!_current(a)) return;
-      _propagateFeedAuthorityFailure(error, a);
+      if (!a.isCurrent) return;
+      a.reportFailure(error);
       _preferencesReady = false;
-      if (!_current(a)) return;
+      if (!a.isCurrent) return;
       // Even a timeout may have committed. Read before accepting another toggle.
       try {
-        final actual = await _accept(
-          a,
-          await _feedApi.feedPreferences(sessionToken: a.token),
+        final actual = await a.request(
+          (token) => _api!.feedPreferences(sessionToken: token),
         );
         _blockedChannels = actual.blockedChannelIds;
         _preferencesReady = true;
-        preferencesError = setEquals(target, _blockedChannels)
+        _preferencesError = setEquals(target, _blockedChannels)
             ? null
             : '屏蔽设置未保存，已恢复服务器设置。';
       } catch (readError) {
-        _propagateFeedAuthorityFailure(readError, a);
-        if (_current(a)) preferencesError = '暂时无法核对屏蔽设置，请重试。';
+        a.reportFailure(readError);
+        if (a.isCurrent) _preferencesError = '暂时无法核对屏蔽设置，请重试。';
       }
     } finally {
-      if (_current(a)) {
-        preferencesSaving = false;
+      if (a.isCurrent) {
+        _preferencesSaving = false;
         _notify();
       }
     }
-    if (_current(a) && _preferencesReady) {
-      await loadTimeline(channelId: timelineChannelId);
-    } else if (_current(a)) {
-      timelineError = '请先重新加载并核对屏蔽设置。';
+    if (a.isCurrent && _preferencesReady) {
+      await loadTimeline(channelId: _timelineChannelId);
+    } else if (a.isCurrent) {
+      _timelineError = '请先重新加载并核对屏蔽设置。';
       _notify();
     }
   }
 
   /// Called by the detail only after a frame containing the visible body.
   Future<void> registerVisiblePost(String postId) async {
-    if (!supportsFeed || !available || _deletedPostIds.contains(postId)) return;
-    final a = await _authority();
+    if (!supportsFeed || !available || _isPostDeleted(postId)) return;
+    final a = await _openSession();
     try {
-      final result = await _accept(
-        a,
-        await _feedApi.registerPostView(sessionToken: a.token, postId: postId),
+      final result = await a.request(
+        (token) => _api!.registerPostView(sessionToken: token, postId: postId),
       );
-      if (_deletedPostIds.contains(postId)) return;
+      if (_isPostDeleted(postId)) return;
       final old = _postViews[postId] ?? 0;
       _postViews[postId] = result.viewCount > old ? result.viewCount : old;
       _notify();
@@ -236,8 +299,20 @@ extension FeedController on PostController {
       if (error is PostFailure &&
           (error.kind == PostFailureKind.unauthorized ||
               error.kind == PostFailureKind.unavailable)) {
-        _failure(error, a);
+        a.reportFailure(error);
       }
     }
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    ++_epoch;
+    ++_timelineRequest;
+    super.dispose();
   }
 }
