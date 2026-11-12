@@ -5,7 +5,7 @@
 - 授权依据：用户反馈带图帖长时间发布中，允许连接手机调查；明确同意补齐阶段、耗时、HTTP 状态及请求 ID。仅诊断能力，不自动重发真实帖子，不改数据库或正式部署，不沿用其他任务的 Push/合并/Release 授权。
 - 需求确认：现有发布行为保持；Android 本地输出可在 IDEA Terminal 用 adb 查看。缺少响应的状态码和请求 ID 留空，不猜测；日志不含敏感正文、凭据和资源标识。无未决产品取舍。
 - 更新日期：2026-11-12。
-- 状态：实现完成；验证本地 PASS，Android 构建待验；未合并；未发布。
+- 状态：实现完成；验证本地及 Android 构建 PASS，真实补传待采集；未合并；未发布。
 
 ## 目标与范围
 
@@ -27,3 +27,9 @@
 ## 下一步
 
 完成最终聚焦验证及 Android 构建，交付诊断版本。Push、PR、合并、正式发布未执行。
+
+## Android 诊断构建
+
+- PASS：实现提交 `997c0e2ef35fa381b1e9e7f54cc53bc2905f319b`，锁定依赖，`flutter build apk --release --no-pub --target-platform android-arm64`；包名仅在隔离打包副本保留 publictrial，与源码导出比对一致。构建命令与结果位于任务私有目录的 build-diagnostic.ps1 / release-build.log / diagnostic-source-proof.json。
+- PASS：`1.1.1-diagnostic`（2026111202），原签名，APK SHA256 `18a5c448e19f863b10750278cdaa4894b3999eeddccfac8f5b598f99406ae7f8`；覆盖 vivo V2323A 后启动，首次安装时间保持 `2026-11-10 12:32:23`。用户在手机确认安装并回复“好了”。GitHub Release 附件未变。
+- 真实原任务补传由用户点击，先开启只记录 POST_UPLOAD 的 120 秒本地采集；尚未据此声称原问题修复。
