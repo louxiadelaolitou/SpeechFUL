@@ -9,6 +9,7 @@ import io
 import json
 import resource
 import sys
+import syslog
 import warnings
 
 if __name__ == "__main__":
@@ -27,6 +28,31 @@ MAX_FRAMES = 120
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 ImageFile.LOAD_TRUNCATED_IMAGES = False
 warnings.simplefilter("error")
+
+
+def rejection_reason(error):
+    """Return a fixed diagnostic category, never exception text or metadata."""
+    known = {
+        "size": "SIZE", "dimensions": "DIMENSIONS", "pixels": "PIXELS",
+        "APNG not in v1": "APNG", "orientation": "ORIENTATION",
+        "animation work": "ANIMATION_WORK", "frame duration": "FRAME_DURATION",
+        "cycle duration": "CYCLE_DURATION", "no frames": "NO_FRAMES",
+        "JPEG terminator": "JPEG_TERMINATOR", "GIF terminator": "GIF_TERMINATOR",
+        "PNG terminator": "PNG_TERMINATOR", "WebP container length": "WEBP_LENGTH",
+    }
+    if type(error) is ValueError:
+        return known.get(str(error), "DECODE_ERROR")
+    if isinstance(error, Warning):
+        return "DECODE_WARNING"
+    return "DECODE_ERROR"
+
+
+def report_rejection(error):
+    try:
+        syslog.openlog("speechful_media_validator", syslog.LOG_PID, syslog.LOG_LOCAL6)
+        syslog.syslog(syslog.LOG_WARNING, "reason=" + rejection_reason(error))
+    except Exception:
+        pass  # Diagnostics must never change the validator result.
 
 
 def inspect(data):
@@ -130,8 +156,9 @@ def main():
         return 3
     try:
         result = inspect(sys.stdin.buffer.read(MAX_BYTES + 1))
-    except Exception:
-        return 2  # no byte, metadata, filename or exception details in logs
+    except Exception as error:
+        report_rejection(error)
+        return 2  # fixed category only; no bytes, metadata or exception details
     print(json.dumps(result, separators=(",", ":")))
     return 0
 

@@ -7,7 +7,8 @@ import sys
 import unittest
 
 from PIL import Image
-from validate_image import inspect, thumbnail
+from validate_image import inspect, rejection_reason, report_rejection, thumbnail
+from unittest import mock
 
 
 def sample(fmt, animated=False, **kwargs):
@@ -23,6 +24,16 @@ def sample(fmt, animated=False, **kwargs):
 
 
 class ValidatorTests(unittest.TestCase):
+    def test_rejection_diagnostics_never_include_exception_text(self):
+        self.assertEqual(rejection_reason(ValueError("JPEG terminator")), "JPEG_TERMINATOR")
+        self.assertEqual(rejection_reason(UserWarning("private image metadata")), "DECODE_WARNING")
+        for error in (ValueError("private body and token"), OSError("private path")):
+            with mock.patch("validate_image.syslog.openlog"), mock.patch("validate_image.syslog.syslog") as log:
+                report_rejection(error)
+            self.assertEqual(log.call_args.args[1], "reason=DECODE_ERROR")
+        with mock.patch("validate_image.syslog.openlog", side_effect=OSError("unavailable")):
+            report_rejection(ValueError("size"))
+
     def test_all_original_formats_and_frames(self):
         for fmt in ("JPEG", "PNG", "GIF", "WEBP"):
             with self.subTest(format=fmt):
