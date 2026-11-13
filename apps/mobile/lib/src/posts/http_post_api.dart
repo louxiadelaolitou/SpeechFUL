@@ -25,6 +25,7 @@ import 'post_models.dart';
 import 'post_media_api.dart';
 import 'post_protocol.dart';
 import 'post_upload_api.dart';
+import 'post_upload_diagnostics.dart';
 import 'post_upload_models.dart';
 
 import 'package:crypto/crypto.dart' as hashes;

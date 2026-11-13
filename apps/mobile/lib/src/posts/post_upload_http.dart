@@ -145,6 +145,7 @@ class HttpPostUploadApi extends HttpPostApi implements PostUploadApi {
         '/api/v1/me/post-tasks/${PostProtocol.resourceId(taskId)}/attempts/${PostProtocol.version(version)}/images/${image.mediaId}/bytes';
     HttpClientRequest? active;
     var expired = false;
+    final trace = PostUploadTrace('upload_bytes');
     try {
       return await (() async {
         final request = await _client.openUrl(
@@ -164,7 +165,9 @@ class HttpPostUploadApi extends HttpPostApi implements PostUploadApi {
         request.headers.set('Accept', 'application/json');
         request.contentLength = bytes.length;
         request.add(bytes);
+        trace.stage('send_body_and_wait_response');
         final response = await request.close();
+        trace.response(response.statusCode, response.headers['x-request-id']);
         if (response.contentLength > 32768) {
           throw const FormatException('Invalid upload response');
         }
@@ -175,6 +178,7 @@ class HttpPostUploadApi extends HttpPostApi implements PostUploadApi {
           }
           data.add(chunk);
         }
+        trace.stage('validate_response');
         final h = response.headers;
         final id = HttpPostApi._single(h, 'x-request-id');
         AuthCrypto.decode(id, bytes: 16);
@@ -203,20 +207,28 @@ class HttpPostUploadApi extends HttpPostApi implements PostUploadApi {
             HttpPostApi._single(h, 'x-content-type-options') != 'nosniff') {
           throw const FormatException('Invalid upload receipt');
         }
-        return PostJson.utc(HttpPostApi._single(h, 'server-time'));
+        final serverTime = PostJson.utc(HttpPostApi._single(h, 'server-time'));
+        trace.succeed();
+        return serverTime;
       })().timeout(timeout);
-    } on PostFailure {
+    } on PostFailure catch (error) {
+      trace.fail(error.kind.name);
       rethrow;
     } on TimeoutException {
+      trace.fail('timeout');
       expired = true;
       active?.abort();
       throw const PostFailure(kind: PostFailureKind.transport, code: 'TIMEOUT');
     } on IOException {
+      trace.fail('network');
       active?.abort();
       throw const PostFailure(kind: PostFailureKind.transport);
     } on FormatException {
+      trace.fail('invalid_response');
       active?.abort();
       throw const PostFailure(kind: PostFailureKind.invalidResponse);
+    } finally {
+      trace.finish();
     }
   });
 }

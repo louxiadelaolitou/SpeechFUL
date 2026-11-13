@@ -9,6 +9,7 @@ import 'post_api.dart';
 import 'post_media_api.dart';
 import 'post_models.dart';
 import 'post_protocol.dart';
+import 'post_upload_diagnostics.dart';
 
 /// Owns fixed-origin I/O, strict decoding and transport error semantics.
 class PostHttpTransport {
@@ -63,6 +64,11 @@ class PostHttpTransport {
     HttpClientRequest? active;
     int? status;
     var expired = false;
+    final trace = PostUploadTrace.forRequest(
+      method,
+      path,
+      body?['images'] is List,
+    );
     try {
       return await (() async {
         final uri = communityBaseUri
@@ -94,8 +100,10 @@ class PostHttpTransport {
           request.contentLength = bytes.length;
           request.add(bytes);
         }
+        trace?.stage('send_body_and_wait_response');
         final response = await request.close();
         status = response.statusCode;
+        trace?.response(status!, response.headers['x-request-id']);
         final limit = status == expected ? maxResponseBytes : 32768;
         if (response.contentLength > limit) {
           throw const FormatException('Oversized post response');
@@ -107,6 +115,7 @@ class PostHttpTransport {
           }
           data.add(chunk);
         }
+        trace?.stage('validate_response');
         final h = response.headers;
         final requestId = singleHeader(h, 'x-request-id');
         AuthCrypto.decode(requestId, bytes: 16);
@@ -163,6 +172,7 @@ class PostHttpTransport {
           }
           value = withEditedAt(value, editedAt);
         }
+        trace?.succeed();
         return PostResponse<T>(
           value: value,
           serverTime: serverTime,
@@ -172,13 +182,16 @@ class PostHttpTransport {
           interactionVersion: interactionVersion,
         );
       })().timeout(requestTimeout ?? timeout);
-    } on PostFailure {
+    } on PostFailure catch (error) {
+      trace?.fail(error.kind.name);
       rethrow;
     } on TimeoutException {
+      trace?.fail('timeout');
       expired = true;
       active?.abort();
       throw const PostFailure(kind: PostFailureKind.transport, code: 'TIMEOUT');
     } on FormatException {
+      trace?.fail('invalid_response');
       active?.abort();
       throw PostFailure(
         kind: status == 401
@@ -189,9 +202,12 @@ class PostHttpTransport {
         statusCode: status,
       );
     } on IOException {
+      trace?.fail('network');
       active?.abort();
       // 接口不复制异常文本；命令是否受理只能在原账号、原 command 下核对。
       throw const PostFailure(kind: PostFailureKind.transport);
+    } finally {
+      trace?.finish();
     }
   }
 
