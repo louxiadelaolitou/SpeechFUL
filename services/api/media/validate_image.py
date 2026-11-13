@@ -55,6 +55,51 @@ def report_rejection(error):
         pass  # Diagnostics must never change the validator result.
 
 
+def jpeg_codestream_end(data):
+    """Locate the main JPEG EOI, skipping length-delimited metadata and scans.
+
+    Embedded EXIF thumbnails cannot satisfy this check. Pixel decoding remains
+    Pillow's responsibility; this parser only confirms the complete codestream.
+    """
+    if not data.startswith(b"\xff\xd8"):
+        return None
+    position = 2
+    in_scan = False
+    while position < len(data):
+        if data[position] != 0xFF:
+            if not in_scan:
+                return None
+            position = data.find(b"\xff", position)
+            if position < 0:
+                return None
+        while position < len(data) and data[position] == 0xFF:
+            position += 1
+        if position == len(data):
+            return None
+        marker = data[position]
+        position += 1
+        if marker == 0x00:
+            if not in_scan:
+                return None
+            continue  # Stuffed FF byte in entropy-coded data.
+        if 0xD0 <= marker <= 0xD7:
+            if not in_scan:
+                return None
+            continue  # Restart marker has no length.
+        if marker == 0x01:
+            continue  # TEM is also a standalone marker.
+        if marker == 0xD9:
+            return position
+        if marker == 0xD8 or position + 2 > len(data):
+            return None
+        length = int.from_bytes(data[position:position + 2], "big")
+        if length < 2 or position + length > len(data):
+            return None
+        position += length
+        in_scan = marker == 0xDA
+    return None
+
+
 def inspect(data):
     if not 0 < len(data) <= MAX_BYTES:
         raise ValueError("size")
@@ -104,7 +149,9 @@ def inspect(data):
         with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
             image.verify()
     # Reject clearly truncated containers even when a decoder tolerates EOF.
-    if fmt == "JPEG" and not data.endswith(b"\xff\xd9"):
+    # Phone JPEGs may append vendor data after the main EOI. Keep the original
+    # bytes, but still require a structurally valid main EOI after full decode.
+    if fmt == "JPEG" and jpeg_codestream_end(data) is None:
         raise ValueError("JPEG terminator")
     if fmt == "GIF" and not data.endswith(b";"):
         raise ValueError("GIF terminator")
