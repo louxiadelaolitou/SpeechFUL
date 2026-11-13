@@ -14,13 +14,18 @@ class SettingsScreen extends StatefulWidget {
     required this.onManageIdentity,
     required this.onManageSecurity,
     this.onClose,
+    this.onLogout,
     this.onManageAccount,
     this.onCloseAccount,
     this.onBlacklist,
     this.supportGalleryWriter,
   });
   final VoidCallback onManageIdentity, onManageSecurity;
-  final VoidCallback? onClose, onManageAccount, onCloseAccount, onBlacklist;
+  final VoidCallback? onClose,
+      onLogout,
+      onManageAccount,
+      onCloseAccount,
+      onBlacklist;
   final ViewerGalleryWriter? supportGalleryWriter;
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -99,7 +104,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         '身份管理',
         widget.onManageIdentity,
       ),
-      if (widget.onManageAccount != null)
+      if (widget.onLogout != null)
+        _SettingEntry('logout', Icons.logout_rounded, '退出登录', widget.onLogout!),
+      if (widget.onLogout == null && widget.onManageAccount != null)
         _SettingEntry(
           'account',
           Icons.person_outline_rounded,

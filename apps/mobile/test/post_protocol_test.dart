@@ -47,6 +47,11 @@ void main() {
       }
     }
     PostContentRules.validate('纯图标题', '', imageCount: 1);
+    PostContentRules.validate('三图标题', '', imageCount: 3);
+    expect(
+      () => PostContentRules.validate('四图标题', '', imageCount: 4),
+      throwsFormatException,
+    );
     expect(() => PostContentRules.validate('只有标题', ''), throwsFormatException);
   });
   test('Dart validates all shared nine digest and seven Unicode16 vectors', () {

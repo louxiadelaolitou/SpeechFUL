@@ -236,7 +236,7 @@ void main() {
     fixture.picker.next = [pickedBytes(image)];
     await tester.ensureVisible(find.byTooltip('添加图片'));
     await tester.tap(find.byTooltip('添加图片'));
-    await waitFor(tester, find.text('图片 1/9'));
+    await waitFor(tester, find.text('图片 1/3'));
     api.stageFailure = const PostFailure(
       kind: PostFailureKind.rejected,
       statusCode: 409,
@@ -274,7 +274,7 @@ void main() {
     final addImage = find.byTooltip('添加图片');
     await tester.ensureVisible(addImage);
     await tester.tap(addImage);
-    await waitFor(tester, find.text('图片 1/9'));
+    await waitFor(tester, find.text('图片 1/3'));
     api.loseNext = true;
     await tester.tap(find.text('保存'));
     await waitFor(tester, find.text('保存结果待核对。'));

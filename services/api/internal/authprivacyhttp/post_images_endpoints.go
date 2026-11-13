@@ -275,7 +275,7 @@ func (b *boundary) communityPostImages(w http.ResponseWriter, r *http.Request, b
 		encoded, e = json.Marshal(v)
 	case "uploads":
 		v, ok := response.Value.(postmedia.UploadState)
-		if !ok || v.TaskID != route.id || v.AttemptVersion != route.version || !postmedia.ValidID(v.PostID) || v.Items == nil || len(v.Items) > 9 {
+		if !ok || v.TaskID != route.id || v.AttemptVersion != route.version || !postmedia.ValidID(v.PostID) || v.Items == nil || len(v.Items) > postmedia.LegacyMaxImages {
 			b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
 			return
 		}
@@ -287,7 +287,7 @@ func (b *boundary) communityPostImages(w http.ResponseWriter, r *http.Request, b
 			}
 			items[i] = s.Selection
 		}
-		if postmedia.ValidateManifest(items) != nil {
+		if postmedia.ValidateStoredManifest(items) != nil {
 			b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
 			return
 		}
@@ -325,7 +325,7 @@ func (b *boundary) communityPostImages(w http.ResponseWriter, r *http.Request, b
 
 func validImageGroup(v postmedia.Group, post string, at, expires time.Time) bool {
 	until, e := time.Parse(time.RFC3339Nano, v.AccessValidUntil)
-	if v.PostID != post || v.Images == nil || len(v.Images) > 9 || e != nil || !until.After(at) || until.After(at.Add(time.Minute)) || until.After(expires) {
+	if v.PostID != post || v.Images == nil || len(v.Images) > postmedia.LegacyMaxImages || e != nil || !until.After(at) || until.After(at.Add(time.Minute)) || until.After(expires) {
 		return false
 	}
 	ids := map[string]bool{}

@@ -653,7 +653,7 @@ func parsePostImages(object map[string]any) ([]postmedia.Selection, error) {
 		return nil, nil
 	}
 	array, ok := value.([]any)
-	if !ok || len(array) > 9 {
+	if !ok || len(array) > postmedia.MaxImages {
 		return nil, errMalformed
 	}
 	items := make([]postmedia.Selection, len(array))

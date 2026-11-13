@@ -1326,7 +1326,7 @@ components:
           $ref: '#/components/schemas/Body'
         images:
           type: array
-          maxItems: 9
+          maxItems: 3
           items:
             $ref: '#/components/schemas/PostImageSelection'
     RetryInput:
@@ -1347,7 +1347,7 @@ components:
           $ref: '#/components/schemas/Body'
         images:
           type: array
-          maxItems: 9
+          maxItems: 3
           items:
             $ref: '#/components/schemas/PostImageSelection'
     AttemptVersionInput:
@@ -1985,7 +1985,7 @@ components:
           maxLength: 65536
         imageIds:
           type: array
-          maxItems: 9
+          maxItems: 3
           uniqueItems: true
           description: Ordered current and staged image references. Omit to keep the current images.
             An empty array removes every image.

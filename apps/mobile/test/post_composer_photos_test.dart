@@ -34,7 +34,7 @@ void main() {
         ).readAsBytes(),
       ))!;
       final e = f.editor();
-      f.picker.next = [pickedBytes(png), pickedBytes(png)];
+      f.picker.next = [pickedBytes(png), pickedBytes(png), pickedBytes(png)];
       for (final entry in <String, String?>{
         'Microsoft YaHei': Platform.environment['HNUHOLE_UI_RENDER_FONT'],
         'MaterialIcons': Platform.environment['HNUHOLE_UI_RENDER_ICON_FONT'],
@@ -74,9 +74,10 @@ void main() {
       }
       expect(e.mediaBusy, isFalse);
       debugPrint('composer-host: photos imported');
-      expect(e.images.length, 2);
+      expect(e.images.length, 3);
       expect(e.images.every((i) => i.ready), isTrue);
-      expect(find.text('2/9'), findsOneWidget);
+      expect(find.text('3/3'), findsOneWidget);
+      expect(find.byKey(const ValueKey('post-add-images')), findsNothing);
       final first = e.images.first.mediaId;
       final tile1 = find.bySemanticsLabel('第1张图片');
       final tile2 = find.bySemanticsLabel('第2张图片');
@@ -89,12 +90,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       await gesture.up();
       await frames(tester);
-      expect(e.images.last.mediaId, first);
+      expect(e.images.first.mediaId, isNot(first));
       debugPrint('composer-host: reordered');
       await tester.tap(find.byTooltip('移除第1张图片'));
       await frames(tester);
-      expect(e.images.length, 1);
-      expect(e.images.single.mediaId, first);
+      expect(e.images.length, 2);
+      expect(e.images.map((image) => image.mediaId), contains(first));
       debugPrint('composer-host: removed');
       for (
         var i = 0;
@@ -104,7 +105,7 @@ void main() {
         await frames(tester, 1);
       }
       expect(e.saving, isFalse);
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.byType(Image), findsWidgets);
       final out = Platform.environment['POST_COMPOSER_RENDER_DIR'];
       if (out != null) {
         await tester.pump();

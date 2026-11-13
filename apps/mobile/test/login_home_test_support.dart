@@ -218,24 +218,17 @@ class HomeTestFixture {
     await tester.tap(find.byKey(const ValueKey('feed-account')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('settings-account')),
+      find.byKey(const ValueKey('settings-logout')),
       100,
       scrollable: find.descendant(
         of: find.byKey(const ValueKey('settings-list')),
         matching: find.byType(Scrollable),
       ),
     );
-    await tester.tap(find.byKey(const ValueKey('settings-account')));
+    expect(find.byKey(const ValueKey('settings-account')), findsNothing);
+    expect(find.text('账号与安全'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('settings-logout')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('退出本机'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('退出本机'));
-    await tester.pumpAndSettle();
-    // Account security now has its own signed-out state and explicit login.
-    if (find.byType(SecurityManagementScreen).evaluate().isNotEmpty) {
-      await tester.tap(find.text('前往登录'));
-      await tester.pumpAndSettle();
-    }
     // Logout must leave the auth route on its login form, not pop it as if a
     // fresh login had happened. B is not entered until this assertion passes.
     expect(find.byType(AuthScreen), findsOneWidget);

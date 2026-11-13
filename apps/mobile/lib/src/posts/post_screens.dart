@@ -514,6 +514,10 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
         widget.editor.mediaBusy) {
       return;
     }
+    if (widget.editor.images.length > PostContentRules.maxImages) {
+      setState(() => _validation = '每篇帖子最多添加3张图片，请先移除多余图片。');
+      return;
+    }
     try {
       PostContentRules.validate(
         _title.text,

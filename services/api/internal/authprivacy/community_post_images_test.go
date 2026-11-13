@@ -142,7 +142,7 @@ func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 	intent := postTestIntent(t, l, id)
 	intent.Body = ""
 	var data [][]byte
-	for i := 0; i < 9; i++ {
+	for i := 0; i < 3; i++ {
 		s, b := imageFixture(t, []string{"png", "jpeg", "gif", "webp"}[i%4])
 		intent.Images = append(intent.Images, s)
 		data = append(data, b)
@@ -157,10 +157,10 @@ func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 	postTestError(t, e, "MEDIA_UPLOAD_CLOSED", 409)
 	_, e = l.c.ReadPostImages(ctx, foreign.SessionToken, accepted.PostID, "")
 	postTestError(t, e, "MEDIA_NOT_FOUND", 404)
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 2; i++ {
 		imageUpload(t, l, accepted, intent.Images[i], tokens[i], data[i])
 	}
-	for i := 7; i < 9; i++ {
+	for i := 2; i < 3; i++ {
 		if _, e := l.c.UploadPostImage(ctx, tokens[i], accepted.TaskID, intent.Images[i].MediaID, 1, data[i][:len(data[i])-1], intent.Images[i].MIME); !errors.Is(e, postmedia.ErrInvalid) {
 			t.Fatal("mismatched bytes accepted", e)
 		}
@@ -174,19 +174,19 @@ func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	items := state.Value.(postmedia.UploadState).Items
-	if len(items) != 9 {
+	if len(items) != 3 {
 		t.Fatal("order lost")
 	}
 	for i, s := range items {
-		if s.Position != i || s.MediaID != intent.Images[i].MediaID || s.Uploaded != (i < 7) {
+		if s.Position != i || s.MediaID != intent.Images[i].MediaID || s.Uploaded != (i < 2) {
 			t.Fatal("per-item upload state changed")
 		}
 	}
-	for i := 7; i < 9; i++ {
+	for i := 2; i < 3; i++ {
 		imageUpload(t, l, accepted, intent.Images[i], tokens[i], data[i])
 	}
 	// Replay of a lost successful PUT is an exact-byte no-op, not another item.
-	imageUpload(t, l, accepted, intent.Images[7], tokens[7], data[7])
+	imageUpload(t, l, accepted, intent.Images[2], tokens[2], data[2])
 	if replay := postTestCommand(t, l, owner.SessionToken, command, intent); replay != accepted {
 		t.Fatal("receipt changed")
 	}
@@ -196,7 +196,7 @@ func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	group := groupResponse.Value.(postmedia.Group)
-	if len(group.Images) != 9 || group.PostID != accepted.PostID {
+	if len(group.Images) != 3 || group.PostID != accepted.PostID {
 		t.Fatal("wrong group")
 	}
 	for i, s := range group.Images {
@@ -221,7 +221,7 @@ func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 	postTestCommand(t, l, owner.SessionToken, postTestKey(t), posts.Intent{Operation: posts.DeletePost, PostID: accepted.PostID})
 	_, e = l.c.ReadPostImages(ctx, foreign.SessionToken, accepted.PostID, group.Images[0].ContentVersionID)
 	postTestError(t, e, "MEDIA_NOT_FOUND", 404)
-	if count(t, l.cp, `SELECT count(*) FROM c_posts.images WHERE payload IS NOT NULL OR grant_digest IS NOT NULL`) != 0 || count(t, l.cp, `SELECT count(*) FROM c_posts.images WHERE erased_at IS NOT NULL`) != 9 {
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.images WHERE payload IS NOT NULL OR grant_digest IS NOT NULL`) != 0 || count(t, l.cp, `SELECT count(*) FROM c_posts.images WHERE erased_at IS NOT NULL`) != 3 {
 		t.Fatal("deleted private bytes retained")
 	}
 }

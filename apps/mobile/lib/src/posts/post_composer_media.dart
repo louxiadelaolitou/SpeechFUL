@@ -57,7 +57,9 @@ extension PostComposerMedia on PostController {
         _photoPicker == null) {
       return;
     }
-    final limit = replaceIndex == null ? 9 - e.images.length : 1;
+    final limit = replaceIndex == null
+        ? PostContentRules.maxImages - e.images.length
+        : 1;
     if (limit < 1 ||
         replaceIndex != null &&
             (replaceIndex < 0 || replaceIndex >= e.images.length)) {

@@ -12,7 +12,8 @@ import (
 )
 
 const MaxThumbnailBytes = 512 * 1024
-const MaxImages = 9
+const MaxImages = 3
+const LegacyMaxImages = 9
 const MaxBytes = 10 * 1024 * 1024
 const MaxDimension = 16384
 const MaxPixels = 12 * 1024 * 1024
@@ -44,7 +45,17 @@ func ValidID(s string) bool {
 }
 
 func ValidateManifest(items []Selection) error {
-	if len(items) > MaxImages {
+	return validateManifest(items, MaxImages)
+}
+
+// Legacy upload states and published posts may contain the former nine-image
+// maximum. They remain readable while every new selection is capped at three.
+func ValidateStoredManifest(items []Selection) error {
+	return validateManifest(items, LegacyMaxImages)
+}
+
+func validateManifest(items []Selection, max int) error {
+	if len(items) > max {
 		return ErrInvalid
 	}
 	ids := map[string]bool{}

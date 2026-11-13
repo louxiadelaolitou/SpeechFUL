@@ -970,6 +970,11 @@ const communitySettingsTranslations = <String, (String, String, String)>{
     'Remove or reselect unreadable images.',
     '読み込めない画像を削除するか選び直してください。',
   ),
+  '每篇帖子最多添加3张图片，请先移除多余图片。': (
+    '每篇帖子最多新增3張圖片，請先移除多餘圖片。',
+    'Each post can have up to 3 images. Remove the extra images first.',
+    '投稿できる画像は3枚までです。余分な画像を先に削除してください。',
+  ),
   '请重新选择或移除无法读取的图片。': (
     '請重新選擇或移除無法讀取的圖片。',
     'Reselect or remove unreadable images.',

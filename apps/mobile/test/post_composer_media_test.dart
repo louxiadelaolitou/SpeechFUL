@@ -80,13 +80,13 @@ void main() {
     expect((await f.posts.restoreDraft(editor.id))!.images.length, 1);
   });
 
-  test('nine item cap is enforced even if platform ignores limit', () async {
+  test('three item cap is enforced even if platform ignores limit', () async {
     final editor = f.editor();
     f.picker.next = List.generate(12, (_) => pickedBytes(png));
     await f.posts.pickDraftPhotos(editor);
-    expect(editor.images.length, 9);
+    expect(editor.images.length, 3);
     await f.posts.pickDraftPhotos(editor);
-    expect(editor.images.length, 9);
+    expect(editor.images.length, 3);
   });
 
   test('partial upload retains successful items; manual retry only puts missing items', () async {

@@ -144,7 +144,7 @@ def check_contract(spec, vectors, media_vectors):
     assert set(edit['required']) == {'revision', 'title', 'body'}
     assert set(edit['properties']) == {'revision', 'title', 'body', 'imageIds', 'tags'}
     assert edit['properties']['revision'] == {'$ref': '#/components/schemas/ResourceID'}
-    assert edit['properties']['imageIds']['maxItems'] == 9
+    assert edit['properties']['imageIds']['maxItems'] == 3
     assert edit['properties']['imageIds']['uniqueItems'] is True
     forbidden = {"accountId", "ownerId", "ownerAccountId", "identityId", "slot", "slotId", "isOriginal", "createdCount", "otherIdentities", "canDelete", "canEdit", "body"}
     card = public_fields(spec, schemas["PublicPostCard"])
@@ -175,7 +175,7 @@ def check_contract(spec, vectors, media_vectors):
     for content in (create_schema, schemas["RetryInput"]):
         assert content["additionalProperties"] is False
         images = content["properties"]["images"]
-        assert images["type"] == "array" and images["maxItems"] == 9
+        assert images["type"] == "array" and images["maxItems"] == 3
         assert images["items"] == {"$ref": "#/components/schemas/PostImageSelection"}
     selection = schemas["PostImageSelection"]
     image_fields = {"mediaId", "sha256", "byteLength", "mimeType", "width", "height"}

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -19,6 +20,22 @@ func TestMediaIntentBindsFullManifestAndPreservesTextDomain(t *testing.T) {
 	}
 	item := postmedia.Selection{MediaID: "33333333-3333-4333-8333-333333333333", SHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", MIME: "image/gif", ByteLength: 120, Width: 3, Height: 2}
 	media := text
+	media.Images = []postmedia.Selection{item}
+	three := make([]postmedia.Selection, postmedia.MaxImages)
+	for i := range three {
+		three[i] = item
+		three[i].MediaID = fmt.Sprintf("33333333-3333-4333-8333-%012d", i+1)
+	}
+	media.Images = three
+	if _, e := FrameIntent(media); e != nil {
+		t.Fatal("three-image intent rejected", e)
+	}
+	media.Images = append(append([]postmedia.Selection{}, three...), postmedia.Selection{
+		MediaID: "44444444-4444-4444-8444-444444444444", SHA256: item.SHA256, MIME: item.MIME, ByteLength: item.ByteLength, Width: item.Width, Height: item.Height,
+	})
+	if _, e := FrameIntent(media); e == nil {
+		t.Fatal("fourth image accepted")
+	}
 	media.Images = []postmedia.Selection{item}
 	first, e := RequestDigest(media)
 	if e != nil {

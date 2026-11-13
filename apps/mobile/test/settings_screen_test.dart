@@ -47,7 +47,11 @@ Widget _app(AuthPresentationController c, {SettingsScreen? settings}) =>
             AuthPresentationScope(controller: c, child: child!),
         home:
             settings ??
-            SettingsScreen(onManageIdentity: () {}, onManageSecurity: () {}),
+            SettingsScreen(
+              onManageIdentity: () {},
+              onManageSecurity: () {},
+              onLogout: () {},
+            ),
       ),
     );
 
@@ -63,6 +67,7 @@ void main() {
           settings: SettingsScreen(
             onManageIdentity: () {},
             onManageSecurity: () => activations++,
+            onLogout: () {},
           ),
         ),
       );
@@ -123,6 +128,7 @@ void main() {
           settings: SettingsScreen(
             onManageIdentity: () {},
             onManageSecurity: () {},
+            onLogout: () {},
             supportGalleryWriter: gallery,
           ),
         ),
@@ -165,50 +171,48 @@ void main() {
       c.dispose();
     },
   );
-  testWidgets(
-    'settings removes private notifications; closure has its own route',
-    (tester) async {
-      final c = AuthPresentationController();
-      var devices = 0, account = 0, closure = 0, identities = 0, blacklist = 0;
-      await tester.pumpWidget(
-        _app(
-          c,
-          settings: SettingsScreen(
-            onManageIdentity: () => identities++,
-            onManageSecurity: () => devices++,
-            onManageAccount: () => account++,
-            onCloseAccount: () => closure++,
-            onBlacklist: () => blacklist++,
-          ),
+  testWidgets('settings ends with logout and no account-security entry', (
+    tester,
+  ) async {
+    final c = AuthPresentationController();
+    var devices = 0, logout = 0, closure = 0, identities = 0, blacklist = 0;
+    await tester.pumpWidget(
+      _app(
+        c,
+        settings: SettingsScreen(
+          onManageIdentity: () => identities++,
+          onManageSecurity: () => devices++,
+          onLogout: () => logout++,
+          onCloseAccount: () => closure++,
+          onBlacklist: () => blacklist++,
         ),
-      );
-      await tester.pumpAndSettle();
-      for (final key in [
-        'devices',
-        'account',
-        'closure',
-        'identity',
-        'blacklist',
-      ]) {
-        await _open(tester, key);
-      }
-      expect(
-        [devices, account, closure, identities, blacklist],
-        [1, 1, 1, 1, 1],
-      );
-      expect(
-        find.byKey(const ValueKey('settings-notifications')),
-        findsNothing,
-      );
-      expect(find.byType(TextField), findsNothing);
-      for (final tile in tester.widgetList<ListTile>(find.byType(ListTile))) {
-        expect(tile.leading, isNotNull);
-        expect(tile.subtitle, isNull);
-      }
-      await tester.pumpWidget(const SizedBox());
-      c.dispose();
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final key in [
+      'devices',
+      'logout',
+      'closure',
+      'identity',
+      'blacklist',
+    ]) {
+      await _open(tester, key);
+    }
+    expect([devices, logout, closure, identities, blacklist], [1, 1, 1, 1, 1]);
+    expect(find.byKey(const ValueKey('settings-account')), findsNothing);
+    expect(find.text('账号与安全'), findsNothing);
+    expect(find.text('退出登录'), findsOneWidget);
+    final tiles = tester.widgetList<ListTile>(find.byType(ListTile)).toList();
+    expect(tiles.last.key, const ValueKey('settings-logout'));
+    expect(find.byKey(const ValueKey('settings-notifications')), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    for (final tile in tester.widgetList<ListTile>(find.byType(ListTile))) {
+      expect(tile.leading, isNotNull);
+      expect(tile.subtitle, isNull);
+    }
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
   testWidgets(
     'four languages apply without replacing the route and persist locally',
     (tester) async {

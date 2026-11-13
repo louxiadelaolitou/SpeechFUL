@@ -209,7 +209,17 @@ void main() {
       await tester.pumpAndSettle();
       await _openSettings(tester);
       await _capture(tester, '${brightness.name}-settings');
-      for (final title in ['语言', '黑名单', '设备管理', '账号注销', '意见反馈', '支持我们']) {
+      expect(find.text('账号与安全'), findsNothing);
+      for (final title in [
+        '语言',
+        '黑名单',
+        '设备管理',
+        '账号注销',
+        '意见反馈',
+        '支持我们',
+        '身份管理',
+        '退出登录',
+      ]) {
         final item = await _setting(tester, title);
         expect(item, findsOneWidget);
         final row = tester.widget<ListTile>(

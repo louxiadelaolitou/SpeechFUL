@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
@@ -471,7 +472,7 @@ func (c *Community) executePostCommandOnce(ctx context.Context, bearer [32]byte,
 			if mutedAt(mute, final.TrustedAt) {
 				return reject("POSTING_RESTRICTED")
 			}
-			if posts.ValidateContentWithImages(intent.Title, intent.Body, len(intent.Images)) != nil {
+			if len(intent.Images) > postmedia.MaxImages || posts.ValidateContentWithImages(intent.Title, intent.Body, len(intent.Images)) != nil {
 				return reject("POST_CONTENT_INVALID")
 			}
 			var active bool
@@ -533,7 +534,7 @@ func (c *Community) executePostCommandOnce(ctx context.Context, bearer [32]byte,
 				if !task.Task.CanRetry || task.Task.AttemptVersion == math.MaxInt32 {
 					return reject("TASK_NOT_RETRYABLE")
 				}
-				if posts.ValidateContentWithImages(intent.Title, intent.Body, len(intent.Images)) != nil {
+				if len(intent.Images) > postmedia.MaxImages || posts.ValidateContentWithImages(intent.Title, intent.Body, len(intent.Images)) != nil {
 					return reject("POST_CONTENT_INVALID")
 				}
 				version := task.Task.AttemptVersion + 1

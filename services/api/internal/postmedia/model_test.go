@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,6 +27,23 @@ func TestManifestBoundsAndIdentity(t *testing.T) {
 		if ValidateManifest([]Selection{changed}) == nil {
 			t.Fatal("invalid manifest accepted")
 		}
+	}
+	items := func(count int) []Selection {
+		values := make([]Selection, count)
+		for i := range values {
+			values[i] = s
+			values[i].MediaID = fmt.Sprintf("11111111-1111-4111-8111-%012d", i+1)
+		}
+		return values
+	}
+	if ValidateManifest(items(MaxImages)) != nil {
+		t.Fatal("three-item upload manifest rejected")
+	}
+	if ValidateManifest(items(MaxImages+1)) == nil {
+		t.Fatal("fourth upload image accepted")
+	}
+	if ValidateStoredManifest(items(LegacyMaxImages)) != nil {
+		t.Fatal("stored nine-image manifest rejected")
 	}
 }
 

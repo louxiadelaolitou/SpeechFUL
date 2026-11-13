@@ -110,6 +110,10 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
   Future<void> _save() async {
     final revision = _revision;
     if (!_editable || _conflict || revision == null) return;
+    if (_imagesAvailable && _images.length > PostContentRules.maxImages) {
+      setState(() => _error = '每篇帖子最多添加3张图片，请先移除多余图片。');
+      return;
+    }
     if (_images.any((image) => image.local?.ready == false)) {
       setState(() => _error = '请移除无法读取的图片或重新选择。');
       return;
@@ -264,7 +268,9 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
   }
 
   Future<void> _pickImages({int? replace}) async {
-    final remaining = replace == null ? 9 - _images.length : 1;
+    final remaining = replace == null
+        ? PostContentRules.maxImages - _images.length
+        : 1;
     if (!_editable || !_session.canPickImages || remaining < 1) return;
     setState(() {
       _busy = true;
@@ -317,7 +323,7 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const SizedBox(height: 16),
-      Text('图片 ${_images.length}/9'),
+      Text('图片 ${_images.length}/${PostContentRules.maxImages}'),
       const SizedBox(height: 8),
       LayoutBuilder(
         builder: (context, constraints) {
@@ -328,7 +334,8 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
             children: [
               for (var index = 0; index < _images.length; index++)
                 _photoTile(context, index, width, editable),
-              if (_images.length < 9 && _session.canPickImages)
+              if (_images.length < PostContentRules.maxImages &&
+                  _session.canPickImages)
                 SizedBox.square(
                   dimension: width,
                   child: Material(

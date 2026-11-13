@@ -746,12 +746,14 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
   }
 
   final _sessionRouteWindow = ValueNotifier((AuthStatus.starting, 0, false));
+  bool _logoutLoginPending = false, _logoutLoginScheduled = false;
   void _sessionRouteChanged() {
     final sessions = widget.sessions;
     if (_lastLogoutVersion != sessions.logoutVersion) {
       _lastLogoutVersion = sessions.logoutVersion;
       _postLinks.clear();
       _promptedPostLink = null;
+      _logoutLoginPending = true;
     }
     _schedulePostLink();
     // Expiry persistence still notifies its consumers, but renewing the same
@@ -761,6 +763,30 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       sessions.authorityVersion,
       sessions.isAuthenticated,
     );
+    if (_logoutLoginPending &&
+        !sessions.busy &&
+        !sessions.isAuthenticated &&
+        !_logoutLoginScheduled) {
+      _logoutLoginScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _logoutLoginScheduled = false;
+        if (!mounted ||
+            !_logoutLoginPending ||
+            widget.sessions.busy ||
+            widget.sessions.isAuthenticated) {
+          return;
+        }
+        _logoutLoginPending = false;
+        if (_authRouteOpen) return;
+        final navigator = _navigatorKey.currentState;
+        if (navigator == null) {
+          _logoutLoginPending = true;
+          return;
+        }
+        navigator.popUntil((route) => route.isFirst);
+        _openAuth();
+      });
+    }
   }
 
   @override
@@ -897,7 +923,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       onClose: () => HomeSideMenuScope.maybeOf(context)?.close(),
       onManageIdentity: _openIdentity,
       onManageSecurity: _openDevices,
-      onManageAccount: _openSecurity,
+      onLogout: () => unawaited(_logoutFromSettings(context)),
       onCloseAccount: _openClosure,
       onBlacklist: widget.dm == null && !widget.posts.supportsAuthorBlock
           ? null
@@ -910,6 +936,12 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
               ),
             ),
     );
+  }
+
+  Future<void> _logoutFromSettings(BuildContext context) async {
+    if (widget.sessions.busy) return;
+    HomeSideMenuScope.maybeOf(context)?.close();
+    await widget.sessions.logout();
   }
 
   Future<void> _openIdentity({bool initialCreate = false}) async {

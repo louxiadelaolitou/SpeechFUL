@@ -25,6 +25,7 @@ Future<void> _show(
             onClose: () => HomeSideMenuScope.maybeOf(context)?.close(),
             onManageIdentity: () {},
             onManageSecurity: devices,
+            onLogout: () {},
             onBlacklist: blacklist,
           ),
           child: Builder(

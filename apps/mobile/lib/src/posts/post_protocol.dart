@@ -98,7 +98,9 @@ class PostProtocol {
     List<Map<String, dynamic>> images,
   ) {
     if (images.isEmpty) return textFrame;
-    if (images.length > 9) throw const FormatException('Too many images');
+    if (images.length > PostContentRules.maxImages) {
+      throw const FormatException('Too many images');
+    }
     final ids = <String>{};
     final fields = <List<int>>[];
     for (final image in images) {
@@ -204,6 +206,8 @@ class PostContentRules {
   static const unicodeVersion = '16.0.0';
   static const maxTitleClusters = 15, maxBodyClusters = 3000;
   static const maxTitleBytes = 4096, maxBodyBytes = 65536;
+  static const maxImages = 3;
+  static const legacyMaxImages = 9;
 
   static int count(String value) {
     scalarText(value);
@@ -211,7 +215,7 @@ class PostContentRules {
   }
 
   static void validate(String title, String body, {int imageCount = 0}) {
-    if (imageCount < 0 || imageCount > 9) {
+    if (imageCount < 0 || imageCount > maxImages) {
       throw const FormatException('Invalid image count');
     }
     validateTitle(title);

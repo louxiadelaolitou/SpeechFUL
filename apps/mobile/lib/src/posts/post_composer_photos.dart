@@ -100,7 +100,7 @@ class _ComposerPhotos extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              '${editor.images.length}/9',
+              '${editor.images.length}/${PostContentRules.maxImages}',
               style: TextStyle(color: HhTelegramPalette.of(context).secondary),
             ),
           ],
@@ -235,7 +235,7 @@ class _ComposerPhotos extends StatelessWidget {
                       );
                     },
                   ),
-                if (editor.images.length < 9)
+                if (editor.images.length < PostContentRules.maxImages)
                   SizedBox(
                     width: width,
                     height: width,

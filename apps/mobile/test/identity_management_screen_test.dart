@@ -56,19 +56,19 @@ void main() {
   );
 
   testWidgets(
-    'settings exposes implemented identity, security and account closure routes',
+    'settings exposes identity, devices and logout without account security',
     (tester) async {
-      var identity = 0, security = 0, account = 0;
+      var identity = 0, security = 0, logout = 0;
       await tester.pumpWidget(
         MaterialApp(
           home: SettingsScreen(
             onManageIdentity: () => identity++,
             onManageSecurity: () => security++,
-            onManageAccount: () => account++,
+            onLogout: () => logout++,
           ),
         ),
       );
-      for (final key in ['identity', 'devices', 'account']) {
+      for (final key in ['identity', 'devices', 'logout']) {
         final scrollable = find.descendant(
           of: find.byKey(const ValueKey('settings-list')),
           matching: find.byType(Scrollable),
@@ -85,7 +85,9 @@ void main() {
       }
       expect(identity, 1);
       expect(security, 1);
-      expect(account, 1);
+      expect(logout, 1);
+      expect(find.byKey(const ValueKey('settings-account')), findsNothing);
+      expect(find.text('账号与安全'), findsNothing);
       expect(find.text('自己的帖子'), findsNothing);
     },
   );
