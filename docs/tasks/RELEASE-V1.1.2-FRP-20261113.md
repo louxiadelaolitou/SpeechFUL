@@ -10,7 +10,7 @@
 
 ## 目标与范围
 
-生成 v1.1.2、versionCode 2026111301 的可覆盖升级 APK。编译时使用社区 `https://www-api.h2454089d.nyat.app:53365` 与认证 `https://www-auth.h2454089d.nyat.app:48552`；原官网入口保留。先核对真实后端代码、C39/V7 schema、授权与公网链路；不把构建成功等同于完整认证或真机发图验收。
+生成 v1.1.2、versionCode 2026111301 的可覆盖升级 APK。编译时使用社区 `https://www-api.h2454089d.nyat.app:53365` 与认证 `https://www-auth.h2454089d.nyat.app:48552`；原官网入口保留。先核对真实后端代码、C39/V8 schema、授权与公网链路；不把构建成功等同于完整认证或真机发图验收。
 
 ## 接口与依赖
 
@@ -31,6 +31,7 @@
 | 基线核查 | GitHub 与本地 main `16c3e3e` | PASS；#140、#141、#142 已合并。 |
 | 本地整合 | 本分支 | 进行中；上传 API 测试尾部同位置新增用例冲突，保留主线拉黑测试与上传诊断测试。 |
 | 现有服务 | Windows／WSL；现有状态工具 | PASS：两个服务 active，本机 C/V readiness 200；不代证版本或公网业务。 |
+| 现有数据库 | 归属 PUBLIC-TRIAL-ACCESS-01 的只读 SQL | PASS：实际 C38/V8，Gate C OPEN:1、V OPEN:3；需应用 C0039，保留既有 V8。 |
 | 设备 | 现有 ADB 5037 只读设备清单 | NOT_RUN：未连接设备。 |
 
 ## 阻碍与下一步
