@@ -16,6 +16,7 @@ const (
 	CursorReposts   = "reposts"
 	CursorChannel   = "channel"
 	CursorOwn       = "own"
+	CursorAuthor    = "author"
 	CursorLiked     = "liked"
 	CursorFavorites = "favorites"
 	CursorTask      = "task"
@@ -117,7 +118,7 @@ func validPosition(position CursorPosition) bool {
 	if !validID(position.AccountID) || position.Limit < 1 || position.Limit > 50 || position.Ceiling < 0 || position.LastAt.IsZero() || position.ExpiresAt.IsZero() {
 		return false
 	}
-	if position.IdentityID != "" && (position.Scope != CursorOwn || !validID(position.IdentityID)) {
+	if position.IdentityID != "" && (position.Scope != CursorOwn && position.Scope != CursorAuthor || !validID(position.IdentityID)) {
 		return false
 	}
 	switch position.Scope {
@@ -130,6 +131,8 @@ func validPosition(position CursorPosition) bool {
 		return (position.ChannelID == "" || validID(position.ChannelID)) && position.FilterRevision >= 0 && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""
 	case CursorChannel:
 		return validID(position.ChannelID) && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""
+	case CursorAuthor:
+		return validID(position.IdentityID) && position.ChannelID == "" && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""
 	case CursorOwn, CursorLiked, CursorFavorites, CursorReposts:
 		return position.ChannelID == "" && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""
 	case CursorTask:

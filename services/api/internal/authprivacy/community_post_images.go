@@ -265,13 +265,14 @@ func (c *Community) ReadPostImages(ctx context.Context, bearer [32]byte, post, c
 	if !postmedia.ValidID(post) || (content != "" && !postmedia.ValidID(content)) {
 		return PostResponse{}, postmedia.ErrInvalid
 	}
-	response, e := c.withPostSession(ctx, bearer, func(tx pgx.Tx, _ uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
+	response, e := c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 		// Serialize the resource visibility check with deletion. No author
 		// account lock is acquired after the caller's account lock.
 		var edited bool
 		if e := tx.QueryRow(ctx, `SELECT to_jsonb(p)->>'edited_image_ids' IS NOT NULL FROM c_posts.posts p
  WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false)
- FOR SHARE`, post).Scan(&edited); errors.Is(e, pgx.ErrNoRows) {
+   AND NOT c_posts.accounts_blocked($2,p.owner_account_id)
+ FOR SHARE`, post, account).Scan(&edited); errors.Is(e, pgx.ErrNoRows) {
 			return nil, postError("MEDIA_NOT_FOUND", 404)
 		} else if e != nil {
 			return nil, e

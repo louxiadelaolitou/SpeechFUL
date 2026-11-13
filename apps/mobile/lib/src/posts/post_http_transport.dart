@@ -53,6 +53,7 @@ class PostHttpTransport {
     Uint8List? uploadBytes,
     String? uploadMime,
     Duration? requestTimeout,
+    int maxJsonItems = PostStrictJson.defaultMaxItems,
   }) async {
     AuthCrypto.decode(token, bytes: 32);
     final bytes = body == null ? uploadBytes : utf8.encode(jsonEncode(body));
@@ -136,6 +137,7 @@ class PostHttpTransport {
           }
           payload = PostStrictJson(
             utf8.decode(responseBytes, allowMalformed: false),
+            maxItems: maxJsonItems,
           ).decode();
         }
         if (status != expected) throw failure(status!, payload, h, requestId);
@@ -245,6 +247,7 @@ class PostHttpTransport {
         'POST_EDIT_HIDDEN',
         'POST_EDIT_CONFLICT',
         'POST_EDIT_MEDIA_LIMIT',
+        'SELF_BLOCK_REJECTED',
       },
       413 => {'PAYLOAD_TOO_LARGE'},
       412 => {'INTERACTION_VERSION_CONFLICT'},
@@ -308,8 +311,16 @@ class PostHttpTransport {
 
 /// JSON 原生 decoder 会覆盖重复键；这里先做有界严格解析再校验 DTO。
 class PostStrictJson {
-  PostStrictJson(this.input);
+  PostStrictJson(this.input, {this.maxItems = defaultMaxItems}) {
+    if (maxItems < 1 || maxItems > 4096) {
+      throw ArgumentError.value(maxItems, 'maxItems');
+    }
+  }
+
+  /// Bounds every JSON array; the blocked-author list opts into its own bound.
+  static const defaultMaxItems = 50;
   final String input;
+  final int maxItems;
   int at = 0;
   Object? decode() {
     final value = _value(0);
@@ -353,7 +364,7 @@ class PostStrictJson {
       final result = <Object?>[];
       if (_consume(']')) return result;
       while (true) {
-        if (result.length >= 50) {
+        if (result.length >= maxItems) {
           throw const FormatException('JSON list too large');
         }
         result.add(_value(depth + 1));

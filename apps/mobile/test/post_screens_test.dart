@@ -45,6 +45,8 @@ class _WidgetPosts extends ChangeNotifier implements PostController {
   bool get supportsPostSharing => false;
   bool access = true, loading = false;
   int version = 1;
+  @override
+  int get authorVisibilityEpoch => 0;
   String? failure, channel;
   List<PostCard> cards = [];
   PostPublicationNotice? publicationNotice;

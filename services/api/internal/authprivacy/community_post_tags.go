@@ -57,10 +57,10 @@ func (c *Community) TaggedPosts(ctx context.Context, bearer [32]byte, query post
 
 		// One statement projects the matched public version as well as its
 		// labels, so concurrent edits cannot change membership between reads.
-		hiddenFilter := ""
-		args := []any{strings.ToLower(tag), position.Ceiling, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, lastAt, lastOrdinal, query.Limit + 1}
+		hiddenFilter := ` AND NOT c_posts.accounts_blocked($8,p.owner_account_id)`
+		args := []any{strings.ToLower(tag), position.Ceiling, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, lastAt, lastOrdinal, query.Limit + 1, account}
 		if c.posts.hiddenPostsEnabled {
-			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$8 AND hp.post_id=p.post_id AND hp.hidden)`
+			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$9 AND hp.post_id=p.post_id AND hp.hidden)` + hiddenFilter
 			args = append(args, account)
 		}
 		rows, err := tx.Query(ctx, `SELECT p.post_id,p.channel_id,COALESCE(p.edited_title,x.title),p.published_at,p.publication_ordinal,a.state,i.deleted_at,i.nickname,i.avatar,l.short_code,p.tags
@@ -132,10 +132,10 @@ func (c *Community) SuggestPostTags(ctx context.Context, bearer [32]byte, prefix
 			return nil, err
 		}
 		escaped := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(strings.ToLower(prefix))
-		hiddenFilter := ""
-		args := []any{escaped + "%", preferences.BlockedChannelIDs}
+		hiddenFilter := ` AND NOT c_posts.accounts_blocked($3,p.owner_account_id)`
+		args := []any{escaped + "%", preferences.BlockedChannelIDs, account}
 		if c.posts.hiddenPostsEnabled {
-			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$3 AND hp.post_id=p.post_id AND hp.hidden)`
+			hiddenFilter = ` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$4 AND hp.post_id=p.post_id AND hp.hidden)` + hiddenFilter
 			args = append(args, account)
 		}
 		rows, err := tx.Query(ctx, `SELECT DISTINCT ON(t.tag_key) t.label FROM c_posts.post_tag_terms t

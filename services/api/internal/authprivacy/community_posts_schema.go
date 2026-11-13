@@ -41,6 +41,9 @@ func CheckModerationLifecycleSchema(ctx context.Context, pool *pgxpool.Pool) err
 	if err := checkHiddenPostSchema(ctx, pool); err != nil {
 		return err
 	}
+	if err := checkAuthorBlockSchema(ctx, pool); err != nil {
+		return err
+	}
 	if err := checkFeedSchema(ctx, pool, false); err != nil {
 		return err
 	}
@@ -68,6 +71,9 @@ func checkPostSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	}
 	if err := checkHiddenPostSchema(ctx, pool); err != nil {
+		return err
+	}
+	if err := checkAuthorBlockSchema(ctx, pool); err != nil {
 		return err
 	}
 	if err := checkFeedSchema(ctx, pool, true); err != nil {

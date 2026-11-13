@@ -58,6 +58,7 @@ func readPostInteractions(ctx context.Context, tx pgx.Tx, account uuid.UUID, ids
  JOIN c_posts.publication_tasks t ON t.post_id=p.post_id
  JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version
  WHERE p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND x.erased_at IS NULL
+ AND NOT c_posts.accounts_blocked($2,p.owner_account_id)
  ORDER BY requested.position`, ids, account)
 	if err != nil {
 		return page, err
@@ -80,7 +81,7 @@ func readPostInteractions(ctx context.Context, tx pgx.Tx, account uuid.UUID, ids
 	if len(page.Items) != len(ids) {
 		return posts.PostInteractionPage{}, postError("POST_NOT_FOUND", 404)
 	}
-	counts, err := readVisibleCommentCounts(ctx, tx, ids)
+	counts, err := readVisibleCommentCounts(ctx, tx, account, ids)
 	if err != nil {
 		return page, err
 	}
@@ -108,7 +109,7 @@ func (c *Community) SetPostInteractionConditional(ctx context.Context, bearer [3
 	var tag string
 	r, err := c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 		var visible bool
-		if err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden FROM c_posts.posts WHERE post_id=$1 FOR UPDATE`, id).Scan(&visible); err != nil || !visible {
+		if err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR UPDATE`, id, account).Scan(&visible); err != nil || !visible {
 			if err != nil && err != pgx.ErrNoRows {
 				return nil, err
 			}

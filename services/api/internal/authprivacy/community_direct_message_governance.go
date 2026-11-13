@@ -54,7 +54,7 @@ func dmSendingBlocked(ctx context.Context, tx pgx.Tx, a, b uuid.UUID) (bool, err
 		return false, e
 	}
 	var blocked bool
-	e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_dm.blocks WHERE (owner_account=$1 AND peer_account=$2) OR (owner_account=$2 AND peer_account=$1))`, a, b).Scan(&blocked)
+	e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_dm.blocks WHERE (owner_account=$1 AND peer_account=$2) OR (owner_account=$2 AND peer_account=$1)) OR c_posts.accounts_blocked($1,$2)`, a, b).Scan(&blocked)
 	return blocked, e
 }
 func (c *Community) DMBlocks(ctx context.Context, b [32]byte) (PostResponse, error) {

@@ -343,6 +343,26 @@ class _FeedScreenState extends State<FeedScreen> {
               .where((p) => p.id == channelId)
               .firstOrNull
               ?.name,
+          channelNames: {
+            for (final channel in widget.channels) channel.id: channel.name,
+          },
+          onAuthenticationRequired: widget.onAuthenticationRequired,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAuthor(BuildContext context, FeedPost post) async {
+    if (!current) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AuthorProfileScreen(
+          controller: c,
+          postId: post.postId,
+          channelNames: {
+            for (final channel in widget.channels) channel.id: channel.name,
+          },
+          loadImages: widget.loadImages,
           onAuthenticationRequired: widget.onAuthenticationRequired,
         ),
       ),
@@ -713,6 +733,8 @@ class _FeedScreenState extends State<FeedScreen> {
                                       onAuthor: () => unawaited(
                                         DmScope.contact(context, post.postId),
                                       ),
+                                      onAvatar: () =>
+                                          unawaited(_openAuthor(context, post)),
                                       onMenu: () => _open(
                                         context,
                                         post.postId,

@@ -262,3 +262,11 @@ DO $$ BEGIN
   GRANT UPDATE(hidden,version) ON c_posts.hidden_posts TO hnuhole_c_runtime;
  END IF;
 END $$;
+
+-- 0039 account-level author blocks and the symmetric visibility predicate.
+DO $$ BEGIN
+ IF to_regclass('c_posts.blocked_authors') IS NOT NULL THEN
+  GRANT SELECT,INSERT,DELETE ON c_posts.blocked_authors TO hnuhole_c_runtime;
+  GRANT EXECUTE ON FUNCTION c_posts.accounts_blocked(uuid,uuid) TO hnuhole_c_runtime;
+ END IF;
+END $$;

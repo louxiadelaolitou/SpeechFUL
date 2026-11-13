@@ -115,10 +115,55 @@ class PostViews {
   }
 }
 
+/// A public author header plus that identity's published posts. The source
+/// post anchors the author; the payload never carries an identity selector.
+class AuthorProfile {
+  AuthorProfile({
+    required this.author,
+    required List<FeedPost> items,
+    required this.nextCursor,
+  }) : items = List.unmodifiable(items);
+  final PostAuthor author;
+  final List<FeedPost> items;
+  final String? nextCursor;
+  static AuthorProfile fromJson(Object? raw) {
+    final m = PostJson.record(raw, {'author', 'items', 'nextCursor'});
+    final items = m['items'];
+    if (items is! List ||
+        items.length > 50 ||
+        m['nextCursor'] != null && m['nextCursor'] is! String) {
+      throw const FormatException('Invalid author profile');
+    }
+    final author = PostAuthor.fromJson(m['author']);
+    final posts = items.map(FeedPost.fromJson).toList(growable: false);
+    if (posts.map((post) => post.postId).toSet().length != posts.length ||
+        posts.any((post) => !_sameAuthor(post.author, author))) {
+      throw const FormatException('Invalid author profile posts');
+    }
+    return AuthorProfile(
+      author: author,
+      items: posts,
+      nextCursor: PostProtocol.cursor(m['nextCursor'] as String?),
+    );
+  }
+
+  static bool _sameAuthor(PostAuthor left, PostAuthor right) =>
+      left.state == right.state &&
+      left.avatar == right.avatar &&
+      left.nickname == right.nickname &&
+      left.shortCode == right.shortCode;
+}
+
 abstract interface class FeedApi {
   Future<PostResponse<PostsPage<FeedPost>>> timeline({
     required String sessionToken,
     String? channelId,
+    String? cursor,
+    int limit = 20,
+  });
+  Future<PostResponse<AuthorProfile>> authorProfile({
+    required String sessionToken,
+    required String postId,
     String? cursor,
     int limit = 20,
   });

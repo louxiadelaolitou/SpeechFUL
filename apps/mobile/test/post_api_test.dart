@@ -583,6 +583,81 @@ void main() {
       );
     },
   );
+  test(
+    'author profile is anchored by post, preview-only and strictly matched',
+    () async {
+      endpoint.respond = (r) => _json(r, 200, {
+        'author': {'state': 'ACTIVE', 'nickname': '甲', 'avatar': 'default-v1'},
+        'items': [
+          {..._card(), 'body': '作者正文', 'viewCount': 4},
+        ],
+        'nextCursor': 'opaque_cursor',
+      });
+      final profile = await api.authorProfile(
+        sessionToken: _token,
+        postId: _id,
+        limit: 7,
+      );
+      expect(profile.value.author.nickname, '甲');
+      expect(profile.value.items.single.body, '作者正文');
+      expect(profile.value.nextCursor, 'opaque_cursor');
+      final request = endpoint.requests.last;
+      expect(request.method, 'GET');
+      expect(request.uri.path, '/api/v1/posts/$_id/author');
+      expect(request.uri.queryParameters, {'limit': '7'});
+      expect(request.headers['x-post-preview'], ['thumbnail-v1']);
+      expect(request.headers['authorization'], ['Bearer $_token']);
+      await api.authorProfile(
+        sessionToken: _token,
+        postId: _id,
+        cursor: profile.value.nextCursor,
+        limit: 7,
+      );
+      expect(endpoint.requests.last.uri.queryParameters, {
+        'limit': '7',
+        'cursor': 'opaque_cursor',
+      });
+      endpoint.respond = (r) => _json(r, 200, {
+        'author': {'state': 'ACTIVE', 'nickname': '甲', 'avatar': 'default-v1'},
+        'items': [
+          {..._card(), 'body': '正文', 'viewCount': 0},
+          {..._card(), 'postId': _other, 'body': '正文', 'viewCount': 0},
+        ],
+        'nextCursor': null,
+      });
+      await expectLater(
+        api.authorProfile(sessionToken: _token, postId: _id, limit: 1),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+      endpoint.respond = (r) => _json(r, 200, {
+        'author': {'state': 'ACTIVE', 'nickname': '甲', 'avatar': 'default-v1'},
+        'items': [
+          {..._card(), 'body': '正文', 'viewCount': 0},
+          {..._card(), 'body': '正文', 'viewCount': 0},
+        ],
+        'nextCursor': null,
+      });
+      await expectLater(
+        api.authorProfile(sessionToken: _token, postId: _id, limit: 2),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+      endpoint.respond = (r) => _json(r, 200, {
+        'author': {
+          'state': 'DELETED',
+          'shortCode': 'ABCDEFGHIJKL',
+          'avatar': 'inactive-v1',
+        },
+        'items': [
+          {..._card(), 'body': '正文', 'viewCount': 0},
+        ],
+        'nextCursor': null,
+      });
+      await expectLater(
+        api.authorProfile(sessionToken: _token, postId: _id),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+    },
+  );
   test('preferences replace complete UUID set and views POST has no body or command key', () async {
     endpoint.respond = (r) => _json(r, 200, {
       'blockedChannelIds': [_id],
@@ -1941,6 +2016,110 @@ void main() {
       );
     }
   });
+  test(
+    'author block commands are body-free, idempotent and strictly matched',
+    () async {
+      final endpoint = await _Endpoint.start();
+      addTearDown(endpoint.close);
+      final api = HttpPostApi(
+        communityBaseUri: endpoint.uri,
+        client: endpoint.client(),
+      );
+      addTearDown(api.close);
+      const blockId = '44444444-4444-4444-8444-444444444444';
+      final author = {
+        'state': 'ACTIVE',
+        'nickname': '甲',
+        'avatar': 'default-v1',
+      };
+      endpoint.respond = (r) => _json(r, 200, {
+        'blockId': blockId,
+        'state': 'BLOCKED',
+        'author': author,
+        'blockedAt': _time,
+      });
+      final receipt = await api.blockPostAuthor(
+        sessionToken: _token,
+        postId: _id,
+      );
+      expect(receipt.value.blockId, blockId);
+      expect(receipt.value.author.nickname, '甲');
+      expect(receipt.value.blockedAt, DateTime.parse(_time));
+      var request = endpoint.requests.last;
+      expect(request.method, 'PUT');
+      expect(request.uri.path, '/api/v1/posts/$_id/author/block');
+      expect(request.uri.hasQuery, false);
+      expect(request.body, '');
+      expect(request.headers.containsKey('idempotency-key'), isFalse);
+
+      endpoint.respond = (r) => _json(r, 200, {
+        'items': [
+          {'blockId': blockId, 'author': author, 'blockedAt': _time},
+        ],
+      });
+      final page = await api.blockedAuthors(sessionToken: _token);
+      expect(page.value.items.single.blockId, blockId);
+      request = endpoint.requests.last;
+      expect(request.method, 'GET');
+      expect(request.uri.path, '/api/v1/me/blocked-authors');
+      expect(request.uri.hasQuery, false);
+      expect(request.body, '');
+      expect(request.headers['x-post-tags'], ['v1']);
+
+      endpoint.respond = (r) =>
+          _json(r, 200, {'blockId': blockId, 'state': 'ABSENT'});
+      final removal = await api.unblockAuthor(
+        sessionToken: _token,
+        blockId: blockId,
+      );
+      expect(removal.value.state, 'ABSENT');
+      request = endpoint.requests.last;
+      expect(request.method, 'DELETE');
+      expect(request.uri.path, '/api/v1/me/blocked-authors/$blockId');
+      expect(request.uri.hasQuery, false);
+      expect(request.body, '');
+      expect(request.headers.containsKey('idempotency-key'), isFalse);
+
+      endpoint.respond = (r) =>
+          _json(r, 409, _error('SELF_BLOCK_REJECTED'), success: false);
+      await expectLater(
+        api.blockPostAuthor(sessionToken: _token, postId: _id),
+        throwsA(
+          _failure(
+            PostFailureKind.rejected,
+            status: 409,
+            code: 'SELF_BLOCK_REJECTED',
+          ),
+        ),
+      );
+
+      endpoint.respond = (r) => _json(r, 200, {
+        'items': [
+          {
+            'blockId': blockId,
+            'author': {...author, 'accountId': _id},
+            'blockedAt': _time,
+          },
+        ],
+      });
+      await expectLater(
+        api.blockedAuthors(sessionToken: _token),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+      endpoint.respond = (r) =>
+          _json(r, 200, {'blockId': _other, 'state': 'REMOVED'});
+      await expectLater(
+        api.unblockAuthor(sessionToken: _token, blockId: blockId),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+      endpoint.respond = (r) =>
+          _json(r, 200, {'blockId': blockId, 'state': 'BLOCKED'});
+      await expectLater(
+        api.unblockAuthor(sessionToken: _token, blockId: blockId),
+        throwsA(_failure(PostFailureKind.invalidResponse, status: 200)),
+      );
+    },
+  );
 }
 
 // 合成的公开 loopback TLS 测试材料；不作为设备、真实 C 服务或生产证据。

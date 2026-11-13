@@ -284,7 +284,7 @@ func readInboxNotice(ctx context.Context, tx pgx.Tx, account uuid.UUID, identity
 	n.CreatedAt = n.CreatedAt.UTC()
 	n.PostID = &post
 	n.CommentID = comment
-	p, _, e := readPublicPost(ctx, tx, post)
+	p, _, e := readPublicPost(ctx, tx, account, post)
 	if errors.Is(e, pgx.ErrNoRows) {
 		n.TargetAvailable = false
 		n.SourceTitle = "该帖子已删除或不可访问"

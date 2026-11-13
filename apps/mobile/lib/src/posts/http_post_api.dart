@@ -11,6 +11,7 @@ import '../messaging/dm_protocol.dart';
 
 import '../auth/auth_crypto.dart';
 import 'post_api.dart';
+import 'author_block_api.dart';
 import 'post_tags.dart';
 import 'post_edit_api.dart';
 import 'feed_api.dart';
@@ -30,6 +31,7 @@ import 'package:crypto/crypto.dart' as hashes;
 
 part 'post_upload_http.dart';
 part 'feed_http.dart';
+part 'author_block_http.dart';
 part 'post_interactions_http.dart';
 part 'post_reposts_http.dart';
 
@@ -42,6 +44,7 @@ class HttpPostApi
         PostMediaApi,
         FeedApi,
         HiddenPostApi,
+        AuthorBlockApi,
         PostInteractionsApi,
         PostRepostsApi,
         PostSearchApi,
@@ -319,6 +322,18 @@ class HttpPostApi
     limit: limit,
   );
   @override
+  Future<PostResponse<AuthorProfile>> authorProfile({
+    required String sessionToken,
+    required String postId,
+    String? cursor,
+    int limit = 20,
+  }) => _authorProfile(
+    sessionToken: sessionToken,
+    postId: postId,
+    cursor: cursor,
+    limit: limit,
+  );
+  @override
   Future<PostResponse<FeedPreferences>> feedPreferences({
     required String sessionToken,
   }) => _input(
@@ -389,6 +404,23 @@ class HttpPostApi
       },
     );
   });
+
+  @override
+  Future<PostResponse<AuthorBlockReceipt>> blockPostAuthor({
+    required String sessionToken,
+    required String postId,
+  }) => _blockPostAuthor(sessionToken: sessionToken, postId: postId);
+
+  @override
+  Future<PostResponse<BlockedAuthorPage>> blockedAuthors({
+    required String sessionToken,
+  }) => _blockedAuthors(sessionToken: sessionToken);
+
+  @override
+  Future<PostResponse<AuthorBlockRemoval>> unblockAuthor({
+    required String sessionToken,
+    required String blockId,
+  }) => _unblockAuthor(sessionToken: sessionToken, blockId: blockId);
 
   @override
   Future<PostResponse<PostViews>> registerPostView({
@@ -976,6 +1008,7 @@ class HttpPostApi
     Uint8List? uploadBytes,
     String? uploadMime,
     Duration? requestTimeout,
+    int maxJsonItems = PostStrictJson.defaultMaxItems,
   }) => _transport.send(
     token,
     method,
@@ -993,6 +1026,7 @@ class HttpPostApi
     uploadBytes: uploadBytes,
     uploadMime: uploadMime,
     requestTimeout: requestTimeout,
+    maxJsonItems: maxJsonItems,
   );
 
   static String _single(HttpHeaders headers, String key) =>

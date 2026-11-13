@@ -899,12 +899,14 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       onManageSecurity: _openDevices,
       onManageAccount: _openSecurity,
       onCloseAccount: _openClosure,
-      onBlacklist: widget.dm == null
+      onBlacklist: widget.dm == null && !widget.posts.supportsAuthorBlock
           ? null
           : () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    DmBlacklistScreen(controller: widget.dm!.controller),
+                builder: (_) => DmBlacklistScreen(
+                  controller: widget.dm?.controller,
+                  posts: widget.posts,
+                ),
               ),
             ),
     );

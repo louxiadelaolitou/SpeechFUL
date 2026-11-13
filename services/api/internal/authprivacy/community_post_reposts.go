@@ -48,7 +48,7 @@ func readRepostState(ctx context.Context, tx pgx.Tx, account uuid.UUID, id strin
 	return result, rows.Err()
 }
 func repostReadable(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string) error {
-	_, _, err := readPublicPost(ctx, tx, id)
+	_, _, err := readPublicPost(ctx, tx, account, id)
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
@@ -109,7 +109,7 @@ func (c *Community) SetPostRepost(ctx context.Context, bearer [32]byte, id, iden
 			return nil, err
 		}
 		if enabled {
-			if _, _, err := readPublicPost(ctx, tx, id); err != nil {
+			if _, _, err := readPublicPost(ctx, tx, account, id); err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil, postError("POST_NOT_FOUND", 404)
 				}
@@ -206,7 +206,7 @@ func (c *Community) ListPostReposts(ctx context.Context, bearer [32]byte, query 
 			page.NextCursor = &cursor
 		}
 		for n := range page.Items {
-			post, _, err := readPublicPost(ctx, tx, page.Items[n].PostID)
+			post, _, err := readPublicPost(ctx, tx, account, page.Items[n].PostID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue
 			}

@@ -6,9 +6,12 @@ import 'package:hnuhole_mobile/src/posts/feed_card_motion.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/src/posts/feed_api.dart';
+import 'package:hnuhole_mobile/src/posts/author_block_api.dart';
 import 'package:hnuhole_mobile/src/posts/x_feed.dart';
 import 'package:hnuhole_mobile/src/posts/hidden_post_api.dart';
+import 'package:hnuhole_mobile/src/messaging/dm_governance_ui.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
+import 'package:hnuhole_mobile/src/design_system/detail_components.dart';
 
 import 'identity_test_support.dart';
 
@@ -46,7 +49,8 @@ PostResponse<T> reply<T>(T value) => PostResponse(
   statusCode: 200,
 );
 
-class FeedTestApi implements PostApi, FeedApi, HiddenPostApi {
+class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
+  static const blockedAuthorId = '55555555-5555-4555-8555-555555555555';
   final calls = <String>[];
   final writes = <Set<String>>[];
   Set<String> blocked = {};
@@ -57,6 +61,68 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi {
   final hiddenVersions = <String, int>{};
   bool hiddenCommitTimeout = false;
   PostFailure? hiddenWriteFailure;
+  final authorBlocks = <BlockedAuthor>[];
+  PostFailure? blockAuthorFailure;
+  PostFailure? blockedAuthorsFailure;
+
+  static bool sameAuthor(PostAuthor left, PostAuthor right) =>
+      left.state == right.state &&
+      left.avatar == right.avatar &&
+      left.nickname == right.nickname &&
+      left.shortCode == right.shortCode;
+
+  @override
+  Future<PostResponse<AuthorBlockReceipt>> blockPostAuthor({
+    required String sessionToken,
+    required String postId,
+  }) async {
+    calls.add('block:$postId');
+    if (blockAuthorFailure case final failure?) throw failure;
+    final target = items.firstWhere((p) => p.postId == postId).author;
+    final existing = authorBlocks
+        .where((block) => sameAuthor(block.author, target))
+        .toList();
+    final blockId = existing.isEmpty ? blockedAuthorId : existing.first.blockId;
+    final blockedAt = existing.isEmpty ? at : existing.first.blockedAt;
+    if (existing.isEmpty) {
+      authorBlocks.insert(
+        0,
+        BlockedAuthor(blockId: blockId, author: target, blockedAt: blockedAt),
+      );
+    }
+    return reply(
+      AuthorBlockReceipt(
+        blockId: blockId,
+        author: target,
+        blockedAt: blockedAt,
+      ),
+    );
+  }
+
+  @override
+  Future<PostResponse<BlockedAuthorPage>> blockedAuthors({
+    required String sessionToken,
+  }) async {
+    calls.add('blocks');
+    if (blockedAuthorsFailure case final failure?) throw failure;
+    return reply(BlockedAuthorPage(List.of(authorBlocks)));
+  }
+
+  @override
+  Future<PostResponse<AuthorBlockRemoval>> unblockAuthor({
+    required String sessionToken,
+    required String blockId,
+  }) async {
+    calls.add('unblock:$blockId');
+    final existed = authorBlocks.any((block) => block.blockId == blockId);
+    authorBlocks.removeWhere((block) => block.blockId == blockId);
+    return reply(
+      AuthorBlockRemoval(
+        blockId: blockId,
+        state: existed ? 'REMOVED' : 'ABSENT',
+      ),
+    );
+  }
 
   String hiddenVersion(String id) =>
       '"${(hiddenVersions[id] ?? 0).toRadixString(16).padLeft(64, '0')}"';
@@ -155,11 +221,47 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi {
                   (p) =>
                       !blocked.contains(p.channelId) &&
                       !hiddenPosts.contains(p.postId) &&
+                      !authorBlocks.any(
+                        (block) => sameAuthor(block.author, p.author),
+                      ) &&
                       (channelId == null || p.channelId == channelId),
                 )
                 .toList(),
             nextCursor: this.cursor,
           ),
+    );
+  }
+
+  PostFailure? authorProfileFailure;
+  AuthorProfile Function(String postId, String? cursor)? authorProfileFor;
+  @override
+  Future<PostResponse<AuthorProfile>> authorProfile({
+    required String sessionToken,
+    required String postId,
+    String? cursor,
+    int limit = 20,
+  }) async {
+    calls.add('author:$postId:${cursor ?? 'first'}:$limit');
+    final failure = authorProfileFailure;
+    authorProfileFailure = null;
+    if (failure != null) throw failure;
+    final profile = authorProfileFor?.call(postId, cursor);
+    if (profile != null) return reply(profile);
+    final anchor = items.firstWhere((p) => p.postId == postId);
+    return reply(
+      AuthorProfile(
+        author: anchor.author,
+        items: items
+            .where(
+              (p) =>
+                  p.author.state == anchor.author.state &&
+                  p.author.avatar == anchor.author.avatar &&
+                  p.author.nickname == anchor.author.nickname &&
+                  p.author.shortCode == anchor.author.shortCode,
+            )
+            .toList(),
+        nextCursor: null,
+      ),
     );
   }
 
@@ -280,6 +382,16 @@ Widget screen(
     onManageIdentities: () async {},
     onAuthenticationRequired: () {},
     loadImages: loader,
+  ),
+);
+
+Widget profileScreen(FeedFixture f) => MaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: HhTelegramTheme.create(Brightness.light),
+  home: AuthorProfileScreen(
+    controller: f.controller,
+    postId: postId,
+    channelNames: const {channelId: '吐槽'},
   ),
 );
 
@@ -1179,4 +1291,207 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('feed avatar enters the author profile and lists its posts', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(screen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DetailAvatar));
+    await tester.pumpAndSettle();
+    expect(find.byType(AuthorProfileScreen), findsOneWidget);
+    expect(find.text('作者主页'), findsOneWidget);
+    expect(find.text('林间来信'), findsWidgets);
+    expect(find.byKey(const ValueKey('author-profile-dm')), findsOneWidget);
+    expect(find.byKey(const ValueKey('author-profile-block')), findsOneWidget);
+    expect(find.text('今天的校园'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('author-post:$postId')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostDetailScreen), findsOneWidget);
+  });
+  testWidgets('detail avatar enters the author profile', (tester) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    const otherPostId = '44444444-4444-4444-8444-444444444444';
+    f.api.items = [
+      post(),
+      post(id: otherPostId, channel: otherChannelId, title: '避雷帖'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: HhTelegramTheme.create(Brightness.light),
+        home: PostDetailScreen(
+          controller: f.controller,
+          postId: postId,
+          channelName: '吐槽',
+          channelNames: const {channelId: '吐槽', otherChannelId: '避雷'},
+          onAuthenticationRequired: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DetailAvatar));
+    await tester.pumpAndSettle();
+    expect(find.byType(AuthorProfileScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('author-profile-dm')), findsOneWidget);
+    expect(find.textContaining('避雷 · '), findsOneWidget);
+  });
+  testWidgets('author profile paginates once and keeps order', (tester) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    final first = post(title: '第一帖');
+    final second = post(
+      id: '44444444-4444-4444-8444-444444444444',
+      title: '第二帖',
+    );
+    f.api.authorProfileFor = (id, cursor) => cursor == null
+        ? AuthorProfile(author: author, items: [first], nextCursor: 'next-page')
+        : AuthorProfile(author: author, items: [second], nextCursor: null);
+    await tester.pumpWidget(profileScreen(f));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(find.text('第一帖'), findsOneWidget);
+    expect(find.text('第二帖'), findsOneWidget);
+    expect(f.api.calls.where((call) => call.startsWith('author:')).toList(), [
+      'author:$postId:first:20',
+      'author:$postId:next-page:20',
+    ]);
+  });
+  testWidgets('author profile error has an explicit retry', (tester) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.authorProfileFailure = const PostFailure(
+      kind: PostFailureKind.transport,
+    );
+    await tester.pumpWidget(profileScreen(f));
+    await tester.pumpAndSettle();
+    expect(find.text('暂时无法加载作者主页，请重试。'), findsOneWidget);
+    await tester.tap(find.text('重新加载'));
+    await tester.pumpAndSettle();
+    expect(find.text('林间来信'), findsWidgets);
+    expect(find.text('今天的校园'), findsOneWidget);
+  });
+  testWidgets('inactive author keeps the profile read-only', (tester) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    const inactive = PostAuthor(
+      state: PostAuthorState.deleted,
+      avatar: 'inactive-v1',
+      shortCode: 'ABCDEFGHIJKL',
+    );
+    f.api.authorProfileFor = (id, cursor) =>
+        AuthorProfile(author: inactive, items: const [], nextCursor: null);
+    await tester.pumpWidget(profileScreen(f));
+    await tester.pumpAndSettle();
+    final dm = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('author-profile-dm')),
+    );
+    expect(dm.onPressed, isNull);
+    expect(find.text('这个身份还没有发布的帖子'), findsOneWidget);
+  });
+  testWidgets('author profile blocks the account and clears the timeline', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(screen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DetailAvatar));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('author-profile-block')));
+    await tester.pumpAndSettle();
+    expect(find.text('确认拉黑？'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('author-profile-block-confirm')),
+    );
+    await tester.pumpAndSettle();
+    expect(f.api.calls, contains('block:$postId'));
+    expect(f.api.authorBlocks.single.blockId, FeedTestApi.blockedAuthorId);
+    expect(find.byType(AuthorProfileScreen), findsNothing);
+    expect(find.byType(FeedScreen), findsOneWidget);
+    expect(find.text('今天的校园'), findsNothing);
+    expect(
+      f.api.calls.where((call) => call.startsWith('feed:')).length,
+      greaterThanOrEqualTo(2),
+    );
+  });
+  testWidgets('self block is rejected without leaving the profile', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.blockAuthorFailure = const PostFailure(
+      kind: PostFailureKind.rejected,
+      code: 'SELF_BLOCK_REJECTED',
+      statusCode: 409,
+    );
+    await tester.pumpWidget(profileScreen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('author-profile-block')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('author-profile-block-confirm')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('不能拉黑自己'), findsOneWidget);
+    expect(find.byType(AuthorProfileScreen), findsOneWidget);
+    expect(f.api.authorBlocks, isEmpty);
+  });
+  testWidgets('blacklist lists account-level blocks and unblocks them', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.authorBlocks.add(
+      BlockedAuthor(
+        blockId: FeedTestApi.blockedAuthorId,
+        author: author,
+        blockedAt: at,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: HhTelegramTheme.create(Brightness.light),
+        home: DmBlacklistScreen(posts: f.controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('作者拉黑'), findsOneWidget);
+    expect(find.text('林间来信'), findsOneWidget);
+    await tester.tap(
+      find.byKey(
+        const ValueKey('author-unblock:${FeedTestApi.blockedAuthorId}'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('author-unblock-confirm')));
+    await tester.pumpAndSettle();
+    expect(f.api.calls, contains('unblock:${FeedTestApi.blockedAuthorId}'));
+    expect(find.text('暂无作者拉黑记录'), findsOneWidget);
+    expect(f.api.authorBlocks, isEmpty);
+  });
+  testWidgets('author section fails independently and retries', (tester) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.blockedAuthorsFailure = const PostFailure(
+      kind: PostFailureKind.transport,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: HhTelegramTheme.create(Brightness.light),
+        home: DmBlacklistScreen(posts: f.controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('作者拉黑读取失败，请重试'), findsOneWidget);
+    f.api.blockedAuthorsFailure = null;
+    await tester.tap(find.text('作者拉黑读取失败，请重试'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无作者拉黑记录'), findsOneWidget);
+  });
 }

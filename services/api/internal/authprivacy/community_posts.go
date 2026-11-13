@@ -138,7 +138,23 @@ func (c *Community) checkPostProtocolKeys(ctx context.Context, tx pgx.Tx) error 
 
 type postSessionAction func(pgx.Tx, uuid.UUID, AuthorizationDecision, restriction) (any, error)
 
+// postSessionPrepare runs inside the final transaction after the caller row is
+// locked but before the Gate row is taken. A write that references another
+// account must lock that account here: taking the Gate first and then waiting
+// for a row lock that the other account's request takes before its own Gate
+// wait closes a lock cycle.
+//
+// prepare runs before the final session check. It must not return business
+// outcomes such as an unknown anchor or a self-block rejection, because those
+// would stay visible to a revoked token; store them and return them from the
+// action, which runs only after the Gate has validated the session.
+type postSessionPrepare func(context.Context, pgx.Tx, uuid.UUID) error
+
 func (c *Community) withPostSession(ctx context.Context, bearer [32]byte, action postSessionAction) (PostResponse, error) {
+	return c.withPostSessionPrepared(ctx, bearer, nil, action)
+}
+
+func (c *Community) withPostSessionPrepared(ctx context.Context, bearer [32]byte, prepare postSessionPrepare, action postSessionAction) (PostResponse, error) {
 	var result PostResponse
 	if !c.PostsEnabled() {
 		return result, ErrAuthorizationUnavailable
@@ -157,12 +173,16 @@ func (c *Community) withPostSession(ctx context.Context, bearer [32]byte, action
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return result, ErrAuthorizationUnavailable
 	}
-	return c.withPostSessionAt(ctx, token, account, decision, nil, action)
+	return c.withPostSessionAtPrepared(ctx, token, account, decision, nil, prepare, action)
 }
 
 // Lock the caller before the Gate. Only the final transaction may release
 // protected results, record business effects or renew the session.
 func (c *Community) withPostSessionAt(ctx context.Context, token [32]byte, account uuid.UUID, decision AuthorizationDecision, expectedSessionGeneration *int64, action postSessionAction) (PostResponse, error) {
+	return c.withPostSessionAtPrepared(ctx, token, account, decision, expectedSessionGeneration, nil, action)
+}
+
+func (c *Community) withPostSessionAtPrepared(ctx context.Context, token [32]byte, account uuid.UUID, decision AuthorizationDecision, expectedSessionGeneration *int64, prepare postSessionPrepare, action postSessionAction) (PostResponse, error) {
 	var result PostResponse
 	tx, err := begin(ctx, c.pool)
 	if err != nil {
@@ -190,6 +210,11 @@ func (c *Community) withPostSessionAt(ctx context.Context, token [32]byte, accou
 		session, err = lockCredentialSession(ctx, tx, a, token)
 		if err != nil && !errors.Is(err, ErrSessionInvalid) {
 			return result, ErrAuthorizationUnavailable
+		}
+	}
+	if prepare != nil {
+		if err = prepare(ctx, tx, account); err != nil {
+			return result, err
 		}
 	}
 	_, err = c.gate.CommitAuthorized(ctx, tx, decision.Generation, func(final AuthorizationDecision) error {

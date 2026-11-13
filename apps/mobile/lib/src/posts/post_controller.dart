@@ -24,6 +24,7 @@ import '../identity/identity_api.dart';
 import '../identity/active_identity_controller.dart';
 import '../storage/post_store.dart';
 import 'post_api.dart';
+import 'author_block_api.dart';
 import 'post_edit_api.dart';
 import 'feed_api.dart';
 import 'hidden_post_api.dart';
@@ -48,6 +49,7 @@ part 'post_interactions_controller.dart';
 part 'post_reposts_controller.dart';
 part 'post_edit_controller.dart';
 part 'post_sharing_controller.dart';
+part 'author_block_controller.dart';
 
 typedef PostStoreFactory = Future<PostStore> Function(String accountId);
 
@@ -315,6 +317,9 @@ class PostController extends ChangeNotifier {
   final _hiddenWrites = <String>{};
   final _hiddenUncertainVersions = <String, ({bool desired, String version})>{};
   String? hiddenPostError;
+  final _authorBlockWrites = <String>{};
+  final _authorBlockRemovals = <String>{};
+  String? authorBlockError;
   final _reposts = <String, PostRepostState>{};
   List<RepostedPost> _repostItems = [];
   String? _repostCursor, _repostListError;
@@ -353,6 +358,11 @@ class PostController extends ChangeNotifier {
   final _retired = <String, Future<void>>{};
   final _activating = <String, Future<void>>{};
   int _feedRequest = 0;
+
+  /// Incremented whenever a committed account block changes what the current
+  /// account may see. Screens that cache filtered pages compare it and drop
+  /// cards loaded under an older visibility window.
+  int authorVisibilityEpoch = 0;
   int _publicationSequence = 0;
   PostPublicationNotice? _latestPublicationNotice;
   String? currentChannelId, feedCursor, feedError, errorMessage;
@@ -416,6 +426,9 @@ class PostController extends ChangeNotifier {
     _hiddenWrites.clear();
     _hiddenUncertainVersions.clear();
     hiddenPostError = null;
+    _authorBlockWrites.clear();
+    _authorBlockRemovals.clear();
+    authorBlockError = null;
     final old = _store;
     _store = null;
     if (old != null) {
@@ -580,6 +593,26 @@ class PostController extends ChangeNotifier {
     if (_errorCommandId != commandId) return;
     _errorCommandId = null;
     errorMessage = null;
+  }
+
+  bool get supportsAuthorProfile => _api is FeedApi;
+
+  Future<AuthorProfile> authorProfile({
+    required String postId,
+    String? cursor,
+    int limit = 20,
+  }) {
+    if (_api case final FeedApi api) {
+      return _withDiscoveryAuthority(
+        (token) => api.authorProfile(
+          sessionToken: token,
+          postId: postId,
+          cursor: cursor,
+          limit: limit,
+        ),
+      );
+    }
+    return Future.error(UnsupportedError('Author profile is unavailable'));
   }
 
   Future<void> loadFeed(String channelId, {bool more = false}) async {

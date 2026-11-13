@@ -64,7 +64,7 @@ func (c *Community) ReadPostEdit(ctx context.Context, bearer [32]byte, post stri
 		if subject.blocked != "" {
 			return nil, postError(subject.blocked, 409)
 		}
-		current, _, err := readPublicPost(ctx, tx, post)
+		current, _, err := readPublicPost(ctx, tx, account, post)
 		snapshot := posts.EditSnapshot{Post: current, Revision: subject.revision}
 		if err == nil && c.PostImagesEnabled() {
 			images, err := readPostImageItems(ctx, tx, post, current.ImagesEdited, current.ImageCount)
@@ -170,7 +170,7 @@ func (c *Community) SavePostEdit(ctx context.Context, bearer [32]byte, post, com
 			code = "POST_EDIT_CONFLICT"
 		}
 		if code == "" {
-			current, _, err := readPublicPost(ctx, tx, post)
+			current, _, err := readPublicPost(ctx, tx, account, post)
 			if err != nil {
 				return nil, err
 			}

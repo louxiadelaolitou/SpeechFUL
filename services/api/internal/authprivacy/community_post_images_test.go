@@ -93,6 +93,45 @@ func imageUpload(t *testing.T, l *lab, r posts.CommandResult, s postmedia.Select
 	}
 }
 
+// Images are served by a separate protected path from post projections. A
+// committed account block must hide both the manifest and the original bytes
+// there too, while the author's own reads stay available.
+func TestPostImagesAuthorBlockHidesMediaPostgres(t *testing.T) {
+	l := newPostLab(t)
+	enableImageLab(t, l)
+	ctx := context.Background()
+	owner := sessionTestAccount(t, l, "image_block_owner")
+	viewer := sessionTestAccount(t, l, "image_block_viewer")
+	ownerIdentity := identityChange(t, l.c, owner.SessionToken, "CREATE", uuid.Nil, "图片作者").IdentityID
+	intent := postTestIntent(t, l, ownerIdentity)
+	intent.Body = ""
+	selection, data := imageFixture(t, "png")
+	intent.Images = []postmedia.Selection{selection}
+	accepted := postTestCommand(t, l, owner.SessionToken, postTestKey(t), intent)
+	token := imageGrant(t, l, owner.SessionToken, accepted, selection.MediaID)
+	imageUpload(t, l, accepted, selection, token, data)
+	postTestPublish(t, l)
+
+	manifest, e := l.c.ReadPostImages(ctx, viewer.SessionToken, accepted.PostID, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	content := manifest.Value.(postmedia.Group).Images[0].ContentVersionID
+	if _, e = l.c.ReadPostImages(ctx, viewer.SessionToken, accepted.PostID, content); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = l.c.BlockPostAuthor(ctx, viewer.SessionToken, accepted.PostID); e != nil {
+		t.Fatal(e)
+	}
+	for _, requested := range []string{"", content} {
+		_, e = l.c.ReadPostImages(ctx, viewer.SessionToken, accepted.PostID, requested)
+		postTestError(t, e, "MEDIA_NOT_FOUND", 404)
+	}
+	if _, e = l.c.ReadPostImages(ctx, owner.SessionToken, accepted.PostID, content); e != nil {
+		t.Fatalf("author lost access to own image: %v", e)
+	}
+}
+
 func TestPostImagesPartialUploadsPublicationAndErasePostgres(t *testing.T) {
 	l := newPostLab(t)
 	enableImageLab(t, l)

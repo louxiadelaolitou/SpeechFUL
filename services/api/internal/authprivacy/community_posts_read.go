@@ -25,6 +25,7 @@ const (
 	PostLikeSet          PostReadKind = "likeSet"
 	PostFavoriteSet      PostReadKind = "favoriteSet"
 	PostDetail           PostReadKind = "post"
+	PostAuthor           PostReadKind = "author"
 	PostOwnList          PostReadKind = "own"
 	PostLikedList        PostReadKind = "liked"
 	PostFavoriteList     PostReadKind = "favorites"
@@ -87,7 +88,7 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 		}
 	}
 	switch query.Kind {
-	case PostTaskDetail, PostChannelFeed, PostDetail, PostCapabilities, PostViewRecord:
+	case PostTaskDetail, PostChannelFeed, PostDetail, PostAuthor, PostCapabilities, PostViewRecord:
 		if _, err := posts.ParseResourceID(query.ID); err != nil {
 			return PostResponse{}, err
 		}
@@ -163,11 +164,22 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 			}
 			return posts.OwnPostCapabilities{PostID: query.ID, CanDelete: true, CanEdit: false}, nil
 		case PostDetail:
-			r, _, err := readPublicPost(ctx, tx, query.ID)
+			r, _, err := readPublicPost(ctx, tx, account, query.ID)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, postError("POST_NOT_FOUND", 404)
 			}
 			return posts.PublicPostResponse{Post: r}, err
+		case PostAuthor:
+			identity, err := readPublicAuthorIdentity(ctx, tx, account, query.ID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, postError("POST_NOT_FOUND", 404)
+			}
+			if err != nil {
+				return nil, err
+			}
+			authorQuery := query
+			authorQuery.IdentityID = identity
+			return c.listPublicPosts(ctx, tx, account, authorQuery, final.TrustedAt)
 		case PostChannelFeed, PostOwnList, PostFeed, PostLikedList, PostFavoriteList:
 			return c.listPublicPosts(ctx, tx, account, query, final.TrustedAt)
 		}
@@ -218,7 +230,7 @@ func readPostComposerContext(ctx context.Context, tx pgx.Tx, account uuid.UUID) 
 // 投影只读取当前公开状态。没有账号ID、身份ID或本人权能进入公共DTO。
 const publicPostImageCount = `COALESCE(jsonb_array_length(NULLIF(to_jsonb(p)->'edited_image_ids','null'::jsonb)),(to_jsonb(x)->>'image_count')::int,0)`
 
-func readPublicPost(ctx context.Context, tx pgx.Tx, id string) (posts.PublicPost, int64, error) {
+func readPublicPost(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, id string) (posts.PublicPost, int64, error) {
 	var r posts.PublicPost
 	var ordinal int64
 	var accountState string
@@ -228,7 +240,8 @@ func readPublicPost(ctx context.Context, tx pgx.Tx, id string) (posts.PublicPost
 	err := tx.QueryRow(ctx, `SELECT p.post_id,p.channel_id,COALESCE(to_jsonb(p)->>'edited_title',x.title),COALESCE(to_jsonb(p)->>'edited_body',x.body),p.published_at,p.publication_ordinal,a.state,i.deleted_at,i.nickname,i.avatar,l.short_code,`+publicPostImageCount+`,(to_jsonb(p)->>'edited_at')::timestamptz,to_jsonb(p)->>'edited_image_ids' IS NOT NULL,COALESCE(to_jsonb(p)->'tags','[]'::jsonb)
  FROM c_posts.posts p JOIN c_posts.publication_tasks t ON t.post_id=p.post_id JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version
  JOIN public.community_identities i ON i.identity_id=t.identity_id JOIN c_auth.accounts a ON a.account_id=p.owner_account_id JOIN c_posts.identity_public_labels l ON l.identity_id=i.identity_id
- WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) AND x.erased_at IS NULL`, id).Scan(&r.PostID, &r.ChannelID, &r.Title, &r.Body, &r.PublishedAt, &ordinal, &accountState, &deleted, &nickname, &avatar, &short, &r.ImageCount, &r.EditedAt, &r.ImagesEdited, &r.Tags)
+ WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) AND x.erased_at IS NULL
+ AND NOT c_posts.accounts_blocked($2, p.owner_account_id)`, id, viewer).Scan(&r.PostID, &r.ChannelID, &r.Title, &r.Body, &r.PublishedAt, &ordinal, &accountState, &deleted, &nickname, &avatar, &short, &r.ImageCount, &r.EditedAt, &r.ImagesEdited, &r.Tags)
 	if err != nil {
 		return r, 0, err
 	}
@@ -256,6 +269,34 @@ func projectPublicPostAuthor(accountState string, deleted *time.Time, nickname, 
 		return posts.PublicAuthor{State: "ACTIVE", Nickname: *nickname, Avatar: *avatar}, nil
 	}
 }
+
+// readPublicAuthorIdentity resolves the identity used by a publicly readable
+// anchor post. The post ID is the only selector; no identity ID enters the API.
+func readPublicAuthorIdentity(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, postID string) (string, error) {
+	var identity string
+	err := tx.QueryRow(ctx, `SELECT t.identity_id::text
+ FROM c_posts.posts p JOIN c_posts.publication_tasks t ON t.post_id=p.post_id
+ JOIN c_posts.attempt_contents x ON x.task_id=t.task_id AND x.version=p.published_attempt_version
+ WHERE p.post_id=$1 AND p.visibility='PUBLISHED' AND NOT COALESCE((to_jsonb(p)->>'moderation_hidden')::boolean,false) AND x.erased_at IS NULL
+ AND NOT c_posts.accounts_blocked($2, p.owner_account_id)`, postID, viewer).Scan(&identity)
+	return identity, err
+}
+
+func readPublicAuthor(ctx context.Context, tx pgx.Tx, identityID string) (posts.PublicAuthor, error) {
+	var accountState string
+	var deleted *time.Time
+	var nickname, avatar *string
+	var short string
+	err := tx.QueryRow(ctx, `SELECT a.state,i.deleted_at,i.nickname,i.avatar,l.short_code
+ FROM public.community_identities i JOIN c_auth.accounts a ON a.account_id=i.account_id
+ JOIN c_posts.identity_public_labels l ON l.identity_id=i.identity_id
+ WHERE i.identity_id=$1`, identityID).Scan(&accountState, &deleted, &nickname, &avatar, &short)
+	if err != nil {
+		return posts.PublicAuthor{}, err
+	}
+	return projectPublicPostAuthor(accountState, deleted, nickname, avatar, short)
+}
+
 func postCard(r posts.PublicPost) posts.PublicPostCard {
 	return posts.PublicPostCard{PostID: r.PostID, ChannelID: r.ChannelID, Title: r.Title, Tags: r.Tags, Author: r.Author, PublishedAt: r.PublishedAt}
 }
@@ -265,6 +306,10 @@ func (c *Community) postCursor(ctx context.Context, tx pgx.Tx, account uuid.UUID
 	sequence := "publication_ordinal"
 	if query.Kind == PostOwnList {
 		scope = posts.CursorOwn
+		channel = ""
+	}
+	if query.Kind == PostAuthor {
+		scope = posts.CursorAuthor
 		channel = ""
 	}
 	if query.Kind == PostLikedList {
@@ -325,6 +370,10 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 	} else if query.Kind == PostOwnList {
 		owner = account
 	}
+	var identity any
+	if query.IdentityID != "" {
+		identity = query.IdentityID
+	}
 	blocked := []string{}
 	if query.Kind == PostFeed {
 		preferences, _, e := readFeedPreferences(ctx, tx, account)
@@ -335,16 +384,17 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 	}
 	hiddenFilter := ""
 	if c.posts.hiddenPostsEnabled {
-		hiddenFilter = ` AND ($8::text NOT IN ('feed','channel','liked','favorites') OR NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$9 AND hp.post_id=p.post_id AND hp.hidden))`
+		hiddenFilter = ` AND ($8::text NOT IN ('feed','channel','liked','favorites','author') OR NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$9 AND hp.post_id=p.post_id AND hp.hidden))`
 	}
 	rows, err := tx.Query(ctx, `SELECT p.post_id FROM c_posts.posts p JOIN c_posts.publication_tasks t ON t.post_id=p.post_id JOIN public.community_identities i ON i.identity_id=t.identity_id
  WHERE p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND p.publication_ordinal<=$1 AND ($2::uuid IS NULL OR p.channel_id=$2) AND ($3::uuid IS NULL OR (p.owner_account_id=$3 AND i.deleted_at IS NULL))
- AND ($10::text = '' OR t.identity_id::text=$10)
+ AND ($10::uuid IS NULL OR t.identity_id=$10)
  AND NOT (p.channel_id=ANY($7::uuid[]))`+hiddenFilter+`
+ AND NOT c_posts.accounts_blocked($9, p.owner_account_id)
  AND ($8::text <> 'liked' OR EXISTS(SELECT 1 FROM c_posts.post_likes l WHERE l.post_id=p.post_id AND l.account_id=$9))
  AND ($8::text <> 'favorites' OR EXISTS(SELECT 1 FROM c_posts.post_favorites f WHERE f.post_id=p.post_id AND f.account_id=$9))
- AND ($8::text NOT IN ('liked','favorites') OR EXISTS(SELECT 1 FROM c_posts.attempt_contents x WHERE x.task_id=t.task_id AND x.version=p.published_attempt_version AND x.erased_at IS NULL))
- AND ($4::timestamptz IS NULL OR (p.published_at,p.publication_ordinal)<($4,$5::bigint)) ORDER BY p.published_at DESC,p.publication_ordinal DESC LIMIT $6`, position.Ceiling, channel, owner, lastAt, lastOrdinal, query.Limit+1, blocked, string(query.Kind), account, query.IdentityID)
+ AND ($8::text NOT IN ('liked','favorites','author') OR EXISTS(SELECT 1 FROM c_posts.attempt_contents x WHERE x.task_id=t.task_id AND x.version=p.published_attempt_version AND x.erased_at IS NULL))
+ AND ($4::timestamptz IS NULL OR (p.published_at,p.publication_ordinal)<($4,$5::bigint)) ORDER BY p.published_at DESC,p.publication_ordinal DESC LIMIT $6`, position.Ceiling, channel, owner, lastAt, lastOrdinal, query.Limit+1, blocked, string(query.Kind), account, identity)
 	if err != nil {
 		return nil, err
 	}
@@ -366,17 +416,24 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 	page := posts.FeedPage{Items: make([]posts.PublicPostCard, 0, query.Limit)}
 	feed := posts.CrossChannelFeedPage{Items: make([]posts.FeedPost, 0, query.Limit)}
 	own := posts.OwnPostPage{Items: make([]posts.OwnPostCard, 0, query.Limit)}
+	author := posts.AuthorProfilePage{Items: make([]posts.FeedPost, 0, query.Limit)}
+	if query.Kind == PostAuthor {
+		author.Author, err = readPublicAuthor(ctx, tx, query.IdentityID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	more := len(ids) > query.Limit
 	if more {
 		ids = ids[:query.Limit]
 	}
 	for _, id := range ids {
-		item, ordinal, e := readPublicPost(ctx, tx, id)
+		item, ordinal, e := readPublicPost(ctx, tx, account, id)
 		if e != nil {
 			return nil, e
 		}
 		card := postCard(item)
-		if query.Kind == PostFeed {
+		if query.Kind == PostFeed || query.Kind == PostAuthor {
 			views, e := readPostViewCount(ctx, tx, id)
 			if e != nil {
 				return nil, e
@@ -404,7 +461,11 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 					return nil, ErrAuthorizationUnavailable
 				}
 			}
-			feed.Items = append(feed.Items, projection)
+			if query.Kind == PostAuthor {
+				author.Items = append(author.Items, projection)
+			} else {
+				feed.Items = append(feed.Items, projection)
+			}
 		}
 		page.Items = append(page.Items, card)
 		own.Items = append(own.Items, posts.OwnPostCard{Post: card, ServerSortAt: item.PublishedAt})
@@ -419,12 +480,16 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 		page.NextCursor = &cursor
 		feed.NextCursor = &cursor
 		own.NextCursor = &cursor
+		author.NextCursor = &cursor
 	}
 	if query.Kind == PostOwnList {
 		return own, nil
 	}
 	if query.Kind == PostFeed {
 		return feed, nil
+	}
+	if query.Kind == PostAuthor {
+		return author, nil
 	}
 	return page, nil
 }

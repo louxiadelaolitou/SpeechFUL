@@ -95,6 +95,9 @@ BEGIN
               OR (relation.relname='post_edit_receipts' AND privilege IN ('SELECT','INSERT'))
               OR (relation.relname='post_edit_media' AND privilege IN ('SELECT','INSERT','DELETE'))
               OR (relation.relname='post_tag_terms' AND privilege IN ('SELECT','INSERT','DELETE'))
+              -- 0039 author blocks: runtime reads, creates and removes its own
+              -- rows; the public snapshot stays immutable (no UPDATE).
+              OR (relation.relname='blocked_authors' AND privilege IN ('SELECT','INSERT','DELETE'))
               OR (relation.relname='search_content_revision' AND privilege IN ('SELECT','UPDATE'))
               OR (relation.relname='ranking_snapshots' AND privilege IN ('SELECT','INSERT','DELETE'))
               OR (relation.relname='ranking_posts' AND privilege IN ('SELECT','INSERT'))

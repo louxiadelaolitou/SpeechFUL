@@ -60,12 +60,12 @@ type TextCommentPage struct {
 
 // One visibility rule for comment context, comment pages and feed summaries.
 // Includes published replies, excludes hidden/deleted roots and their floors.
-func readVisibleCommentCounts(ctx context.Context, tx pgx.Tx, ids []string) (map[string]int, error) {
+func readVisibleCommentCounts(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, ids []string) (map[string]int, error) {
 	counts := make(map[string]int, len(ids))
-	rows, err := tx.Query(ctx, `SELECT t.post_id,count(*) FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED'
- WHERE t.post_id=ANY($1::uuid[]) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false)
+	rows, err := tx.Query(ctx, `SELECT t.post_id,count(*) FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN public.community_identities i ON i.identity_id=t.identity_id
+ WHERE t.post_id=ANY($1::uuid[]) AND NOT c_posts.accounts_blocked($2,i.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false)
  AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false)))
- GROUP BY t.post_id`, ids)
+ GROUP BY t.post_id`, ids, viewer)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (c *Community) readCommentsLegacy(ctx context.Context, b [32]byte, q Commen
 		var root any
 		if q.Replies {
 			root = q.ID
-			e := tx.QueryRow(ctx, `SELECT t.post_id::text FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) WHERE t.comment_id=$1 AND t.root_comment_id IS NULL AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND x.state='PUBLISHED'`, q.ID).Scan(&postID)
+			e := tx.QueryRow(ctx, `SELECT t.post_id::text FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) JOIN public.community_identities ci ON ci.identity_id=t.identity_id WHERE t.comment_id=$1 AND NOT c_posts.accounts_blocked($2,ci.account_id) AND t.root_comment_id IS NULL AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND x.state='PUBLISHED'`, q.ID, account).Scan(&postID)
 			if errors.Is(e, pgx.ErrNoRows) {
 				return nil, postError("COMMENT_NOT_FOUND", 404)
 			}
@@ -139,7 +139,7 @@ func (c *Community) readCommentsLegacy(ctx context.Context, b [32]byte, q Commen
 			}
 		}
 		var visible bool
-		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden)`, postID).Scan(&visible); e != nil {
+		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id))`, postID, account).Scan(&visible); e != nil {
 			return nil, e
 		}
 		if !visible {
@@ -165,7 +165,7 @@ func (c *Community) readCommentsLegacy(ctx context.Context, b [32]byte, q Commen
 				return nil, postError("CURSOR_INVALID", 400)
 			}
 		} else {
-			rows, e := tx.Query(ctx, `SELECT t.comment_id::text,x.terminal_at,(SELECT count(*) FROM c_comments.likes l WHERE l.comment_id=t.comment_id) FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) WHERE t.post_id=$1 AND t.root_comment_id IS NOT DISTINCT FROM $2::uuid AND x.state='PUBLISHED' AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) LIMIT 10001`, postID, root)
+			rows, e := tx.Query(ctx, `SELECT t.comment_id::text,x.terminal_at,(SELECT count(*) FROM c_comments.likes l WHERE l.comment_id=t.comment_id) FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) JOIN public.community_identities ci ON ci.identity_id=t.identity_id WHERE t.post_id=$1 AND t.root_comment_id IS NOT DISTINCT FROM $2::uuid AND x.state='PUBLISHED' AND NOT c_posts.accounts_blocked($3,ci.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) LIMIT 10001`, postID, root, account)
 			if e != nil {
 				return nil, e
 			}
@@ -249,7 +249,7 @@ func (c *Community) readCommentsLegacy(ctx context.Context, b [32]byte, q Commen
 			r.RemainingCount = &remaining
 			r.RootCommentID = &q.ID
 		} else {
-			counts, e := readVisibleCommentCounts(ctx, tx, []string{postID})
+			counts, e := readVisibleCommentCounts(ctx, tx, account, []string{postID})
 			if e != nil {
 				return nil, e
 			}
@@ -259,12 +259,12 @@ func (c *Community) readCommentsLegacy(ctx context.Context, b [32]byte, q Commen
 		return r, nil
 	})
 }
-func readCommentAuthor(ctx context.Context, tx pgx.Tx, identity string) (CommentAuthor, error) {
+func readCommentAuthor(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, identity string) (CommentAuthor, error) {
 	var r CommentAuthor
 	var nickname, avatar *string
 	var deleted *time.Time
 	var state string
-	e := tx.QueryRow(ctx, `SELECT l.short_code,i.nickname,i.avatar,i.deleted_at,a.state FROM public.community_identities i JOIN c_auth.accounts a ON a.account_id=i.account_id JOIN c_posts.identity_public_labels l USING(identity_id) WHERE i.identity_id=$1`, identity).Scan(&r.Ref, &nickname, &avatar, &deleted, &state)
+	e := tx.QueryRow(ctx, `SELECT l.short_code,i.nickname,i.avatar,i.deleted_at,a.state FROM public.community_identities i JOIN c_auth.accounts a ON a.account_id=i.account_id JOIN c_posts.identity_public_labels l USING(identity_id) WHERE i.identity_id=$1 AND NOT c_posts.accounts_blocked($2,i.account_id)`, identity, viewer).Scan(&r.Ref, &nickname, &avatar, &deleted, &state)
 	if e != nil {
 		return r, e
 	}
@@ -290,7 +290,7 @@ func readTextComment(ctx context.Context, tx pgx.Tx, id string, account uuid.UUI
 	defer readtiming.Span(ctx, "comment_projection")()
 	var r TextComment
 	var identity string
-	e := tx.QueryRow(ctx, `SELECT t.comment_id::text,t.post_id::text,t.root_comment_id::text,t.target_comment_id::text,x.body,x.terminal_at,t.identity_id::text,(t.identity_id=p.identity_id),CASE WHEN t.root_comment_id IS NULL THEN (SELECT count(*) FROM c_comments.tasks z JOIN c_comments.attempts a ON a.task_id=z.task_id AND a.state='PUBLISHED' WHERE z.root_comment_id=t.comment_id AND z.deleted_at IS NULL AND NOT COALESCE((to_jsonb(z)->>'moderation_hidden')::boolean,false)) ELSE 0 END FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN c_posts.posts pp ON pp.post_id=t.post_id AND pp.visibility='PUBLISHED' AND NOT pp.moderation_hidden JOIN c_posts.publication_tasks p ON p.post_id=t.post_id WHERE t.comment_id=$1 AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false)))`, id).Scan(&r.ID, &r.PostID, &r.RootCommentID, &r.TargetCommentID, &r.Body, &r.PublishedAt, &identity, &r.IsPostAuthor, &r.ReplyCount)
+	e := tx.QueryRow(ctx, `SELECT t.comment_id::text,t.post_id::text,t.root_comment_id::text,t.target_comment_id::text,x.body,x.terminal_at,t.identity_id::text,(t.identity_id=p.identity_id),CASE WHEN t.root_comment_id IS NULL THEN (SELECT count(*) FROM c_comments.tasks z JOIN c_comments.attempts a ON a.task_id=z.task_id AND a.state='PUBLISHED' JOIN public.community_identities zi ON zi.identity_id=z.identity_id WHERE z.root_comment_id=t.comment_id AND z.deleted_at IS NULL AND NOT COALESCE((to_jsonb(z)->>'moderation_hidden')::boolean,false) AND NOT c_posts.accounts_blocked($2,zi.account_id)) ELSE 0 END FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN public.community_identities ci ON ci.identity_id=t.identity_id JOIN c_posts.posts pp ON pp.post_id=t.post_id AND pp.visibility='PUBLISHED' AND NOT pp.moderation_hidden JOIN c_posts.publication_tasks p ON p.post_id=t.post_id WHERE t.comment_id=$1 AND t.deleted_at IS NULL AND NOT c_posts.accounts_blocked($2,ci.account_id) AND NOT c_posts.accounts_blocked($2,pp.owner_account_id) AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false)))`, id, account).Scan(&r.ID, &r.PostID, &r.RootCommentID, &r.TargetCommentID, &r.Body, &r.PublishedAt, &identity, &r.IsPostAuthor, &r.ReplyCount)
 	if e != nil {
 		return r, e
 	}
@@ -318,7 +318,7 @@ func readTextComment(ctx context.Context, tx pgx.Tx, id string, account uuid.UUI
 		return r, e
 	}
 	r.PublishedAt = r.PublishedAt.UTC()
-	r.Author, e = readCommentAuthor(ctx, tx, identity)
+	r.Author, e = readCommentAuthor(ctx, tx, account, identity)
 	if e != nil {
 		return r, e
 	}
@@ -327,7 +327,12 @@ func readTextComment(ctx context.Context, tx pgx.Tx, id string, account uuid.UUI
 		if e = tx.QueryRow(ctx, `SELECT identity_id::text FROM c_comments.tasks WHERE comment_id=$1`, *r.TargetCommentID).Scan(&targetIdentity); e != nil {
 			return r, e
 		}
-		author, e := readCommentAuthor(ctx, tx, targetIdentity)
+		// A reply target whose author is blocked is invisible to this viewer.
+		// Keep the reply content and drop only the reply-to relation.
+		author, e := readCommentAuthor(ctx, tx, account, targetIdentity)
+		if errors.Is(e, pgx.ErrNoRows) {
+			return r, nil
+		}
 		if e != nil {
 			return r, e
 		}

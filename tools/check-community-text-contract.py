@@ -121,7 +121,7 @@ def check_contract(spec, vectors, media_vectors):
                 if status.startswith("2"):
                     for name in ("Session-Expires-At", "Server-Time"):
                         assert resolve(spec, response["headers"][name])["required"] is True
-    assert len(operations) == len(set(operations)) == 25
+    assert len(operations) == len(set(operations)) == 29
     for path, methods in (
         ("/api/v1/post-search", {"post": "searchPosts"}),
         ("/api/v1/me/post-search-history", {"get": "listPostSearchHistory", "post": "changePostSearchHistory"}),

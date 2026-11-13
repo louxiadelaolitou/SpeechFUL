@@ -2036,6 +2036,23 @@ components:
             type: integer
             minimum: 0
             maximum: 0
+      - properties:
+          rootCommentId:
+            $ref: '#/components/schemas/UUID'
+          targetCommentId:
+            $ref: '#/components/schemas/UUID'
+          replyTo:
+            type: object
+            nullable: true
+            enum:
+            - null
+          replyCount:
+            type: integer
+            minimum: 0
+            maximum: 0
+        description: A reply whose target author is not visible to this viewer keeps its content, floor and exact
+          target identifier, but omits the ReplyRelation author projection. This is the viewer-specific account-block
+          case; deleted targets keep their relation with the inactive-author placeholder.
       description: Authorized public content only. isPostAuthor compares actual public author identity with post
         author, never nickname/account equality. Body initially four lines in UI with independent expand; all nested
         replies indent only one level.

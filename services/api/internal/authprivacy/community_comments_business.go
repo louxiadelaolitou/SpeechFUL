@@ -19,7 +19,7 @@ func (c *Community) applyCommentMutation(ctx context.Context, tx pgx.Tx, a uuid.
 	var post, owner string
 	var root *string
 	var deleted *time.Time
-	e := tx.QueryRow(ctx, `SELECT post_id::text,owner_account_id::text,root_comment_id::text,deleted_at FROM c_comments.tasks t WHERE comment_id=$1 AND EXISTS(SELECT 1 FROM c_comments.attempts x WHERE x.task_id=t.task_id AND x.state='PUBLISHED')`, in.CommentID).Scan(&post, &owner, &root, &deleted)
+	e := tx.QueryRow(ctx, `SELECT t.post_id::text,t.owner_account_id::text,t.root_comment_id::text,t.deleted_at FROM c_comments.tasks t JOIN public.community_identities i ON i.identity_id=t.identity_id WHERE t.comment_id=$1 AND NOT c_posts.accounts_blocked($2,i.account_id) AND EXISTS(SELECT 1 FROM c_comments.attempts x WHERE x.task_id=t.task_id AND x.state='PUBLISHED')`, in.CommentID, a).Scan(&post, &owner, &root, &deleted)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return CommentReceipt{}, postError("COMMENT_TARGET_DELETED", 404)
 	}
@@ -27,7 +27,7 @@ func (c *Community) applyCommentMutation(ctx context.Context, tx pgx.Tx, a uuid.
 		return CommentReceipt{}, e
 	}
 	var visible bool
-	e = tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden FROM c_posts.posts WHERE post_id=$1 FOR UPDATE`, post).Scan(&visible)
+	e = tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR UPDATE`, post, a).Scan(&visible)
 	if e != nil {
 		return CommentReceipt{}, e
 	}
@@ -52,7 +52,7 @@ func (c *Community) applyCommentMutation(ctx context.Context, tx pgx.Tx, a uuid.
 		count := tag.RowsAffected()
 		r.DeletedCount = &count
 	} else {
-		if e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_comments.tasks t WHERE t.comment_id=$1 AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))))`, in.CommentID).Scan(&visible); e != nil {
+		if e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_comments.tasks t JOIN public.community_identities i ON i.identity_id=t.identity_id WHERE t.comment_id=$1 AND NOT c_posts.accounts_blocked($2,i.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))))`, in.CommentID, a).Scan(&visible); e != nil {
 			return CommentReceipt{}, e
 		}
 		if !visible {
@@ -92,14 +92,14 @@ type CommentContext struct {
 func (c *Community) ReadCommentContext(ctx context.Context, b [32]byte, post string) (PostResponse, error) {
 	return c.withCommentSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, _ AuthorizationDecision, _ restriction) (any, error) {
 		var visible bool
-		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden)`, post).Scan(&visible); e != nil {
+		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id))`, post, a).Scan(&visible); e != nil {
 			return nil, e
 		}
 		if !visible {
 			return nil, postError("POST_NOT_FOUND", 404)
 		}
 		r := CommentContext{OwnCommentIDs: []string{}}
-		counts, err := readVisibleCommentCounts(ctx, tx, []string{post})
+		counts, err := readVisibleCommentCounts(ctx, tx, a, []string{post})
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +166,7 @@ func (c *Community) ReadOwnComments(ctx context.Context, b [32]byte, identity, c
 			before = &at
 			cid = cursor
 		}
-		rows, e := tx.Query(ctx, `SELECT t.comment_id::text FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN c_posts.posts p ON p.post_id=t.post_id AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden WHERE t.owner_account_id=$1 AND t.identity_id=$2 AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND ($3::timestamptz IS NULL OR (x.terminal_at,t.comment_id)<($3,$4::uuid)) ORDER BY x.terminal_at DESC,t.comment_id DESC LIMIT 21`, a, identity, before, cid)
+		rows, e := tx.Query(ctx, `SELECT t.comment_id::text FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN c_posts.posts p ON p.post_id=t.post_id AND p.visibility='PUBLISHED' AND NOT p.moderation_hidden WHERE t.owner_account_id=$1 AND NOT c_posts.accounts_blocked($1,p.owner_account_id) AND t.identity_id=$2 AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND ($3::timestamptz IS NULL OR (x.terminal_at,t.comment_id)<($3,$4::uuid)) ORDER BY x.terminal_at DESC,t.comment_id DESC LIMIT 21`, a, identity, before, cid)
 		if e != nil {
 			return nil, e
 		}
@@ -283,9 +283,9 @@ func (c *Community) UploadCommentImage(ctx context.Context, b [32]byte, task str
 }
 
 func (c *Community) ReadCommentImage(ctx context.Context, b [32]byte, post, comment, content string) (PostResponse, error) {
-	return c.withCommentSession(ctx, b, func(tx pgx.Tx, _ uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
+	return c.withCommentSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
 		var visible bool
-		e := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, post).Scan(&visible)
+		e := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, post, a).Scan(&visible)
 		if errors.Is(e, pgx.ErrNoRows) || e == nil && !visible {
 			return nil, postError("MEDIA_NOT_FOUND", 404)
 		}
@@ -293,7 +293,7 @@ func (c *Community) ReadCommentImage(ctx context.Context, b [32]byte, post, comm
 			return nil, e
 		}
 		var image ImageBytes
-		e = tx.QueryRow(ctx, `SELECT m.payload,m.metadata->>'mimeType' FROM c_comments.tasks t JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN c_comments.images m ON m.task_id=x.task_id AND m.version=x.version WHERE t.post_id=$1 AND t.comment_id=$2 AND m.content_version_id=$3 AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND m.erased_at IS NULL AND m.payload IS NOT NULL FOR SHARE OF t`, post, comment, content).Scan(&image.Bytes, &image.MIME)
+		e = tx.QueryRow(ctx, `SELECT m.payload,m.metadata->>'mimeType' FROM c_comments.tasks t JOIN public.community_identities i ON i.identity_id=t.identity_id JOIN c_comments.attempts x ON x.task_id=t.task_id AND x.state='PUBLISHED' JOIN c_comments.images m ON m.task_id=x.task_id AND m.version=x.version WHERE t.post_id=$1 AND t.comment_id=$2 AND m.content_version_id=$3 AND NOT c_posts.accounts_blocked($4,i.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) AND m.erased_at IS NULL AND m.payload IS NOT NULL FOR SHARE OF t`, post, comment, content, a).Scan(&image.Bytes, &image.MIME)
 		if errors.Is(e, pgx.ErrNoRows) {
 			return nil, postError("MEDIA_NOT_FOUND", 404)
 		}

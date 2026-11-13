@@ -439,6 +439,7 @@ class HhXPostItem extends StatelessWidget {
     this.menuWidget,
     this.onTag,
     this.avatarBuilder,
+    this.onAvatar,
     this.showTimestamp = true,
     this.horizontalMenu = false,
     this.browseActions = false,
@@ -455,6 +456,7 @@ class HhXPostItem extends StatelessWidget {
   final FeedPostView post;
   final FeedMediaBuilder mediaBuilder;
   final FeedAvatarBuilder? avatarBuilder;
+  final VoidCallback? onAvatar;
   final bool showTimestamp, horizontalMenu, browseActions;
   final VoidCallback onPost, onAuthor, onMenu;
   final ValueChanged<FeedAction> onAction;
@@ -478,11 +480,12 @@ class HhXPostItem extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     child: Semantics(
                       label: post.authorName,
-                      button: !post.isOwnAuthor,
+                      button: onAvatar != null || !post.isOwnAuthor,
                       excludeSemantics: true,
-                      onTap: post.isOwnAuthor ? null : onAuthor,
+                      onTap: onAvatar ?? (post.isOwnAuthor ? null : onAuthor),
                       child: InkWell(
-                        onTap: post.isOwnAuthor ? () {} : onAuthor,
+                        onTap:
+                            onAvatar ?? (post.isOwnAuthor ? () {} : onAuthor),
                         borderRadius: BorderRadius.circular(24),
                         child: SizedBox(
                           width: 56,

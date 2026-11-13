@@ -278,7 +278,7 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 		if conv == "" {
 			var author string
 			var visible bool
-			e = tx.QueryRow(ctx, `SELECT b.identity_id::text,p.visibility='PUBLISHED' AND NOT p.moderation_hidden FROM c_posts.posts p JOIN c_posts.post_identity_bindings b ON b.post_id=p.post_id AND b.account_id=p.owner_account_id WHERE p.post_id=$1 FOR SHARE OF p`, in.SourcePostID).Scan(&author, &visible)
+			e = tx.QueryRow(ctx, `SELECT b.identity_id::text,p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND NOT c_posts.accounts_blocked($2,p.owner_account_id) FROM c_posts.posts p JOIN c_posts.post_identity_bindings b ON b.post_id=p.post_id AND b.account_id=p.owner_account_id WHERE p.post_id=$1 FOR SHARE OF p`, in.SourcePostID, a).Scan(&author, &visible)
 			if errors.Is(e, pgx.ErrNoRows) || e == nil && !visible {
 				return reject("CONTACT_UNAVAILABLE")
 			}
@@ -286,7 +286,7 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 				return nil, e
 			}
 			if in.SourceCommentID != "" {
-				e = tx.QueryRow(ctx, `SELECT t.identity_id::text FROM c_comments.tasks t WHERE t.comment_id=$1 AND t.post_id=$2 AND t.deleted_at IS NULL AND NOT t.moderation_hidden AND EXISTS(SELECT 1 FROM c_comments.attempts x WHERE x.task_id=t.task_id AND x.state='PUBLISHED') FOR SHARE`, in.SourceCommentID, in.SourcePostID).Scan(&author)
+				e = tx.QueryRow(ctx, `SELECT t.identity_id::text FROM c_comments.tasks t JOIN public.community_identities ci ON ci.identity_id=t.identity_id WHERE t.comment_id=$1 AND t.post_id=$2 AND NOT c_posts.accounts_blocked($3,ci.account_id) AND t.deleted_at IS NULL AND NOT t.moderation_hidden AND EXISTS(SELECT 1 FROM c_comments.attempts x WHERE x.task_id=t.task_id AND x.state='PUBLISHED') FOR SHARE`, in.SourceCommentID, in.SourcePostID, a).Scan(&author)
 				if errors.Is(e, pgx.ErrNoRows) {
 					return reject("CONTACT_UNAVAILABLE")
 				}
@@ -336,7 +336,7 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 			// The reference is checked in the same final authorized transaction.
 			// Do not bind a reading/sharing identity to the shared post.
 			var visible bool
-			err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, in.Text).Scan(&visible)
+				err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, in.Text, a).Scan(&visible)
 			if errors.Is(err, pgx.ErrNoRows) || err == nil && !visible {
 				return reject("POST_NOT_FOUND")
 			}
@@ -395,7 +395,7 @@ func (c *Community) ReadDMDirectory(ctx context.Context, b [32]byte, identity, a
 	}
 	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, _ AuthorizationDecision, m restriction) (any, error) {
 		items := make([]DMConversation, 0)
-		rows, e := tx.Query(ctx, `SELECT c.conversation_id::text,i.identity_id::text,p.identity_id::text,CASE WHEN p.deleted_at IS NULL THEN p.nickname ELSE '注销身份 · '||(SELECT short_code FROM c_posts.identity_public_labels WHERE identity_id=p.identity_id) END,CASE WHEN p.deleted_at IS NULL THEN p.avatar ELSE 'inactive-v1' END,c.source_post::text,c.sequence,(SELECT count(*) FROM c_dm.messages x WHERE x.conversation_id=c.conversation_id AND x.recipient=i.identity_id AND NOT x.read),CASE WHEN c.low_identity=i.identity_id THEN c.low_sent AND NOT c.high_sent ELSE c.high_sent AND NOT c.low_sent END,p.deleted_at IS NULL AND NOT EXISTS(SELECT 1 FROM c_dm.blocks b WHERE (b.owner_account=i.account_id AND b.peer_account=p.account_id) OR (b.owner_account=p.account_id AND b.peer_account=i.account_id)),COALESCE((SELECT block_id::text FROM c_dm.blocks b WHERE b.owner_account=i.account_id AND b.identity_id=i.identity_id AND b.peer_id=p.identity_id),'') FROM c_dm.conversations c JOIN public.community_identities i ON i.identity_id IN(c.low_identity,c.high_identity) JOIN public.community_identities p ON p.identity_id=CASE WHEN i.identity_id=c.low_identity THEN c.high_identity ELSE c.low_identity END WHERE i.account_id=$1 AND i.identity_id=$2 AND i.deleted_at IS NULL AND ($3='' OR c.conversation_id>NULLIF($3,'')::uuid) ORDER BY c.conversation_id LIMIT 100`, a, identity, after)
+		rows, e := tx.Query(ctx, `SELECT c.conversation_id::text,i.identity_id::text,p.identity_id::text,CASE WHEN p.deleted_at IS NULL THEN p.nickname ELSE '注销身份 · '||(SELECT short_code FROM c_posts.identity_public_labels WHERE identity_id=p.identity_id) END,CASE WHEN p.deleted_at IS NULL THEN p.avatar ELSE 'inactive-v1' END,c.source_post::text,c.sequence,(SELECT count(*) FROM c_dm.messages x WHERE x.conversation_id=c.conversation_id AND x.recipient=i.identity_id AND NOT x.read),CASE WHEN c.low_identity=i.identity_id THEN c.low_sent AND NOT c.high_sent ELSE c.high_sent AND NOT c.low_sent END,p.deleted_at IS NULL AND NOT c_posts.accounts_blocked(i.account_id,p.account_id) AND NOT EXISTS(SELECT 1 FROM c_dm.blocks b WHERE (b.owner_account=i.account_id AND b.peer_account=p.account_id) OR (b.owner_account=p.account_id AND b.peer_account=i.account_id)),COALESCE((SELECT block_id::text FROM c_dm.blocks b WHERE b.owner_account=i.account_id AND b.identity_id=i.identity_id AND b.peer_id=p.identity_id),'') FROM c_dm.conversations c JOIN public.community_identities i ON i.identity_id IN(c.low_identity,c.high_identity) JOIN public.community_identities p ON p.identity_id=CASE WHEN i.identity_id=c.low_identity THEN c.high_identity ELSE c.low_identity END WHERE i.account_id=$1 AND i.identity_id=$2 AND i.deleted_at IS NULL AND ($3='' OR c.conversation_id>NULLIF($3,'')::uuid) ORDER BY c.conversation_id LIMIT 100`, a, identity, after)
 		if e != nil {
 			return nil, e
 		}

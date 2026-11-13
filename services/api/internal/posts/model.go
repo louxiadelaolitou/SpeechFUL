@@ -249,6 +249,14 @@ type CrossChannelFeedPage struct {
 	NextCursor *string    `json:"nextCursor"`
 }
 
+// AuthorProfilePage anchors a public profile to a source post so no identity
+// or account selector crosses the API boundary.
+type AuthorProfilePage struct {
+	Author     PublicAuthor `json:"author"`
+	Items      []FeedPost   `json:"items"`
+	NextCursor *string      `json:"nextCursor"`
+}
+
 type PublicPostResponse struct {
 	Post PublicPost `json:"post"`
 }
@@ -283,4 +291,31 @@ type ComposerContext struct {
 type HiddenPostState struct {
 	PostID string `json:"postId"`
 	Hidden bool   `json:"hidden"`
+}
+
+// BlockedAuthor is a private snapshot of an account the viewer blocked. The
+// public author projection carries no identity or account identifier.
+type BlockedAuthor struct {
+	BlockID   string       `json:"blockId"`
+	Author    PublicAuthor `json:"author"`
+	BlockedAt time.Time    `json:"blockedAt"`
+}
+
+type BlockedAuthorPage struct {
+	Items []BlockedAuthor `json:"items"`
+}
+
+// AuthorBlockReceipt confirms a new or repeated account block.
+type AuthorBlockReceipt struct {
+	BlockID   string       `json:"blockId"`
+	State     string       `json:"state"`
+	Author    PublicAuthor `json:"author"`
+	BlockedAt time.Time    `json:"blockedAt"`
+}
+
+// AuthorBlockRemoval confirms an idempotent unblock; ABSENT means the record
+// was already gone.
+type AuthorBlockRemoval struct {
+	BlockID string `json:"blockId"`
+	State   string `json:"state"`
 }

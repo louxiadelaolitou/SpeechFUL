@@ -19,8 +19,8 @@ func (c *Community) ReadDMPostCard(ctx context.Context, bearer [32]byte, id stri
 	if !dmUUID(id) {
 		return PostResponse{}, postError("MALFORMED_REQUEST", 400)
 	}
-	return c.withDMSession(ctx, bearer, func(tx pgx.Tx, _ uuid.UUID, _ AuthorizationDecision, _ restriction) (any, error) {
-		post, _, err := readPublicPost(ctx, tx, id)
+	return c.withDMSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, _ AuthorizationDecision, _ restriction) (any, error) {
+		post, _, err := readPublicPost(ctx, tx, account, id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, postError("POST_NOT_FOUND", 404)
 		}

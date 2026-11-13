@@ -14,7 +14,7 @@ import (
 var feedDayZone = time.FixedZone("Asia/Shanghai", 8*60*60)
 
 func recordPostView(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string, at time.Time) (posts.PostView, error) {
-	_, _, err := readPublicPost(ctx, tx, id)
+	_, _, err := readPublicPost(ctx, tx, account, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return posts.PostView{}, postError("POST_NOT_FOUND", 404)
 	}

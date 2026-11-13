@@ -114,6 +114,9 @@ func (f *postHTTPBackend) ReadPosts(_ context.Context, bearer [32]byte, query au
 	case authprivacy.PostDetail:
 		card := postHTTPCard()
 		value = posts.PublicPostResponse{Post: posts.PublicPost{PostID: card.PostID, ChannelID: card.ChannelID, Title: card.Title, Body: " 原文\r\n👨‍👩‍👦 e\u0301 ", Author: card.Author, PublishedAt: card.PublishedAt}}
+	case authprivacy.PostAuthor:
+		card := postHTTPCard()
+		value = posts.AuthorProfilePage{Author: card.Author, Items: []posts.FeedPost{{PublicPost: posts.PublicPost{PostID: card.PostID, ChannelID: card.ChannelID, Title: card.Title, Body: "body", Author: card.Author, PublishedAt: card.PublishedAt}, ViewCount: 3}}}
 	case authprivacy.PostOwnList:
 		value = posts.OwnPostPage{Items: []posts.OwnPostCard{{Post: postHTTPCard(), ServerSortAt: postHTTPTime}}}
 	case authprivacy.PostCapabilities:
@@ -210,6 +213,7 @@ func TestPostHTTPAllFourteenOperations(t *testing.T) {
 		{"hide", "POST", "/api/v1/me/post-tasks/" + postHTTPTask + "/hide", `{"expectedAttemptVersion":1}`, "execute", posts.HideTask, "", 200, true},
 		{"channel", "GET", "/api/v1/channels/" + postHTTPChannel + "/posts?cursor=AQ&limit=1", "", "read", "", authprivacy.PostChannelFeed, 200, false},
 		{"detail", "GET", "/api/v1/posts/" + postHTTPPost, "", "read", "", authprivacy.PostDetail, 200, false},
+		{"author", "GET", "/api/v1/posts/" + postHTTPPost + "/author?limit=1", "", "read", "", authprivacy.PostAuthor, 200, false},
 		{"liked", "GET", "/api/v1/me/liked-posts?limit=1", "", "read", "", authprivacy.PostLikedList, 200, false},
 		{"favorites", "GET", "/api/v1/me/favorite-posts?limit=1", "", "read", "", authprivacy.PostFavoriteList, 200, false},
 		{"own", "GET", "/api/v1/me/posts?limit=1", "", "read", "", authprivacy.PostOwnList, 200, false},
@@ -235,7 +239,7 @@ func TestPostHTTPAllFourteenOperations(t *testing.T) {
 			if c.name == "channel" && (f.query.Cursor != "AQ" || f.query.Limit != 1 || f.query.ID != postHTTPChannel) {
 				t.Fatal("query changed")
 			}
-			if c.name == "detail" || c.name == "channel" {
+			if c.name == "detail" || c.name == "channel" || c.name == "author" {
 				for _, secret := range []string{"accountId", "identityId", "owner", "canDelete", "canEdit", "slot", "isOriginal"} {
 					if strings.Contains(w.Body.String(), `"`+secret+`"`) {
 						t.Fatalf("public DTO leaked %s", secret)
@@ -456,12 +460,13 @@ func TestPostHTTPResponseInvariantsAreEnforced(t *testing.T) {
 	badCard.Author = posts.PublicAuthor{State: "ACCOUNT_CLOSED", ShortCode: "BAD", Avatar: "inactive-v1"}
 	badDate := postHTTPCard()
 	badDate.PublishedAt = postHTTPTime.In(time.FixedZone("local", 0))
+	badAuthorPage := posts.AuthorProfilePage{Author: postHTTPCard().Author, Items: []posts.FeedPost{{PublicPost: posts.PublicPost{PostID: postHTTPPost, ChannelID: postHTTPChannel, Title: "标题", Body: "body", Author: posts.PublicAuthor{State: "ACTIVE", Nickname: "别的身份", Avatar: "default-v1"}, PublishedAt: postHTTPTime}}}}
 	cases := []struct {
 		name, method, path, body string
 		value                    any
 		key                      bool
 	}{
-		{"create-version", "PUT", create, postHTTPCreateBody(), badCreate, false}, {"operation", "PUT", create, postHTTPCreateBody(), wrongOp, false}, {"seal-unknown", "POST", create + "/seal", `{"operation":"CREATE","requestDigest":"` + strings.Repeat("a", 64) + `"}`, posts.CommandResult{State: "UNKNOWN_NOT_OBSERVED"}, false}, {"seal-wrong-operation", "POST", create + "/seal", `{"operation":"CREATE","requestDigest":"` + strings.Repeat("a", 64) + `"}`, posts.CommandResult{State: "NOT_ACCEPTED", Operation: posts.Cancel, Reason: "COMMAND_SEALED"}, false}, {"cancel-version", "POST", "/api/v1/me/post-tasks/" + postHTTPTask + "/cancel", `{"expectedAttemptVersion":1}`, badCancel, true}, {"delete-target", "POST", "/api/v1/posts/" + postHTTPPost + "/delete", "", wrongDelete, true}, {"private-sort", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badTask, false}, {"terminal-before-acceptance", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badTerminal, false}, {"hidden-content", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badHidden, false}, {"invalid-author", "GET", "/api/v1/me/posts", "", posts.OwnPostPage{Items: []posts.OwnPostCard{{Post: badCard, ServerSortAt: postHTTPTime}}}, false}, {"non-utc", "GET", "/api/v1/channels/" + postHTTPChannel + "/posts", "", posts.FeedPage{Items: []posts.PublicPostCard{badDate}}, false}, {"nil-items", "GET", "/api/v1/me/posts", "", posts.OwnPostPage{}, false}, {"exceeds-limit", "GET", "/api/v1/channels/" + postHTTPChannel + "/posts?limit=1", "", posts.FeedPage{Items: []posts.PublicPostCard{postHTTPCard(), postHTTPCard()}}, false}, {"capabilities-edit", "GET", "/api/v1/me/posts/" + postHTTPPost + "/capabilities", "", posts.OwnPostCapabilities{PostID: postHTTPPost, CanDelete: true, CanEdit: true}, false}, {"typed-nil", "GET", "/api/v1/me/post-composer-context", "", (*posts.ComposerContext)(nil), false}, {"wrong-type", "GET", "/api/v1/posts/" + postHTTPPost, "", postHTTPTaskDetail(), false},
+		{"create-version", "PUT", create, postHTTPCreateBody(), badCreate, false}, {"operation", "PUT", create, postHTTPCreateBody(), wrongOp, false}, {"seal-unknown", "POST", create + "/seal", `{"operation":"CREATE","requestDigest":"` + strings.Repeat("a", 64) + `"}`, posts.CommandResult{State: "UNKNOWN_NOT_OBSERVED"}, false}, {"seal-wrong-operation", "POST", create + "/seal", `{"operation":"CREATE","requestDigest":"` + strings.Repeat("a", 64) + `"}`, posts.CommandResult{State: "NOT_ACCEPTED", Operation: posts.Cancel, Reason: "COMMAND_SEALED"}, false}, {"cancel-version", "POST", "/api/v1/me/post-tasks/" + postHTTPTask + "/cancel", `{"expectedAttemptVersion":1}`, badCancel, true}, {"delete-target", "POST", "/api/v1/posts/" + postHTTPPost + "/delete", "", wrongDelete, true}, {"private-sort", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badTask, false}, {"terminal-before-acceptance", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badTerminal, false}, {"hidden-content", "GET", "/api/v1/me/post-tasks/" + postHTTPTask, "", badHidden, false}, {"invalid-author", "GET", "/api/v1/me/posts", "", posts.OwnPostPage{Items: []posts.OwnPostCard{{Post: badCard, ServerSortAt: postHTTPTime}}}, false}, {"author-item-author", "GET", "/api/v1/posts/" + postHTTPPost + "/author", "", badAuthorPage, false}, {"author-nil-items", "GET", "/api/v1/posts/" + postHTTPPost + "/author", "", posts.AuthorProfilePage{Author: postHTTPCard().Author}, false}, {"non-utc", "GET", "/api/v1/channels/" + postHTTPChannel + "/posts", "", posts.FeedPage{Items: []posts.PublicPostCard{badDate}}, false}, {"nil-items", "GET", "/api/v1/me/posts", "", posts.OwnPostPage{}, false}, {"exceeds-limit", "GET", "/api/v1/channels/" + postHTTPChannel + "/posts?limit=1", "", posts.FeedPage{Items: []posts.PublicPostCard{postHTTPCard(), postHTTPCard()}}, false}, {"capabilities-edit", "GET", "/api/v1/me/posts/" + postHTTPPost + "/capabilities", "", posts.OwnPostCapabilities{PostID: postHTTPPost, CanDelete: true, CanEdit: true}, false}, {"typed-nil", "GET", "/api/v1/me/post-composer-context", "", (*posts.ComposerContext)(nil), false}, {"wrong-type", "GET", "/api/v1/posts/" + postHTTPPost, "", postHTTPTaskDetail(), false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -541,7 +546,7 @@ func TestPersonalPostIdentityQueryBoundary(t *testing.T) {
 	if w.Code != 200 || f.query.IdentityID != postHTTPIdentity {
 		t.Fatal("identity filter not forwarded", w.Code)
 	}
-	for _, path := range []string{"/api/v1/me/posts?identityId=bad", "/api/v1/me/posts?identityId=" + postHTTPIdentity + "&identityId=" + postHTTPIdentity, "/api/v1/me/liked-posts?identityId=" + postHTTPIdentity, "/api/v1/me/favorite-posts?identityId=" + postHTTPIdentity} {
+	for _, path := range []string{"/api/v1/me/posts?identityId=bad", "/api/v1/me/posts?identityId=" + postHTTPIdentity + "&identityId=" + postHTTPIdentity, "/api/v1/me/liked-posts?identityId=" + postHTTPIdentity, "/api/v1/me/favorite-posts?identityId=" + postHTTPIdentity, "/api/v1/posts/" + postHTTPPost + "/author?identityId=" + postHTTPIdentity} {
 		before := f.calls
 		w = postHTTPRequest(handler, "GET", path, "", postHTTPHeaders(false))
 		if w.Code != 400 || f.calls != before {

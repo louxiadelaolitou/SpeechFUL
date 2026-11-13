@@ -41,7 +41,9 @@ class FeedController extends ChangeNotifier {
       _timelineCursor,
       _timelineError,
       _preferencesError;
-  bool _timelineLoading = false, _preferencesSaving = false;
+  bool _timelineLoading = false,
+      _preferencesSaving = false,
+      _timelineLoaded = false;
   Future<void> _preferenceWrites = Future.value();
 
   bool get supportsFeed => _api != null;
@@ -54,6 +56,10 @@ class FeedController extends ChangeNotifier {
   String? get preferencesError => _preferencesError;
   bool get timelineLoading => _timelineLoading;
   bool get preferencesSaving => _preferencesSaving;
+
+  /// Whether at least one page was accepted, so a visibility write knows this
+  /// surface was already showing content.
+  bool get timelineEverLoaded => _timelineLoaded;
 
   List<FeedPost> get timelineItems =>
       List.unmodifiable(_timeline.where((p) => !_isPostDeleted(p.postId)));
@@ -68,6 +74,7 @@ class FeedController extends ChangeNotifier {
     _blockedChannels = {};
     _postViews.clear();
     _preferencesReady = false;
+    _timelineLoaded = false;
     _timelineChannelId = _timelineCursor = _timelineError = _preferencesError =
         null;
     _timelineLoading = _preferencesSaving = false;
@@ -80,6 +87,18 @@ class FeedController extends ChangeNotifier {
   void invalidatePendingRead({bool notify = true}) {
     if (!_timelineLoading) return;
     ++_timelineRequest;
+    _timelineLoading = false;
+    if (notify) _notify();
+  }
+
+  /// A committed visibility write (block/unblock) invalidates every retained
+  /// page while keeping the selected channel for the next reload.
+  void invalidateVisibility({bool notify = true}) {
+    ++_timelineRequest;
+    ++_timelineGeneration;
+    _timeline = [];
+    _timelineCursor = null;
+    _timelineError = null;
     _timelineLoading = false;
     if (notify) _notify();
   }
@@ -181,6 +200,7 @@ class FeedController extends ChangeNotifier {
         _postViews[post.postId] = post.viewCount > old ? post.viewCount : old;
       }
       _timelineCursor = page.nextCursor;
+      _timelineLoaded = true;
       if (!more) _timelineGeneration++;
       _notify();
       final found = await _loadInteractions(

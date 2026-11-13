@@ -346,6 +346,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
 
   String? _profileIdentityId;
   int _identityEpoch = 0;
+  int _visibilityEpoch = 0;
   final _profileIdentityAnchor = GlobalKey();
   bool _identityMenuOpen = false;
   Route<dynamic>? _identityMenuRoute;
@@ -377,6 +378,29 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         if (mounted && _authority.current) unawaited(_loadReplies());
       });
     }
+  }
+
+  /// A committed account block changes what the server may return, but the
+  /// pages under the block route keep their loaded cards. Drop every cached
+  /// collection and reply page, then reload the tab the user is looking at.
+  void authorVisibilityChanged() {
+    final epoch = widget.controller.authorVisibilityEpoch;
+    if (epoch == _visibilityEpoch) return;
+    _visibilityEpoch = epoch;
+    _replies.clear();
+    _replyLoaded = _replyLoading = false;
+    _replyCursor = null;
+    _replyError = null;
+    _collections.clear();
+    _collectionCursors.clear();
+    _collectionErrors.clear();
+    _collectionLoading.clear();
+    final tab = _tab;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_authority.current || _tab != tab) return;
+      if (tab == 1) unawaited(_loadReplies());
+      if (tab >= 3) unawaited(_loadCollection(tab));
+    });
   }
 
   Future<void> _chooseIdentity() async {
@@ -559,6 +583,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
 
   Future<void> _loadCollection(int tab, {bool more = false}) async {
     if (_collectionLoading.contains(tab) || !_authority.current) return;
+    final visibilityEpoch = widget.controller.authorVisibilityEpoch;
     setState(() {
       _collectionLoading.add(tab);
       _collectionErrors.remove(tab);
@@ -568,11 +593,19 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         favorites: tab == 4,
         cursor: more ? _collectionCursors[tab] : null,
       );
-      if (!mounted || !_authority.current) return;
+      if (!mounted ||
+          !_authority.current ||
+          widget.controller.authorVisibilityEpoch != visibilityEpoch) {
+        return;
+      }
       await widget.controller.loadInteractions(
         page.items.map((e) => e.postId).toList(),
       );
-      if (!mounted || !_authority.current) return;
+      if (!mounted ||
+          !_authority.current ||
+          widget.controller.authorVisibilityEpoch != visibilityEpoch) {
+        return;
+      }
       setState(() {
         final items = more
             ? List<PostCard>.of(_collections[tab] ?? [])
@@ -583,11 +616,16 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         _collectionCursors[tab] = page.nextCursor;
       });
     } catch (_) {
-      if (mounted && _authority.current) {
+      if (mounted &&
+          _authority.current &&
+          widget.controller.authorVisibilityEpoch == visibilityEpoch) {
         setState(() => _collectionErrors[tab] = '暂时无法读取，请重试');
       }
     } finally {
-      if (mounted) setState(() => _collectionLoading.remove(tab));
+      if (mounted &&
+          widget.controller.authorVisibilityEpoch == visibilityEpoch) {
+        setState(() => _collectionLoading.remove(tab));
+      }
     }
   }
 
@@ -656,6 +694,9 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
       return;
     }
     final identityEpoch = _identityEpoch;
+    final visibilityEpoch = widget.controller.authorVisibilityEpoch;
+    bool currentVisibility() =>
+        visibilityEpoch == widget.controller.authorVisibilityEpoch;
     final runtime = CommentScope.maybeOf(context);
     if (runtime == null) {
       setState(() => _replyError = '回复服务暂不可用');
@@ -673,6 +714,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         if (!mounted ||
             !_authority.current ||
             !runtime.current(epoch) ||
+            !currentVisibility() ||
             identityEpoch != _identityEpoch) {
           return;
         }
@@ -688,6 +730,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         if (!mounted ||
             !_authority.current ||
             !runtime.current(epoch) ||
+            !currentVisibility() ||
             identityEpoch != _identityEpoch) {
           return;
         }
@@ -700,6 +743,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
       if (!mounted ||
           !_authority.current ||
           !runtime.current(epoch) ||
+          !currentVisibility() ||
           identityEpoch != _identityEpoch) {
         return;
       }
@@ -722,14 +766,18 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         _replyLoaded = true;
       });
     } catch (_) {
-      if (mounted && _authority.current && identityEpoch == _identityEpoch) {
+      if (mounted &&
+          _authority.current &&
+          currentVisibility() &&
+          identityEpoch == _identityEpoch) {
         setState(() => _replyError = '回复加载失败，点击重试');
       }
     } finally {
-      if (mounted && identityEpoch == _identityEpoch) {
+      if (mounted && currentVisibility() && identityEpoch == _identityEpoch) {
         setState(() => _replyLoading = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted &&
+              currentVisibility() &&
               identityEpoch == _identityEpoch &&
               _tab == 1 &&
               _replyError == null &&
@@ -959,6 +1007,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                       builder: (_) => PostDetailScreen(
                         controller: c,
                         postId: row.post,
+                        channelNames: widget.channelNames,
                         initialCommentId: row.id,
                         loadImages: widget.loadImages,
                         onAuthenticationRequired:

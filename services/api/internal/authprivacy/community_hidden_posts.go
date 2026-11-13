@@ -35,7 +35,7 @@ func (c *Community) hiddenPostState(ctx context.Context, tx pgx.Tx, account uuid
 // A caller can read/restore a previously hidden post after it becomes unavailable
 // but cannot probe inaccessible IDs that were never associated with its account.
 func hiddenPostReadable(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string) error {
-	_, _, err := readPublicPost(ctx, tx, id)
+	_, _, err := readPublicPost(ctx, tx, account, id)
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
@@ -88,7 +88,7 @@ func (c *Community) SetHiddenPost(ctx context.Context, bearer [32]byte, id strin
 			return nil, err
 		}
 		if hidden {
-			if _, _, err := readPublicPost(ctx, tx, id); err != nil {
+			if _, _, err := readPublicPost(ctx, tx, account, id); err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil, postError("POST_NOT_FOUND", 404)
 				}

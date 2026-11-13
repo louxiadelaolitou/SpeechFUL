@@ -105,9 +105,9 @@ func (c *Community) readRankings(ctx context.Context, bearer [32]byte) (PostResp
 				}
 				if len(ids) > 0 {
 					projection := projectRankedPostsSQL
-					args := []any{ids, blocked, final.TrustedAt}
+					args := []any{ids, blocked, final.TrustedAt, account}
 					if c.posts.hiddenPostsEnabled {
-						projection = strings.Replace(projection, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$4 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
+						projection = strings.Replace(projection, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$5 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
 						args = append(args, account)
 					}
 					rows, err := tx.Query(ctx, projection, args...)

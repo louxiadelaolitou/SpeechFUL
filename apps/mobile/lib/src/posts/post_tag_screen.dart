@@ -164,6 +164,9 @@ class _PostTagScreenState extends State<PostTagScreen> {
               .where((c) => c.id == post.channelId)
               .firstOrNull
               ?.name,
+          channelNames: {
+            for (final channel in widget.channels) channel.id: channel.name,
+          },
           onAuthenticationRequired: widget.onAuthenticationRequired,
           loadImages: widget.loadImages,
         ),

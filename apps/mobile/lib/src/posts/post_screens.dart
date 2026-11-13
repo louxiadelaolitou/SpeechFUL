@@ -27,6 +27,7 @@ import '../reports/report_screens.dart';
 import '../storage/post_store.dart';
 import 'post_controller.dart';
 import 'post_api.dart';
+import 'feed_api.dart';
 import 'post_tag_widgets.dart';
 import 'post_tag_screen.dart';
 import 'post_edit_api.dart';
@@ -1339,6 +1340,7 @@ class _PersonalPostsScreenState extends State<PersonalPostsScreen>
   void _changed() {
     if (mounted) {
       profileIdentityChanged();
+      authorVisibilityChanged();
       setState(() {});
     }
   }
@@ -1362,6 +1364,7 @@ class _PersonalPostsScreenState extends State<PersonalPostsScreen>
             loadImages: widget.loadImages,
             postId: item.post!.postId,
             channelName: widget.channelNames[item.post!.channelId],
+            channelNames: widget.channelNames,
             onAuthenticationRequired: widget.onAuthenticationRequired,
           ),
         ),
@@ -1898,6 +1901,7 @@ class PostDetailScreen extends StatefulWidget {
     required this.controller,
     required this.postId,
     this.channelName,
+    this.channelNames = const {},
     this.initialCommentId,
     this.initialCommentInput,
     this.initialCommentOriginal,
@@ -1911,6 +1915,7 @@ class PostDetailScreen extends StatefulWidget {
   final VoidCallback? onLoaded;
   final String postId;
   final String? channelName;
+  final Map<String, String> channelNames;
   final String? initialCommentId;
   final CommentRejectedInput? initialCommentInput;
   final Uint8List? initialCommentOriginal;
@@ -2224,6 +2229,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
   );
 
+  void _openAuthorProfile(PostDetail post) {
+    if (!_authority.current) return;
+    unawaited(
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => AuthorProfileScreen(
+            controller: widget.controller,
+            postId: widget.postId,
+            channelNames: {
+              ...widget.channelNames,
+              if (widget.channelName != null)
+                post.channelId: widget.channelName!,
+            },
+            loadImages: widget.loadImages,
+            onAuthenticationRequired: widget.onAuthenticationRequired,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _detail(
     BuildContext context,
     PostDetail post, {
@@ -2238,7 +2264,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           Row(
             children: [
               GestureDetector(
-                onTap: () => unawaited(DmScope.contact(context, widget.postId)),
+                onTap: () => _openAuthorProfile(post),
                 child: DetailAvatar(
                   name: localizedPostAuthor(context, post.author),
                   avatar: post.author.avatar,
@@ -2701,6 +2727,471 @@ class _LoadMore extends StatelessWidget {
             ),
     ),
   );
+}
+
+class AuthorProfileScreen extends StatefulWidget {
+  const AuthorProfileScreen({
+    super.key,
+    required this.controller,
+    required this.postId,
+    this.channelNames = const {},
+    this.loadImages,
+    this.onAuthenticationRequired,
+  });
+  final PostController controller;
+  final String postId;
+  final Map<String, String> channelNames;
+  final PostImagesLoader? loadImages;
+  final VoidCallback? onAuthenticationRequired;
+  @override
+  State<AuthorProfileScreen> createState() => _AuthorProfileScreenState();
+}
+
+class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
+  late final _PostAuthority _authority;
+  final _scroll = ScrollController();
+  final _items = <FeedPost>[];
+  final _seen = <String>{};
+  AuthorProfile? _profile;
+  String? _nextCursor, _error, _moreError;
+  bool _loading = true, _loadingMore = false, _blocking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authority = _PostAuthority(widget.controller);
+    widget.controller.addListener(_changed);
+    _scroll.addListener(_maybeMore);
+    unawaited(_load());
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (!_authority.current) return;
+    setState(() {
+      _loading = true;
+      _error = _moreError = null;
+    });
+    try {
+      final page = await widget.controller.authorProfile(postId: widget.postId);
+      if (!mounted || !_authority.current) return;
+      setState(() {
+        _profile = page;
+        _items
+          ..clear()
+          ..addAll(page.items);
+        _seen
+          ..clear()
+          ..addAll(page.items.map((post) => post.postId));
+        _nextCursor = page.nextCursor;
+        _loading = false;
+      });
+      _fillViewport();
+    } catch (error) {
+      if (!mounted || !_authority.current) return;
+      setState(() {
+        _loading = false;
+        _error = _authorProfileError(error);
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final cursor = _nextCursor;
+    if (cursor == null || _loadingMore || !_authority.current) return;
+    setState(() {
+      _loadingMore = true;
+      _moreError = null;
+    });
+    try {
+      final page = await widget.controller.authorProfile(
+        postId: widget.postId,
+        cursor: cursor,
+      );
+      if (!mounted || !_authority.current) return;
+      setState(() {
+        for (final post in page.items) {
+          if (_seen.add(post.postId)) _items.add(post);
+        }
+        _nextCursor = page.nextCursor == cursor && page.items.isEmpty
+            ? null
+            : page.nextCursor;
+        _loadingMore = false;
+      });
+      _fillViewport();
+    } catch (error) {
+      if (!mounted || !_authority.current) return;
+      setState(() {
+        _loadingMore = false;
+        _moreError = _authorProfileError(error);
+      });
+    }
+  }
+
+  void _maybeMore() {
+    if (!_scroll.hasClients ||
+        _loadingMore ||
+        _nextCursor == null ||
+        _moreError != null) {
+      return;
+    }
+    if (_scroll.position.extentAfter < 320) unawaited(_loadMore());
+  }
+
+  void _fillViewport() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_authority.current ||
+          _nextCursor == null ||
+          !_scroll.hasClients ||
+          _scroll.position.maxScrollExtent > 0) {
+        return;
+      }
+      unawaited(_loadMore());
+    });
+  }
+
+  Future<void> _openPost(FeedPost post) async {
+    if (!_authority.current) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PostDetailScreen(
+          controller: widget.controller,
+          postId: post.postId,
+          channelName: widget.channelNames[post.channelId],
+          channelNames: widget.channelNames,
+          loadImages: widget.loadImages,
+          onAuthenticationRequired: widget.onAuthenticationRequired,
+        ),
+      ),
+    );
+  }
+
+  /// Account-level block: a second confirmation explains the symmetric hide
+  /// and the DM pause before any write is sent.
+  Future<void> _blockAuthor() async {
+    if (!_authority.current || _blocking) return;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: PostTheme.of(context).colorScheme.surface,
+      builder: (context) => Theme(
+        data: PostTheme.of(context),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                title: Text(hhText(context, '确认拉黑？')),
+                subtitle: Text(
+                  hhText(context, '该账号全部身份发布的帖子和评论将互相不可见；私信暂停发送，聊天记录保留。'),
+                ),
+              ),
+              ListTile(
+                key: const ValueKey('author-profile-block-confirm'),
+                title: Text(hhText(context, '确认拉黑')),
+                onTap: () => Navigator.pop(context, true),
+              ),
+              ListTile(
+                title: Text(hhText(context, '取消')),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted || !_authority.current) return;
+    setState(() => _blocking = true);
+    final blocked = await widget.controller.blockAuthor(widget.postId);
+    if (!mounted || !_authority.current) return;
+    setState(() => _blocking = false);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (!blocked) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            hhText(
+              context,
+              widget.controller.authorBlockError ?? '暂时无法拉黑，请重试。',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    messenger?.showSnackBar(SnackBar(content: Text(hhText(context, '已拉黑'))));
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    unawaited(widget.controller.reloadVisibleFeeds());
+  }
+
+  @override
+  Widget build(BuildContext context) => Theme(
+    data: PostTheme.of(context),
+    child: Builder(
+      builder: (context) => Scaffold(
+        key: const ValueKey('author-profile'),
+        backgroundColor: HhTelegramPalette.of(context).surface,
+        appBar: AppBar(
+          centerTitle: false,
+          title: Text(
+            hhText(context, '作者主页'),
+            style: detailType(context, 20, weight: FontWeight.w500),
+          ),
+          leading: BackButton(onPressed: () => Navigator.maybePop(context)),
+        ),
+        body: !_authority.current
+            ? _AccessClosed(onAuthenticate: widget.onAuthenticationRequired)
+            : _profile == null
+            ? (_loading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        semanticsLabel: hhText(context, '正在加载作者主页'),
+                      ),
+                    )
+                  : _PageState(
+                      title: _error ?? '暂时无法加载作者主页',
+                      action: '重新加载',
+                      onAction: _load,
+                    ))
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: CustomScrollView(
+                  controller: _scroll,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: _authorHeader(context, _profile!),
+                    ),
+                    if (_loading)
+                      const SliverToBoxAdapter(
+                        child: LinearProgressIndicator(),
+                      ),
+                    if (_items.isEmpty && !_loading)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+                          child: Text(
+                            hhText(context, '这个身份还没有发布的帖子'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: PostTheme.muted,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                            child: _AuthorPostCard(
+                              key: ValueKey(
+                                'author-post:${_items[index].postId}',
+                              ),
+                              post: _items[index],
+                              channelName:
+                                  widget.channelNames[_items[index].channelId],
+                              onOpen: () => unawaited(_openPost(_items[index])),
+                            ),
+                          ),
+                          childCount: _items.length,
+                        ),
+                      ),
+                    SliverToBoxAdapter(child: _footer(context)),
+                  ],
+                ),
+              ),
+      ),
+    ),
+  );
+
+  Widget _authorHeader(BuildContext context, AuthorProfile profile) {
+    final author = profile.author;
+    final inactive = author.inactiveMessage;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      child: Column(
+        children: [
+          DetailAvatar(
+            key: const ValueKey('author-profile-avatar'),
+            name: localizedPostAuthor(context, author),
+            avatar: author.avatar,
+            radius: 40,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            localizedPostAuthor(context, author),
+            textAlign: TextAlign.center,
+            style: detailType(context, 20, weight: FontWeight.w600),
+          ),
+          if (inactive != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              hhText(context, inactive),
+              textAlign: TextAlign.center,
+              style: detailType(context, 14, color: PostTheme.muted),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: const ValueKey('author-profile-dm'),
+                onPressed: inactive != null
+                    ? null
+                    : () => unawaited(DmScope.contact(context, widget.postId)),
+                icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                label: Text(hhText(context, inactive ?? '私信')),
+              ),
+              if (widget.controller.supportsAuthorBlock)
+                OutlinedButton.icon(
+                  key: const ValueKey('author-profile-block'),
+                  onPressed: _blocking ? null : () => unawaited(_blockAuthor()),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  icon: _blocking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.block, size: 20),
+                  label: Text(hhText(context, '拉黑')),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              hhText(context, '发布的帖子'),
+              style: detailType(context, 17, weight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footer(BuildContext context) {
+    if (_loadingMore) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        child: Center(
+          child: CircularProgressIndicator(
+            key: const ValueKey('author-profile-more-loading'),
+            semanticsLabel: hhText(context, '正在加载更多帖子'),
+          ),
+        ),
+      );
+    }
+    final error = _moreError;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+        child: Column(
+          children: [
+            Text(
+              hhText(context, error),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: PostTheme.muted),
+            ),
+            TextButton(
+              key: const ValueKey('author-profile-more-retry'),
+              onPressed: _loadMore,
+              child: Text(hhText(context, '重试加载更多')),
+            ),
+          ],
+        ),
+      );
+    }
+    return const SizedBox(height: 32);
+  }
+}
+
+class _AuthorPostCard extends StatelessWidget {
+  const _AuthorPostCard({
+    super.key,
+    required this.post,
+    required this.channelName,
+    required this.onOpen,
+  });
+  final FeedPost post;
+  final String? channelName;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final palette = HhTelegramPalette.of(context);
+    final meta = [
+      if (channelName != null) channelName!,
+      _postDate(context, post.publishedAt),
+      if (post.imageCount > 0) '${post.imageCount} 张图片',
+      '${post.viewCount} 次浏览',
+    ].join(' · ');
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                post.title,
+                style: detailType(context, 18, weight: FontWeight.w600),
+              ),
+              if (post.body.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  post.body,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: detailType(context, 15, height: 1.5),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                meta,
+                style: detailType(context, 13, color: PostTheme.muted),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _authorProfileError(Object error) {
+  if (error is PostFailure) {
+    if (error.statusCode == 429) return '操作过于频繁，请稍后再试。';
+    if (error.code == 'POST_NOT_FOUND') return '帖子不存在或暂时无法读取。';
+  }
+  return '暂时无法加载作者主页，请重试。';
 }
 
 class _AccessClosed extends StatelessWidget {

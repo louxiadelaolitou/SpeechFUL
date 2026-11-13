@@ -136,6 +136,7 @@ WITH matched AS (
 		AND p.publication_ordinal <= $3
 		AND ($4::uuid IS NULL OR p.channel_id = $4)
 		AND NOT (p.channel_id = ANY($5::uuid[]))
+		AND NOT c_posts.accounts_blocked($12,p.owner_account_id)
 		AND (strpos(words.title, words.keyword) > 0 OR strpos(words.body, words.keyword) > 0
    OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(COALESCE(to_jsonb(p)->'tags','[]'::jsonb)) tag WHERE strpos(lower(tag COLLATE pg_catalog."und-x-icu"),words.keyword)>0))
 ), best AS (
@@ -252,9 +253,9 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	}
 	args := []any{query.Sort == posts.SearchRelevance, query.Keyword, position.Ceiling,
 		nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, groups, lastAt,
-		position.SearchGroup, position.SearchRank, position.LastOrdinal, query.Limit + 1}
+		position.SearchGroup, position.SearchRank, position.LastOrdinal, query.Limit + 1, account}
 	if c.posts.hiddenPostsEnabled {
-		candidateSQL = strings.Replace(candidateSQL, "AND NOT (p.channel_id = ANY($5::uuid[]))", "AND NOT (p.channel_id = ANY($5::uuid[])) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$12 AND hp.post_id=p.post_id AND hp.hidden)", 1)
+		candidateSQL = strings.Replace(candidateSQL, "AND NOT c_posts.accounts_blocked($12,p.owner_account_id)", "AND NOT c_posts.accounts_blocked($12,p.owner_account_id) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$13 AND hp.post_id=p.post_id AND hp.hidden)", 1)
 		args = append(args, account)
 	}
 	if query.PostID != "" {
@@ -298,6 +299,7 @@ JOIN LATERAL (
 	WHERE p.post_id = candidate.post_id AND p.visibility = 'PUBLISHED' AND NOT p.moderation_hidden AND x.erased_at IS NULL
 		AND ($2::uuid IS NULL OR p.channel_id = $2)
         AND NOT (p.channel_id = ANY($3::uuid[]))
+        AND NOT c_posts.accounts_blocked($5,p.owner_account_id)
         AND (strpos(lower(COALESCE(to_jsonb(p)->>'edited_title',x.title) COLLATE pg_catalog."und-x-icu"),lower($4::text COLLATE pg_catalog."und-x-icu"))>0
           OR strpos(lower(COALESCE(to_jsonb(p)->>'edited_body',x.body) COLLATE pg_catalog."und-x-icu"),lower($4::text COLLATE pg_catalog."und-x-icu"))>0
           OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(COALESCE(to_jsonb(p)->'tags','[]'::jsonb)) tag
@@ -354,9 +356,9 @@ func (c *Community) finishPostSearch(ctx context.Context, tx pgx.Tx, account uui
 	if c.posts.typedSearchEnabled {
 		projectionSQL = typedProjectSearchCandidatesSQL
 	}
-	args := []any{ids, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, query.Keyword}
+	args := []any{ids, nullablePostID(query.ChannelID), preferences.BlockedChannelIDs, query.Keyword, account}
 	if c.posts.hiddenPostsEnabled {
-		projectionSQL = strings.Replace(projectionSQL, "AND NOT (p.channel_id = ANY($3::uuid[]))", "AND NOT (p.channel_id = ANY($3::uuid[])) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$5 AND hp.post_id=p.post_id AND hp.hidden)", 1)
+		projectionSQL = strings.Replace(projectionSQL, "AND NOT c_posts.accounts_blocked($5,p.owner_account_id)", "AND NOT c_posts.accounts_blocked($5,p.owner_account_id) AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$6 AND hp.post_id=p.post_id AND hp.hidden)", 1)
 		args = append(args, account)
 	}
 	rows, err := tx.Query(ctx, projectionSQL, args...)

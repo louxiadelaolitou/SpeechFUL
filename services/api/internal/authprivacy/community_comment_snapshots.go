@@ -90,13 +90,13 @@ func (c *Community) loadPGSnapshot(ctx context.Context, tx pgx.Tx, account uuid.
 	}
 	return commentsnapshot.Snapshot{Ref: ref, Scope: scope, Created: expires.Add(-30 * time.Minute), IDs: ids}, nil
 }
-func (c *Community) orderedCommentIDs(ctx context.Context, tx pgx.Tx, scope commentsnapshot.Scope) ([]uuid.UUID, error) {
+func (c *Community) orderedCommentIDs(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, scope commentsnapshot.Scope) ([]uuid.UUID, error) {
 	defer readtiming.Span(ctx, "ordered_ids")()
 	var root any
 	if scope.Root != uuid.Nil {
 		root = scope.Root
 	}
-	rows, e := tx.Query(ctx, `SELECT t.comment_id::text,x.terminal_at,(SELECT count(*) FROM c_comments.likes l WHERE l.comment_id=t.comment_id) FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) WHERE t.post_id=$1 AND t.root_comment_id IS NOT DISTINCT FROM $2::uuid AND x.state='PUBLISHED' AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) LIMIT 10001`, scope.Post, root)
+	rows, e := tx.Query(ctx, `SELECT t.comment_id::text,x.terminal_at,(SELECT count(*) FROM c_comments.likes l WHERE l.comment_id=t.comment_id) FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) JOIN public.community_identities ci ON ci.identity_id=t.identity_id WHERE t.post_id=$1 AND t.root_comment_id IS NOT DISTINCT FROM $2::uuid AND x.state='PUBLISHED' AND NOT c_posts.accounts_blocked($3,ci.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND NOT EXISTS(SELECT 1 FROM c_comments.tasks root_row WHERE root_row.comment_id=t.root_comment_id AND (root_row.deleted_at IS NOT NULL OR COALESCE((to_jsonb(root_row)->>'moderation_hidden')::boolean,false))) LIMIT 10001`, scope.Post, root, viewer)
 	if e != nil {
 		return nil, e
 	}
@@ -190,7 +190,7 @@ func (c *Community) readCommentsWithSnapshots(ctx context.Context, bearer [32]by
 		if q.Replies {
 			root = uuid.MustParse(q.ID)
 			kind = comments.Replies
-			e := tx.QueryRow(ctx, `SELECT t.post_id::text FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) WHERE t.comment_id=$1 AND t.root_comment_id IS NULL AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND x.state='PUBLISHED'`, root).Scan(&post)
+			e := tx.QueryRow(ctx, `SELECT t.post_id::text FROM c_comments.tasks t JOIN c_comments.attempts x USING(task_id) JOIN public.community_identities ci ON ci.identity_id=t.identity_id WHERE t.comment_id=$1 AND t.root_comment_id IS NULL AND NOT c_posts.accounts_blocked($2,ci.account_id) AND t.deleted_at IS NULL AND NOT COALESCE((to_jsonb(t)->>'moderation_hidden')::boolean,false) AND x.state='PUBLISHED'`, root, account).Scan(&post)
 			if errors.Is(e, pgx.ErrNoRows) {
 				return nil, postError("COMMENT_NOT_FOUND", 404)
 			}
@@ -202,7 +202,7 @@ func (c *Community) readCommentsWithSnapshots(ctx context.Context, bearer [32]by
 			}
 		}
 		var visible bool
-		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden)`, post).Scan(&visible); e != nil {
+		if e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM c_posts.posts WHERE post_id=$1 AND visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id))`, post, account).Scan(&visible); e != nil {
 			return nil, e
 		}
 		if !visible {
@@ -257,7 +257,7 @@ func (c *Community) readCommentsWithSnapshots(ctx context.Context, bearer [32]by
 			}
 		} else {
 			var reused *commentsnapshot.Snapshot
-			ids, e := c.orderedCommentIDs(ctx, tx, scope)
+			ids, e := c.orderedCommentIDs(ctx, tx, account, scope)
 			if e != nil {
 				var limitError *PostError
 				if cfg.CreateBackend == "redis" && errors.As(e, &limitError) && limitError.Code == "COMMENT_SNAPSHOT_TOO_LARGE" {
@@ -391,7 +391,7 @@ func (c *Community) readCommentsWithSnapshots(ctx context.Context, bearer [32]by
 			page.RootCommentID = &q.ID
 			page.RemainingCount = &remaining
 		} else {
-			counts, e := readVisibleCommentCounts(ctx, tx, []string{post})
+			counts, e := readVisibleCommentCounts(ctx, tx, account, []string{post})
 			if e != nil {
 				return nil, e
 			}

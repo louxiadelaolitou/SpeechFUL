@@ -111,9 +111,9 @@ func (c *Community) rankingFallback(ctx context.Context, snapshot rankings.Snaps
 			return nil, rankingsUnavailable()
 		}
 		sql := liveRankCandidatesSQL
-		args := []any{ids, blocked, at}
+		args := []any{ids, blocked, at, account}
 		if c.posts.hiddenPostsEnabled {
-			sql = strings.Replace(sql, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$4 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
+			sql = strings.Replace(sql, rankedPostVisibleSQL, rankedPostVisibleSQL+` AND NOT EXISTS(SELECT 1 FROM c_posts.hidden_posts hp WHERE hp.account_id=$5 AND hp.post_id=p.post_id AND hp.hidden)`, 1)
 			args = append(args, account)
 		}
 		rows, err := c.pool.Query(ctx, sql, args...)

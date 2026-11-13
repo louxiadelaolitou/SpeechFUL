@@ -28,4 +28,27 @@ extension _FeedHttp on HttpPostApi {
       },
     ),
   );
+
+  Future<PostResponse<AuthorProfile>> _authorProfile({
+    required String sessionToken,
+    required String postId,
+    String? cursor,
+    int limit = 20,
+  }) => _input(
+    () => _send(
+      sessionToken,
+      'GET',
+      '/api/v1/posts/${PostProtocol.resourceId(postId)}/author',
+      headers: const {'X-Post-Preview': 'thumbnail-v1'},
+      query: HttpPostApi._pageQuery(cursor, limit),
+      maxResponseBytes: 24 * 1024 * 1024,
+      decode: (raw) {
+        final profile = AuthorProfile.fromJson(raw);
+        if (profile.items.length > limit) {
+          throw const FormatException('Invalid author profile page');
+        }
+        return profile;
+      },
+    ),
+  );
 }

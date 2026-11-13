@@ -5,6 +5,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../localization/app_localizations.dart';
+import '../posts/author_block_api.dart';
+import '../posts/post_controller.dart';
+import '../posts/x_feed.dart';
 import '../reports/report_screens.dart';
 import '../system_notifications/notification_models.dart';
 import 'dm_controller.dart';
@@ -75,32 +78,45 @@ Future<void> showDmBlock(
 }
 
 class DmBlacklistScreen extends StatefulWidget {
-  const DmBlacklistScreen({super.key, required this.controller});
-  final DmController controller;
+  const DmBlacklistScreen({super.key, this.controller, this.posts})
+    : assert(controller != null || posts != null);
+
+  /// Identity-level DM blocks; private conversations keep their history.
+  final DmController? controller;
+
+  /// Account-level author blocks shared with posts and comments.
+  final PostController? posts;
   @override
   State<DmBlacklistScreen> createState() => _DmBlacklistScreenState();
 }
 
 class _DmBlacklistScreenState extends State<DmBlacklistScreen> {
-  late final String _scope = widget.controller.scope;
+  String? get _scope => widget.controller?.scope;
   List<Map<String, dynamic>>? _rows;
   String? _error;
   bool _busy = false;
+  List<BlockedAuthor>? _authors;
+  String? _authorError;
+  bool _authorBusy = false;
+  final _unblocking = <String>{};
+
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    if (widget.controller != null) unawaited(_load());
+    if (widget.posts?.supportsAuthorBlock == true) unawaited(_loadAuthors());
   }
 
   Future<void> _load() async {
-    if (_busy) return;
+    final controller = widget.controller;
+    if (controller == null || _busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final rows = await widget.controller.blocks();
-      if (mounted && _scope == widget.controller.scope) {
+      final rows = await controller.blocks();
+      if (mounted && _scope == controller.scope) {
         setState(() => _rows = rows);
       }
     } catch (_) {
@@ -110,46 +126,161 @@ class _DmBlacklistScreenState extends State<DmBlacklistScreen> {
     }
   }
 
+  /// The author section loads independently: one failing section never hides
+  /// the other section's records.
+  Future<void> _loadAuthors() async {
+    final posts = widget.posts;
+    if (posts == null || !posts.supportsAuthorBlock || _authorBusy) return;
+    final epoch = posts.authorityVersion;
+    setState(() {
+      _authorBusy = true;
+      _authorError = null;
+    });
+    try {
+      final authors = await posts.blockedAuthors();
+      if (mounted && posts.authorityVersion == epoch) {
+        setState(() => _authors = authors);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _authorError = '作者拉黑读取失败，请重试');
+    } finally {
+      if (mounted) setState(() => _authorBusy = false);
+    }
+  }
+
+  Future<void> _unblockAuthor(BlockedAuthor item) async {
+    final posts = widget.posts;
+    if (posts == null || _unblocking.contains(item.blockId)) return;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            title: Text(hhText(context, '解除拉黑？')),
+            subtitle: Text(hhText(context, '解除后双方内容和私信发送恢复可用。')),
+          ),
+          ListTile(
+            key: const ValueKey('author-unblock-confirm'),
+            title: Text(hhText(context, '解除拉黑')),
+            onTap: () => Navigator.pop(context, true),
+          ),
+          ListTile(
+            title: Text(hhText(context, '取消')),
+            onTap: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _unblocking.add(item.blockId));
+    final removed = await posts.unblockAuthor(item.blockId);
+    if (!mounted) return;
+    setState(() => _unblocking.remove(item.blockId));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          hhText(
+            context,
+            removed ? '已解除拉黑' : posts.authorBlockError ?? '暂时无法解除，请重试。',
+          ),
+        ),
+      ),
+    );
+    if (!removed) return;
+    await _loadAuthors();
+    unawaited(posts.reloadVisibleFeeds());
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: widget.controller,
-    builder: (context, _) => Scaffold(
-      appBar: AppBar(title: Text(hhText(context, '黑名单'))),
-      body: !widget.controller.available || _scope != widget.controller.scope
-          ? Center(child: Text(hhText(context, '会话已变化，请重新进入')))
-          : ListView(
-              children: [
-                ListTile(
-                  subtitle: Text(hhText(context, '仅显示拉黑时选择的身份。解除后才可继续发送。')),
-                ),
-                if (_error != null)
-                  ListTile(title: Text(hhText(context, _error!)), onTap: _load),
-                if (_busy) const LinearProgressIndicator(),
-                if (_rows?.isEmpty == true)
-                  ListTile(title: Text(hhText(context, '暂无拉黑记录'))),
-                for (final row in _rows ?? <Map<String, dynamic>>[])
-                  ListTile(
-                    title: Text(row['peerName']),
-                    trailing: TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () async {
-                              await showDmBlock(context, widget.controller, {
-                                ...row,
-                                'id': row['conversationId'],
-                                'ownBlockId': row['id'],
-                              });
-                              if (mounted &&
-                                  _scope == widget.controller.scope) {
-                                await _load();
-                              }
-                            },
-                      child: Text(hhText(context, '解除')),
+    animation: Listenable.merge([widget.controller, widget.posts]),
+    builder: (context, _) {
+      final controller = widget.controller;
+      final dmAvailable =
+          controller != null &&
+          controller.available &&
+          _scope == controller.scope;
+      final posts = widget.posts;
+      final authorsAvailable =
+          posts != null && posts.supportsAuthorBlock && posts.available;
+      return Scaffold(
+        appBar: AppBar(title: Text(hhText(context, '黑名单'))),
+        body: !dmAvailable && !authorsAvailable
+            ? Center(child: Text(hhText(context, '会话已变化，请重新进入')))
+            : ListView(
+                children: [
+                  if (authorsAvailable) ...[
+                    ListTile(
+                      title: Text(hhText(context, '作者拉黑')),
+                      subtitle: Text(
+                        hhText(context, '账号级：双方帖子和评论互相不可见，私信暂停发送。'),
+                      ),
                     ),
-                  ),
-              ],
-            ),
-    ),
+                    if (_authorError != null)
+                      ListTile(
+                        title: Text(hhText(context, _authorError!)),
+                        onTap: _loadAuthors,
+                      ),
+                    if (_authorBusy) const LinearProgressIndicator(),
+                    if (_authors?.isEmpty == true)
+                      ListTile(title: Text(hhText(context, '暂无作者拉黑记录'))),
+                    for (final item in _authors ?? const <BlockedAuthor>[])
+                      ListTile(
+                        key: ValueKey('author-block:${item.blockId}'),
+                        title: Text(localizedPostAuthor(context, item.author)),
+                        subtitle: item.author.inactiveMessage == null
+                            ? null
+                            : Text(
+                                hhText(context, item.author.inactiveMessage!),
+                              ),
+                        trailing: TextButton(
+                          key: ValueKey('author-unblock:${item.blockId}'),
+                          onPressed: _unblocking.contains(item.blockId)
+                              ? null
+                              : () => unawaited(_unblockAuthor(item)),
+                          child: Text(hhText(context, '解除')),
+                        ),
+                      ),
+                    const Divider(),
+                  ],
+                  if (dmAvailable) ...[
+                    ListTile(
+                      subtitle: Text(hhText(context, '仅显示拉黑时选择的身份。解除后才可继续发送。')),
+                    ),
+                    if (_error != null)
+                      ListTile(
+                        title: Text(hhText(context, _error!)),
+                        onTap: _load,
+                      ),
+                    if (_busy) const LinearProgressIndicator(),
+                    if (_rows?.isEmpty == true)
+                      ListTile(title: Text(hhText(context, '暂无拉黑记录'))),
+                    for (final row in _rows ?? <Map<String, dynamic>>[])
+                      ListTile(
+                        title: Text(row['peerName']),
+                        trailing: TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  await showDmBlock(context, controller, {
+                                    ...row,
+                                    'id': row['conversationId'],
+                                    'ownBlockId': row['id'],
+                                  });
+                                  if (mounted && _scope == controller.scope) {
+                                    await _load();
+                                  }
+                                },
+                          child: Text(hhText(context, '解除')),
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+      );
+    },
   );
 }
 

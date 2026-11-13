@@ -387,4 +387,44 @@ void main() {
       await tester.pump();
     },
   );
+  testWidgets('a committed author block clears the loaded favorites page', (
+    tester,
+  ) async {
+    final f = HomeTestFixture();
+    const favoritePostId = '66666666-6666-4666-8666-666666666666';
+    const blockedAuthor = PostAuthor(
+      state: PostAuthorState.active,
+      avatar: 'default-v1',
+      nickname: '被拉黑作者',
+    );
+    f.postApi.favoriteItems = [
+      PostCard(
+        postId: favoritePostId,
+        channelId: feed.channelId,
+        title: '收藏的帖子',
+        author: blockedAuthor,
+        publishedAt: feed.at,
+      ),
+    ];
+    await tester.pumpWidget(await f.create());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination:personal')));
+    await tester.pumpAndSettle();
+    await tester.tap(profileTab(4));
+    await tester.pumpAndSettle();
+    expect(find.text('收藏的帖子'), findsOneWidget);
+
+    // The author profile commits a block while the favorites page stays
+    // mounted underneath. Its cached card belongs to the old visibility
+    // window and must be discarded before the tab reload completes.
+    f.postApi.items = [feed.post(id: favoritePostId)];
+    f.postApi.favoriteItems = [];
+    expect(await f.posts.blockAuthor(favoritePostId), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('收藏的帖子'), findsNothing);
+    expect(find.text('还没有收藏的帖子'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
 }

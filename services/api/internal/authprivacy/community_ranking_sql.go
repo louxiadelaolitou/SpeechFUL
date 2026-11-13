@@ -81,6 +81,7 @@ ORDER BY b.channel_id,c.position`
 
 const rankedPostVisibleSQL = `
 p.visibility='PUBLISHED' AND NOT p.moderation_hidden AND NOT(p.channel_id=ANY($2::uuid[]))
+AND NOT c_posts.accounts_blocked($4,p.owner_account_id)
 AND p.published_at>$3::timestamptz-interval '168 hours' AND p.published_at<=$3 AND body.erased_at IS NULL`
 
 const projectRankedPostsSQL = `

@@ -38,6 +38,7 @@ type postRoute struct {
 	editImage        string
 	editCapabilities bool
 	repostIdentity   string
+	block            string
 	kind             authprivacy.PostReadKind
 	id               string
 	operation        posts.Operation
@@ -64,7 +65,7 @@ func isPostPath(path string) bool {
 	if path == postLinkResolvePath || path == postTagPath || path == postTagSuggestionsPath || path == postSearchPath || path == postSearchHistoryPath || path == "/api/v1/me/reposts" {
 		return true
 	}
-	for _, prefix := range []string{"/api/v1/post-commands", "/api/v1/me/post-tasks", "/api/v1/me/posts", "/api/v1/me/post-composer-context", "/api/v1/posts", "/api/v1/feed", "/api/v1/me/feed-preferences", "/api/v1/me/liked-posts", "/api/v1/me/favorite-posts"} {
+	for _, prefix := range []string{"/api/v1/post-commands", "/api/v1/me/post-tasks", "/api/v1/me/posts", "/api/v1/me/post-composer-context", "/api/v1/me/blocked-authors", "/api/v1/posts", "/api/v1/feed", "/api/v1/me/feed-preferences", "/api/v1/me/liked-posts", "/api/v1/me/favorite-posts"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return true
 		}
@@ -99,6 +100,18 @@ func parsePostRoute(path string) (postRoute, error) {
 			return postRoute{}, errMalformed
 		}
 		return postRoute{kind: postShareRoute, id: parts[1], methods: "GET"}, nil
+	}
+	if len(parts) == 3 && parts[0] == "posts" && parts[2] == "author" {
+		if _, err := posts.ParseResourceID(parts[1]); err != nil {
+			return postRoute{}, errMalformed
+		}
+		return postRoute{kind: authprivacy.PostAuthor, id: parts[1], methods: "GET"}, nil
+	}
+	if len(parts) == 4 && parts[0] == "posts" && parts[2] == "author" && parts[3] == "block" {
+		if _, err := posts.ParseResourceID(parts[1]); err != nil {
+			return postRoute{}, errMalformed
+		}
+		return postRoute{block: "set", id: parts[1], methods: "PUT"}, nil
 	}
 	if len(parts) == 3 && parts[0] == "posts" && parts[2] == "hidden" {
 		if _, err := posts.ParseResourceID(parts[1]); err != nil {
@@ -142,9 +155,17 @@ func parsePostRoute(path string) (postRoute, error) {
 			return postRoute{kind: authprivacy.PostLikedList, methods: "GET"}, nil
 		case "favorite-posts":
 			return postRoute{kind: authprivacy.PostFavoriteList, methods: "GET"}, nil
+		case "blocked-authors":
+			return postRoute{block: "list", methods: "GET"}, nil
 		case "posts":
 			return postRoute{kind: authprivacy.PostOwnList, methods: "GET"}, nil
 		}
+	}
+	if len(parts) == 3 && parts[0] == "me" && parts[1] == "blocked-authors" {
+		if _, err := posts.ParseResourceID(parts[2]); err != nil {
+			return postRoute{}, errMalformed
+		}
+		return postRoute{block: "remove", id: parts[2], methods: "DELETE"}, nil
 	}
 	if len(parts) == 3 && parts[0] == "me" && parts[1] == "post-tasks" {
 		if _, err := posts.ParseResourceID(parts[2]); err != nil {
@@ -214,7 +235,7 @@ func postListKind(kind authprivacy.PostReadKind) bool {
 	if kind == authprivacy.PostRepostList {
 		return true
 	}
-	return kind == authprivacy.PostTaskList || kind == authprivacy.PostChannelFeed || kind == authprivacy.PostOwnList || kind == authprivacy.PostLikedList || kind == authprivacy.PostFavoriteList || kind == authprivacy.PostFeed
+	return kind == authprivacy.PostTaskList || kind == authprivacy.PostChannelFeed || kind == authprivacy.PostOwnList || kind == authprivacy.PostLikedList || kind == authprivacy.PostFavoriteList || kind == authprivacy.PostFeed || kind == authprivacy.PostAuthor
 }
 
 func allowsPostListQuery(r *http.Request) bool {
@@ -278,7 +299,7 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 		route.editCapabilities = true
 	}
 	command := ""
-	if route.command || route.seal || r.Method == http.MethodGet || route.kind == postLinkResolveRoute || isPostSearchKind(route.kind) || route.kind == authprivacy.PostViewRecord || route.kind == authprivacy.PostFeedPreferences || isPostInteractionKind(route.kind) || isRepostKind(route.kind) || isHiddenPostKind(route.kind) {
+	if route.block != "" || route.command || route.seal || r.Method == http.MethodGet || route.kind == postLinkResolveRoute || isPostSearchKind(route.kind) || route.kind == authprivacy.PostViewRecord || route.kind == authprivacy.PostFeedPreferences || isPostInteractionKind(route.kind) || isRepostKind(route.kind) || isHiddenPostKind(route.kind) {
 		if hasHeader(r.Header, "Idempotency-Key") {
 			b.postBad(w, errMalformed)
 			return
@@ -296,6 +317,10 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 	}
 	if backend == nil {
 		b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
+		return
+	}
+	if route.block != "" {
+		b.communityAuthorBlocks(w, r, backend, bearer, route)
 		return
 	}
 	if route.kind == postTagRoute || route.kind == postTagSuggestionsRoute {
@@ -339,7 +364,7 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		route.limit = query.Limit
-		if route.kind == authprivacy.PostFeed {
+		if route.kind == authprivacy.PostFeed || route.kind == authprivacy.PostAuthor {
 			var previewErr error
 			route.preview, previewErr = postPreviewRequested(r)
 			if previewErr != nil {
@@ -697,7 +722,7 @@ func postBusinessStatus(code string) int {
 		return 400
 	case "TASK_NOT_FOUND", "POST_NOT_FOUND":
 		return 404
-	case "POST_IDENTITY_UNAVAILABLE", "POST_CHANNEL_UNAVAILABLE", "POSTING_RESTRICTED", "ACCOUNT_CLOSING", "TASK_NOT_RETRYABLE", "TASK_NOT_HIDEABLE", "TASK_VERSION_CONFLICT":
+	case "POST_IDENTITY_UNAVAILABLE", "POST_CHANNEL_UNAVAILABLE", "POSTING_RESTRICTED", "ACCOUNT_CLOSING", "TASK_NOT_RETRYABLE", "TASK_NOT_HIDEABLE", "TASK_VERSION_CONFLICT", "SELF_BLOCK_REJECTED":
 		return 409
 	}
 	return 0
@@ -837,6 +862,9 @@ func strictPostValue(value any, route postRoute) (any, error) {
 	if route.edit != "" {
 		return strictPostEditValue(value, route)
 	}
+	if route.block != "" {
+		return strictAuthorBlockValue(value, route)
+	}
 	if isRepostKind(route.kind) {
 		return strictRepostValue(value, route)
 	}
@@ -961,6 +989,34 @@ func strictPostValue(value any, route postRoute) (any, error) {
 			}
 		}
 		return result, nil
+	case authprivacy.PostAuthor:
+		result, ok := value.(posts.AuthorProfilePage)
+		if p, yes := value.(*posts.AuthorProfilePage); yes && p != nil {
+			result, ok = *p, true
+		}
+		if !ok || !validPublicAuthor(result.Author) || result.Items == nil || !validPostPageSize(len(result.Items), route.limit) || !validNullablePostCursor(result.NextCursor) {
+			return nil, errMalformed
+		}
+		result.Items = append([]posts.FeedPost{}, result.Items...)
+		for i, post := range result.Items {
+			if post.Author != result.Author || post.ViewCount < 0 || !validPublicPostCard(posts.PublicPostCard{PostID: post.PostID, ChannelID: post.ChannelID, Title: post.Title, Author: post.Author, PublishedAt: post.PublishedAt, Tags: post.Tags}) || posts.ValidateContentWithImages(post.Title, post.Body, post.ImageCount) != nil {
+				return nil, errMalformed
+			}
+			if post.ImageSizes != nil {
+				if len(post.ImageSizes) != post.ImageCount {
+					return nil, errMalformed
+				}
+				for _, size := range post.ImageSizes {
+					if size.Width < 1 || size.Height < 1 || size.Width > 16384 || size.Height > 16384 || int64(size.Width)*int64(size.Height) > 12*1024*1024 {
+						return nil, errMalformed
+					}
+				}
+			}
+			if !route.preview {
+				result.Items[i].ImageSizes = nil
+			}
+		}
+		return result, nil
 	case postTagSuggestionsRoute:
 		return strictTagSuggestions(value)
 	case postSearchHistoryRoute:
@@ -1026,15 +1082,19 @@ func validPostPageSize(size, limit int) bool {
 
 func validNullablePostCursor(value *string) bool { return value == nil || validPostCursor(*value) }
 
+func validPublicAuthor(author posts.PublicAuthor) bool {
+	if author.State == "ACTIVE" && (!utf8.ValidString(author.Nickname) || len(author.Nickname) > 512) {
+		return false
+	}
+	_, err := json.Marshal(author)
+	return err == nil
+}
+
 func validPublicPostCard(post posts.PublicPostCard) bool {
 	if !postValidID(post.PostID) || !postValidID(post.ChannelID) || !validPostTime(post.PublishedAt) || posts.ValidateContent(post.Title, "正文") != nil || !posts.ValidTags(post.Tags) {
 		return false
 	}
-	if post.Author.State == "ACTIVE" && (!utf8.ValidString(post.Author.Nickname) || len(post.Author.Nickname) > 512) {
-		return false
-	}
-	_, err := json.Marshal(post.Author)
-	return err == nil
+	return validPublicAuthor(post.Author)
 }
 
 func validPostTime(value time.Time) bool {

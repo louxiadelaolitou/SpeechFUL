@@ -124,8 +124,12 @@ def validate_payload(spec, name, payload):
                 raise ContractViolation("body must be valid UTF-8") from exc
             require(len(encoded) <= 65536, "body exceeds technical UTF-8 byte budget")
     if name == "PublicComment" and payload["targetCommentId"] is not None:
-        require(payload["replyTo"]["commentId"] == payload["targetCommentId"],
-                "reply relation must identify the exact target")
+        reply_to = payload["replyTo"]
+        # A reply whose target author is blocked keeps the target id but hides
+        # the relation; any present relation must still name the exact target.
+        if reply_to is not None:
+            require(reply_to["commentId"] == payload["targetCommentId"],
+                    "reply relation must identify the exact target")
     if name in ("CommentPage", "ReplyPage"):
         rows = payload["comments"]
         require(len({row["id"] for row in rows}) == len(rows), "duplicate page comment")

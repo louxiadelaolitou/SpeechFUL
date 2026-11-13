@@ -224,6 +224,23 @@ class CommentContractTests(unittest.TestCase):
             with self.subTest(case=index):
                 self.assert_payload_rejected("PublicComment", value)
 
+    def test_blocked_reply_target_keeps_content_and_hides_relation(self):
+        # Account blocks remove only the target author projection: the reply
+        # keeps its floor and target id, and a present relation must still
+        # identify that exact target.
+        hidden = public_comment(reply=True, replyTo=None)
+        contract.validate_payload(self.spec, "PublicComment", hidden)
+        contract.validate_payload(self.spec, "ReplyPage", {
+            "snapshotId": CURSOR, "rootCommentId": ROOT, "comments": [hidden],
+            "nextCursor": None, "remainingCount": 0,
+        })
+        cases = [public_comment(reply=True, replyTo=None, replyCount=1),
+                 public_comment(targetCommentId=TARGET, replyTo=None),
+                 public_comment(reply=True, replyTo=None, rootCommentId=None)]
+        for index, value in enumerate(cases):
+            with self.subTest(case=index):
+                self.assert_payload_rejected("PublicComment", value)
+
     def test_snapshot_page_rejects_duplicates_wrong_floor_and_mixed_main_rows(self):
         main = {"snapshotId": CURSOR, "comments": [public_comment()], "nextCursor": None, "totalCount": 1}
         reply = {"snapshotId": CURSOR, "rootCommentId": ROOT,

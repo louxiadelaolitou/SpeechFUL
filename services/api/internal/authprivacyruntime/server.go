@@ -30,7 +30,7 @@ import (
 // CheckDatabase rejects a wrong database, missing formal schema, privileged
 // connection, owner membership, and legacy-auth/DDL access before listening.
 func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyhttp.Service) error {
-	party, schema, version := "c", "c_auth", int64(38)
+	party, schema, version := "c", "c_auth", int64(39)
 	if service == authprivacyhttp.VerifierService {
 		party, schema, version = "v", "v_auth", 8
 	}
