@@ -7,7 +7,8 @@ import sys
 import unittest
 
 from PIL import Image
-from validate_image import inspect, thumbnail
+from validate_image import inspect, jpeg_codestream_end, rejection_reason, report_rejection, thumbnail
+from unittest import mock
 
 
 def sample(fmt, animated=False, **kwargs):
@@ -23,6 +24,37 @@ def sample(fmt, animated=False, **kwargs):
 
 
 class ValidatorTests(unittest.TestCase):
+    def test_complete_phone_jpeg_with_trailing_data_preserves_all_original_bytes(self):
+        for progressive in (False, True):
+            original = sample("JPEG", progressive=progressive)
+            data = original + b"\x00phone-added-data\xff\xd9\x00"
+            metadata = inspect(data)
+            self.assertEqual(jpeg_codestream_end(data), len(original))
+            self.assertEqual(metadata["byteLength"], len(data))
+            self.assertEqual(metadata["sha256"], hashlib.sha256(data).hexdigest())
+            self.assertEqual((metadata["width"], metadata["height"]), (3, 2))
+
+    def test_embedded_thumbnail_eoi_does_not_hide_a_truncated_main_jpeg(self):
+        original = sample("JPEG")
+        thumbnail_bytes = sample("JPEG")
+        app15 = b"\xff\xef" + (len(thumbnail_bytes) + 2).to_bytes(2, "big") + thumbnail_bytes
+        data = original[:2] + app15 + original[2:-2]
+        self.assertIsNone(jpeg_codestream_end(data))
+        with self.assertRaises(Exception):
+            inspect(data)
+        for malformed in (b"\xff\xd8\xff\xe0\x00\x01", b"\xff\xd8\xff\xe0\xff\xff", b"\xff\xd8\xff\x00\xff\xd9"):
+            self.assertIsNone(jpeg_codestream_end(malformed))
+
+    def test_rejection_diagnostics_never_include_exception_text(self):
+        self.assertEqual(rejection_reason(ValueError("JPEG terminator")), "JPEG_TERMINATOR")
+        self.assertEqual(rejection_reason(UserWarning("private image metadata")), "DECODE_WARNING")
+        for error in (ValueError("private body and token"), OSError("private path")):
+            with mock.patch("validate_image.syslog.openlog"), mock.patch("validate_image.syslog.syslog") as log:
+                report_rejection(error)
+            self.assertEqual(log.call_args.args[1], "reason=DECODE_ERROR")
+        with mock.patch("validate_image.syslog.openlog", side_effect=OSError("unavailable")):
+            report_rejection(ValueError("size"))
+
     def test_all_original_formats_and_frames(self):
         for fmt in ("JPEG", "PNG", "GIF", "WEBP"):
             with self.subTest(format=fmt):

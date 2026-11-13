@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -2120,6 +2121,115 @@ void main() {
       );
     },
   );
+  test('upload diagnostics describe success, timeout and rejection without secrets', () async {
+    final lines = <String>[];
+    final allLines = <String>[];
+    final diagnosticsZone = Zone.current.fork(
+      specification: ZoneSpecification(
+        print: (self, parent, zone, message) {
+          lines.add(message);
+          allLines.add(message);
+        },
+      ),
+    );
+    final bytes = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]);
+    final image = PostImageSelection.fromJson({
+      'mediaId': _other,
+      'sha256': hashes.sha256.convert(bytes).toString(),
+      'byteLength': bytes.length,
+      'mimeType': 'image/png',
+      'width': 1,
+      'height': 1,
+    });
+    final uploadToken = AuthCrypto.encode(List.filled(32, 31));
+    final uploader = HttpPostUploadApi(
+      communityBaseUri: endpoint.uri,
+      client: endpoint.client(),
+      timeout: const Duration(milliseconds: 150),
+    );
+    addTearDown(uploader.close);
+    Future<DateTime> send() => diagnosticsZone.run(
+      () => uploader.putOriginal(
+        uploadToken: uploadToken,
+        taskId: _id,
+        version: 1,
+        image: image,
+        bytes: bytes,
+      ),
+    );
+    List<Map<String, dynamic>> events() => [
+      for (final line in lines.where((s) => s.startsWith('POST_UPLOAD ')))
+        jsonDecode(line.substring('POST_UPLOAD '.length))
+            as Map<String, dynamic>,
+    ];
+    endpoint.respond = (r) async {
+      r.response.statusCode = 204;
+      r.response.headers.set('Server-Time', _time);
+      r.response.headers.set('X-Content-Type-Options', 'nosniff');
+      await r.response.close();
+    };
+    await send();
+    var end = events().last;
+    expect(end['outcome'], 'success');
+    expect(end['http_status'], 204);
+    expect(end['request_id'], _requestId);
+    expect(end['elapsed_ms'], isNonNegative);
+    expect(
+      events().map((e) => e['stage']),
+      contains('send_body_and_wait_response'),
+    );
+
+    lines.clear();
+    endpoint.respond = (r) =>
+        _json(r, 503, _error('MEDIA_VALIDATOR_UNAVAILABLE'), success: false);
+    await expectLater(send(), throwsA(isA<PostFailure>()));
+    end = events().last;
+    expect(end['http_status'], 503);
+    expect(end['request_id'], _requestId);
+    expect(end['outcome'], 'unavailable');
+
+    lines.clear();
+    endpoint.respond = (r) async {
+      r.response.headers.set('X-Request-ID', 'private-header-content');
+      r.response.statusCode = 502;
+      r.response.write('private-response-content');
+      await r.response.close();
+    };
+    await expectLater(send(), throwsA(isA<PostFailure>()));
+    end = events().last;
+    expect(end['http_status'], 502);
+    expect(end['request_id'], isNull);
+    expect(end['outcome'], 'invalid_response');
+
+    lines.clear();
+    endpoint.respond = (r) async {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      await r.response.close();
+    };
+    final count = endpoint.requests.length;
+    await expectLater(
+      send(),
+      throwsA(_failure(PostFailureKind.transport, code: 'TIMEOUT')),
+    );
+    end = events().last;
+    expect(end['outcome'], 'timeout');
+    expect(end['http_status'], isNull);
+    expect(end['request_id'], isNull);
+    expect(end['stage'], 'send_body_and_wait_response');
+    expect(endpoint.requests.length, count + 1);
+    final output = allLines.join(' ');
+    for (final secret in [
+      uploadToken,
+      _token,
+      _id,
+      _other,
+      image.sha256,
+      'private-header-content',
+      'private-response-content',
+    ]) {
+      expect(output, isNot(contains(secret)));
+    }
+  });
 }
 
 // 合成的公开 loopback TLS 测试材料；不作为设备、真实 C 服务或生产证据。

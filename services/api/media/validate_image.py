@@ -9,6 +9,7 @@ import io
 import json
 import resource
 import sys
+import syslog
 import warnings
 
 if __name__ == "__main__":
@@ -27,6 +28,76 @@ MAX_FRAMES = 120
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
 ImageFile.LOAD_TRUNCATED_IMAGES = False
 warnings.simplefilter("error")
+
+
+def rejection_reason(error):
+    """Return a fixed diagnostic category, never exception text or metadata."""
+    known = {
+        "size": "SIZE", "dimensions": "DIMENSIONS", "pixels": "PIXELS",
+        "APNG not in v1": "APNG", "orientation": "ORIENTATION",
+        "animation work": "ANIMATION_WORK", "frame duration": "FRAME_DURATION",
+        "cycle duration": "CYCLE_DURATION", "no frames": "NO_FRAMES",
+        "JPEG terminator": "JPEG_TERMINATOR", "GIF terminator": "GIF_TERMINATOR",
+        "PNG terminator": "PNG_TERMINATOR", "WebP container length": "WEBP_LENGTH",
+    }
+    if type(error) is ValueError:
+        return known.get(str(error), "DECODE_ERROR")
+    if isinstance(error, Warning):
+        return "DECODE_WARNING"
+    return "DECODE_ERROR"
+
+
+def report_rejection(error):
+    try:
+        syslog.openlog("speechful_media_validator", syslog.LOG_PID, syslog.LOG_LOCAL6)
+        syslog.syslog(syslog.LOG_WARNING, "reason=" + rejection_reason(error))
+    except Exception:
+        pass  # Diagnostics must never change the validator result.
+
+
+def jpeg_codestream_end(data):
+    """Locate the main JPEG EOI, skipping length-delimited metadata and scans.
+
+    Embedded EXIF thumbnails cannot satisfy this check. Pixel decoding remains
+    Pillow's responsibility; this parser only confirms the complete codestream.
+    """
+    if not data.startswith(b"\xff\xd8"):
+        return None
+    position = 2
+    in_scan = False
+    while position < len(data):
+        if data[position] != 0xFF:
+            if not in_scan:
+                return None
+            position = data.find(b"\xff", position)
+            if position < 0:
+                return None
+        while position < len(data) and data[position] == 0xFF:
+            position += 1
+        if position == len(data):
+            return None
+        marker = data[position]
+        position += 1
+        if marker == 0x00:
+            if not in_scan:
+                return None
+            continue  # Stuffed FF byte in entropy-coded data.
+        if 0xD0 <= marker <= 0xD7:
+            if not in_scan:
+                return None
+            continue  # Restart marker has no length.
+        if marker == 0x01:
+            continue  # TEM is also a standalone marker.
+        if marker == 0xD9:
+            return position
+        if marker == 0xD8 or position + 2 > len(data):
+            return None
+        length = int.from_bytes(data[position:position + 2], "big")
+        if length < 2 or position + length > len(data):
+            return None
+        position += length
+        in_scan = marker == 0xDA
+    return None
 
 
 def inspect(data):
@@ -78,7 +149,9 @@ def inspect(data):
         with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
             image.verify()
     # Reject clearly truncated containers even when a decoder tolerates EOF.
-    if fmt == "JPEG" and not data.endswith(b"\xff\xd9"):
+    # Phone JPEGs may append vendor data after the main EOI. Keep the original
+    # bytes, but still require a structurally valid main EOI after full decode.
+    if fmt == "JPEG" and jpeg_codestream_end(data) is None:
         raise ValueError("JPEG terminator")
     if fmt == "GIF" and not data.endswith(b";"):
         raise ValueError("GIF terminator")
@@ -130,8 +203,9 @@ def main():
         return 3
     try:
         result = inspect(sys.stdin.buffer.read(MAX_BYTES + 1))
-    except Exception:
-        return 2  # no byte, metadata, filename or exception details in logs
+    except Exception as error:
+        report_rejection(error)
+        return 2  # fixed category only; no bytes, metadata or exception details
     print(json.dumps(result, separators=(",", ":")))
     return 0
 

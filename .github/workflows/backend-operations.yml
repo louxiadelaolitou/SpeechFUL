@@ -1,0 +1,38 @@
+name: Backend operations tools
+on:
+  pull_request:
+    paths:
+      - 'tools/windows/**'
+      - '.github/workflows/backend-operations.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Focused startup, replay ACL and telemetry boundaries
+        working-directory: tools/windows
+        run: python3 -B -m unittest test_host_startup_cleanup test_aof_replay_acl test_upload_observability -v
+      - name: Real Redis restart in disposable Linux directory
+        working-directory: tools/windows
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-server redis-tools
+          REDIS_SERVER=/usr/bin/redis-server REDIS_CLI=/usr/bin/redis-cli python3 -B -m unittest test_aof_replay_integration -v
+  powershell-syntax:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Parse backend controller
+        shell: pwsh
+        run: |
+          $parseTokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/tools/windows/speechful-backend.ps1", [ref]$parseTokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { throw "Backend controller syntax failed" }
