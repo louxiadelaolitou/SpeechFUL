@@ -96,12 +96,12 @@ class _ComposerPhotos extends StatelessWidget {
           children: [
             Text(
               hhText(context, '图片'),
-              style: const TextStyle(color: PostTheme.muted),
+              style: TextStyle(color: HhTelegramPalette.of(context).secondary),
             ),
             const Spacer(),
             Text(
               '${editor.images.length}/9',
-              style: const TextStyle(color: PostTheme.muted),
+              style: TextStyle(color: HhTelegramPalette.of(context).secondary),
             ),
           ],
         ),
@@ -152,8 +152,8 @@ class _ComposerPhotos extends StatelessWidget {
                           height: width,
                           child: Material(
                             color: candidates.isNotEmpty
-                                ? PostTheme.muted
-                                : PostTheme.cardTint,
+                                ? HhTelegramPalette.of(context).secondary
+                                : HhTelegramPalette.of(context).background,
                             borderRadius: BorderRadius.circular(6),
                             clipBehavior: Clip.antiAlias,
                             child: Stack(
@@ -240,7 +240,7 @@ class _ComposerPhotos extends StatelessWidget {
                     width: width,
                     height: width,
                     child: Material(
-                      color: PostTheme.cardTint,
+                      color: HhTelegramPalette.of(context).background,
                       borderRadius: BorderRadius.circular(6),
                       child: InkWell(
                         key: const ValueKey('post-add-images'),

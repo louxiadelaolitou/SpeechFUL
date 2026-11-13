@@ -212,7 +212,7 @@ class _ChannelPostsScreenState extends State<ChannelPostsScreen> {
                       children: [
                         Positioned.fill(
                           child: ColoredBox(
-                            color: PostTheme.background,
+                            color: HhTelegramPalette.of(context).background,
                             child: _feed(context),
                           ),
                         ),
@@ -226,7 +226,7 @@ class _ChannelPostsScreenState extends State<ChannelPostsScreen> {
                               child: Semantics(
                                 liveRegion: true,
                                 child: Material(
-                                  color: PostTheme.accent,
+                                  color: HhTelegramPalette.of(context).accent,
                                   borderRadius: BorderRadius.circular(8),
                                   elevation: 2,
                                   child: Padding(
@@ -236,8 +236,9 @@ class _ChannelPostsScreenState extends State<ChannelPostsScreen> {
                                     ),
                                     child: Text(
                                       hhText(context, '发布成功！'),
-                                      style: const TextStyle(
-                                        color: PostTheme.surface,
+                                      style: TextStyle(
+                                        color: HhTelegramPalette.of(context)
+                                            .onAccent,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -255,8 +256,10 @@ class _ChannelPostsScreenState extends State<ChannelPostsScreen> {
         bottomNavigationBar: SafeArea(
           top: false,
           child: Container(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: PostTheme.line)),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: HhTelegramPalette.of(context).line),
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             child: Row(
@@ -589,7 +592,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
         child: AnimatedBuilder(
           animation: widget.controller,
           builder: (context, _) => Dialog(
-            backgroundColor: PostTheme.surface,
+            backgroundColor: HhTelegramPalette.of(context).surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
@@ -618,7 +621,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                             Text(
                               hhText(context, '内容还在当前页面。\n放弃将丢失未保存的修改。'),
                               textAlign: TextAlign.center,
-                              style: PostTheme.dialogBody,
+                              style: PostTheme.dialogBody.copyWith(
+                                color: HhTelegramPalette.of(context).secondary,
+                              ),
                             ),
                             const SizedBox(height: 20),
                             Row(
@@ -703,7 +708,10 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                   widget.channelName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: PostTheme.muted),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: HhTelegramPalette.of(context).secondary,
+                  ),
                 ),
               ],
             ),
@@ -741,16 +749,18 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                   padding: const EdgeInsets.only(bottom: 20),
                                   child: Row(
                                     children: [
-                                      const Icon(
+                                      Icon(
                                         Icons.error,
-                                        color: PostTheme.failure,
+                                        color: HhTelegramPalette.of(context)
+                                            .error,
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
                                           hhText(context, '上次发布未成功，内容已保留。'),
-                                          style: const TextStyle(
-                                            color: PostTheme.muted,
+                                          style: TextStyle(
+                                            color: HhTelegramPalette.of(context)
+                                                .secondary,
                                           ),
                                         ),
                                       ),
@@ -759,9 +769,10 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                 ),
                               Text(
                                 hhText(context, '标题'),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
-                                  color: PostTheme.muted,
+                                  color: HhTelegramPalette.of(context)
+                                      .secondary,
                                 ),
                               ),
                               TextField(
@@ -787,7 +798,8 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                   style: TextStyle(
                                     color: _title.text.characters.length > 15
                                         ? Theme.of(context).colorScheme.error
-                                        : PostTheme.muted,
+                                        : HhTelegramPalette.of(context)
+                                              .secondary,
                                   ),
                                 ),
                               const Padding(
@@ -796,9 +808,10 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                               ),
                               Text(
                                 hhText(context, '正文'),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
-                                  color: PostTheme.muted,
+                                  color: HhTelegramPalette.of(context)
+                                      .secondary,
                                 ),
                               ),
                               TextField(
@@ -824,7 +837,8 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                   style: TextStyle(
                                     color: _body.text.characters.length > 3000
                                         ? Theme.of(context).colorScheme.error
-                                        : PostTheme.muted,
+                                        : HhTelegramPalette.of(context)
+                                              .secondary,
                                   ),
                                 ),
                               _ComposerPhotos(
@@ -837,8 +851,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                 const SizedBox(height: 20),
                                 Text(
                                   hhText(context, '发言身份'),
-                                  style: const TextStyle(
-                                    color: PostTheme.muted,
+                                  style: TextStyle(
+                                    color: HhTelegramPalette.of(context)
+                                        .secondary,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -864,8 +879,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                 const SizedBox(height: 20),
                                 Text(
                                   hhText(context, '分类'),
-                                  style: const TextStyle(
-                                    color: PostTheme.muted,
+                                  style: TextStyle(
+                                    color: HhTelegramPalette.of(context)
+                                        .secondary,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -886,8 +902,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   hhText(context, '身份和分类保持不变'),
-                                  style: const TextStyle(
-                                    color: PostTheme.muted,
+                                  style: TextStyle(
+                                    color: HhTelegramPalette.of(context)
+                                        .secondary,
                                   ),
                                 ),
                               ],
@@ -920,7 +937,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                 : widget.editor.saved
                                 ? hhText(context, '草稿已保存')
                                 : hhText(context, '尚有未保存修改'),
-                            style: const TextStyle(color: PostTheme.muted),
+                            style: TextStyle(
+                              color: HhTelegramPalette.of(context).secondary,
+                            ),
                           ),
                         ),
                       ),
@@ -929,7 +948,9 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                           child: Text(
                             widget.editor.error!,
-                            style: const TextStyle(color: PostTheme.errorInk),
+                            style: TextStyle(
+                              color: HhTelegramPalette.of(context).error,
+                            ),
                           ),
                         ),
                       if (widget.editor.isRetry)
@@ -1022,7 +1043,7 @@ class _PostConfirmScreenState extends State<_PostConfirmScreen> {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      backgroundColor: PostTheme.surface,
+      backgroundColor: HhTelegramPalette.of(context).surface,
       builder: (context) => Theme(
         data: PostTheme.of(context),
         child: AnimatedBuilder(
@@ -1062,17 +1083,19 @@ class _PostConfirmScreenState extends State<_PostConfirmScreen> {
                           for (final identity in _identities)
                             ListTile(
                               selected: widget.editor.identityId == identity.id,
-                              selectedColor: PostTheme.ink,
+                              selectedColor: HhTelegramPalette.of(context).ink,
                               leading: const _IdentityAvatar(),
                               title: Text(identity.nickname),
                               trailing: widget.editor.identityId == identity.id
-                                  ? const Icon(
+                                  ? Icon(
                                       Icons.check_circle,
-                                      color: PostTheme.accent,
+                                      color: HhTelegramPalette.of(context)
+                                          .accent,
                                     )
-                                  : const Icon(
+                                  : Icon(
                                       Icons.radio_button_unchecked,
-                                      color: PostTheme.muted,
+                                      color: HhTelegramPalette.of(context)
+                                          .secondary,
                                     ),
                               onTap: () =>
                                   Navigator.of(context).pop(identity.id),
@@ -1158,7 +1181,10 @@ class _PostConfirmScreenState extends State<_PostConfirmScreen> {
                   widget.channelName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, color: PostTheme.muted),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: HhTelegramPalette.of(context).secondary,
+                  ),
                 ),
               ],
             ),
@@ -1175,7 +1201,9 @@ class _PostConfirmScreenState extends State<_PostConfirmScreen> {
                           children: [
                             Text(
                               hhText(context, '标题'),
-                              style: const TextStyle(color: PostTheme.muted),
+                              style: TextStyle(
+                                color: HhTelegramPalette.of(context).secondary,
+                              ),
                             ),
                             const SizedBox(height: 10),
                             Text(
@@ -1224,7 +1252,9 @@ class _PostConfirmScreenState extends State<_PostConfirmScreen> {
                             const Divider(),
                             Text(
                               hhText(context, '发言身份'),
-                              style: const TextStyle(color: PostTheme.muted),
+                              style: TextStyle(
+                                color: HhTelegramPalette.of(context).secondary,
+                              ),
                             ),
                             if (_loading)
                               const Padding(
@@ -1783,7 +1813,9 @@ class _PostTaskScreenState extends State<_PostTaskScreen> {
                                   '已取消',
                                 ),
                               },
-                        style: const TextStyle(color: PostTheme.muted),
+                        style: TextStyle(
+                          color: HhTelegramPalette.of(context).secondary,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       if (task?.content != null)
@@ -2302,7 +2334,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       const SizedBox(height: 3),
                       Text(
                         widget.channelName!,
-                        style: detailType(context, 14, color: PostTheme.muted),
+                        style: detailType(
+                          context,
+                          14,
+                          color: HhTelegramPalette.of(context).secondary,
+                        ),
                       ),
                     ],
                   ],
@@ -2357,7 +2393,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   TextSpan(
                     text: '${_postDate(context, post.publishedAt)} · ',
-                    style: detailType(context, 13.5, color: PostTheme.muted),
+                    style: detailType(
+                      context,
+                      13.5,
+                      color: HhTelegramPalette.of(context).secondary,
+                    ),
                   ),
                   if (post.editedAt case final at?)
                     WidgetSpan(
@@ -2385,7 +2425,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             style: detailType(
                               context,
                               13.5,
-                              color: PostTheme.muted,
+                              color: HhTelegramPalette.of(context).secondary,
                             ),
                           ),
                         ),
@@ -2398,7 +2438,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                   TextSpan(
                     text: hhText(context, ' 次浏览'),
-                    style: detailType(context, 13.5, color: PostTheme.muted),
+                    style: detailType(
+                      context,
+                      13.5,
+                      color: HhTelegramPalette.of(context).secondary,
+                    ),
                   ),
                 ],
               ),
@@ -2546,7 +2590,7 @@ class _PostCardWidget extends StatelessWidget {
   final VoidCallback onOpen;
   @override
   Widget build(BuildContext context) => Material(
-    color: PostTheme.surface,
+    color: HhTelegramPalette.of(context).surface,
     borderRadius: BorderRadius.circular(8),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
@@ -2555,7 +2599,7 @@ class _PostCardWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ColoredBox(
-            color: PostTheme.cardTint,
+            color: HhTelegramPalette.of(context).background,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
               child: Text(
@@ -2578,9 +2622,9 @@ class _PostCardWidget extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 40),
                   child: Text(
                     _postDate(context, post.publishedAt),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: PostTheme.muted,
+                      color: HhTelegramPalette.of(context).secondary,
                       height: 1.4,
                     ),
                   ),
@@ -2614,7 +2658,10 @@ class _AuthorWidget extends StatelessWidget {
           Flexible(
             child: Text(
               localizedPostAuthor(context, author),
-              style: const TextStyle(fontSize: 13, color: PostTheme.muted),
+              style: TextStyle(
+                fontSize: 13,
+                color: HhTelegramPalette.of(context).secondary,
+              ),
             ),
           ),
         ],
@@ -2630,8 +2677,8 @@ class _IdentityAvatar extends StatelessWidget {
   Widget build(BuildContext context) => ExcludeSemantics(
     child: CircleAvatar(
       radius: radius,
-      backgroundColor: PostTheme.cardTint,
-      foregroundColor: PostTheme.muted,
+      backgroundColor: HhTelegramPalette.of(context).background,
+      foregroundColor: HhTelegramPalette.of(context).secondary,
       child: Icon(Icons.person_outline_rounded, size: radius * 1.2),
     ),
   );
@@ -2671,10 +2718,10 @@ class _PageState extends StatelessWidget {
             Text(
               hhText(context, message!),
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 height: 1.5,
-                color: PostTheme.muted,
+                color: HhTelegramPalette.of(context).secondary,
               ),
             ),
           ],
@@ -2723,7 +2770,7 @@ class _LoadMore extends StatelessWidget {
             )
           : Text(
               hhText(context, '已显示当前内容'),
-              style: const TextStyle(color: PostTheme.muted),
+              style: TextStyle(color: HhTelegramPalette.of(context).secondary),
             ),
     ),
   );
@@ -3273,13 +3320,10 @@ Future<bool?> _confirmScoped(
                               child: Text(
                                 hhText(context, message),
                                 textAlign: TextAlign.center,
-                                style: theme == null
-                                    ? PostTheme.dialogBody
-                                    : PostTheme.dialogBody.copyWith(
-                                        color: dialogTheme
-                                            .colorScheme
-                                            .onSurfaceVariant,
-                                      ),
+                                style: PostTheme.dialogBody.copyWith(
+                                  color:
+                                      dialogTheme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
                           const SizedBox(height: 8),
@@ -3302,7 +3346,7 @@ Future<bool?> _confirmScoped(
                                     ),
                                     style: FilledButton.styleFrom(
                                       backgroundColor: theme == null
-                                          ? PostTheme.destructive
+                                          ? HhTelegramPalette.of(context).error
                                           : dialogTheme.colorScheme.error,
                                       foregroundColor:
                                           dialogTheme.colorScheme.onError,

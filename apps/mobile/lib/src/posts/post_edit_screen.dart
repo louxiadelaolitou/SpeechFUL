@@ -327,12 +327,12 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
             runSpacing: 8,
             children: [
               for (var index = 0; index < _images.length; index++)
-                _photoTile(index, width, editable),
+                _photoTile(context, index, width, editable),
               if (_images.length < 9 && _session.canPickImages)
                 SizedBox.square(
                   dimension: width,
                   child: Material(
-                    color: PostTheme.cardTint,
+                    color: HhTelegramPalette.of(context).background,
                     child: IconButton(
                       tooltip: '添加图片',
                       onPressed: editable ? _pickImages : null,
@@ -347,7 +347,12 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
     ],
   );
 
-  Widget _photoTile(int index, double width, bool editable) {
+  Widget _photoTile(
+    BuildContext context,
+    int index,
+    double width,
+    bool editable,
+  ) {
     final image = _images[index], local = image.local;
     final group = _previews;
     final published = group?.images
@@ -356,7 +361,7 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
     final tile = SizedBox.square(
       dimension: width,
       child: Material(
-        color: PostTheme.cardTint,
+        color: HhTelegramPalette.of(context).background,
         clipBehavior: Clip.antiAlias,
         borderRadius: BorderRadius.circular(6),
         child: Stack(
