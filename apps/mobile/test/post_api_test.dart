@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,7 +9,6 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as hashes;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter/foundation.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/src/auth/auth_crypto.dart';
@@ -2124,14 +2124,14 @@ void main() {
   test('upload diagnostics describe success, timeout and rejection without secrets', () async {
     final lines = <String>[];
     final allLines = <String>[];
-    final previous = debugPrint;
-    debugPrint = (String? message, {int? wrapWidth}) {
-      if (message != null) {
-        lines.add(message);
-        allLines.add(message);
-      }
-    };
-    addTearDown(() => debugPrint = previous);
+    final diagnosticsZone = Zone.current.fork(
+      specification: ZoneSpecification(
+        print: (self, parent, zone, message) {
+          lines.add(message);
+          allLines.add(message);
+        },
+      ),
+    );
     final bytes = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]);
     final image = PostImageSelection.fromJson({
       'mediaId': _other,
@@ -2148,12 +2148,14 @@ void main() {
       timeout: const Duration(milliseconds: 150),
     );
     addTearDown(uploader.close);
-    Future<DateTime> send() => uploader.putOriginal(
-      uploadToken: uploadToken,
-      taskId: _id,
-      version: 1,
-      image: image,
-      bytes: bytes,
+    Future<DateTime> send() => diagnosticsZone.run(
+      () => uploader.putOriginal(
+        uploadToken: uploadToken,
+        taskId: _id,
+        version: 1,
+        image: image,
+        bytes: bytes,
+      ),
     );
     List<Map<String, dynamic>> events() => [
       for (final line in lines.where((s) => s.startsWith('POST_UPLOAD ')))

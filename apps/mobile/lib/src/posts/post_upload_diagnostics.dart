@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-
 /// Device-local, bounded diagnostics. Never accepts URLs, bodies or credentials.
 class PostUploadTrace {
   PostUploadTrace(this.operation) : trace = ++_sequence {
@@ -70,9 +68,11 @@ class PostUploadTrace {
 
   void _emit(String event) {
     try {
-      // debugPrint is deliberately available in release builds too, through
-      // Android logcat. Never print an exception's text or a response payload.
-      debugPrint(
+      // Keep this transport usable by plain Dart probes as well as Flutter.
+      // Android's embedding forwards print to logcat in release builds too.
+      // Never print an exception's text or a response payload.
+      // ignore: avoid_print
+      print(
         'POST_UPLOAD ${jsonEncode({'trace': trace, 'operation': operation, 'event': event, 'stage': _stage, 'elapsed_ms': _watch.elapsedMilliseconds, 'http_status': _status, 'request_id': _requestId, if (event == 'finish') 'outcome': _outcome})}',
       );
     } catch (_) {
