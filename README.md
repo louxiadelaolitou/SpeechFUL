@@ -33,7 +33,7 @@
   </p>
 
   <p>
-    <b><i>@楼下的老李头</i></b> — Core Contributor. Contributed to the subsequent core development, testing, and ongoing operations and maintenance of the app.
+    <b><i>@楼下的老李头 & @Joseph1237654</i></b> — Core Contributor. Contributed to the subsequent core development, testing, and ongoing operations and maintenance of the app.
   </p>
 
   <p>
