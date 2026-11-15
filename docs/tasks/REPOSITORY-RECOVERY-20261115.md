@@ -5,7 +5,7 @@
 - 授权依据与边界：用户要求以截图中的 `D:/SpeechFUL` 当前 `main` 为基准创建新仓库，并在推送前检查和移除过时、冗余的 `docs` 材料。用户随后确认只清理新仓库当前目录，保留旧提交历史。授权覆盖本次文档整理及向新仓库交付主线，不扩展为其他分支、PR 或正式部署。
 - 需求确认：旧记录、候选截图和无现行依赖的阶段证据从当前树退役；安全契约、现行运行说明、任务记录和测试校验的原始归档保留。退役文件仍可在固定基线提交读取。无未决取舍。
 - 更新日期：2026-11-15。
-- 状态：文档实现 已完成；本地验证 PASS；新仓库主线待推送；发布 未发布。
+- 状态：文档实现 已完成；本地验证 PASS；新仓库主线已建立并核对；发布 未发布。
 
 ## 目标与范围
 
@@ -25,7 +25,8 @@
 
 | 项目 | 被测版本／环境 | 结果与证据 |
 | --- | --- | --- |
-| 新仓库 | GitHub `zewbby/SpeechFUL-Develop` | 已创建私有空仓库；初次推送依用户补充要求中止，远端 `main` 尚不存在。 |
+| 新仓库 | GitHub `zewbby/SpeechFUL-Develop`；`git ls-remote --symref` | PASS：创建私有仓库；初次推送依用户补充要求中止，清理完成后将 `86f9bad0659d31ce664eb137457b2b3436ff90fe` 推送为初始 `main`，远端 HEAD 与 `main` 均为该 SHA；Git LFS 上传完成。 |
+| 本地工作区 | `D:/SpeechFUL`；`git status`、`git remote -v`、`git branch -vv` | PASS：原 `main` 干净后仅快进到 `86f9bad`，新私有仓库成为 `origin` 且 `main` 跟踪 `origin/main`；另一份 `zewbby/SpeechFUL` 保留为 `public-speechful`，其他 Worktree 的文件与分支 HEAD 未改动，既有上游跟踪随远端重命名保留。 |
 | 文档整理 | `f5127dc`＋本分支差异，Windows PowerShell／Python | PASS：从当前树退役 78 个文件；更新预发布手册和入口，修复 281 处旧固定提交链接。其余 54 份被改动文档仅替换仓库 URL；原始归档字节不变。 |
 | 链接与历史 | 同上；遍历当前非原始归档 Markdown，`git cat-file -e` 检查固定提交路径 | PASS：848 个本地链接、284 个新仓库固定提交链接均可解析；78 个退役文件均来自 `f5127dc` 基线。原始归档保留其原时点相对链接，不改写字节。 |
 | 协作与契约 | Windows／Python；`python -B -X utf8 -m unittest discover -s tools/tests -p test_collaboration.py -v`、`test_community_text_contract.py`、`git diff --check` | PASS：协作 19 项、文字归档契约 10 项、差异空白检查。当前变更仅涉及文档与 `infra/README.md`。 |
@@ -33,4 +34,4 @@
 
 ## 阻碍与下一步
 
-核对暂存范围并提交文档整理；再将该分支的提交交付到新仓库 `main`，核对远端 SHA 与可见内容。旧平台 PR、Issue、Actions 和 Release 元数据不属于 Git 提交恢复范围。
+本次记录补充不改变已验证的文档内容；旧平台 PR、Issue、Actions 和 Release 元数据不属于 Git 提交恢复范围。后续开发以新仓库 `origin/main` 建立任务分支，并重新配置主线保护与适用检查。
