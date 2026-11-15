@@ -21,7 +21,6 @@ Future<void> showDmManagement(
                   ? directory['note']
                   : directory['peerName'],
             ),
-            subtitle: Text(hhText(context, '仅管理本人这段会话')),
           ),
           for (final option in [
             (

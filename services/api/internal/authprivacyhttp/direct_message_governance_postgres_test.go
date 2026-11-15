@@ -43,12 +43,21 @@ func TestDMGovernanceHTTPSPostgres(t *testing.T) {
 	}
 	op := uuid.NewString()
 	input := authprivacy.DMBlockInput{IdentityID: ia, ConversationID: conv, Blocked: true}
-	postHTTPSJSON(t, s, "PUT", "/api/v1/dm/governance/blocks/"+op, a, "", input, 200)
+	receipt := postHTTPSJSON(t, s, "PUT", "/api/v1/dm/governance/blocks/"+op, a, "", input, 200)
+	if receipt["state"] != "APPLIED" || receipt["blockId"] == "" || receipt["blockId"] == op {
+		t.Fatal(receipt)
+	}
+	// The conversation entry now uses the account-level author block; the
+	// legacy DM block list stays empty because there is only one block mode.
 	blocks := postHTTPSJSON(t, s, "GET", "/api/v1/dm/governance/blocks", a, "", nil, 200)["items"].([]any)
-	if len(blocks) != 1 || blocks[0].(map[string]any)["conversationId"] != conv {
+	if len(blocks) != 0 {
 		t.Fatal(blocks)
 	}
-	createdAt := blocks[0].(map[string]any)["createdAt"].(string)
+	authors := postHTTPSJSON(t, s, "GET", "/api/v1/me/blocked-authors", a, "", nil, 200)["items"].([]any)
+	if len(authors) != 1 || authors[0].(map[string]any)["blockId"] != receipt["blockId"] {
+		t.Fatal(authors)
+	}
+	createdAt := authors[0].(map[string]any)["blockedAt"].(string)
 	if _, err := time.Parse(time.RFC3339Nano, createdAt); err != nil || !strings.HasSuffix(createdAt, "Z") {
 		t.Fatalf("block timestamp must use UTC Z: %q", createdAt)
 	}

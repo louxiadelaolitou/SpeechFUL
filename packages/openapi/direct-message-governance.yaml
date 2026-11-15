@@ -12,6 +12,8 @@ security:
 paths:
   /api/v1/dm/governance/blocks:
     get:
+      description: Legacy DM-only block list. New blocks are account-level author blocks listed at
+        /api/v1/me/blocked-authors; migration 0040 copies legacy rows there and empties this list.
       operationId: listExplicitDmBlocks
       responses:
         '200':
@@ -79,10 +81,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/BlockInput'
-      description: Every explicit identity-pair selection creates its own display entry. Any active entry blocks
-        both accounts in every mask. Only explicit entries are listed; no account identifiers or inferred masks.
-        Unblock removes only that selection. Already accepted deliveries are retained. Same operation ID and input
-        returns the immutable receipt.
+      description: Applies the account-level author block for the conversation peer. One record hides both
+        accounts' posts, comments and DM sending for every identity and conversation, so a DM block is never
+        created as a second mode. Unblock releases that shared account block. Already accepted deliveries are
+        retained. Same operation ID and input returns the immutable receipt.
   /api/v1/dm/governance/reports/{id}:
     parameters:
     - name: id
@@ -307,8 +309,8 @@ components:
           - APPLIED
         blockId:
           type: string
-          description: Opaque command receipt ID. Does not reveal whether another explicitly selected mask was already
-            blocked.
+          description: Account-level author block ID; empty when an unblock removed no record. Never exposes
+            the blocked account or identity identifiers.
     Blocks:
       type: object
       additionalProperties: false

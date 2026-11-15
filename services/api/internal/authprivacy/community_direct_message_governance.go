@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/moderation"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
 type DMBlockInput struct {
@@ -94,72 +95,167 @@ func (c *Community) GetDMBlock(ctx context.Context, b [32]byte, id string) (Post
 		return r, e
 	})
 }
+// ChangeDMBlock applies the account-level author block for the conversation's
+// peer. There is no separate DM block mode: one record hides posts, comments
+// and DM sending for every identity of both accounts. The operation id keeps
+// the queued client retry idempotent.
 func (c *Community) ChangeDMBlock(ctx context.Context, b [32]byte, id string, in DMBlockInput) (PostResponse, error) {
 	if !dmUUID(id) || !dmUUID(in.IdentityID) || !dmUUID(in.ConversationID) {
 		return PostResponse{}, postError("MALFORMED_REQUEST", 400)
 	}
 	fp := c.dmFingerprint("HNUHOLE/DM-BLOCK/V1\x00", in)
-	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
-		var old, raw []byte
-		e := tx.QueryRow(ctx, `SELECT fingerprint,result FROM c_dm.operations WHERE owner_account=$1 AND operation_id=$2`, a, id).Scan(&old, &raw)
-		if e == nil {
-			if !hmac.Equal(old, fp) {
+	var targetAccount uuid.UUID
+	var target posts.PublicAuthor
+	var replay *DMBlockResult
+	var prepareErr error
+	return retryPostDeadlock(ctx, func() (PostResponse, error) {
+		targetAccount, target, replay, prepareErr = uuid.Nil, posts.PublicAuthor{}, nil, nil
+		if !c.DirectMessagesEnabled() {
+			return PostResponse{}, ErrAuthorizationUnavailable
+		}
+		return c.withPostSessionPrepared(ctx, b, func(ctx context.Context, tx pgx.Tx, account uuid.UUID) error {
+			var old, raw []byte
+			e := tx.QueryRow(ctx, `SELECT fingerprint,result FROM c_dm.operations WHERE owner_account=$1 AND operation_id=$2`, account, id).Scan(&old, &raw)
+			if e == nil {
+				if !hmac.Equal(old, fp) {
+					prepareErr = postError("COMMAND_CONFLICT", 409)
+					return nil
+				}
+				var out DMBlockResult
+				if e = json.Unmarshal(raw, &out); e != nil {
+					return e
+				}
+				replay = &out
+				return nil
+			}
+			if !errors.Is(e, pgx.ErrNoRows) {
+				return e
+			}
+			var peerAccount uuid.UUID
+			var accountState string
+			var deleted *time.Time
+			var nickname, avatar *string
+			var short string
+			e = tx.QueryRow(ctx, `SELECT p.account_id,pa.state,p.deleted_at,p.nickname,p.avatar,COALESCE(l.short_code,'')
+ FROM c_dm.conversations c
+ JOIN public.community_identities i ON i.identity_id=$2 AND i.identity_id IN(c.low_identity,c.high_identity) AND i.account_id=$3
+ JOIN public.community_identities p ON p.identity_id=CASE WHEN c.low_identity=i.identity_id THEN c.high_identity ELSE c.low_identity END
+ JOIN c_auth.accounts pa ON pa.account_id=p.account_id
+ LEFT JOIN c_posts.identity_public_labels l ON l.identity_id=p.identity_id
+ WHERE c.conversation_id=$1`, in.ConversationID, in.IdentityID, account).
+				Scan(&peerAccount, &accountState, &deleted, &nickname, &avatar, &short)
+			if errors.Is(e, pgx.ErrNoRows) {
+				prepareErr = postError("COMMAND_CONFLICT", 409)
+				return nil
+			}
+			if e != nil {
+				return e
+			}
+			if peerAccount == account {
+				prepareErr = postError("SELF_BLOCK_REJECTED", 409)
+				return nil
+			}
+			author, e := projectPublicPostAuthor(accountState, deleted, nickname, avatar, short)
+			if e != nil {
+				return e
+			}
+			found, e := lockAuthorAccountRow(ctx, tx, peerAccount)
+			if e != nil {
+				return e
+			}
+			if !found {
+				prepareErr = postError("COMMAND_CONFLICT", 409)
+				return nil
+			}
+			targetAccount, target = peerAccount, author
+			return nil
+		}, func(tx pgx.Tx, account uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
+			if prepareErr != nil {
+				return nil, prepareErr
+			}
+			if replay != nil {
+				return *replay, nil
+			}
+			if targetAccount == uuid.Nil {
 				return nil, postError("COMMAND_CONFLICT", 409)
 			}
-			var out DMBlockResult
-			e = json.Unmarshal(raw, &out)
-			return out, e
-		}
-		if !errors.Is(e, pgx.ErrNoRows) {
-			return nil, e
-		}
-		var peerAccount uuid.UUID
-		var peer, name, avatar string
-		e = tx.QueryRow(ctx, `SELECT p.account_id,p.identity_id,COALESCE(p.nickname,'已删除身份'),COALESCE(p.avatar,'default-v1') FROM c_dm.conversations c JOIN public.community_identities i ON i.identity_id=$2 AND i.identity_id IN(c.low_identity,c.high_identity) JOIN public.community_identities p ON p.identity_id=CASE WHEN c.low_identity=i.identity_id THEN c.high_identity ELSE c.low_identity END WHERE c.conversation_id=$1 AND i.account_id=$3`, in.ConversationID, in.IdentityID, a).Scan(&peerAccount, &peer, &name, &avatar)
-		if errors.Is(e, pgx.ErrNoRows) {
-			return nil, postError("COMMAND_CONFLICT", 409)
-		}
-		if e != nil {
-			return nil, e
-		}
-		if e = dmPairLock(ctx, tx, a, peerAccount); e != nil {
-			return nil, e
-		}
-		out := DMBlockResult{State: "APPLIED", BlockID: id}
-		if in.Blocked {
-			_, e = tx.Exec(ctx, `INSERT INTO c_dm.blocks(block_id,owner_account,peer_account,identity_id,peer_id,conversation_id,peer_name,peer_avatar,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_account,identity_id,peer_id) DO NOTHING`, uuid.New(), a, peerAccount, in.IdentityID, peer, in.ConversationID, name, avatar, d.TrustedAt)
+			if e := dmPairLock(ctx, tx, account, targetAccount); e != nil {
+				return nil, e
+			}
+			out := DMBlockResult{State: "APPLIED"}
+			changed := false
+			if in.Blocked {
+				existing, found, e := readAuthorBlock(ctx, tx, account, targetAccount)
+				if e != nil {
+					return nil, e
+				}
+				if found {
+					out.BlockID = existing.id
+				} else {
+					blockID, e := uuid.NewRandom()
+					if e != nil {
+						return nil, e
+					}
+					var inserted string
+					e = tx.QueryRow(ctx, `INSERT INTO c_posts.blocked_authors(block_id,account_id,author_account_id,author_state,nickname,avatar,short_code,created_at)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+ ON CONFLICT(account_id,author_account_id) DO NOTHING
+ RETURNING block_id::text`, blockID, account, targetAccount, target.State, target.Nickname, target.Avatar, target.ShortCode, d.TrustedAt).
+						Scan(&inserted)
+					if e == nil {
+						out.BlockID, changed = inserted, true
+					} else if errors.Is(e, pgx.ErrNoRows) {
+						// A concurrent unblock may remove a conflicting row between
+						// the read and the insert; re-read once.
+						existing, found, e = readAuthorBlock(ctx, tx, account, targetAccount)
+						if e != nil {
+							return nil, e
+						}
+						if !found {
+							return nil, postError("SERVICE_UNAVAILABLE", 503)
+						}
+						out.BlockID = existing.id
+					} else {
+						return nil, e
+					}
+				}
+			} else {
+				var removed string
+				e := tx.QueryRow(ctx, `DELETE FROM c_posts.blocked_authors WHERE account_id=$1 AND author_account_id=$2 RETURNING block_id::text`, account, targetAccount).Scan(&removed)
+				if e != nil && !errors.Is(e, pgx.ErrNoRows) {
+					return nil, e
+				}
+				out.BlockID, changed = removed, removed != ""
+			}
+			if changed {
+				if e := bumpVisibilityRevision(ctx, tx, account, targetAccount); e != nil {
+					return nil, e
+				}
+			}
+			rows, e := tx.Query(ctx, `SELECT c.conversation_id FROM c_dm.conversations c JOIN public.community_identities l ON l.identity_id=c.low_identity JOIN public.community_identities h ON h.identity_id=c.high_identity WHERE (l.account_id=$1 AND h.account_id=$2) OR (l.account_id=$2 AND h.account_id=$1) ORDER BY c.conversation_id FOR UPDATE OF c`, account, targetAccount)
 			if e != nil {
 				return nil, e
 			}
-		} else {
-			_, e = tx.Exec(ctx, `DELETE FROM c_dm.blocks WHERE owner_account=$1 AND identity_id=$2 AND conversation_id=$3`, a, in.IdentityID, in.ConversationID)
-		}
-		if e != nil {
-			return nil, e
-		}
-		rows, e := tx.Query(ctx, `SELECT c.conversation_id FROM c_dm.conversations c JOIN public.community_identities l ON l.identity_id=c.low_identity JOIN public.community_identities h ON h.identity_id=c.high_identity WHERE (l.account_id=$1 AND h.account_id=$2) OR (l.account_id=$2 AND h.account_id=$1) ORDER BY c.conversation_id FOR UPDATE OF c`, a, peerAccount)
-		if e != nil {
-			return nil, e
-		}
-		for rows.Next() {
-			var locked uuid.UUID
-			if e = rows.Scan(&locked); e != nil {
-				rows.Close()
+			for rows.Next() {
+				var locked uuid.UUID
+				if e = rows.Scan(&locked); e != nil {
+					rows.Close()
+					return nil, e
+				}
+			}
+			e = rows.Err()
+			rows.Close()
+			if e != nil {
 				return nil, e
 			}
-		}
-		e = rows.Err()
-		rows.Close()
-		if e != nil {
-			return nil, e
-		}
-		_, e = tx.Exec(ctx, `UPDATE c_dm.conversations c SET revision=revision+1 FROM public.community_identities l,public.community_identities h WHERE l.identity_id=c.low_identity AND h.identity_id=c.high_identity AND ((l.account_id=$1 AND h.account_id=$2) OR (l.account_id=$2 AND h.account_id=$1))`, a, peerAccount)
-		if e != nil {
-			return nil, e
-		}
-		raw, _ = json.Marshal(out)
-		_, e = tx.Exec(ctx, `INSERT INTO c_dm.operations VALUES($1,$2,$3,$4)`, a, id, fp, raw)
-		return out, e
+			_, e = tx.Exec(ctx, `UPDATE c_dm.conversations c SET revision=revision+1 FROM public.community_identities l,public.community_identities h WHERE l.identity_id=c.low_identity AND h.identity_id=c.high_identity AND ((l.account_id=$1 AND h.account_id=$2) OR (l.account_id=$2 AND h.account_id=$1))`, account, targetAccount)
+			if e != nil {
+				return nil, e
+			}
+			raw, _ := json.Marshal(out)
+			_, e = tx.Exec(ctx, `INSERT INTO c_dm.operations VALUES($1,$2,$3,$4)`, account, id, fp, raw)
+			return out, e
+		})
 	})
 }
 

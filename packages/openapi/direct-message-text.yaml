@@ -196,7 +196,7 @@ components:
       additionalProperties: false
       required: [id, identityId, peerId, peerName, sourcePostId, sequence, unread, waiting, canSend]
       properties:
-        ownBlockId: {type: string, description: Only the block explicitly selected in this exact identity conversation; empty otherwise.}
+        ownBlockId: {type: string, description: Account-level author block ID that hides both accounts everywhere; empty when this account did not block the peer.}
         id: {$ref: '#/components/schemas/Id'}
         identityId: {$ref: '#/components/schemas/Id'}
         peerId: {$ref: '#/components/schemas/Id'}

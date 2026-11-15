@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/moderation"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 	"os"
 	"strings"
 	"sync"
@@ -61,11 +62,17 @@ func TestDMGovernanceBlocksCrossMaskAndPendingPostgres(t *testing.T) {
 	second := f.send(t, f.a.SessionToken, DMTextIntent{IdentityID: alt, PeerID: f.ib, SourcePostID: otherPost, Text: "alternate", Attempt: 1})
 	input := DMBlockInput{IdentityID: f.ia, ConversationID: f.conv, Blocked: true}
 	id := uuid.NewString()
-	if _, e := c.ChangeDMBlock(ctx, f.a.SessionToken, id, input); e != nil {
+	receipt, e := c.ChangeDMBlock(ctx, f.a.SessionToken, id, input)
+	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e := c.ChangeDMBlock(ctx, f.a.SessionToken, id, input); e != nil {
-		t.Fatal("idempotence", e)
+	blockID := receipt.Value.(DMBlockResult).BlockID
+	if blockID == "" || blockID == id {
+		t.Fatal("block receipt must expose the account block id", receipt.Value)
+	}
+	replay, e := c.ChangeDMBlock(ctx, f.a.SessionToken, id, input)
+	if e != nil || replay.Value.(DMBlockResult).BlockID != blockID {
+		t.Fatal("idempotence", e, replay.Value)
 	}
 	for _, x := range []struct {
 		b                    [32]byte
@@ -85,15 +92,23 @@ func TestDMGovernanceBlocksCrossMaskAndPendingPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	v := dir.Value.(DMChatDirectory).Items[0]
-	if v.CanSend || v.OwnBlockID != "" {
-		t.Fatal("other mask relation leak", v)
+	if v.CanSend || v.OwnBlockID != blockID {
+		t.Fatal("account block missing from the other identity conversation", v)
 	}
+	// A DM block must not survive as a second, unmanageable mode.
 	blocks, e := c.DMBlocks(ctx, f.a.SessionToken)
 	if e != nil {
 		t.Fatal(e)
 	}
-	raw, _ := json.Marshal(blocks.Value)
-	if strings.Contains(string(raw), alt) || strings.Contains(string(raw), f.b.AccountID.String()) || len(blocks.Value.(DMBlocks).Items) != 1 {
+	if len(blocks.Value.(DMBlocks).Items) != 0 {
+		t.Fatal("legacy DM block written", blocks.Value)
+	}
+	authors, e := c.AuthorBlocks(ctx, f.a.SessionToken)
+	if e != nil {
+		t.Fatal(e)
+	}
+	raw, _ := json.Marshal(authors.Value)
+	if strings.Contains(string(raw), alt) || strings.Contains(string(raw), f.b.AccountID.String()) || len(authors.Value.(posts.BlockedAuthorPage).Items) != 1 {
 		t.Fatal("blacklist projection", string(raw))
 	}
 	extra := DMBlockInput{IdentityID: alt, ConversationID: second.ConversationID, Blocked: true}
@@ -101,14 +116,16 @@ func TestDMGovernanceBlocksCrossMaskAndPendingPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	d2, e := c.ReadDMChatDirectory(ctx, f.a.SessionToken, alt, "")
-	if e != nil || d2.Value.(DMChatDirectory).Items[0].OwnBlockID == "" {
-		t.Fatal("explicitly chosen mask missing own projection", e)
+	if e != nil || d2.Value.(DMChatDirectory).Items[0].OwnBlockID != blockID {
+		t.Fatal("explicitly chosen account block missing own projection", e)
 	}
 	extra.Blocked = false
 	if _, e = c.ChangeDMBlock(ctx, f.a.SessionToken, uuid.NewString(), extra); e != nil {
 		t.Fatal(e)
 	}
-	if r := f.send(t, f.a.SessionToken, DMTextIntent{IdentityID: f.ia, PeerID: f.ib, ConversationID: f.conv, Text: "still blocked by original choice", Attempt: 1}); r.ErrorCode != "CONTACT_UNAVAILABLE" {
+	// The block is account-level: releasing it from the other identity's
+	// conversation releases every identity and conversation of the pair.
+	if r := f.send(t, f.a.SessionToken, DMTextIntent{IdentityID: f.ia, PeerID: f.ib, ConversationID: f.conv, Text: "after unblock", Attempt: 1}); r.State != "SENT" {
 		t.Fatal(r)
 	}
 	input.Blocked = false

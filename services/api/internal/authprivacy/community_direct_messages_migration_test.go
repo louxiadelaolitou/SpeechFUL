@@ -66,11 +66,22 @@ func TestDMGooseFreshAndUpgradePostgres(t *testing.T) {
 				if err = pool.QueryRow(ctx, snapshot).Scan(&before); err != nil {
 					t.Fatal(err)
 				}
+				if err = run("up-to", "39"); err != nil {
+					t.Fatal("0039 upgrade", err)
+				}
+				// Two legacy rows for the same account pair: 0040 keeps the
+				// earliest block and must not leave a second row behind.
+				mustExec(t, pool, `INSERT INTO public.community_identities(identity_id,account_id,nickname,avatar,is_original,created_at)
+                 VALUES('11111111-1111-4111-8111-111111111112','d2c920f5-5563-452d-901c-be133844b0fa','upgrade one alt','default-v1',false,now());
+                 UPDATE public.identity_account_state SET created_count=created_count+1,last_created_at=now() WHERE account_id='d2c920f5-5563-452d-901c-be133844b0fa';`)
+				mustExec(t, pool, `INSERT INTO c_dm.blocks(block_id,owner_account,peer_account,identity_id,peer_id,conversation_id,peer_name,peer_avatar,created_at) VALUES
+                 ('88888888-8888-4888-8888-888888888888','d2c920f5-5563-452d-901c-be133844b0fa','d2c920f5-5563-452d-901c-be133844b0fb','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','44444444-4444-4444-8444-444444444444','upgrade two','default-v1','2026-01-02T03:04:05Z'),
+                 ('99999999-9999-4999-8999-999999999999','d2c920f5-5563-452d-901c-be133844b0fa','d2c920f5-5563-452d-901c-be133844b0fb','11111111-1111-4111-8111-111111111112','22222222-2222-4222-8222-222222222222','44444444-4444-4444-8444-444444444444','upgrade two','default-v1','2026-02-03T04:05:06Z')`)
 			}
 			if err = run("up"); err != nil {
-				t.Fatal("0024 upgrade", err)
+				t.Fatal("0040 upgrade", err)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 39 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 39 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 40 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 40 {
 				t.Fatal("migration chain incomplete")
 			}
 			c := &Community{pool: pool}
@@ -91,11 +102,17 @@ func TestDMGooseFreshAndUpgradePostgres(t *testing.T) {
 				if count(t, pool, `SELECT count(*) FROM c_dm.messages WHERE body='survives P2 upgrade' AND NOT acknowledged AND NOT read AND NOT retracted AND kind='TEXT'`) != 1 || count(t, pool, `SELECT count(*) FROM c_dm.commands WHERE state='SENT' AND attempt=1`) != 1 || count(t, pool, `SELECT count(*) FROM c_dm.conversations WHERE low_sent AND NOT high_sent AND sequence=1`) != 1 {
 					t.Fatal("P1 pending text, receipt or first quota changed")
 				}
+				if count(t, pool, `SELECT count(*) FROM c_posts.blocked_authors WHERE block_id='88888888-8888-4888-8888-888888888888' AND account_id='d2c920f5-5563-452d-901c-be133844b0fa' AND author_account_id='d2c920f5-5563-452d-901c-be133844b0fb' AND author_state='ACTIVE' AND nickname='upgrade two' AND avatar='default-v1' AND created_at='2026-01-02T03:04:05Z'::timestamptz`) != 1 || count(t, pool, `SELECT count(*) FROM c_posts.blocked_authors`) != 1 {
+					t.Fatal("legacy DM block was not merged as the earliest choice")
+				}
+				if count(t, pool, `SELECT count(*) FROM c_dm.blocks`) != 0 {
+					t.Fatal("legacy DM blocks were not cleared")
+				}
 			}
 			if err = run("down"); err == nil {
 				t.Fatal("destructive rollback accepted")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 39 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 40 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})
