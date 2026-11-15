@@ -1,8 +1,8 @@
 # 新版帖子列表后端接线
 
-> **2026-10-19 合并事实：**PR #27 已以 `f1752e1` 合入 main；下文“本分支／未合并”为原后端交接快照。FEED-UI-01 从该最新主线单独完成接线，见[前端任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)。未部署。
+> **2026-10-19 合并事实：**PR #27 已以 `f1752e1` 合入 main；下文“本分支／未合并”为原后端交接快照。FEED-UI-01 从该最新主线单独完成接线，见[前端任务](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)。未部署。
 
-工作项 `FEED-BACKEND-01`，分支 `codex/feat/feed-backend`，基线 main `fc2348f`。本页描述本分支新增能力，未合并、未部署。精确 JSON、错误与 header 以 [feed-api.yaml](../../packages/openapi/feed-api.yaml) 为准；实际验证见[分支交接](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-backend.md)。
+工作项 `FEED-BACKEND-01`，分支 `codex/feat/feed-backend`，基线 main `fc2348f`。本页描述本分支新增能力，未合并、未部署。精确 JSON、错误与 header 以 [feed-api.yaml](../../packages/openapi/feed-api.yaml) 为准；实际验证见[分支交接](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-backend.md)。
 
 ## 接口
 
@@ -61,7 +61,7 @@ FeedPost 示例：
 
 ## 点赞、收藏与评论数接线
 
-2026-10-20，`FEED-INTERACTIONS-01`／`feat/feed-interactions` 新增，合并状态见[任务](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-interactions.md)。不向严格的 FeedPost、旧详情／通道／本人帖子 DTO 增加字段；现有客户端可继续读取，新增互动另行接线，本次不修改 Flutter UI。
+2026-10-20，`FEED-INTERACTIONS-01`／`feat/feed-interactions` 新增，合并状态见[任务](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-interactions.md)。不向严格的 FeedPost、旧详情／通道／本人帖子 DTO 增加字段；现有客户端可继续读取，新增互动另行接线，本次不修改 Flutter UI。
 
 | 请求 | body | 成功响应 |
 | --- | --- | --- |
@@ -114,4 +114,4 @@ FeedPost 示例：
 
 Linux 文件系统内使用现有 Go1.22.2、PG16、Goose v3.22.1：在 `services/api` 执行 `FEED_GOOSE=/absolute/path/to/goose PGPORT=55439 sh authlab/run-feed-isolated.sh`。脚本只建本次私有 socket／一次性库，结束自动停机清理，不接受外部 DSN。另执行 `go test -mod=readonly ./...`、`go build -mod=readonly ./...`、`go vet -mod=readonly ./...`。
 
-仓库根执行 `python -X utf8 packages/openapi/check-specs.py` 和 `python -X utf8 tools/check-community-text-contract.py`。专属 [CI](../../.github/workflows/feed-backend.yml)执行同类产品检查。实际结果见[机器记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/feed-backend-verification-20261019.json)；正式前端接线、Android/iOS 设备与生产不在本次验收范围。
+仓库根执行 `python -X utf8 packages/openapi/check-specs.py` 和 `python -X utf8 tools/check-community-text-contract.py`。专属 [CI](../../.github/workflows/feed-backend.yml)执行同类产品检查。实际结果见[机器记录](https://github.com/zewbby/SpeechFUL-Develop/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/feed-backend-verification-20261019.json)；正式前端接线、Android/iOS 设备与生产不在本次验收范围。

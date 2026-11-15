@@ -28,4 +28,4 @@
 - 当前 PNG 使用用户整理后的文件名，文件内容没有在本次文档整理中修改。
 - 后续交付遵守[设计目录的格式约定](README.md)：PNG，不依赖 SVG/Inkscape。
 - [原 Figma 文件](https://www.figma.com/design/wYSmtpR5iKKG90UsxKVeMR)仅保留早期草案，不是最新正式稿。
-- [整理前图稿说明](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/archive/2026-09-09-post-detail-artifact-history.md)保留旧交付过程，当前行为不在该档案继续更新。
+- [整理前图稿说明](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/archive/2026-09-09-post-detail-artifact-history.md)保留旧交付过程，当前行为不在该档案继续更新。

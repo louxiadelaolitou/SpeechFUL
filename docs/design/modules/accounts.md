@@ -2,7 +2,7 @@
 
 本页维护账号与访问规则。当前登录／恢复依据 [AUTH-EMAIL-RESET-01](../../tasks/AUTH-EMAIL-RESET-01.md)，设备与安全入口依据 [PROFILE-SETTINGS-01](../../tasks/PROFILE-SETTINGS-01.md)。校邮重置已替代早期“只能用独立恢复凭据找回”的限制；恢复码和 Passkey 用户流程暂停，既有实现与数据保留。
 
-历史增量、旧独立恢复规则和当时验证状态见[整理前版本](https://github.com/zewbby/SpeechFUL/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/modules/accounts.md)。这里不复制合并、部署或机器现状，实际发布见对应任务。
+历史增量、旧独立恢复规则和当时验证状态见[整理前版本](https://github.com/zewbby/SpeechFUL-Develop/blob/3db6fac2351d3fe4d3824aeca5aa0cbdb562693a/docs/design/modules/accounts.md)。这里不复制合并、部署或机器现状，实际发布见对应任务。
 
 ## 范围
 

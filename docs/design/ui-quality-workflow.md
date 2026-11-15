@@ -2,15 +2,15 @@
 
 > **2026-10-09最新纠正：**用户明确“我的”布局已定稿，禁止把历史网格候选当缺图重新设计；正常态沿用已批准列表版式，仅呈现实际内容状态。刚生成正常网格v3已撤回，F1-11不再待评审；F1-14复用已定通道列表。请求画完剩余时，先排除已定稿与复用场景，清单已齐直接报告，不为补齐数量增加新版。
 
-> **最新图片与删除规则：**F1-19[统一缩略图正常阅读v2](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-normal-v2.md)已明确定稿。用户要求不同原图方向／分辨率在同一展示位置用相同尺寸预览，等比裁切且不拉伸，点击后看完整原比例。剩余详情[三场景](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)已处理；用户取消删除后独立页，成功直接返回来源页。图片静态定稿不代证精确组件几何或大图手势。
+> **最新图片与删除规则：**F1-19[统一缩略图正常阅读v2](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-normal-v2.md)已明确定稿。用户要求不同原图方向／分辨率在同一展示位置用相同尺寸预览，等比裁切且不拉伸，点击后看完整原比例。剩余详情[三场景](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)已处理；用户取消删除后独立页，成功直接返回来源页。图片静态定稿不代证精确组件几何或大图手势。
 
-> **2026-10-09本次附件正式选择：**用户附四图明确“定稿这几张”，[四图归档](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-feedback-selected-v3.md)按附件原字节保存。F1-15成功提示选暗蓝通道款，F1-16／17本人发布中／失败选附件中的错落双列混排，F1-18失败编辑同样正式；具体文件选择优先于此前通用对齐／黑色提示候选，不以“优化”之名重排或换色。F1-11正常态与F1-14返回通道按最新纠正复用已定版式，未选中网格只保留历史，旧独立状态整页仍被替代。确认发布直接回原通道、明确失败草稿＋亮红叹号、未知结果保留核对语义继续执行。定稿后已同轮完成[F1-19正文详情候选](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-normal-v1.md)，不将刚生成新图自动批准。
+> **2026-10-09本次附件正式选择：**用户附四图明确“定稿这几张”，[四图归档](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-publish-feedback-selected-v3.md)按附件原字节保存。F1-15成功提示选暗蓝通道款，F1-16／17本人发布中／失败选附件中的错落双列混排，F1-18失败编辑同样正式；具体文件选择优先于此前通用对齐／黑色提示候选，不以“优化”之名重排或换色。F1-11正常态与F1-14返回通道按最新纠正复用已定版式，未选中网格只保留历史，旧独立状态整页仍被替代。确认发布直接回原通道、明确失败草稿＋亮红叹号、未知结果保留核对语义继续执行。定稿后已同轮完成[F1-19正文详情候选](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-normal-v1.md)，不将刚生成新图自动批准。
 
 > **2026-10-09评审规则更新：**用户明确“我没给意见就是定稿了，再画一类”。后续用户回复推进时，已展示且未提修改意见的页面视为定稿，无需逐张再索取“同意”；本次据此将我的混排v1和空态v1正式归档。被提出修改意见的页面继续修正。刚交付的新批次先展示，不能仅因生成完成或等待时间就自动批准。该指令覆盖下方旧的必须逐张明确确认措辞；具体页面定稿仍不等于全局主题或业务验收。
 
 ## 2026-10-08 项目技能与当前画图工作流
 
-> 当日最新页面反馈：用户看v9三图后明确“定稿这三个”，[通道列表三状态](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/channel-feed-v9.md)为FINAL／USER_APPROVED，正式文件保存在`UI产品图/`。白色框架和本组三状态暗灰蓝配色同时确认，v7林绿／炭黑与v8整页暗蓝均废弃。只确认本组，不自动扩成最终全局主题；按既有用户指令登记后直接开始下一张文字编辑页。
+> 当日最新页面反馈：用户看v9三图后明确“定稿这三个”，[通道列表三状态](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/channel-feed-v9.md)为FINAL／USER_APPROVED，正式文件保存在`UI产品图/`。白色框架和本组三状态暗灰蓝配色同时确认，v7林绿／炭黑与v8整页暗蓝均废弃。只确认本组，不自动扩成最终全局主题；按既有用户指令登记后直接开始下一张文字编辑页。
 
 用户要求把frontend-design安装到项目并建立有质感、减少AI模板感的UI流程。项目入口为[hnuhole-ui-craft](../../.agents/skills/hnuhole-ui-craft/SKILL.md)，来源与固定版本见[项目技能记录](project-ui-skills.md)。本节具体化下方历史流程，不推翻已定业务、逐张评审或用户配色决定。
 

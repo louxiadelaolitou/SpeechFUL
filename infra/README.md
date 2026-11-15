@@ -1,10 +1,7 @@
 # C/V 同机开发基础设施
 
-2026-10-18独立预发布工具位于 `infra/prerelease/` 和 `tools/prerelease/`，交付于
-[PR #16](https://github.com/zewbby/HnuHole/pull/16)（历史交付，后续合并／发布以对应任务为准）。
-其独立PG进程环境的正式迁移、权限拒绝、双新实例恢复及应用回滚已有实际开发证据，
-见[运行手册与回执](../docs/release/android-prerelease.md)。这些结果不代验下述Compose入口，
-也不证明生产主体独立；本任务未启动Docker或操作其他session资源。
+独立预发布工具位于 `infra/prerelease/` 和 `tools/prerelease/`，使用方式见[Android 预发布手册](../docs/release/android-prerelease.md)。
+2026-10-18 至 10-19 的候选构建、恢复和设备回执属于旧版本，可从[固定提交](https://github.com/zewbby/SpeechFUL-Develop/tree/f5127dc9566daf545afe9c2ce26cd233a4bc54dd/docs/release)追溯。旧结果不代验下述 Compose 入口，也不证明生产主体独立。
 
 Compose提供分离的PG16 C／V服务与Mailpit，只绑定literal loopback。C为 `127.0.0.1:55432/hnuhole_c`，V为 `127.0.0.1:55433/hnuhole_v`；SMTP1025／Mailpit UI8025。固定images `postgres:16.6-alpine`、`axllent/mailpit:v1.21.8`。工具是否存在应在执行机器核实；配置静态检查不能代替实际启动验证，历史结果仅属于对应版本。
 

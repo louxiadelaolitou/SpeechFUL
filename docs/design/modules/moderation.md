@@ -50,7 +50,7 @@
 
 ### DELETE-POST-01：删除帖子同时关闭讨论
 
-- 2026-10-09用户明确本人删除成功后直接返回上一级页面，取消独立“帖子已删除／返回列表”页。确认且服务端删除成功后回到进入详情前的来源页，同步移除对应帖子并恢复原页签／筛选及可用列表锚点，不额外停留或要求再点返回。取消确认保留原帖；删除失败或结果未知不伪装成成功返回，继续保留原操作以便核对。当前两行宋体问题／左取消右亮红确认图见[本人删除确认记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)，仅静态图稿，真实删除及回退待验。
+- 2026-10-09用户明确本人删除成功后直接返回上一级页面，取消独立“帖子已删除／返回列表”页。确认且服务端删除成功后回到进入详情前的来源页，同步移除对应帖子并恢复原页签／筛选及可用列表锚点，不额外停留或要求再点返回。取消确认保留原帖；删除失败或结果未知不伪装成成功返回，继续保留原操作以便核对。当前两行宋体问题／左取消右亮红确认图见[本人删除确认记录](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/design/ui-reviews/post-detail-states-v1.md)，仅静态图稿，真实删除及回退待验。
 - 删除整篇帖子后，对外停止展示帖子内容及评论区，也不能继续发表评论或回复；不是只隐藏正文而保留一个可继续参与的评论区。作者的编辑入口随之移除，尚未保存的修改内容一并清除；已删除帖子不存在继续编辑的页面。
 - 收藏、通知和分享入口统一显示“帖子已删除”，不从这些入口继续展示原帖内容；账号登录访问限制仍适用。
 - 收藏中该占位可由本人移除，具体列表规则见[个人模块 PERSONAL-FAVORITE-01](personal.md)。
@@ -195,13 +195,13 @@
 - 昵称或头像本身违规时，沿用现有举报入口反馈；审核员可将违规项重置为中性占位，并通知本人。只处理违规的对应资料，不因一个身份违规而展示或重置其其他身份。
 - 用户可立即修改为合规资料；本次强制整改不受昵称三十天修改间隔限制，正常自主改名仍按[身份 MASK-EDIT-01](identity.md)执行。
 - 资料重置不删除身份，不改变已有内容和会话归属；需要禁言或封禁时，继续按既有角色权限与 MOD-ACTION-01 处理，不因资料重置自动新增账号处罚。
-- 处理原因与操作按 ADMIN-AUDIT-01 记录。此项由[第二十一轮 Q2](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round21.md)确认。
+- 处理原因与操作按 ADMIN-AUDIT-01 记录。此项由[第二十一轮 Q2](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round21.md)确认。
 
 ### MOD-TAKEDOWN-01：下架帖子不提供整改重审
 
 - 首版不允许对管理员已下架的帖子修改后重新审核，也不能通过普通编辑保存恢复公开。
 - 认为原处理误判时仍可按 APPEAL-01 申诉；复核通过后的恢复条件继续按 MOD-REVERSE-01，不因取消整改重审而取消申诉恢复。
-- 本项不新增自动解除处罚的路径，不把管理员下架等同于作者主动删除。此项由[第二十一轮 Q3](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round21.md)确认。
+- 本项不新增自动解除处罚的路径，不把管理员下架等同于作者主动删除。此项由[第二十一轮 Q3](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-19-grilling-round21.md)确认。
 
 ### MOD-TIME-01：各项处罚独立计时，不顺延累加
 
@@ -266,4 +266,4 @@
 
 公开隐私边界在[身份模块](identity.md)，账号访问在[账号模块](accounts.md)。不因设有管理员就默认其可读取所有身份信息。
 
-当前没有确认的管理 UI 图。来源：[需求记录 SCOPE-01 与社区管理待定项](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)。
+当前没有确认的管理 UI 图。来源：[需求记录 SCOPE-01 与社区管理待定项](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-06-hainanu-treehole.md)。

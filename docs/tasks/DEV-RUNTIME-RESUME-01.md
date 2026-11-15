@@ -26,13 +26,13 @@
 | --- | --- | --- |
 | 源码与安装 | fe8cba1中的resume.py，SHA256 0b22952d8554c8d32b86528628f145108137038ec559238435ec46357427628c；后继仅整合规则/任务文档 | 本机三个旧入口备份后替换，实际部署已完成 |
 | 单元与编排 | Linux Python普通和-O，unittest discover -s tools/development_runtime/tests -v | 10项各PASS；依赖缺项、动态证据、失败顺序、归属与幂等 |
-| 真实依赖冷启动 | 同一非root WSL原数据，最终安装源码；原入口全停再启及重复调用 | PASS，见[脱敏记录](https://github.com/zewbby/SpeechFUL/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/validation/development-runtime-resume-20261030.json) |
+| 真实依赖冷启动 | 同一非root WSL原数据，最终安装源码；原入口全停再启及重复调用 | PASS，见[脱敏记录](https://github.com/zewbby/SpeechFUL-Develop/blob/e26d45375d6526bed72d00fd5fe42c26cc6d60ec/docs/design/validation/development-runtime-resume-20261030.json) |
 | 独立审查 | 新规则整合前按原AGENTS安排的只读agent review，源码摘要与安装相同 | 无阻断；不是GitHub成员批准。未由审查agent复跑私有环境 |
 | 附加手机 | 当前主体无可启动activity | NOT_RUN，不重装/重登代证；原PR89隔夜结果保持原范围 |
 
 ## 阻碍与下一步
 
-PR #91已按用户授权Squash合入main `3bd8299c05c1143a9885ac61c67b42200df72d82`，与最终head `004fc1b0cb1253a9e1a4ffde1fbaebf3e9eed553` 完整树一致。专用恢复器CI（run40988578295）与协作CI（run40988602086）均PASS；同head被替代的协作run已取消，不计失败。已测源码/安装摘要不变。整合efef91f后本页为唯一任务状态来源；[早期分支记录](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-development-runtime-resume.md)和旧HANDOFF等保留为此前规则阶段快照，后续不再并行维护。生产/iOS/再次真实隔夜窗口未追加验收。
+PR #91已按用户授权Squash合入main `3bd8299c05c1143a9885ac61c67b42200df72d82`，与最终head `004fc1b0cb1253a9e1a4ffde1fbaebf3e9eed553` 完整树一致。专用恢复器CI（run40988578295）与协作CI（run40988602086）均PASS；同head被替代的协作run已取消，不计失败。已测源码/安装摘要不变。整合efef91f后本页为唯一任务状态来源；[早期分支记录](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-development-runtime-resume.md)和旧HANDOFF等保留为此前规则阶段快照，后续不再并行维护。生产/iOS/再次真实隔夜窗口未追加验收。
 
 ## 合并后交接
 

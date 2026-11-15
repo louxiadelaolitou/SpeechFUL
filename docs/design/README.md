@@ -22,7 +22,7 @@
 | 模块 | 设计来源 |
 | --- | --- |
 | 账号与访问 | [账号](modules/accounts.md)、[C/V 隐私架构](auth-privacy-architecture-decision.md)、[注册协议](auth-privacy-registration-protocol.md)、[威胁模型](auth-privacy-threat-model.md) |
-| 身份 | [预设身份](modules/identity.md)、[头像与首次设置](https://github.com/zewbby/SpeechFUL/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/identity-avatar-onboarding.md) |
+| 身份 | [预设身份](modules/identity.md)、[头像与首次设置](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/identity-avatar-onboarding.md) |
 | 导航、分类与标签 | [导航](modules/navigation.md)、[分类与标签](modules/tags.md) |
 | 信息流与榜单 | [信息流接口](feed-backend-contract.md)、[榜单设计来源](modules/popularity.md) |
 | 帖子发布与详情 | [新建帖子](modules/post-composer.md)、[详情](modules/post-detail.md)、[发布事务](community-text-posting-backend-design.md) |
