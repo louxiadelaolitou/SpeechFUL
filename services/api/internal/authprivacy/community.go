@@ -37,6 +37,7 @@ type Community struct {
 	moderationEnabled bool
 	comments          *commentServices
 	directMessages    bool
+	dmDirectoryReads  bool
 	rankings          *rankings.Cache
 }
 

@@ -413,7 +413,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 			}
 		}
 		if c.DirectMessages {
-			community, err = community.WithDirectMessages(ctx)
+			community, err = community.WithDirectMessages(ctx, authprivacy.DirectMessageConfig{PreparedDirectoryReads: c.PreparedDMDirectoryReads})
 			if err != nil {
 				return err
 			}
