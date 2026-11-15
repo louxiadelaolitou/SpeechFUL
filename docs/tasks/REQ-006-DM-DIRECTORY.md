@@ -3,7 +3,7 @@
 - 模式：常规
 - 负责人／状态维护人：当前 Session
 - 执行 Session（指挥模式）：无
-- 分支／Worktree／PR：`perf/dm-directory-reads`，基线 `main@1d829b2`；未创建 PR
+- 分支／Worktree／PR：`perf/dm-directory-reads`，基线 `main@1d829b2`；实现提交 `809b00f`；PR [#4](https://github.com/zewbby/SpeechFUL-Develop/pull/4)（open，未合并）
 - 本轮规则版本（指挥模式）：不适用
 - 授权依据与边界：用户 2026-11-16 指令“按方案A执行，此会话执行06优化”。仅实现需求 06；不开始 03/07；不合并、不部署、不打 tag、不发布、不 force push。迁移号 0043 由本任务占用，03 使用 0044 及以后；0043 必须先合入，goose 只应用高于当前版本的新迁移。
 - 需求确认：需求 06（私信会话目录查询优化，用户提供文档）。保留会话 ID 游标分页、100 条上限、置顶/备注/静音、隐藏/删除消息边界、撤回、acknowledged/read 语义、来源帖与双向拉黑规则；新增 `(low_identity, conversation_id)`、`(high_identity, conversation_id)` 索引；候选页只做索引分支 `UNION ALL`，选中页再批量关联；未读与 acknowledged-unread 一次条件聚合；接入既有 P0 两阶段读取并在最终 C Gate 事务内重验，变化时有界重算一次。
@@ -56,7 +56,7 @@
 
 | 项目 | 被测版本／环境 | 结果与证据 |
 | --- | --- | --- |
-| 实现 | 工作区 `perf/dm-directory-reads`（基线 `main@1d829b2` + 未提交改动） | 完成：0043 双游标索引；`DirectMessageConfig.PreparedDirectoryReads`/`preparedDmDirectoryReads` 开关；候选 `UNION ALL`、选中页批量投影、版本证明与区间复查；`preparedDmDirectoryReads` 运行时配置与启动 schema 校验 |
+| 实现 | 工作区 `perf/dm-directory-reads`，提交 `809b00f`（基线 `main@1d829b2`） | 完成：0043 双游标索引；`DirectMessageConfig.PreparedDirectoryReads`/`preparedDmDirectoryReads` 开关；候选 `UNION ALL`、选中页批量投影、版本证明与区间复查；`preparedDmDirectoryReads` 运行时配置与启动 schema 校验 |
 | 静态检查 | WSL Ubuntu 24.04，Go 1.22.2 | PASS：改动文件 `gofmt`、`go build ./...`、`go vet ./...` |
 | 等价性与安全 | PostgreSQL 16 私有 socket P2 lab，`-race` | PASS：`TestDMChatDirectoryPreparedEquivalencePostgres`（首屏与续页的旧/新 JSON 逐字节一致）；`TestDMChatDirectoryPreparedRebuildPostgres` 六个子项（新消息、区间内新会话、身份注销、账号拉黑、DM 拉黑、会话撤销）均返回最终快照或鉴权错误 |
 | 分页边界 | 同上 | PASS：`TestDMChatDirectoryPreparedPageLimitPostgres` 在夹具 3 条会话外新增 400 条会话（低/高两侧各 200），两分支各自超过一页；依次返回 100/100/100/100/3/0 条，ID 顺序与 conversation_id 游标续页正确，前四页旧/新 JSON 逐字节一致 |
@@ -93,4 +93,4 @@ sh services/api/authlab/run-dm-chat-isolated.sh
 - 无实现阻塞。1M p95 已在合成 lab 达标并保留完整计划/分位数，但仍是单客户端、首页、预热缓存证据，不等同生产验收；上线前应在生产规模快照或专用压测库复测（含更深游标页与冷缓存）。
 - 0043 必须先于 03 的 0044+ 合入。`TestMigrationVersionsAreUnique` 只能阻止版本号碰撞，不能改变 goose 只应用更高版本的顺序约束，合并顺序仍需人工协调。
 - 0043 Down 按仓库策略保持 forward-only；放弃优化时先关闭 `preparedDmDirectoryReads`，再执行运维回退脚本，恢复用 `_reapply.sql`。
-- 当前工作区存在其他 Session 的未跟踪/未暂存改动，本任务未提交、未推送、未创建 PR。
+- 当前工作区存在其他 Session 的未跟踪目录（`.agents/skills/minimal-change/`、`.zcode/`），未被本任务提交。本任务实现提交 `809b00f` 已推送并创建 PR #4；合并、发布仍待授权。
