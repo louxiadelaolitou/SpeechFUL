@@ -189,15 +189,17 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    for (final key in [
-      'devices',
-      'logout',
-      'closure',
-      'identity',
-      'blacklist',
-    ]) {
+    for (final key in ['devices', 'closure', 'identity', 'blacklist']) {
       await _open(tester, key);
     }
+    await _open(tester, 'logout');
+    expect(logout, 0);
+    expect(
+      find.byKey(const ValueKey('settings-logout-confirmation')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));
+    await tester.pumpAndSettle();
     expect([devices, logout, closure, identities, blacklist], [1, 1, 1, 1, 1]);
     expect(find.byKey(const ValueKey('settings-account')), findsNothing);
     expect(find.text('账号与安全'), findsNothing);

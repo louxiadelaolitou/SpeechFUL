@@ -83,6 +83,9 @@ void main() {
         await tester.tap(find.byKey(ValueKey('settings-$key')));
         await tester.pumpAndSettle();
       }
+      expect(logout, 0);
+      await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));
+      await tester.pumpAndSettle();
       expect(identity, 1);
       expect(security, 1);
       expect(logout, 1);

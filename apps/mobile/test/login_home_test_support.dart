@@ -16,6 +16,12 @@ const _channel = '00000000-0000-0000-0000-000000000001';
 
 class _Sessions extends IdentityTestSessionApi {
   int logins = 0;
+  AuthFailure? revocationFailure;
+  @override
+  Future<void> revokeSession(String secret) async {
+    if (revocationFailure != null) throw revocationFailure!;
+  }
+
   @override
   Future<AuthSession> login({
     required String username,
@@ -123,7 +129,8 @@ class HomeTestPostsApi extends feed.FeedTestApi
 class HomeTestFixture {
   HomeTestFixture({HomeTestPostsApi? api})
     : postApi = api ?? HomeTestPostsApi();
-  final store = AuthStore(IdentityTestVault());
+  final vault = IdentityTestVault();
+  late final store = AuthStore(vault);
   final sessionApi = _Sessions();
   final channels = _Channels();
   late final directory = ChannelDirectoryController(repository: channels);
@@ -229,13 +236,17 @@ class HomeTestFixture {
     expect(find.text('账号与安全'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('settings-logout')));
     await tester.pumpAndSettle();
-    // Logout must leave the auth route on its login form, not pop it as if a
-    // fresh login had happened. B is not entered until this assertion passes.
-    expect(find.byType(AuthScreen), findsOneWidget);
+    expect(sessions.isAuthenticated, isTrue);
+    await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AuthWelcomeScreen), findsOneWidget);
+    expect(find.byType(AuthScreen), findsNothing);
     expect(find.text('账号已登录'), findsNothing);
     expect(sessions.isAuthenticated, isFalse);
     sessionApi.account = account;
     identitiesApi.items = [identityTestItem(name: name)];
+    await tester.tap(find.byKey(const ValueKey('auth-start')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), 'device_b');
     await tester.enterText(
       find.byType(TextFormField).at(1),
@@ -250,7 +261,10 @@ class HomeTestFixture {
     }
     expect(sessions.isAuthenticated, isTrue);
     expect(store.current!.session!.accountId, account);
-    expect(find.byType(AuthScreen), findsNothing);
+    expect(
+      find.byType(AuthScreen),
+      directoryPending ? findsOneWidget : findsNothing,
+    );
     expect(find.byType(SettingsScreen), findsNothing);
     expect(find.byType(PersonalPostsScreen), findsNothing);
     if (directoryPending) return;

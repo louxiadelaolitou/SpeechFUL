@@ -291,7 +291,16 @@ void main() {
         '123456',
       );
       await tester.tap(find.byKey(const ValueKey('login-submit')));
-      await tester.pumpAndSettle();
+      // This harness records the login callback without leaving AuthScreen.
+      // The app keeps a progress indicator active until its home route opens.
+      for (
+        var attempt = 0;
+        attempt < 20 && !screen.sessions.isAuthenticated;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pump();
       expect(screen.sessions.isAuthenticated, isTrue);
       expect(screen.entered, 1);
       expect(h.store.current!.registration, isNull);

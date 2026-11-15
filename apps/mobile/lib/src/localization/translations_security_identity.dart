@@ -306,6 +306,7 @@ const securityIdentityTranslations = <String, UiTranslation>{
   ),
   '重试原操作': ('重試原操作', 'Retry original operation', '元の操作を再試行'),
   '退出登录': ('登出', 'Sign out', 'ログアウト'),
+  '确定退出登录吗？': ('確定登出嗎？', 'Are you sure you want to sign out?', 'ログアウトしますか？'),
   '删除身份': ('刪除身分', 'Delete identity', '公開プロフィールを削除'),
   '旧帖子和评论仍保留，头像与昵称会改为删除占位，无法再用此身份发言。曾绑定此身份的帖子中，也不能换其他身份继续发言。': (
     '舊貼文和留言仍保留，頭像與暱稱會改為刪除佔位，無法再用此身分發言。曾綁定此身分的貼文中，也不能換其他身分繼續發言。',

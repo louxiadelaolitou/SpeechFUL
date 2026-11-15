@@ -207,13 +207,9 @@ void main() {
     f.channels.wait = Completer();
     await f.loginB(tester, directoryPending: true);
     expect(find.byType(FeedScreen), findsNothing);
-    expect(find.byType(AuthWelcomeScreen), findsOneWidget);
-    expect(
-      tester
-          .widget<AuthWelcomeScreen>(find.byType(AuthWelcomeScreen))
-          .showControls,
-      isFalse,
-    );
+    expect(find.byType(AuthScreen), findsOneWidget);
+    expect(find.byType(AuthWelcomeScreen), findsNothing);
+    expect(find.text('账号已登录'), findsNothing);
     f.channels.wait!.complete(
       await IdentityTestChannels().loadChannels(
         sessionToken: identityTestOtherToken,

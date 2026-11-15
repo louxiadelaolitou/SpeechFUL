@@ -13,6 +13,7 @@ class EntryScreen extends StatefulWidget {
     required this.directory,
     required this.onLoginRequested,
     this.restoringSession = false,
+    this.showFailureDialog = true,
     this.onMessagesPressed,
     this.messagesUnread = false,
   });
@@ -20,6 +21,7 @@ class EntryScreen extends StatefulWidget {
   final ChannelDirectoryController directory;
   final VoidCallback onLoginRequested;
   final bool restoringSession;
+  final bool showFailureDialog;
   final VoidCallback? onMessagesPressed;
   final bool messagesUnread;
 
@@ -58,6 +60,7 @@ class _EntryScreenState extends State<EntryScreen> {
   void _changed() {
     if (!mounted) return;
     final failed =
+        widget.showFailureDialog &&
         !widget.restoringSession &&
         widget.directory.status == ChannelDirectoryStatus.failure;
     if (!failed && !_retrying) _shown = false;
@@ -66,6 +69,7 @@ class _EntryScreenState extends State<EntryScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         _queued = false;
         if (!mounted ||
+            !widget.showFailureDialog ||
             widget.restoringSession ||
             widget.directory.status != ChannelDirectoryStatus.failure ||
             _shown ||

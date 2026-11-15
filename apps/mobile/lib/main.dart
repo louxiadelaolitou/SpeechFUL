@@ -489,6 +489,33 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
   }
 
   bool _authRouteOpen = false;
+  bool _authCompletionPending = false, _authCompletionScheduled = false;
+  void _scheduleAuthCompletion() {
+    if (!_authCompletionPending || _authCompletionScheduled || !mounted) return;
+    _authCompletionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _authCompletionScheduled = false;
+      if (!mounted || !_authCompletionPending) return;
+      final sessions = widget.sessions;
+      if (!sessions.isAuthenticated) {
+        _authCompletionPending = false;
+        return;
+      }
+      final ready =
+          widget.posts.available &&
+          widget.directory.status == ChannelDirectoryStatus.ready;
+      final failed =
+          !sessions.busy &&
+          widget.directory.status == ChannelDirectoryStatus.failure;
+      if (!ready && !failed) return;
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) return;
+      _authCompletionPending = false;
+      navigator.popUntil((route) => route.isFirst);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   bool _securityRouteOpen = false;
   bool _devicesRouteOpen = false, _closureRouteOpen = false;
   bool _identityRouteOpen = false;
@@ -712,6 +739,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     if (widget.presentation == null) unawaited(_authPresentation.load());
     WidgetsBinding.instance.addObserver(this);
     _postRouteChanges = Listenable.merge([_postWindow, widget.directory]);
+    _postRouteChanges.addListener(_scheduleAuthCompletion);
     widget.posts.addListener(_postWindowChanged);
     _postWindowChanged();
     widget.sessions.addListener(_sessionRouteChanged);
@@ -735,6 +763,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
 
   void _postWindowChanged() {
     _schedulePostLink();
+    _scheduleAuthCompletion();
     final posts = widget.posts;
     final account = posts.accountId;
     if (posts.available && account != null && posts.timelineLoading) {
@@ -746,15 +775,18 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
   }
 
   final _sessionRouteWindow = ValueNotifier((AuthStatus.starting, 0, false));
-  bool _logoutLoginPending = false, _logoutLoginScheduled = false;
+  bool _logoutRoutePending = false, _logoutRouteScheduled = false;
+  bool _suppressAutomaticAuthAfterLogout = false;
   void _sessionRouteChanged() {
     final sessions = widget.sessions;
     if (_lastLogoutVersion != sessions.logoutVersion) {
       _lastLogoutVersion = sessions.logoutVersion;
       _postLinks.clear();
       _promptedPostLink = null;
-      _logoutLoginPending = true;
+      _logoutRoutePending = true;
+      _suppressAutomaticAuthAfterLogout = true;
     }
+    if (sessions.isAuthenticated) _suppressAutomaticAuthAfterLogout = false;
     _schedulePostLink();
     // Expiry persistence still notifies its consumers, but renewing the same
     // session must not rebuild every retained tab behind the active detail.
@@ -763,28 +795,31 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       sessions.authorityVersion,
       sessions.isAuthenticated,
     );
-    if (_logoutLoginPending &&
+    _scheduleAuthCompletion();
+    if (_logoutRoutePending &&
         !sessions.busy &&
         !sessions.isAuthenticated &&
-        !_logoutLoginScheduled) {
-      _logoutLoginScheduled = true;
+        !_logoutRouteScheduled) {
+      _logoutRouteScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _logoutLoginScheduled = false;
+        _logoutRouteScheduled = false;
         if (!mounted ||
-            !_logoutLoginPending ||
+            !_logoutRoutePending ||
             widget.sessions.busy ||
             widget.sessions.isAuthenticated) {
           return;
         }
-        _logoutLoginPending = false;
-        if (_authRouteOpen) return;
+        _logoutRoutePending = false;
+        final storageFailure =
+            widget.sessions.status == AuthStatus.storageFailure;
+        if (storageFailure && _authRouteOpen) return;
         final navigator = _navigatorKey.currentState;
         if (navigator == null) {
-          _logoutLoginPending = true;
+          _logoutRoutePending = true;
           return;
         }
         navigator.popUntil((route) => route.isFirst);
-        _openAuth();
+        if (storageFailure) _openAuth(allowAfterLogout: true);
       });
     }
   }
@@ -814,9 +849,13 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     }
   }
 
-  void _openAuth() {
+  void _openAuth({bool allowAfterLogout = false}) {
     final navigator = _navigatorKey.currentState;
-    if (navigator == null || _authRouteOpen) return;
+    if (navigator == null ||
+        _authRouteOpen ||
+        _suppressAutomaticAuthAfterLogout && !allowAfterLogout) {
+      return;
+    }
     _authRouteOpen = true;
     navigator
         .push(
@@ -827,13 +866,16 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
               onModerationAccess: widget.governance?.restrictedAccess == null
                   ? null
                   : () => unawaited(_openMessages()),
-              onAuthenticated: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
+              onAuthenticated: () {
+                _authCompletionPending = true;
+                _scheduleAuthCompletion();
+              },
               onManageSecurity: _openSecurity,
             ),
           ),
         )
         .whenComplete(() {
+          _authCompletionPending = false;
           _authRouteOpen = false;
           if (mounted) _schedulePostLink();
         });
@@ -1046,6 +1088,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     widget.comments?.dispose();
     widget.posts.removeListener(_postWindowChanged);
+    _postRouteChanges.removeListener(_scheduleAuthCompletion);
     _postWindow.dispose();
     widget.management.dispose();
     widget.identities.dispose();
@@ -1174,10 +1217,13 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
             }
             return EntryScreen(
               directory: widget.directory,
+              showFailureDialog:
+                  !_logoutRoutePending &&
+                  widget.sessions.status != AuthStatus.signedOut,
               restoringSession:
                   widget.sessions.status == AuthStatus.starting ||
                   widget.sessions.status == AuthStatus.restoring,
-              onLoginRequested: _openAuth,
+              onLoginRequested: () => _openAuth(allowAfterLogout: true),
               onMessagesPressed: widget.governance == null
                   ? null
                   : _openMessages,

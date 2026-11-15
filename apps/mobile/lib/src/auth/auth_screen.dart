@@ -63,7 +63,11 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _lastSessionError;
   bool _errorDialogOpen = false;
 
-  bool get _busy => widget.sessions.busy || widget.flows.busy;
+  bool get _awaitingHome =>
+      widget.onAuthenticated != null &&
+      widget.sessions.isAuthenticated &&
+      !_registrationFinishing;
+  bool get _busy => widget.sessions.busy || widget.flows.busy || _awaitingHome;
 
   @override
   void initState() {
@@ -166,14 +170,18 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     if (authenticated && !_authenticated) {
       _visiblePasswords.clear();
-      _loginEmail.clear();
-      _loginOtp.clear();
-      _password.clear();
-      _newPassword.clear();
-      _recoveryCode.clear();
-      _confirmation.clear();
-      _otp.clear();
-      _email.clear();
+      if (_awaitingHome) {
+        FocusManager.instance.primaryFocus?.unfocus();
+      } else {
+        _loginEmail.clear();
+        _loginOtp.clear();
+        _password.clear();
+        _newPassword.clear();
+        _recoveryCode.clear();
+        _confirmation.clear();
+        _otp.clear();
+        _email.clear();
+      }
       if (!_registrationFinishing &&
           (ModalRoute.of(context)?.isCurrent ?? false)) {
         widget.onAuthenticated?.call();
@@ -371,7 +379,9 @@ class _AuthScreenState extends State<AuthScreen> {
       appBar: AppBar(
         toolbarHeight: 64,
         title:
-            sessionStatus == AuthStatus.authenticated && !_registrationFinishing
+            sessionStatus == AuthStatus.authenticated &&
+                !_registrationFinishing &&
+                !_awaitingHome
             ? Text(_text('账号与安全'))
             : null,
         leading: IconButton(
@@ -449,6 +459,7 @@ class _AuthScreenState extends State<AuthScreen> {
       ];
     }
     if (session == AuthStatus.authenticated) {
+      if (_awaitingHome) return _login();
       return _registrationFinishing ? _registrationComplete() : _account();
     }
     if (_isClosureStatus(flow) &&
@@ -775,6 +786,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ),
+      if (_awaitingHome) const LinearProgressIndicator(),
     ];
     return [
       ConstrainedBox(

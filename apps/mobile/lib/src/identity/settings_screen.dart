@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hnuhole_image_viewer/image_viewer.dart';
@@ -43,6 +45,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
     entry.open();
     WidgetsBinding.instance.addPostFrameCallback((_) => _opening = false);
+  }
+
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const ValueKey('settings-logout-confirmation'),
+        title: Text(hhText(dialogContext, '退出登录')),
+        content: Text(hhText(dialogContext, '确定退出登录吗？')),
+        actions: [
+          TextButton(
+            key: const ValueKey('settings-logout-cancel'),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(hhText(dialogContext, '取消')),
+          ),
+          FilledButton(
+            key: const ValueKey('settings-logout-confirm'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(hhText(dialogContext, '确定')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) widget.onLogout?.call();
   }
 
   @override
@@ -105,7 +131,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         widget.onManageIdentity,
       ),
       if (widget.onLogout != null)
-        _SettingEntry('logout', Icons.logout_rounded, '退出登录', widget.onLogout!),
+        _SettingEntry(
+          'logout',
+          Icons.logout_rounded,
+          '退出登录',
+          () => unawaited(_confirmLogout()),
+        ),
       if (widget.onLogout == null && widget.onManageAccount != null)
         _SettingEntry(
           'account',

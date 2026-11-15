@@ -179,7 +179,8 @@ class Lab:
             self.run(['go', 'build', '-mod=readonly', '-o', self.root / 'bin' / name, './cmd/' + name], 'build-' + name)
         archive = self.root / 'rollback.tar'
         with archive.open('wb') as stream:
-            subprocess.run(['git', '-C', self.source, 'archive', rollback_ref], stdout=stream, check=True)
+            subprocess.run(['git', '-C', self.source, 'archive', rollback_ref,
+                            'services/api'], stdout=stream, check=True)
         with tarfile.open(archive) as tar:
             members = [m for m in tar.getmembers() if m.name.startswith('services/api/')]
             for member in members:
