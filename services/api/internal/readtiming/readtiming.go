@@ -48,6 +48,12 @@ func Phase(ctx context.Context, phase string) context.Context {
 
 func noop() {}
 
+// Enabled reports whether the caller requested optional observations.
+func Enabled(ctx context.Context) bool {
+	_, ok := ctx.Value(traceKey{}).(*Trace)
+	return ok
+}
+
 // Span names and phases are fixed internal labels, never request values.
 func Span(ctx context.Context, name string) func() {
 	t, ok := ctx.Value(traceKey{}).(*Trace)

@@ -1,8 +1,9 @@
-if r.op=='load' then
+if r.op=='load' or r.op=='validate' then
   local data=redis.call('GET',KEYS[2])
   if not data then return {'INVALID'} end
   local ttl=redis.call('PTTL',KEYS[2])
   if #data>r.maxPayload or ttl<1 or ttl>1800000+r.clockSkew then bad() end
+  if r.op=='validate' then return {'PROOF',redis.sha1hex(data),tostring(now),tostring(#data)} end
   return {'DATA',data,tostring(now)}
 end
 local l,stats=readLedger()

@@ -135,6 +135,8 @@ func TestPostSchemaModerationAccountClosureWithoutFeaturePostgres(t *testing.T) 
 
 func TestPostSchemaPreModerationNeedsNoCleanupGrantPostgres(t *testing.T) {
 	l := newLab(t)
+	// Remove 0040's complete fixture increment before its tracked columns.
+	removePreparedReadFixture(t, l)
 	// The later tag projection also references moderation visibility. Remove
 	// that complete feature when constructing the historical pre-0015 shape.
 	mustExec(t, l.cp, `DROP TRIGGER advance_search_content_revision ON c_posts.posts;

@@ -14,9 +14,15 @@ import (
 )
 
 func TestCommentTextHTTPSPostgres(t *testing.T) {
+	for name, prepared := range map[string]bool{"original": false, "prepared": true} {
+		t.Run(name, func(t *testing.T) { testCommentTextHTTPSPostgres(t, prepared) })
+	}
+}
+
+func testCommentTextHTTPSPostgres(t *testing.T, prepared bool) {
 	ctx := context.Background()
 	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
-		result, e := c.WithComments(ctx, authprivacy.CommentConfig{KeyKey: e2eKey(t), FingerprintKey: e2eKey(t)})
+		result, e := c.WithComments(ctx, authprivacy.CommentConfig{KeyKey: e2eKey(t), FingerprintKey: e2eKey(t), PreparedReads: prepared})
 		if e != nil {
 			t.Fatal(e)
 		}

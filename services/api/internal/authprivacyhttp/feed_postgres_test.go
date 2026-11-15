@@ -4,11 +4,23 @@ import (
 	"context"
 	"testing"
 
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
 func TestRealHTTPSFeedViewsPreferencesAndCompatibilityPostgres(t *testing.T) {
-	s := e2eNewServices(t)
+	for _, mode := range []string{"original", "prepared"} {
+		t.Run(mode, func(t *testing.T) { testRealHTTPSFeedViewsPreferencesAndCompatibility(t, mode == "prepared") })
+	}
+}
+
+func testRealHTTPSFeedViewsPreferencesAndCompatibility(t *testing.T, prepared bool) {
+	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
+		if prepared {
+			return preparedFeedHTTP(t, c)
+		}
+		return c
+	})
 	owner, _ := e2ePrivacySignup(t, s, "feed_https_owner")
 	reader, _ := e2ePrivacySignup(t, s, "feed_https_reader")
 	channel := postHTTPSChannel(t, s, owner)

@@ -18,6 +18,16 @@ import (
 )
 
 func TestCommentBusinessHTTPSPostgres(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "legacy"
+		if prepared {
+			name = "prepared_media"
+		}
+		t.Run(name, func(t *testing.T) { testCommentBusinessHTTPS(t, prepared) })
+	}
+}
+
+func testCommentBusinessHTTPS(t *testing.T, prepared bool) {
 	ctx := context.Background()
 	python := os.Getenv("POST_MEDIA_PYTHON")
 	if python == "" {
@@ -52,6 +62,9 @@ func TestCommentBusinessHTTPSPostgres(t *testing.T) {
 		}
 		return c
 	})
+	if prepared {
+		enablePreparedMediaHTTP(t, s)
+	}
 	token, account := e2ePrivacySignup(t, s, "cb_http")
 	reader, _ := e2ePrivacySignup(t, s, "cb_http_other")
 	identity := postHTTPSIdentity(t, s, token, "真实评论", 0x81)
@@ -108,7 +121,8 @@ func TestCommentBusinessHTTPSPostgres(t *testing.T) {
 	}
 	original, _ := io.ReadAll(res.Body)
 	res.Body.Close()
-	if res.StatusCode != 200 || !bytes.Equal(original, data) || res.Header.Get("Access-Valid-Until") == "" {
+	if res.StatusCode != 200 || !bytes.Equal(original, data) || res.Header.Get("Access-Valid-Until") == "" ||
+		res.Header.Get("Cache-Control") != "no-store" || res.Header.Get("ETag") != "" || res.Header.Get("Content-Type") != meta.MIME {
 		t.Fatal("protected original")
 	}
 	key := httpTestEncoding(16, 0x84)

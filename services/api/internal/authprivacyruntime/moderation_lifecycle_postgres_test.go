@@ -16,6 +16,10 @@ import (
 // This suite uses the same explicitly disposable, private-socket C database as
 // the other SQL suites. Run packages serially; never reset a shared/live schema.
 func moderationStartupLab(t *testing.T) (*pgxpool.Pool, *pgxpool.Pool) {
+	return moderationStartupLabThrough(t, 0)
+}
+
+func moderationStartupLabThrough(t *testing.T, ceiling int64) (*pgxpool.Pool, *pgxpool.Pool) {
 	t.Helper()
 	ownerDSN, runtimeDSN := os.Getenv("AUTHLAB_C_DSN"), os.Getenv("AUTHLAB_POSTS_RUNTIME_DSN")
 	if ownerDSN == "" && runtimeDSN == "" {
@@ -67,7 +71,17 @@ DROP FUNCTION IF EXISTS public.guard_identity_account_state(),public.guard_commu
 	if err != nil {
 		t.Fatal("invalid formal migration version", err)
 	}
+	if ceiling > 0 && ceiling < version {
+		version = ceiling
+	}
 	for _, file := range files {
+		fileVersion, err := strconv.ParseInt(strings.SplitN(filepath.Base(file), "_", 2)[0], 10, 64)
+		if err != nil {
+			t.Fatal("invalid formal migration version", err)
+		}
+		if fileVersion > version {
+			break
+		}
 		sql, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
@@ -161,8 +175,17 @@ func TestModerationLifecycleCommonCStartupWithoutFeaturesPostgres(t *testing.T) 
 	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil {
 		t.Fatal("common C startup accepted partially removed 0018")
 	}
-	// Remove later tags and edits before modeling a pre-moderation database.
-	exec(t, `DROP TRIGGER advance_search_content_revision ON c_posts.posts;
+	// Remove later prepared-read, tags and edit dependencies in this owned fixture.
+	exec(t, `DROP TRIGGER prepared_feed_channel ON public.channels;
+DROP TRIGGER prepared_feed_post ON c_posts.posts;
+DROP TRIGGER prepared_feed_content ON c_posts.attempt_contents;
+DROP TRIGGER prepared_feed_image ON c_posts.images;
+DROP TRIGGER prepared_feed_edit_media ON c_posts.post_edit_media;
+DROP FUNCTION c_posts.advance_feed_read_versions();
+DROP TABLE c_posts.read_feed_scope_versions,c_posts.read_feed_post_versions;
+DROP TRIGGER prepared_read_post ON c_posts.posts;
+DROP TRIGGER prepared_read_task ON c_comments.tasks;
+DROP TRIGGER advance_search_content_revision ON c_posts.posts;
 DROP FUNCTION c_posts.advance_search_content_revision();
 DROP TABLE c_posts.search_content_revision;
 DROP TRIGGER post_tag_terms_sync ON c_posts.posts;

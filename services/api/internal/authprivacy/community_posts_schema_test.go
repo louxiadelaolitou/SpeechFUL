@@ -109,6 +109,8 @@ func TestPostSchemaLegacyBackfillAndStableLabelsPostgres(t *testing.T) {
 	l := newLab(t)
 	f := insertPostSchemaFixture(t, l, "posts_schema_label")
 	// 仅重建本 fixture 私有 schema，保留历史身份来证明升级回填。
+	// The later cross-schema identity trigger must leave with its 0040 tables.
+	removePreparedReadFixture(t, l)
 	mustExec(t, l.cp, `DROP SCHEMA c_posts CASCADE`)
 	source, err := os.ReadFile("../../migrations/0013_community_text_posts.sql")
 	if err != nil {
@@ -311,6 +313,8 @@ func TestPostSchemaPartyInventoryAndPrivateColumnsPostgres(t *testing.T) {
 	expected = append(expected, "post_edit_receipts", "post_edit_media", "post_tag_terms", "blocked_authors")
 	expected = append(expected, "search_content_revision")
 	expected = append(expected, "ranking_inputs", "ranking_snapshots", "ranking_posts", "ranking_channel_data", "hot_snapshots", "hot_shard_data", "hot_snapshot_shards", "hot_blocks")
+	expected = append(expected, "read_identity_versions", "read_account_versions")
+	expected = append(expected, "read_feed_scope_versions", "read_feed_post_versions")
 	rows, err := l.cp.Query(ctx, `SELECT c.relname,c.relkind::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='c_posts' AND c.relkind IN ('r','p','v','m','f') ORDER BY c.relname`)
 	if err != nil {
 		t.Fatal(err)
@@ -337,7 +341,10 @@ func TestPostSchemaPartyInventoryAndPrivateColumnsPostgres(t *testing.T) {
 	if count(t, l.cp, `SELECT count(*) FROM information_schema.columns WHERE table_schema IN ('c_posts','c_auth','public') AND (column_name ILIKE '%email%' OR column_name ILIKE '%otp%' OR column_name ILIKE '%mail%')`) != 0 {
 		t.Fatal("community acquired verifier email/OTP/mail storage")
 	}
-	if count(t, l.cp, `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='c_posts' AND p.prosecdef`) != 0 || count(t, l.cp, `SELECT count(*) FROM pg_foreign_server`) != 0 {
+	if err := l.c.checkPreparedFeedReadSchema(ctx); err != nil {
+		t.Fatal("private feed-version trigger integrity changed", err)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='c_posts' AND p.prosecdef AND p.oid<>to_regprocedure('c_posts.advance_feed_read_versions()')`) != 0 || count(t, l.cp, `SELECT count(*) FROM pg_foreign_server`) != 0 {
 		t.Fatal("posts acquired a privileged function or foreign-party bridge")
 	}
 	if count(t, l.vp, `SELECT count(*) FROM pg_namespace WHERE nspname='c_posts'`) != 0 {

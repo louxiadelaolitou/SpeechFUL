@@ -95,6 +95,9 @@ func (g *PostgresAuthorizationGate) readGateRow(ctx context.Context, tx pgx.Tx) 
 	var r gateRow
 	err := tx.QueryRow(ctx, `SELECT gate_state,authorization_generation,trusted_high_watermark,evidence_version
 		FROM `+g.schema+`.authorization_gate WHERE singleton_id=1 FOR UPDATE`).Scan(&r.state, &r.generation, &r.highwater, &r.version)
+	if err == nil {
+		observeGateRowAcquired(ctx, tx)
+	}
 	return r, err
 }
 

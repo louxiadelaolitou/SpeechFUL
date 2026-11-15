@@ -283,6 +283,9 @@ func (c *Community) UploadCommentImage(ctx context.Context, b [32]byte, task str
 }
 
 func (c *Community) ReadCommentImage(ctx context.Context, b [32]byte, post, comment, content string) (PostResponse, error) {
+	if c.CommentsEnabled() && c.PostsEnabled() && c.posts.preparedMediaReads && c.nativePreparedReads() {
+		return c.readCommentMediaPrepared(ctx, b, post, comment, content)
+	}
 	return c.withCommentSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
 		var visible bool
 		e := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, post, a).Scan(&visible)

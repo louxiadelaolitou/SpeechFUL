@@ -41,6 +41,8 @@ type PostsConfig struct {
 	CommandKeyFile     string `json:"commandKeyFile"`
 	FingerprintKeyFile string `json:"fingerprintKeyFile"`
 	CursorKeyFile      string `json:"cursorKeyFile"`
+	PreparedFeedReads  bool   `json:"preparedFeedReads,omitempty"`
+	PreparedMediaReads bool   `json:"preparedMediaReads,omitempty"`
 }
 
 type CommentsConfig struct {
@@ -48,6 +50,7 @@ type CommentsConfig struct {
 	FingerprintKeyFile string                  `json:"fingerprintKeyFile"`
 	Snapshots          *commentsnapshot.Config `json:"snapshots,omitempty"`
 	ObserveReadTimings bool                    `json:"observeReadTimings,omitempty"`
+	PreparedReads      bool                    `json:"preparedReads,omitempty"`
 }
 
 var errCommentSnapshotConfiguration = errors.New("invalid comment snapshot configuration")

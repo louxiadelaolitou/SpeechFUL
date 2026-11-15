@@ -15,6 +15,12 @@ import (
 )
 
 func TestRealHTTPSFeedRankingsPostgres(t *testing.T) {
+	for _, mode := range []string{"original", "prepared"} {
+		t.Run(mode, func(t *testing.T) { testRealHTTPSFeedRankings(t, mode == "prepared") })
+	}
+}
+
+func testRealHTTPSFeedRankings(t *testing.T, prepared bool) {
 	socket := os.Getenv("RANKING_REDIS_SOCKET")
 	if socket == "" {
 		t.Skip("dedicated rankings Redis fixture not requested")
@@ -23,6 +29,9 @@ func TestRealHTTPSFeedRankingsPostgres(t *testing.T) {
 	t.Cleanup(func() { _ = cache.Close() })
 	ctx := context.Background()
 	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
+		if prepared {
+			c = preparedFeedHTTP(t, c)
+		}
 		c, err := c.WithComments(ctx, authprivacy.CommentConfig{KeyKey: e2eKey(t), FingerprintKey: e2eKey(t)})
 		if err != nil {
 			t.Fatal(err)

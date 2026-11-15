@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/src/posts/feed_api.dart';
+import 'package:hnuhole_mobile/src/posts/post_interactions_api.dart';
 
 import 'feed_interactions_test.dart' as interactions;
 import 'feed_ui_test.dart' as feed;
@@ -57,7 +58,19 @@ class _Store implements PostStore {
 
 class _Api extends interactions.InteractionTestApi {
   Object? preferencesFailure, saveFailure;
+  Object? interactionsFailure;
   bool commandLost = true;
+  @override
+  Future<PostResponse<List<PostInteractions>>> interactions({
+    required String sessionToken,
+    required List<String> postIds,
+  }) async {
+    final failure = interactionsFailure;
+    interactionsFailure = null;
+    if (failure != null) throw failure;
+    return super.interactions(sessionToken: sessionToken, postIds: postIds);
+  }
+
   @override
   Future<PostResponse<FeedPreferences>> feedPreferences({
     required String sessionToken,
@@ -160,6 +173,51 @@ Widget _screen(_Fixture f) => MaterialApp(
 );
 
 void main() {
+  for (final code in ['SERVICE_UNAVAILABLE', 'RANKINGS_UNAVAILABLE']) {
+    test(
+      'pure timeline $code preserves authority and command ownership',
+      () async {
+        final f = await _Fixture.create();
+        addTearDown(f.dispose);
+        await f.controller.loadTimeline();
+        f.seedCommand();
+        await f.controller.reconcile(_entryId);
+        f.api.timelineFailure = PostFailure(
+          kind: PostFailureKind.unavailable,
+          statusCode: 503,
+          code: code,
+        );
+        await f.controller.loadTimeline();
+        expect(f.controller.available, true);
+        expect(f.auth.sessions.status, AuthStatus.authenticated);
+        expect(f.controller.timelineError, isNotNull);
+        expect(f.controller.errorMessage, _uncertain);
+        await f.controller.loadTimeline();
+        expect(f.controller.timelineError, isNull);
+        expect(f.controller.errorMessage, _uncertain);
+      },
+    );
+    for (final stage in ['preferences', 'interactions']) {
+      test('$stage $code still propagates its authority failure', () async {
+        final f = await _Fixture.create();
+        addTearDown(f.dispose);
+        await f.controller.loadTimeline();
+        final failure = PostFailure(
+          kind: PostFailureKind.unavailable,
+          statusCode: 503,
+          code: code,
+        );
+        if (stage == 'preferences') {
+          f.api.preferencesFailure = failure;
+        } else {
+          f.api.interactionsFailure = failure;
+        }
+        await f.controller.loadTimeline();
+        expect(f.controller.available, false);
+        expect(f.auth.sessions.status, AuthStatus.unavailable);
+      });
+    }
+  }
   for (final stage in ['preferences', 'timeline']) {
     testWidgets(
       '$stage failure retries locally without poisoning reopened detail',

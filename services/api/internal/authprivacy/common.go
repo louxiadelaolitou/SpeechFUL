@@ -104,5 +104,5 @@ func begin(ctx context.Context, pool interface {
 		_ = tx.Rollback(ctx)
 		return nil, err
 	}
-	return tx, nil
+	return observeAuthorizationTransaction(ctx, tx), nil
 }

@@ -111,6 +111,9 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 	if query.Limit < 1 || query.Limit > 50 {
 		return PostResponse{}, posts.ErrInvalidIntent
 	}
+	if c.PostsEnabled() && c.posts.preparedFeedReads && c.nativePreparedReads() && (query.Kind == PostFeed || query.Kind == PostChannelFeed) {
+		return c.readPreparedFeed(ctx, bearer, query)
+	}
 	return c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, mute restriction) (any, error) {
 		if query.IdentityID != "" {
 			var owned bool
@@ -345,6 +348,12 @@ func (c *Community) postCursor(ctx context.Context, tx pgx.Tx, account uuid.UUID
 	return p, err
 }
 func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid.UUID, query PostQuery, at time.Time) (any, error) {
+	return c.listPublicPostsCaptured(ctx, tx, account, query, at, nil)
+}
+
+// capture retains the complete bounded candidate page, including lookahead,
+// before public projection can produce a private preparation error.
+func (c *Community) listPublicPostsCaptured(ctx context.Context, tx pgx.Tx, account uuid.UUID, query PostQuery, at time.Time, capture func(posts.CursorPosition, []string)) (any, error) {
 	if query.Kind == PostChannelFeed || query.Kind == PostFeed && query.ID != "" {
 		var exists bool
 		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.channels WHERE id=$1)`, query.ID).Scan(&exists); err != nil {
@@ -357,6 +366,9 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 	position, err := c.postCursor(ctx, tx, account, query, at)
 	if err != nil {
 		return nil, err
+	}
+	if capture != nil {
+		capture(position, nil)
 	}
 	var lastAt any
 	var lastOrdinal any
@@ -410,6 +422,9 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 		err = rows.Err()
 	}
 	rows.Close()
+	if capture != nil {
+		capture(position, ids)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -424,6 +439,7 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 		}
 	}
 	more := len(ids) > query.Limit
+	allIDs := ids
 	if more {
 		ids = ids[:query.Limit]
 	}
@@ -471,6 +487,9 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 		own.Items = append(own.Items, posts.OwnPostCard{Post: card, ServerSortAt: item.PublishedAt})
 		position.LastAt = item.PublishedAt
 		position.LastOrdinal = ordinal
+	}
+	if capture != nil {
+		capture(position, allIDs)
 	}
 	if more {
 		cursor, e := c.posts.cursors.Encode(position)

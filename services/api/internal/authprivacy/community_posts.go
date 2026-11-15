@@ -16,8 +16,9 @@ import (
 
 // PostConfig 的三份用途密钥独立于认证材料；只在启动时装配。
 type PostConfig struct {
-	Environment                       string
-	KeyKey, FingerprintKey, CursorKey [32]byte
+	Environment                           string
+	KeyKey, FingerprintKey, CursorKey     [32]byte
+	PreparedFeedReads, PreparedMediaReads bool
 }
 type postServices struct {
 	commands                   *posts.CommandCodec
@@ -27,6 +28,8 @@ type postServices struct {
 	tagsEnabled                bool
 	typedSearchEnabled         bool
 	hiddenPostsEnabled         bool
+	preparedFeedReads          bool
+	preparedMediaReads         bool
 }
 type PostResponse struct {
 	Value                 any
@@ -59,8 +62,19 @@ func (c *Community) WithPosts(ctx context.Context, config PostConfig) (*Communit
 	if err = c.CheckPostSchema(ctx); err != nil {
 		return nil, err
 	}
+	if config.PreparedFeedReads {
+		if err = c.checkPreparedFeedReadSchema(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if config.PreparedMediaReads {
+		if err = c.checkPreparedMediaReadSchema(ctx); err != nil {
+			return nil, err
+		}
+	}
 	clone := *c
-	clone.posts = &postServices{commands: commands, cursors: cursors}
+	clone.posts = &postServices{commands: commands, cursors: cursors,
+		preparedFeedReads: config.PreparedFeedReads, preparedMediaReads: config.PreparedMediaReads}
 	if err = c.pool.QueryRow(ctx, `SELECT to_regclass('c_posts.hidden_posts') IS NOT NULL`).Scan(&clone.posts.hiddenPostsEnabled); err != nil {
 		return nil, err
 	}

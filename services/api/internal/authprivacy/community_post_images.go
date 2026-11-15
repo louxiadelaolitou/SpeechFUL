@@ -265,6 +265,9 @@ func (c *Community) ReadPostImages(ctx context.Context, bearer [32]byte, post, c
 	if !postmedia.ValidID(post) || (content != "" && !postmedia.ValidID(content)) {
 		return PostResponse{}, postmedia.ErrInvalid
 	}
+	if c.posts.preparedMediaReads && c.nativePreparedReads() {
+		return c.readPostMediaPrepared(ctx, bearer, post, content, false)
+	}
 	response, e := c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 		// Serialize the resource visibility check with deletion. No author
 		// account lock is acquired after the caller's account lock.
@@ -329,8 +332,9 @@ func (c *Community) postImagesReady(ctx context.Context, tx pgx.Tx, task uuid.UU
 	return ready, e
 }
 
-// No additional storage or public URL: the original read repeats the same
-// resource/session/Gate transaction before the bounded, stateless transform.
+// Thumbnails remain bounded stateless transforms without additional storage
+// or a public URL. Prepared reads authorize once after private CPU work;
+// the legacy path retains its original final resource/session/Gate recheck.
 func (c *Community) PostImageThumbnailsEnabled() bool {
 	if !c.PostImagesEnabled() {
 		return false
@@ -342,6 +346,12 @@ func (c *Community) PostImageThumbnailsEnabled() bool {
 func (c *Community) ReadPostThumbnail(ctx context.Context, bearer [32]byte, post, content string) (PostResponse, error) {
 	if !c.PostImageThumbnailsEnabled() {
 		return PostResponse{}, postmedia.ErrUnavailable
+	}
+	if c.posts.preparedMediaReads && c.nativePreparedReads() {
+		if !postmedia.ValidID(post) || (content != "" && !postmedia.ValidID(content)) {
+			return PostResponse{}, postmedia.ErrInvalid
+		}
+		return c.readPostMediaPrepared(ctx, bearer, post, content, true)
 	}
 	response, e := c.ReadPostImages(ctx, bearer, post, content)
 	if e != nil {

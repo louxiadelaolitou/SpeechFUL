@@ -733,12 +733,24 @@ class PostController extends ChangeNotifier {
     Future<PostResponse<T>> Function(PostMediaApi api, String token) read,
   ) async {
     final a = await _authority();
+    var normalReadUnavailable = false;
     try {
       PostProtocol.resourceId(postId);
       if (_deletedPostIds.contains(postId) || _mediaApi == null) {
         throw const PostFailure(kind: PostFailureKind.rejected);
       }
-      final response = await read(_mediaApi, a.token);
+      late final PostResponse<T> response;
+      try {
+        response = await read(_mediaApi, a.token);
+      } on PostFailure catch (error) {
+        // Only this pure remote read can report a normal prepared-read race.
+        // Durable renewal below retains its existing failure handling.
+        normalReadUnavailable =
+            error.kind == PostFailureKind.unavailable &&
+            error.statusCode == 503 &&
+            error.code == 'SERVICE_UNAVAILABLE';
+        rethrow;
+      }
       await _accept(a, response);
       if (!_current(a) || _deletedPostIds.contains(postId)) {
         throw _StalePostAuthority();
@@ -746,6 +758,7 @@ class PostController extends ChangeNotifier {
       return response;
     } catch (error) {
       if (error is PostFailure &&
+          !normalReadUnavailable &&
           (error.kind == PostFailureKind.unauthorized ||
               error.kind == PostFailureKind.unavailable)) {
         _failure(error, a);

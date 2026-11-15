@@ -19,6 +19,16 @@ import (
 )
 
 func TestRealHTTPSPostImagesUploadReadRevocationPostgres(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "legacy"
+		if prepared {
+			name = "prepared"
+		}
+		t.Run(name, func(t *testing.T) { testRealHTTPSPostImagesUploadReadRevocation(t, prepared) })
+	}
+}
+
+func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared bool) {
 	python := os.Getenv("POST_MEDIA_PYTHON")
 	if python == "" {
 		t.Skip("dedicated image validator absent")
@@ -44,6 +54,9 @@ func TestRealHTTPSPostImagesUploadReadRevocationPostgres(t *testing.T) {
 		}
 		return enabled
 	})
+	if prepared {
+		enablePreparedMediaHTTP(t, s)
+	}
 	token, _ := e2ePrivacySignup(t, s, "media_https")
 	reader, _ := e2ePrivacySignup(t, s, "media_http_reader")
 	id := postHTTPSIdentity(t, s, token, "图片作者", 73)
@@ -138,6 +151,19 @@ func TestRealHTTPSPostImagesUploadReadRevocationPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	postHTTPSJSON(t, s, "GET", "/api/v1/posts/"+post+"/images", reader, "", nil, 503)
+}
+
+func enablePreparedMediaHTTP(t *testing.T, s *e2eServices) {
+	t.Helper()
+	config := s.postConfig
+	config.PreparedMediaReads = true
+	enabled, err := s.c.WithPosts(context.Background(), config)
+	if err != nil {
+		t.Fatal("real prepared-media startup checks failed", err)
+	}
+	// Endpoints retain this pointer. Configure its formal opt-in before the
+	// first request, rather than bypassing schema checks in a fixture.
+	*s.c = *enabled
 }
 
 type postThumbnailGateProbe struct {

@@ -1,0 +1,85 @@
+name: Read critical section final
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/read-critical-section.yml'
+      - 'tools/read-critical-section/**'
+      - 'services/api/authlab/run-read-critical-section-isolated.sh'
+      - 'services/api/internal/readtiming/**'
+      - 'services/api/internal/authprivacy/authorization_gate.go'
+      - 'services/api/internal/authprivacy/common.go'
+      - 'services/api/internal/authprivacy/read_timing*.go'
+      - 'services/api/internal/authprivacy/community_prepared_reads*.go'
+      - 'services/api/internal/authprivacy/community_comments_prepared*.go'
+      - 'services/api/internal/authprivacy/community_read_baseline_postgres_test.go'
+      - 'services/api/migrations/0041_prepared_comment_reads.sql'
+      - 'services/api/migrations/0042_prepared_feed_reads.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: read-critical-section-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Fourteen serial cohorts on one disposable VM. Draft PRs also run; this
+  # requires comment, feed and image prepared paths on the new side. Missing
+  # switches or unobserved prepare phases fail; preparation is not acceptance.
+  frozen-comparison:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      BENCHMARK_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GOMAXPROCS: '4'
+      GOTOOLCHAIN: local
+      GOWORK: 'off'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.2'
+          cache: false
+      - name: Owned build caches
+        run: |
+          mkdir -p "$RUNNER_TEMP/read-section-build" "$RUNNER_TEMP/read-section-mod" "$RUNNER_TEMP/read-section-go"
+          echo "GOCACHE=$RUNNER_TEMP/read-section-build" >> "$GITHUB_ENV"
+          echo "GOMODCACHE=$RUNNER_TEMP/read-section-mod" >> "$GITHUB_ENV"
+          echo "GOPATH=$RUNNER_TEMP/read-section-go" >> "$GITHUB_ENV"
+      - name: Comparison policy regression
+        run: python3 -B -m unittest discover -s tools/read-critical-section/tests -v
+      - name: PostgreSQL 16, Redis 7 and pinned image validator
+        run: |
+          bash tools/ci/ubuntu-apt-source.sh
+          sudo apt-get -o Acquire::Retries=2 update
+          sudo apt-get -o Acquire::Retries=2 install -y postgresql-16 redis-server python3-venv
+          echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"
+          /usr/bin/python3 -m venv "$RUNNER_TEMP/read-section-python"
+          "$RUNNER_TEMP/read-section-python/bin/python" -m pip install -r services/api/media/requirements.txt
+          "$RUNNER_TEMP/read-section-python/bin/python" -c 'import PIL; assert PIL.__version__ == "12.3.0"'
+          test "$(go version)" = 'go version go1.22.2 linux/amd64'
+          /usr/lib/postgresql/16/bin/pg_ctl --version | grep -E '^pg_ctl \(PostgreSQL\) 16\.'
+          redis-server --version | grep -E '^Redis server v=7\.'
+      - name: Frozen old/new comment, feed and media comparison
+        id: comparison
+        run: |
+          python3 tools/read-critical-section/run_comparison.py \
+            --source "$GITHUB_WORKSPACE" \
+            --head "$BENCHMARK_HEAD_SHA" \
+            --output "$RUNNER_TEMP/read-critical-section-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --python "$RUNNER_TEMP/read-section-python/bin/python" \
+            --redis /usr/bin/redis-server
+      - name: Sanitized evidence only
+        if: always() && steps.comparison.outputs.artifact_paths != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-critical-section-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.comparison.outputs.artifact_paths }}
+          if-no-files-found: error
+          retention-days: 14

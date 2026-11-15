@@ -20,6 +20,7 @@ type CommentConfig struct {
 	Snapshots              *commentsnapshot.Config
 	SnapshotStore          *commentsnapshot.Store
 	ObserveRead            func(CommentReadTiming)
+	PreparedReads          bool
 }
 
 // CommentReadTiming contains no account, resource, bearer or content fields.
@@ -35,6 +36,7 @@ type commentServices struct {
 	snapshotConfig             *commentsnapshot.Config
 	snapshotStore              *commentsnapshot.Store
 	observeRead                func(CommentReadTiming)
+	preparedReads              bool
 }
 
 type CommentReceipt struct {
@@ -88,6 +90,7 @@ func (c *Community) WithComments(ctx context.Context, cfg CommentConfig) (*Commu
 	clone := *c
 	clone.comments = &commentServices{codec: codec, commandTag: postKeyCommitment("HNUHOLE/COMMENT-KEY-COMMITMENT/V1", cfg.KeyKey), fingerprintTag: postKeyCommitment("HNUHOLE/COMMENT-FINGERPRINT-COMMITMENT/V1", cfg.FingerprintKey)}
 	clone.comments.observeRead = cfg.ObserveRead
+	clone.comments.preparedReads = cfg.PreparedReads
 	if cfg.Snapshots != nil {
 		settings := *cfg.Snapshots
 		if e = settings.Validate(); e != nil {
@@ -103,6 +106,11 @@ func (c *Community) WithComments(ctx context.Context, cfg CommentConfig) (*Commu
 	}
 	if e = clone.CheckCommentSchema(ctx); e != nil {
 		return nil, e
+	}
+	if cfg.PreparedReads {
+		if e = clone.checkPreparedCommentReadSchema(ctx); e != nil {
+			return nil, e
+		}
 	}
 	if e = clone.checkCommentKeys(ctx, nil); e != nil {
 		if errors.Is(e, errPostProtocolIntegrity) {

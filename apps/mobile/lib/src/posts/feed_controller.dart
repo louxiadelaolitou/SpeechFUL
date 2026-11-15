@@ -154,6 +154,7 @@ class FeedController extends ChangeNotifier {
     _timelineError = null;
     _notify();
     FeedReadSession? a;
+    var timelineRead = false;
     try {
       a = await _openSession();
       if (epoch != _epoch || request != _timelineRequest) return;
@@ -171,6 +172,7 @@ class FeedController extends ChangeNotifier {
         _notify();
         if (reconciling) _preferencesError = null;
       }
+      timelineRead = true;
       final page = await a.request(
         (token) => _api!.timeline(
           sessionToken: token,
@@ -178,6 +180,7 @@ class FeedController extends ChangeNotifier {
           cursor: cursor,
         ),
       );
+      timelineRead = false;
       if (request != _timelineRequest) return;
       if (page.items.any(
         (p) =>
@@ -217,7 +220,16 @@ class FeedController extends ChangeNotifier {
       }
     } catch (error) {
       if (epoch != _epoch || request != _timelineRequest) return;
-      a?.reportFailure(error);
+      final normalReadConflict =
+          timelineRead &&
+          error is PostFailure &&
+          error.kind == PostFailureKind.unavailable &&
+          error.statusCode == 503 &&
+          const {
+            'SERVICE_UNAVAILABLE',
+            'RANKINGS_UNAVAILABLE',
+          }.contains(error.code);
+      if (!normalReadConflict) a?.reportFailure(error);
       if (a != null && a.isCurrent) {
         if (error is PostFailure && error.code == 'CURSOR_INVALID') {
           // Never append another scope to the current page or treat this as EOF.

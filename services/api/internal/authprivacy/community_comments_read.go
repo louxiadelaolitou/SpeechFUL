@@ -104,6 +104,9 @@ func (c *Community) parseCommentCursor(s string) (uuid.UUID, int, error) {
 	return id, int(offset), nil
 }
 func (c *Community) ReadComments(ctx context.Context, b [32]byte, q CommentQuery) (PostResponse, error) {
+	if c.CommentsEnabled() && c.comments.preparedReads && c.nativePreparedReads() {
+		return c.readCommentsPrepared(ctx, b, q, "", c.comments.snapshotConfig)
+	}
 	if c.CommentsEnabled() && c.comments.snapshotConfig != nil {
 		return c.readCommentsWithSnapshots(ctx, b, q, "")
 	}
@@ -360,6 +363,9 @@ type CommentLocation struct {
 }
 
 func (c *Community) LocateComment(ctx context.Context, b [32]byte, post, id string) (PostResponse, error) {
+	if c.CommentsEnabled() && c.comments.preparedReads && c.nativePreparedReads() {
+		return c.readCommentsPrepared(ctx, b, CommentQuery{ID: post, Limit: 50}, id, c.comments.snapshotConfig)
+	}
 	if c.CommentsEnabled() && c.comments.snapshotConfig != nil {
 		return c.readCommentsWithSnapshots(ctx, b, CommentQuery{ID: post, Limit: 50}, id)
 	}

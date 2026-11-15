@@ -122,6 +122,50 @@ void main() {
     auth.dispose();
   });
 
+  for (final original in [false, true]) {
+    test(
+      'trusted normal media read 503 retains session: original=$original',
+      () async {
+        const conflict = PostFailure(
+          kind: PostFailureKind.unavailable,
+          statusCode: 503,
+          code: 'SERVICE_UNAVAILABLE',
+        );
+        final image = PostMediaManifest.fromJson(
+          mediaManifest(),
+          mediaPostId,
+        ).images.single;
+        if (original) {
+          api.failure = conflict;
+          await expectLater(
+            posts.loadImageBytes(mediaPostId, image),
+            throwsA(same(conflict)),
+          );
+        } else {
+          api.manifestFailure = conflict;
+          await expectLater(
+            posts.loadImageManifest(mediaPostId),
+            throwsA(same(conflict)),
+          );
+        }
+        expect(posts.available, isTrue);
+        api.failure = api.manifestFailure = null;
+        if (original) {
+          expect(
+            (await posts.loadImageBytes(mediaPostId, image)).value,
+            api.bytes,
+          );
+        } else {
+          expect(
+            (await posts.loadImageManifest(mediaPostId)).value.images,
+            isNotEmpty,
+          );
+        }
+        expect(posts.available, isTrue);
+      },
+    );
+  }
+
   void virtualRepository(WidgetTester tester) {
     repository.dispose();
     repository = PostMediaRepository(

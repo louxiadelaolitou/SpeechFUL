@@ -21,3 +21,11 @@ DO $$ BEGIN
   GRANT UPDATE(read_at) ON c_moderation.notifications TO hnuhole_c_runtime;
  END IF;
 END $$;
+
+-- Keep new trigger-only SECURITY DEFINER functions out of the blanket legacy
+-- grant above, including after a --no-privileges database restore.
+DO $$ BEGIN
+ IF to_regclass('c_comments.read_scope_versions') IS NOT NULL THEN
+  REVOKE ALL ON FUNCTION c_comments.advance_read_versions() FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+ END IF;
+END $$;

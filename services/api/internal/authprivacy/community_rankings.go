@@ -41,7 +41,13 @@ func (c *Community) ReadRankings(ctx context.Context, bearer [32]byte) (PostResp
 	defer finishForeground()
 	ctx, cancel := context.WithTimeout(ctx, rankingReadBudget)
 	defer cancel()
-	response, err := c.readRankings(ctx, bearer)
+	var response PostResponse
+	var err error
+	if c.posts.preparedFeedReads && c.nativePreparedReads() {
+		response, err = c.readPreparedRankings(ctx, bearer)
+	} else {
+		response, err = c.readRankings(ctx, bearer)
+	}
 	if errors.Is(err, errRankingSnapshotInvalid) {
 		return PostResponse{}, rankingsUnavailable()
 	}

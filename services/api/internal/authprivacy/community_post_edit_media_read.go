@@ -9,7 +9,8 @@ import (
 
 const originalPostImageRows = `
  SELECT m.media_id,m.content_version_id,m.position,m.width,m.height,m.display_width,m.display_height,
-        m.frames,m.mime_type,m.byte_length,m.payload
+        m.frames,m.mime_type,m.byte_length,m.payload,m.digest,
+        COALESCE(m.cycle_duration_ms,0) AS cycle_duration_ms,COALESCE(m.max_frame_duration_ms,0) AS max_frame_duration_ms
  FROM c_posts.images m JOIN c_posts.publication_tasks t USING(task_id) JOIN c_posts.posts p USING(post_id)
  WHERE p.post_id=$1 AND m.version=p.published_attempt_version
    AND m.erased_at IS NULL AND m.verified_at IS NOT NULL AND m.payload IS NOT NULL`
@@ -21,11 +22,11 @@ const editedPostImageRows = `
    WHERE p.post_id=$1
  ), original AS (` + originalPostImageRows + `)
  SELECT o.media_id,o.content_version_id,s.position,o.width,o.height,o.display_width,o.display_height,
-        o.frames,o.mime_type,o.byte_length,o.payload
+        o.frames,o.mime_type,o.byte_length,o.payload,o.digest,o.cycle_duration_ms,o.max_frame_duration_ms
  FROM selected s JOIN original o ON o.content_version_id=s.id
  UNION ALL
  SELECT m.content_version_id,m.content_version_id,s.position,m.width,m.height,m.display_width,m.display_height,
-        m.frames,m.mime_type,m.byte_length,m.payload
+        m.frames,m.mime_type,m.byte_length,m.payload,m.digest,0,0
  FROM selected s JOIN c_posts.post_edit_media m ON m.post_id=$1 AND m.content_version_id=s.id
  WHERE m.command_digest IS NULL`
 

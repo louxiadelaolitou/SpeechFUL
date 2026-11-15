@@ -23,6 +23,12 @@ import (
 )
 
 func TestCommentSnapshotHTTPSPostgres(t *testing.T) {
+	for name, prepared := range map[string]bool{"original": false, "prepared": true} {
+		t.Run(name, func(t *testing.T) { testCommentSnapshotHTTPSPostgres(t, prepared) })
+	}
+}
+
+func testCommentSnapshotHTTPSPostgres(t *testing.T, prepared bool) {
 	ctx := context.Background()
 	var process *exec.Cmd
 	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
@@ -81,7 +87,7 @@ func TestCommentSnapshotHTTPSPostgres(t *testing.T) {
 		if e = store.InitializeNew(ctx); e != nil {
 			t.Fatal(e)
 		}
-		result, e := c.WithComments(ctx, authprivacy.CommentConfig{KeyKey: key, FingerprintKey: fingerprint, Snapshots: &cfg, SnapshotStore: store})
+		result, e := c.WithComments(ctx, authprivacy.CommentConfig{KeyKey: key, FingerprintKey: fingerprint, Snapshots: &cfg, SnapshotStore: store, PreparedReads: prepared})
 		if e != nil {
 			t.Fatal(e)
 		}
