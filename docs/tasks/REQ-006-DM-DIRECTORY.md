@@ -72,6 +72,7 @@
 | DM 回归 | 同上 | PASS：`TestDMChatMediaLifecyclePostgres`、`TestDMChatIndependentPendingLimitsPostgres`、`TestDMPostCardsPostgres`、`TestDMPostCardGovernancePostgres`、`TestDMPostCardLegacyPaginationPostgres`、`TestDMFirstContactConcurrencyAndRuntimePostgres`、`TestDMChatHTTPSPostgres`、`TestDMPostCardHTTPSPostgres`、`TestDMReliableTextPostgres` |
 | 迁移链 | 同上（DM lab）；`a25aa8b` | PASS：`TestDMGooseFreshAndUpgradePostgres` fresh/upgrade 均为版本 43 且 Down 保持 forward-only；`TestIdentityAvatarGooseFreshAndUpgradePostgres` fresh/upgrade 均为 43 |
 | 迁移链 | 同上（feed lab） | PASS：`TestFeedGooseFreshAndUpgradePostgres` 六个子库（fresh/upgrade/interactions/versions/reposts/history/legacy_search）均为版本 43 |
+| 产品 CI | PR #4 head `69f8984` | PASS：21 项检查 20 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure；`go-postgres`、`feed-postgres`、`flutter`、`policy`、`text-component` 等均 success。另有 1 个重复 `policy` 运行被 concurrency 取消，不影响结果；PR 状态 clean |
 
 1M 证据复现（隔离 lab，产物写到源码外）：
 
@@ -96,4 +97,4 @@ sh services/api/authlab/run-dm-chat-isolated.sh
 - 无实现阻塞。1M p95 已在合成 lab 达标并保留完整计划/分位数，但仍是单客户端、首页、预热缓存证据，不等同生产验收；上线前应在生产规模快照或专用压测库复测（含更深游标页与冷缓存）。
 - 0043 必须先于 03 的 0044+ 合入。`TestMigrationVersionsAreUnique` 只能阻止版本号碰撞，不能改变 goose 只应用更高版本的顺序约束，合并顺序仍需人工协调。
 - 0043 Down 按仓库策略保持 forward-only；放弃优化时先关闭 `preparedDmDirectoryReads`，再执行运维回退脚本，恢复用 `_reapply.sql`。
-- 当前工作区存在其他 Session 的未跟踪目录（`.agents/skills/minimal-change/`、`.zcode/`），未被本任务提交。实现提交 `809b00f` 与复审修复 `a25aa8b` 已推送至 PR #4；评审两项 P2 已修复并复验，待复审；合并、发布仍待授权。
+- 当前工作区存在其他 Session 的未跟踪目录（`.agents/skills/minimal-change/`、`.zcode/`），未被本任务提交。实现提交 `809b00f` 与复审修复 `a25aa8b` 已推送至 PR #4，head `69f8984` 的 CI 已全绿；评审两项 P2 已修复并复验，待复审；合并、发布仍待授权。
