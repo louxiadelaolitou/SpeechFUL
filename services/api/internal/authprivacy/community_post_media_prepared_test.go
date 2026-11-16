@@ -284,6 +284,10 @@ REVOKE CREATE,TEMP ON DATABASE hnuhole_c FROM PUBLIC,hnuhole_c_runtime,hnuhole_c
 	if err != nil {
 		t.Fatal(err)
 	}
+	enabled, err = enabled.WithPostThumbnailReuse(context.Background())
+	if err != nil {
+		t.Fatal("restricted role derivative startup", err)
+	}
 	f.l.c = enabled
 	for _, route := range []string{"manifest", "original", "thumbnail"} {
 		ctx, trace := readtiming.Start(context.Background())

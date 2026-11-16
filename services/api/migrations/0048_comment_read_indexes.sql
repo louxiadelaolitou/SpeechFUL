@@ -14,8 +14,8 @@ CREATE INDEX comment_likes_comment ON c_comments.likes(comment_id);
 
 -- +goose Down
 -- +goose StatementBegin
--- Forward-only like 0041/0042/0043: dropping this index would silently
+-- Forward-only like 0041/0042/0047: dropping this index would silently
 -- restore the per-comment scans. Abandon the access path with an explicit
--- forward repair; the ledger stays at 0044.
+-- forward repair; the ledger stays at 0048.
 DO $$ BEGIN RAISE EXCEPTION 'comment likes index requires forward repair; Down is forbidden' END $$;
 -- +goose StatementEnd

@@ -3,7 +3,9 @@ package authprivacy
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -167,5 +169,130 @@ func TestFeedPostTagsPublishEditSearchAndPagingPostgres(t *testing.T) {
 	}
 	if _, err := l.c.TaggedPosts(ctx, [32]byte{}, posts.TagQuery{Tag: "篮球"}); err == nil {
 		t.Fatal("unauthenticated tag read accepted")
+	}
+}
+
+// TestFeedPostTagsSyncProjectionPostgres verifies physical no-op behavior as
+// well as the public projection across visibility changes and rollback.
+func TestFeedPostTagsSyncProjectionPostgres(t *testing.T) {
+	l := newPostLab(t)
+	ctx := context.Background()
+	owner := sessionTestAccount(t, l, "tag_sync_owner")
+	identity := identityChange(t, l.c, owner.SessionToken, "CREATE", uuid.Nil, "标签作者").IdentityID
+	intent := postTestIntent(t, l, identity)
+	intent.Tags = []string{"NBA"}
+	accepted := postTestCommand(t, l, owner.SessionToken, postTestKey(t), intent)
+	postTestPublish(t, l)
+	id := accepted.PostID
+	var before, after string
+	if err := l.cp.QueryRow(ctx, `SELECT ctid::text FROM c_posts.post_tag_terms WHERE post_id=$1`, id).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, l.cp, `UPDATE c_posts.posts SET tags=tags, visibility=visibility WHERE post_id=$1`, id)
+	if err := l.cp.QueryRow(ctx, `SELECT ctid::text FROM c_posts.post_tag_terms WHERE post_id=$1`, id).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Fatal("same projection was rebuilt")
+	}
+	mustExec(t, l.cp, `UPDATE c_posts.posts SET tags=ARRAY['nba'] WHERE post_id=$1`, id)
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1 AND tag_key='nba' AND label='nba'`, id) != 1 {
+		t.Fatal("case-only label update missing")
+	}
+	mustExec(t, l.cp, `UPDATE c_posts.posts SET moderation_hidden=true WHERE post_id=$1`, id)
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1`, id) != 0 {
+		t.Fatal("hidden projection retained")
+	}
+	mustExec(t, l.cp, `UPDATE c_posts.posts SET moderation_hidden=false WHERE post_id=$1`, id)
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1 AND label='nba'`, id) != 1 {
+		t.Fatal("restored projection missing")
+	}
+	tx, err := l.cp.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE c_posts.posts SET tags=ARRAY['ROLLBACK'] WHERE post_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1 AND label='nba'`, id) != 1 {
+		t.Fatal("rollback changed projection")
+	}
+	rollbackSource, err := os.ReadFile("../../authlab/rollback-post-tag-sync.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err = l.cp.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, string(rollbackSource)); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(ctx, `SELECT ctid::text FROM c_posts.post_tag_terms WHERE post_id=$1`, id).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE c_posts.posts SET tags=tags WHERE post_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(ctx, `SELECT ctid::text FROM c_posts.post_tag_terms WHERE post_id=$1`, id).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before == after {
+		t.Fatal("rollback script did not restore original synchronization")
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, l.cp, `UPDATE c_posts.posts SET tags='{}' WHERE post_id=$1`, id)
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1`, id) != 0 {
+		t.Fatal("cleared tags retained")
+	}
+}
+
+func TestFeedPostTagsSyncMigrationRejectsDriftPostgres(t *testing.T) {
+	l := newPostLab(t)
+	ctx := context.Background()
+	owner := sessionTestAccount(t, l, "tag_drift_owner")
+	identity := identityChange(t, l.c, owner.SessionToken, "CREATE", uuid.Nil, "标签作者").IdentityID
+	intent := postTestIntent(t, l, identity)
+	intent.Tags = []string{"NBA"}
+	accepted := postTestCommand(t, l, owner.SessionToken, postTestKey(t), intent)
+	postTestPublish(t, l)
+	source, err := os.ReadFile("../../migrations/0046_post_tag_sync_skip.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := l.cp.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `DELETE FROM c_posts.post_tag_terms WHERE post_id=$1`, accepted.PostID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, strings.SplitN(string(source), "-- +goose Down", 2)[0])
+	if err == nil || !strings.Contains(err.Error(), "post tag projection inconsistent") {
+		t.Fatalf("drift must block migration, got %v", err)
+	}
+	if err = tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_posts.post_tag_terms WHERE post_id=$1 AND label='NBA'`, accepted.PostID) != 1 {
+		t.Fatal("rollback lost original projection")
+	}
+	tx, err = l.cp.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `DROP INDEX c_posts.post_tag_terms_post_idx`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, strings.SplitN(string(source), "-- +goose Down", 2)[0])
+	if err == nil || !strings.Contains(err.Error(), "valid post tag post_id index required") {
+		t.Fatalf("missing index must block migration, got %v", err)
 	}
 }

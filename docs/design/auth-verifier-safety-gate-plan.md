@@ -2,6 +2,8 @@
 
 日期：2026-10-04（Asia/Shanghai）。分支：`codex/auth-privacy-handoff`，实施基线：`faf557db4d74ecb2c202fd1349f1bf8fa64e6133`。本任务只处理 AC01；AC02、AC03 和完整业务开发不在本次实现范围。实际完成状态与执行结果以本轮验证报告和机器记录为准。
 
+2026-11-16 更新：短暂证据不可用与合法证据过期只暂停授权；可证明的只读检查点中断允许同代补完，不要求重新验证资格。签名错误、真实回滚、未知业务提交和既有 FROZEN 继续按下述边界保护；新鲜证据不能解除持久冻结。具体新边界见 [ADR 0007](../adr/0007-gate-continuation-without-session-revocation.md)及 [Gate 设计](auth-authorization-safety-gate.md)，本页原日期下的旧验收结果不扩大为新实现通过。
+
 ## 依据与安全不变量
 
 依据[匿名收口清单](auth-privacy-closure-checklist.md)的 AC01、[已确认的 Gate 设计](auth-authorization-safety-gate.md)和[第39轮最终答复](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/discussions/2026-09-29-grilling-round39.md)。沿用已确认的 5 秒回退容忍、最多 5 分钟签名证据、持久冻结、单个受限恢复角色、显式代次推进及审计；正常恢复与受控 break-glass 分别验证证据。工程复用同一状态机，V 具有自己的数据库状态、域、信任材料和库外锚点。

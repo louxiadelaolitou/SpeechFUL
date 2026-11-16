@@ -625,7 +625,7 @@ func execOpsScript(t *testing.T, pool *pgxpool.Pool, body string) {
 
 // TestDMDirectoryIndexRollbackPostgres verifies the operator rollback path.
 // The goose Down stays forward-only, so abandoning the access path uses the
-// checked-in ops scripts while the ledger remains at 0043.
+// checked-in ops scripts while the ledger remains at 0047.
 func TestDMDirectoryIndexRollbackPostgres(t *testing.T) {
 	f := newDMDirectoryFixture(t)
 	ctx := context.Background()
@@ -633,8 +633,8 @@ func TestDMDirectoryIndexRollbackPostgres(t *testing.T) {
 		t.Fatal("prepared directory before rollback", e)
 	}
 	ops := map[string]string{
-		"rollback": filepath.Join("..", "..", "ops", "0043_dm_directory_cursor_indexes_rollback.sql"),
-		"reapply":  filepath.Join("..", "..", "ops", "0043_dm_directory_cursor_indexes_reapply.sql"),
+		"rollback": filepath.Join("..", "..", "ops", "0047_dm_directory_cursor_indexes_rollback.sql"),
+		"reapply":  filepath.Join("..", "..", "ops", "0047_dm_directory_cursor_indexes_reapply.sql"),
 	}
 	script := func(name string) string {
 		t.Helper()

@@ -80,8 +80,11 @@ class _PendingBoundaryStore extends AuthStore {
   _PendingBoundaryStore(super.vault);
   void Function()? afterPendingSaved;
   @override
-  Future<AuthState> update(AuthState Function(AuthState) change) async {
-    final state = await super.update(change);
+  Future<AuthState> update(
+    AuthState Function(AuthState) change, {
+    bool skipUnchanged = false,
+  }) async {
+    final state = await super.update(change, skipUnchanged: skipUnchanged);
     final cancel = afterPendingSaved;
     if (state.pendingCredentialChange?['state'] == 'UNKNOWN' &&
         cancel != null) {

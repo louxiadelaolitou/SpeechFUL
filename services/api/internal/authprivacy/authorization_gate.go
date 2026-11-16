@@ -88,13 +88,14 @@ type gateRow struct {
 	generation int64
 	highwater  time.Time
 	version    int64
+	checkpoint string
 }
 
 func (g *PostgresAuthorizationGate) readGateRow(ctx context.Context, tx pgx.Tx) (gateRow, error) {
 	defer readtiming.Span(ctx, "gate_row_lock")()
 	var r gateRow
-	err := tx.QueryRow(ctx, `SELECT gate_state,authorization_generation,trusted_high_watermark,evidence_version
-		FROM `+g.schema+`.authorization_gate WHERE singleton_id=1 FOR UPDATE`).Scan(&r.state, &r.generation, &r.highwater, &r.version)
+	err := tx.QueryRow(ctx, `SELECT gate_state,authorization_generation,trusted_high_watermark,evidence_version,COALESCE(checkpoint_id::text,'')
+		FROM `+g.schema+`.authorization_gate WHERE singleton_id=1 FOR UPDATE`).Scan(&r.state, &r.generation, &r.highwater, &r.version, &r.checkpoint)
 	if err == nil {
 		observeGateRowAcquired(ctx, tx)
 	}
@@ -102,6 +103,10 @@ func (g *PostgresAuthorizationGate) readGateRow(ctx context.Context, tx pgx.Tx) 
 }
 
 func (g *PostgresAuthorizationGate) verifyEvidence(s SignedAuthorizationEvidence, at time.Time, key ed25519.PublicKey) (AuthorizationEvidence, error) {
+	return g.verifyEvidenceAt(s, at, key, false)
+}
+
+func (g *PostgresAuthorizationGate) verifyEvidenceAt(s SignedAuthorizationEvidence, at time.Time, key ed25519.PublicKey, allowExpired bool) (AuthorizationEvidence, error) {
 	e := s.Evidence
 	message, err := json.Marshal(e)
 	if err != nil || !ed25519.Verify(key, message, s.Signature) || e.Domain != g.domain ||
@@ -110,7 +115,7 @@ func (g *PostgresAuthorizationGate) verifyEvidence(s SignedAuthorizationEvidence
 		!e.ValidUntil.After(e.IssuedAt) || e.ValidUntil.Sub(e.IssuedAt) > authorizationEvidenceTTL ||
 		e.TrustedAt.Before(e.IssuedAt) || e.TrustedAt.After(e.ValidUntil) ||
 		e.TrustedAt.After(at.Add(authorizationSkew)) || e.IssuedAt.After(at.Add(authorizationSkew)) ||
-		at.After(e.ValidUntil) {
+		(!allowExpired && at.After(e.ValidUntil)) {
 		return AuthorizationEvidence{}, ErrAuthorizationUnavailable
 	}
 	return e, nil
@@ -125,7 +130,7 @@ func (g *PostgresAuthorizationGate) inspect(ctx context.Context, row gateRow, an
 	}
 	if !exists || anchor.Domain != g.domain || anchor.Frozen ||
 		anchor.Generation != uint64(row.generation) || anchor.Version != uint64(row.version) ||
-		!anchor.Highwater.Equal(row.highwater) {
+		!anchor.Highwater.Equal(row.highwater) || anchor.CheckpointID != row.checkpoint {
 		return AuthorizationDecision{}, AuthorizationEvidence{}, false, "SNAPSHOT_OR_ANCHOR_MISMATCH"
 	}
 	now := g.clock().UTC()
@@ -147,9 +152,12 @@ func (g *PostgresAuthorizationGate) inspect(ctx context.Context, row gateRow, an
 	if now.Before(row.highwater.Add(-authorizationSkew)) {
 		return AuthorizationDecision{}, AuthorizationEvidence{}, false, "TIME_ROLLBACK"
 	}
-	e, err := g.verifyEvidence(signed, now, key)
+	e, err := g.verifyEvidenceAt(signed, now, key, true)
 	if err != nil || e.Generation != uint64(row.generation) || e.Version < uint64(row.version) {
-		return AuthorizationDecision{}, AuthorizationEvidence{}, false, "EVIDENCE_INVALID_OR_EXPIRED"
+		return AuthorizationDecision{}, AuthorizationEvidence{}, false, "EVIDENCE_INVALID"
+	}
+	if now.After(e.ValidUntil) {
+		return AuthorizationDecision{}, AuthorizationEvidence{}, false, "EVIDENCE_EXPIRED"
 	}
 	at := now
 	if at.Before(row.highwater) {
@@ -183,6 +191,9 @@ func (g *PostgresAuthorizationGate) Snapshot(ctx context.Context) (Authorization
 		return AuthorizationDecision{}, ErrAuthorizationUnavailable
 	}
 	var decision AuthorizationDecision
+	// A replay remains inside this SQL transaction. Retain the original durable
+	// predecessor if this new read is itself interrupted before SQL commits.
+	predecessor := row
 	var reason string
 	var finish context.Context
 	var finishCancel context.CancelFunc
@@ -197,6 +208,9 @@ func (g *PostgresAuthorizationGate) Snapshot(ctx context.Context) (Authorization
 		}
 		var e AuthorizationEvidence
 		var offline bool
+		if err := g.reconcileReadCheckpoint(ctx, tx, &row, *a, exists); err != nil {
+			return err
+		}
 		decision, e, offline, reason = g.inspect(ctx, row, *a, exists)
 		// A cancelled caller is not evidence of a failed authority source.
 		if err := ctx.Err(); err != nil {
@@ -204,6 +218,9 @@ func (g *PostgresAuthorizationGate) Snapshot(ctx context.Context) (Authorization
 		}
 		// Publishing the independent checkpoint starts a bounded finalization.
 		// Caller cancellation must not strand it ahead of an otherwise healthy SQL row.
+		if temporaryEvidenceReason(reason) {
+			return nil
+		}
 		finish, finishCancel = context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		if reason != "" {
 			if exists && !a.Frozen {
@@ -214,19 +231,14 @@ func (g *PostgresAuthorizationGate) Snapshot(ctx context.Context) (Authorization
 			}
 			return nil
 		}
-		updated := *a
-		updated.Highwater = decision.TrustedAt
-		updated.Version = e.Version
-		if !offline {
-			updated.OfflineEvidence = nil
-		}
+		updated := nextReadCheckpoint(*a, predecessor, e, decision.TrustedAt, offline)
 		if err := g.observedAnchorWrite(ctx, updated); err != nil {
 			reason = "ANCHOR_WRITE_FAILURE"
 			return err
 		}
 		_, err := tx.Exec(finish, `UPDATE `+g.schema+`.authorization_gate SET trusted_high_watermark=$1,
-			evidence_version=$2,evidence_issued_at=$3,evidence_valid_until=$4
-			WHERE singleton_id=1`, decision.TrustedAt, int64(e.Version), e.IssuedAt, e.ValidUntil)
+			evidence_version=$2,evidence_issued_at=$3,evidence_valid_until=$4,checkpoint_id=$5
+			WHERE singleton_id=1`, decision.TrustedAt, int64(e.Version), e.IssuedAt, e.ValidUntil, updated.CheckpointID)
 		return err
 	})
 	if err != nil {
@@ -234,6 +246,9 @@ func (g *PostgresAuthorizationGate) Snapshot(ctx context.Context) (Authorization
 		defer cancel()
 		_ = tx.Rollback(fallback)
 		_ = g.persistExternalFreeze(fallback)
+		return AuthorizationDecision{}, ErrAuthorizationUnavailable
+	}
+	if temporaryEvidenceReason(reason) {
 		return AuthorizationDecision{}, ErrAuthorizationUnavailable
 	}
 	if reason != "" {
@@ -282,11 +297,14 @@ func (g *PostgresAuthorizationGate) RecheckForCommit(ctx context.Context, tx pgx
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if err := g.reconcileReadCheckpoint(ctx, tx, &row, *a, exists); err != nil {
+			return err
+		}
 		decision, _, _, reason = g.inspect(ctx, row, *a, exists)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if reason != "" && exists && !a.Frozen {
+		if reason != "" && !temporaryEvidenceReason(reason) && exists && !a.Frozen {
 			a.Frozen = true
 			return g.anchor.writeLocked(*a)
 		}
@@ -324,12 +342,15 @@ func (g *PostgresAuthorizationGate) CommitAuthorized(ctx context.Context, tx pgx
 		}
 		var e AuthorizationEvidence
 		var offline bool
+		if err := g.reconcileReadCheckpoint(ctx, tx, &row, *a, exists); err != nil {
+			return err
+		}
 		decision, e, offline, reason = g.inspect(ctx, row, *a, exists)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if reason != "" {
-			if exists && !a.Frozen {
+			if !temporaryEvidenceReason(reason) && exists && !a.Frozen {
 				a.Frozen = true
 				return g.anchor.writeLocked(*a)
 			}
@@ -350,6 +371,8 @@ func (g *PostgresAuthorizationGate) CommitAuthorized(ctx context.Context, tx pgx
 		updated := *a
 		updated.Highwater = decision.TrustedAt
 		updated.Version = e.Version
+		updated.CheckpointID = uuid.NewString()
+		updated.ReadAdvance = nil
 		if !offline {
 			updated.OfflineEvidence = nil
 		}
@@ -358,8 +381,8 @@ func (g *PostgresAuthorizationGate) CommitAuthorized(ctx context.Context, tx pgx
 			return err
 		}
 		_, err := tx.Exec(finish, `UPDATE `+g.schema+`.authorization_gate SET trusted_high_watermark=$1,
-			evidence_version=$2,evidence_issued_at=$3,evidence_valid_until=$4 WHERE singleton_id=1`,
-			decision.TrustedAt, int64(e.Version), e.IssuedAt, e.ValidUntil)
+			evidence_version=$2,evidence_issued_at=$3,evidence_valid_until=$4,checkpoint_id=$5 WHERE singleton_id=1`,
+			decision.TrustedAt, int64(e.Version), e.IssuedAt, e.ValidUntil, updated.CheckpointID)
 		return err
 	})
 	if err != nil {
@@ -398,9 +421,12 @@ func (g *PostgresAuthorizationGate) persistExternalFreeze(ctx context.Context) e
 	}
 	var frozen bool
 	err = g.observedAnchorLock(ctx, func(a *authorizationAnchor, exists bool) error {
+		if err := g.reconcileReadCheckpoint(ctx, tx, &row, *a, exists); err != nil {
+			return err
+		}
 		frozen = !exists || a.Frozen || a.Domain != g.domain ||
 			a.Generation != uint64(row.generation) || a.Version != uint64(row.version) ||
-			!a.Highwater.Equal(row.highwater)
+			!a.Highwater.Equal(row.highwater) || a.CheckpointID != row.checkpoint
 		return nil
 	})
 	if err != nil {
@@ -573,7 +599,7 @@ func (g *PostgresAuthorizationGate) Recover(ctx context.Context, request Authori
 		if newHighwater.After(e.ValidUntil) {
 			return ErrAuthorizationUnavailable
 		}
-		updated := authorizationAnchor{Domain: g.domain, Generation: e.Generation, Version: e.Version, Highwater: newHighwater}
+		updated := authorizationAnchor{Domain: g.domain, Generation: e.Generation, Version: e.Version, Highwater: newHighwater, CheckpointID: uuid.NewString()}
 		if request.Mode == AuthorizationRecoveryBreakGlass {
 			proof := request.Evidence
 			updated.OfflineEvidence = &proof
@@ -583,8 +609,8 @@ func (g *PostgresAuthorizationGate) Recover(ctx context.Context, request Authori
 		}
 		_, err := tx.Exec(ctx, `UPDATE `+g.schema+`.authorization_gate SET gate_state='OPEN',authorization_generation=$1,
 			trusted_high_watermark=$2,evidence_version=$3,evidence_issued_at=$4,evidence_valid_until=$5,
-			freeze_reason=NULL,opened_at=$6 WHERE singleton_id=1`, int64(e.Generation), newHighwater,
-			int64(e.Version), e.IssuedAt, e.ValidUntil, now)
+			freeze_reason=NULL,opened_at=$6,checkpoint_id=$7 WHERE singleton_id=1`, int64(e.Generation), newHighwater,
+			int64(e.Version), e.IssuedAt, e.ValidUntil, now, updated.CheckpointID)
 		return err
 	})
 	if err != nil {

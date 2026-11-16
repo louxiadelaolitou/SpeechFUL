@@ -138,6 +138,19 @@ func newLab(t *testing.T) *lab {
 				_ = tx.Rollback(context.Background())
 				t.Fatal(readErr)
 			}
+			if strings.Contains(string(sql), "-- +goose NO TRANSACTION") {
+				if err = tx.Commit(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = spec.pool.Exec(context.Background(), strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
+					t.Fatalf("nontransactional migration %s: %v", filepath.Base(file), err)
+				}
+				tx, err = spec.pool.Begin(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
 			if _, err = tx.Exec(context.Background(), strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
 				_ = tx.Rollback(context.Background())
 				t.Fatalf("migration %s: %v", filepath.Base(file), err)

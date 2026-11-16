@@ -30,11 +30,12 @@ func assertGateCheckpointOpen(t *testing.T, c *gateControl) {
 	var state string
 	var generation, version int64
 	var highwater time.Time
-	if err := c.gate.pool.QueryRow(context.Background(), `SELECT gate_state,authorization_generation,evidence_version,trusted_high_watermark FROM `+c.gate.schema+`.authorization_gate WHERE singleton_id=1`).Scan(&state, &generation, &version, &highwater); err != nil {
+	var checkpoint string
+	if err := c.gate.pool.QueryRow(context.Background(), `SELECT gate_state,authorization_generation,evidence_version,trusted_high_watermark,COALESCE(checkpoint_id::text,'') FROM `+c.gate.schema+`.authorization_gate WHERE singleton_id=1`).Scan(&state, &generation, &version, &highwater, &checkpoint); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.gate.anchor.withLocked(func(a *authorizationAnchor, exists bool) error {
-		if state != "OPEN" || !exists || a.Frozen || a.Generation != uint64(generation) || a.Version != uint64(version) || !a.Highwater.Equal(highwater) {
+		if state != "OPEN" || !exists || a.Frozen || a.Generation != uint64(generation) || a.Version != uint64(version) || !a.Highwater.Equal(highwater) || a.CheckpointID != checkpoint {
 			t.Fatalf("checkpoint inconsistent after ordinary cancellation: SQL=%s/%d/%d/%v anchor=%+v", state, generation, version, highwater, a)
 		}
 		return nil

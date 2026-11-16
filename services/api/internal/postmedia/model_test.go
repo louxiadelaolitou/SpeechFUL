@@ -1,6 +1,7 @@
 package postmedia
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -78,6 +79,14 @@ func TestRealProcessValidatorOriginalFormats(t *testing.T) {
 			preview, err := validator.Thumbnail(context.Background(), data)
 			if err != nil || len(preview) < 12 || len(preview) > MaxThumbnailBytes || string(preview[8:12]) != "WEBP" {
 				t.Fatal("bounded preview failed", err)
+			}
+			record, err := validator.ThumbnailRecord(context.Background(), data)
+			if err != nil || !record.Valid() || !bytes.Equal(record.Bytes, preview) {
+				t.Fatal("reusable preview changed protocol bytes", err)
+			}
+			version, err := validator.ThumbnailEncoderVersion(context.Background())
+			if err != nil || len(version) != 64 {
+				t.Fatal("missing encoder identity", err)
 			}
 			var expected Metadata
 			if json.Unmarshal(raw, &expected) != nil {

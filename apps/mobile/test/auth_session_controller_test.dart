@@ -23,12 +23,16 @@ SessionRecord record(String token, {DateTime? expiry}) => SessionRecord(
 class MemoryVault implements AuthVault {
   String? value;
   int writes = 0;
+  int reads = 0;
   int? failAt;
+  Completer<void>? readWait, writeWait;
   bool commitBeforeFailure = false;
   bool mismatch = false;
   bool failRead = false;
   @override
   Future<String?> read() async {
+    reads++;
+    await readWait?.future;
     if (failRead) throw StateError('native unavailable');
     return value;
   }
@@ -36,6 +40,7 @@ class MemoryVault implements AuthVault {
   @override
   Future<void> write(String next) async {
     writes++;
+    await writeWait?.future;
     if (writes == failAt) {
       if (commitBeforeFailure) value = next;
       throw StateError('native unavailable');
@@ -201,6 +206,248 @@ void main() {
     expect(f.directory.channels, isEmpty);
     expect(f.directory.status, ChannelDirectoryStatus.failure);
   });
+  test(
+    'unchanged metadata verifies native storage without rewriting it',
+    () async {
+      final vault = MemoryVault();
+      final f = await setup(
+        vault,
+        initial: AuthState(session: record(oldToken)),
+      );
+      f.channels.result = directoryResult(f.api.expiry);
+      await f.sessions.start();
+      final reads = vault.reads, writes = vault.writes;
+      final original = vault.value;
+      for (var i = 0; i < 5; i++) {
+        expect(
+          await f.sessions.persistSessionMetadata(
+            oldToken,
+            f.api.expiry,
+            () => true,
+          ),
+          isTrue,
+        );
+      }
+      // An older response also cannot regress an already durable renewal.
+      expect(
+        await f.sessions.persistSessionMetadata(
+          oldToken,
+          f.api.expiry.subtract(const Duration(hours: 1)),
+          () => true,
+        ),
+        isTrue,
+      );
+      expect(vault.reads, reads + 6);
+      expect(vault.writes, writes);
+      expect(vault.value, original);
+      expect(f.sessions.currentSession!.expiresAt, f.api.expiry);
+    },
+  );
+  test(
+    'changed metadata waits for durable write and verified readback',
+    () async {
+      final vault = MemoryVault();
+      final f = await setup(
+        vault,
+        initial: AuthState(session: record(oldToken)),
+      );
+      f.channels.result = directoryResult(f.api.expiry);
+      await f.sessions.start();
+      final reads = vault.reads, writes = vault.writes;
+      final deadline = f.api.expiry.add(const Duration(days: 1));
+      vault.writeWait = Completer<void>();
+      var returned = false;
+      final pending = f.sessions
+          .persistSessionMetadata(oldToken, deadline, () => true)
+          .then((accepted) {
+            returned = true;
+            return accepted;
+          });
+      while (vault.writes == writes) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(returned, isFalse);
+      expect(f.sessions.currentSession!.expiresAt, f.api.expiry);
+      expect(
+        AuthState.parse(
+          jsonDecode(vault.value!),
+          f.store.scope,
+        ).session!.expiresAt,
+        f.api.expiry,
+      );
+      vault.writeWait!.complete();
+      expect(await pending, isTrue);
+      expect(vault.writes, writes + 1);
+      expect(vault.reads, reads + 2);
+      expect(
+        AuthState.parse(
+          jsonDecode(vault.value!),
+          f.store.scope,
+        ).session!.expiresAt,
+        deadline,
+      );
+      expect(f.sessions.currentSession!.expiresAt, deadline);
+    },
+  );
+  test(
+    'changed metadata readback mismatch still closes community access',
+    () async {
+      final vault = MemoryVault();
+      final f = await setup(
+        vault,
+        initial: AuthState(session: record(oldToken)),
+      );
+      f.channels.result = directoryResult(f.api.expiry);
+      await f.sessions.start();
+      vault.mismatch = true;
+      await expectLater(
+        f.sessions.persistSessionMetadata(
+          oldToken,
+          f.api.expiry.add(const Duration(days: 1)),
+          () => true,
+        ),
+        throwsA(isA<AuthStorageFailure>()),
+      );
+      expect(f.store.current, isNull);
+      expect(f.sessions.status, AuthStatus.storageFailure);
+      expect(f.sessions.isAuthenticated, isFalse);
+      expect(f.directory.channels, isEmpty);
+    },
+  );
+  test(
+    'unchanged metadata observes external logout and token replacement',
+    () async {
+      for (final replacement in [
+        AuthState(session: record(newToken)),
+        AuthState(
+          session: record(oldToken),
+          logouts: [LogoutTask(tokenDigest: sessionTokenDigest(oldToken))],
+        ),
+      ]) {
+        final vault = MemoryVault();
+        final f = await setup(
+          vault,
+          initial: AuthState(session: record(oldToken)),
+        );
+        f.channels.result = directoryResult(f.api.expiry);
+        await f.sessions.start();
+        final writes = vault.writes;
+        // Another engine/process writes without notifying this Dart owner.
+        vault.value = jsonEncode(replacement.toJson(f.store.scope));
+        final external = vault.value;
+        expect(
+          await f.sessions.persistSessionMetadata(
+            oldToken,
+            f.api.expiry,
+            () => true,
+          ),
+          isFalse,
+        );
+        expect(vault.writes, writes);
+        expect(vault.value, external);
+        expect(f.sessions.isAuthenticated, isFalse);
+        expect(f.directory.channels, isEmpty);
+      }
+    },
+  );
+  test(
+    'unchanged metadata does not hide corruption or native read failure',
+    () async {
+      for (final corruption in [false, true]) {
+        final vault = MemoryVault();
+        final f = await setup(
+          vault,
+          initial: AuthState(session: record(oldToken)),
+        );
+        f.channels.result = directoryResult(f.api.expiry);
+        await f.sessions.start();
+        final writes = vault.writes;
+        if (corruption) {
+          vault.value = '{';
+        } else {
+          vault.failRead = true;
+        }
+        await expectLater(
+          f.sessions.persistSessionMetadata(oldToken, f.api.expiry, () => true),
+          throwsA(isA<AuthStorageFailure>()),
+        );
+        expect(vault.writes, writes);
+        expect(f.store.current, isNull);
+        expect(f.sessions.status, AuthStatus.storageFailure);
+        expect(f.directory.channels, isEmpty);
+      }
+    },
+  );
+  test('metadata rechecks authority after awaiting the native read', () async {
+    final vault = MemoryVault();
+    final f = await setup(vault, initial: AuthState(session: record(oldToken)));
+    f.channels.result = directoryResult(f.api.expiry);
+    await f.sessions.start();
+    final writes = vault.writes, reads = vault.reads;
+    vault.readWait = Completer<void>();
+    final pending = f.sessions.persistSessionMetadata(
+      oldToken,
+      f.api.expiry.add(const Duration(days: 1)),
+      () => true,
+    );
+    while (vault.reads == reads) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    f.sessions.sessionUnavailable(oldToken);
+    vault.readWait!.complete();
+    expect(await pending, isFalse);
+    expect(vault.writes, writes);
+    expect(f.sessions.isAuthenticated, isFalse);
+    expect(f.store.current!.session!.expiresAt, f.api.expiry);
+  });
+  test('metadata queue preserves a concurrent durable renewal', () async {
+    final vault = MemoryVault();
+    final f = await setup(vault, initial: AuthState(session: record(oldToken)));
+    f.channels.result = directoryResult(f.api.expiry);
+    await f.sessions.start();
+    final writes = vault.writes;
+    final deadline = f.api.expiry.add(const Duration(days: 1));
+    vault.writeWait = Completer<void>();
+    final newer = f.sessions.persistSessionMetadata(
+      oldToken,
+      deadline,
+      () => true,
+    );
+    while (vault.writes == writes) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final older = f.sessions.persistSessionMetadata(
+      oldToken,
+      f.api.expiry,
+      () => true,
+    );
+    vault.writeWait!.complete();
+    expect(await newer, isTrue);
+    expect(await older, isTrue);
+    expect(vault.writes, writes + 1);
+    expect(f.sessions.currentSession!.expiresAt, deadline);
+    expect(
+      AuthState.parse(
+        jsonDecode(vault.value!),
+        f.store.scope,
+      ).session!.expiresAt,
+      deadline,
+    );
+  });
+  test(
+    'skip unchanged never skips an initial record or ordinary commits',
+    () async {
+      final vault = MemoryVault();
+      final store = AuthStore(vault);
+      addTearDown(store.dispose);
+      await store.update((s) => s, skipUnchanged: true);
+      expect(vault.writes, 1);
+      await store.update((s) => s, skipUnchanged: true);
+      expect(vault.writes, 1);
+      await store.update((s) => s);
+      expect(vault.writes, 2);
+    },
+  );
   test('late directory cannot update a replacement token or publish nodes', () async {
     final f = await setup(MemoryVault(), initial: AuthState(session: record(oldToken)));
     final waiting = Completer<ChannelDirectoryResult>();

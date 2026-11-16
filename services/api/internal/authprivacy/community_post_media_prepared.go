@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
 
 // Only current selected media participate. Both a missing resource and a
@@ -116,6 +117,8 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 				return nil, ErrAuthorizationUnavailable
 			}
 			var original, output []byte
+			var derivative postmedia.ThumbnailRecord
+			var storeDerivative bool
 			var selected *preparedPostMediaItem
 			images := make([]postmedia.Image, len(snapshot.items))
 			for i := range snapshot.items {
@@ -138,10 +141,15 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 					}
 					return nil
 				},
-				Complete: func(_ pgx.Tx, _ uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
+				Complete: func(finalTx pgx.Tx, _ uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
 					if content != "" {
 						mime := selected.Metadata.MIME
 						if thumbnail {
+							if storeDerivative {
+								if e := c.storePostThumbnail(ctx, finalTx, post, *selected, derivative, final.TrustedAt); e != nil {
+									return nil, e
+								}
+							}
 							mime = "image/webp"
 							return ImageBytes{Bytes: output, MIME: mime}, nil
 						}
@@ -153,6 +161,7 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 					// Detach private references; never wipe the backing arrays
 					// transferred into a confirmed successful response.
 					original, output, images = nil, nil, nil
+					derivative.Bytes = nil
 					snapshot.items, snapshot.proof = nil, nil
 				},
 			}
@@ -163,6 +172,37 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 				return plan, postmedia.ErrUnavailable
 			}
 			if content == "" {
+				return plan, nil
+			}
+			if thumbnail && c.postImages.thumbnails != nil {
+				cache := c.postImages.thumbnails
+				cached, hit, e := readStoredThumbnail(prepareCtx, tx, post, *selected, cache.version)
+				if e != nil {
+					return plan, ErrAuthorizationUnavailable
+				}
+				if hit {
+					cache.hits.Add(1)
+				} else {
+					cache.misses.Add(1)
+				}
+				plan.AfterPrepare = func(cpuCtx context.Context) error {
+					if hit {
+						readtiming.Span(cpuCtx, "thumbnail_hit")()
+						if !cached.Valid() {
+							return postmedia.ErrUnavailable
+						}
+						output = cached.Bytes
+						return nil
+					}
+					readtiming.Span(cpuCtx, "thumbnail_miss")()
+					prepared, e := c.preparePostThumbnail(cpuCtx, post, *selected)
+					if e != nil {
+						return e
+					}
+					derivative, storeDerivative = prepared.record, prepared.generated
+					output = derivative.Bytes
+					return nil
+				}
 				return plan, nil
 			}
 			if err = tx.QueryRow(prepareCtx, `SELECT payload FROM (`+currentPostImageRows(snapshot.edited)+`) m WHERE content_version_id=$2`, post, content).Scan(&original); err != nil {

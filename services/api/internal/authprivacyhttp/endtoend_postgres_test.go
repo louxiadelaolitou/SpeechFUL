@@ -148,7 +148,7 @@ func e2ePool(t *testing.T, role string) *pgxpool.Pool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback(context.Background())
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	rateSchema := "c_rate_limit"
 	if schema == "v_auth" {
 		rateSchema = "v_rate_limit"
@@ -197,6 +197,19 @@ func e2ePool(t *testing.T, role string) *pgxpool.Pool {
 		sql, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if strings.Contains(string(sql), "-- +goose NO TRANSACTION") {
+			if err = tx.Commit(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = pool.Exec(context.Background(), strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
+				t.Fatalf("nontransactional migration %s: %v", filepath.Base(file), err)
+			}
+			tx, err = pool.Begin(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			continue
 		}
 		if _, err = tx.Exec(context.Background(), strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
 			t.Fatalf("migration %s: %v", filepath.Base(file), err)

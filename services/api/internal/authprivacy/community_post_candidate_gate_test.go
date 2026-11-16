@@ -104,14 +104,14 @@ func TestFeedPostSearchFinalCursorUpperTimeBoundPostgres(t *testing.T) {
 func TestFeedPostSearchPreparationPersistsDetectedFreezePostgres(t *testing.T) {
 	control := newGateControl(t)
 	l, ctx := control.lab, context.Background()
-	// Retire the setup's recovery proof, then make valid online evidence
-	// expire while the persisted Gate is still OPEN.
+	// A real clock rollback is a persistent security event, unlike a
+	// temporary evidence expiry which only pauses authorization.
 	if _, err := l.gate.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
-	control.clock.set(control.clock.now().Add(5*time.Minute + time.Nanosecond))
+	control.clock.set(control.clock.now().Add(-authorizationSkew - time.Nanosecond))
 	if _, err := l.c.postCandidateDecision(ctx, l.cp); !errors.Is(err, ErrAuthorizationUnavailable) {
-		t.Fatal("candidate preparation accepted expired evidence", err)
+		t.Fatal("candidate preparation accepted clock rollback", err)
 	}
 	var state string
 	if err := l.cp.QueryRow(ctx, `SELECT gate_state FROM c_auth.authorization_gate WHERE singleton_id=1`).Scan(&state); err != nil || state != "FROZEN" {

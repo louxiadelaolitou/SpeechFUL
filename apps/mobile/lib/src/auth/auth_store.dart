@@ -355,7 +355,7 @@ class AuthStore extends ChangeNotifier {
     return future;
   }
 
-  Future<AuthState> _read() async {
+  Future<(AuthState, String?)> _readSnapshot() async {
     try {
       final raw = await _vault.read();
       if (raw != null && utf8.encode(raw).length > 65536) {
@@ -365,7 +365,7 @@ class AuthStore extends ChangeNotifier {
           ? const AuthState()
           : AuthState.parse(_object(jsonDecode(raw)), scope);
       _current = value;
-      return value;
+      return (value, raw);
     } on Object {
       _current = null;
       _notify();
@@ -373,29 +373,38 @@ class AuthStore extends ChangeNotifier {
     }
   }
 
+  Future<AuthState> _read() async => (await _readSnapshot()).$1;
   Future<AuthState> read() => _serial(_read);
-  Future<AuthState> update(AuthState Function(AuthState) change) =>
-      _serial(() async {
-        final old = await _read();
-        try {
-          final raw = jsonEncode(change(old).toJson(scope));
-          if (utf8.encode(raw).length > 65536) {
-            throw const FormatException('Oversized authentication record');
-          }
-          final verified = AuthState.parse(_object(jsonDecode(raw)), scope);
-          await _vault.write(raw);
-          if (await _vault.read() != raw) {
-            throw const AuthStorageFailure();
-          }
-          _current = verified;
-          _notify();
-          return verified;
-        } on Object {
-          _current = null;
-          _notify();
+
+  /// Metadata already present in an identical native snapshot needs no new
+  /// commit. Opting in still reads and validates native storage inside this
+  /// queue; it never trusts the in-memory snapshot or skips changed writes.
+  Future<AuthState> update(
+    AuthState Function(AuthState) change, {
+    bool skipUnchanged = false,
+  }) => _serial(() async {
+    final (old, previousRaw) = await _readSnapshot();
+    try {
+      final raw = jsonEncode(change(old).toJson(scope));
+      if (utf8.encode(raw).length > 65536) {
+        throw const FormatException('Oversized authentication record');
+      }
+      final verified = AuthState.parse(_object(jsonDecode(raw)), scope);
+      if (!skipUnchanged || previousRaw != raw) {
+        await _vault.write(raw);
+        if (await _vault.read() != raw) {
           throw const AuthStorageFailure();
         }
-      });
+      }
+      _current = verified;
+      _notify();
+      return verified;
+    } on Object {
+      _current = null;
+      _notify();
+      throw const AuthStorageFailure();
+    }
+  });
   void _notify() {
     if (!_disposed) notifyListeners();
   }

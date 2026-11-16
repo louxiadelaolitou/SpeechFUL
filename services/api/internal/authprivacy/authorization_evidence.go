@@ -91,6 +91,20 @@ type authorizationAnchor struct {
 	Highwater       time.Time                    `json:"highwater"`
 	Frozen          bool                         `json:"frozen"`
 	OfflineEvidence *SignedAuthorizationEvidence `json:"offlineEvidence,omitempty"`
+	CheckpointID    string                       `json:"checkpointId,omitempty"`
+	ReadAdvance     *authorizationReadAdvance    `json:"readAdvance,omitempty"`
+}
+
+// A Snapshot transaction changes only the Gate checkpoint. Its signed receipt
+// permits replaying that exact change after an interrupted SQL commit, provided
+// SQL still has the uniquely identified predecessor. Business commits never
+// carry this receipt: an uncertain business outcome must remain fail closed.
+type authorizationReadAdvance struct {
+	PreviousID        string    `json:"previousId"`
+	PreviousVersion   uint64    `json:"previousVersion"`
+	PreviousHighwater time.Time `json:"previousHighwater"`
+	IssuedAt          time.Time `json:"issuedAt"`
+	ValidUntil        time.Time `json:"validUntil"`
 }
 
 type signedAuthorizationAnchor struct {

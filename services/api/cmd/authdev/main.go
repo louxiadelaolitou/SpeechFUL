@@ -461,7 +461,14 @@ func operate(command string, args []string) error {
 		// Snapshot checks the independent anchor and persistent OPEN state;
 		// frozen/rollback/mismatch never falls back to recovery.
 		if _, err = gate.Snapshot(ctx); err != nil {
-			return errors.New("ordinary resume rejected; inspect Gate before explicit recovery (which invalidates sessions)")
+			var state, reason string
+			if readErr := pool.QueryRow(ctx, `SELECT gate_state,COALESCE(freeze_reason,'') FROM `+party+`_auth.authorization_gate WHERE singleton_id=1`).Scan(&state, &reason); readErr != nil {
+				return errors.New("ordinary resume unavailable: database or checkpoint inspection failed; existing credentials were not reissued")
+			}
+			if state == "FROZEN" {
+				return fmt.Errorf("ordinary resume blocked: %s Gate is FROZEN (%s); maintenance review required; no automatic session revocation", party, reason)
+			}
+			return fmt.Errorf("ordinary resume unavailable: %s Gate remains %s; retry valid evidence or inspect checkpoint I/O; existing credential generation retained", party, state)
 		}
 	}
 	fmt.Println("development signed evidence updated")
