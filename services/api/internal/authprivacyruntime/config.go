@@ -72,34 +72,35 @@ type SharedRateConfig struct {
 }
 
 type Config struct {
-	SharedRateLimit         *SharedRateConfig `json:"sharedRateLimit,omitempty"`
-	Environment             string            `json:"environment"`
-	DatabaseURL             string            `json:"databaseUrl"`
-	DatabasePasswordFile    string            `json:"databasePasswordFile"`
-	PublicListen            string            `json:"publicListen"`
-	InternalListen          string            `json:"internalListen"`
-	PublicOrigin            string            `json:"publicOrigin"`
-	PeerOrigin              string            `json:"peerOrigin"`
-	AllowedOrigins          []string          `json:"allowedOrigins"`
-	AllowDevelopmentNetwork bool              `json:"allowDevelopmentNetwork"`
-	CAFile                  string            `json:"caFile"`
-	PublicCertificateFile   string            `json:"publicCertificateFile"`
-	PublicKeyFile           string            `json:"publicKeyFile"`
-	InternalCertificateFile string            `json:"internalCertificateFile"`
-	InternalKeyFile         string            `json:"internalKeyFile"`
-	NetworkKeyFile          string            `json:"networkKeyFile"`
-	SigningKeyFile          string            `json:"signingKeyFile"`
-	TrustedCommunityKeyFile string            `json:"trustedCommunityKeyFile"`
-	TrustedVerifierKeyFile  string            `json:"trustedVerifierKeyFile"`
-	RequestKeyFile          string            `json:"requestKeyFile,omitempty"`
-	PasswordBlocklistFile   string            `json:"passwordBlocklistFile,omitempty"`
-	Gate                    *GateConfig       `json:"gate,omitempty"`
-	Posts                   *PostsConfig      `json:"posts,omitempty"`
-	Comments                *CommentsConfig   `json:"comments,omitempty"`
-	Rankings                *RankingsConfig   `json:"rankings,omitempty"`
-	DirectMessages          bool              `json:"directMessages,omitempty"`
-	Moderation              bool              `json:"moderation,omitempty"`
-	AdminDirectory          string            `json:"adminDirectory,omitempty"`
+	SharedRateLimit          *SharedRateConfig `json:"sharedRateLimit,omitempty"`
+	Environment              string            `json:"environment"`
+	DatabaseURL              string            `json:"databaseUrl"`
+	DatabasePasswordFile     string            `json:"databasePasswordFile"`
+	PublicListen             string            `json:"publicListen"`
+	InternalListen           string            `json:"internalListen"`
+	PublicOrigin             string            `json:"publicOrigin"`
+	PeerOrigin               string            `json:"peerOrigin"`
+	AllowedOrigins           []string          `json:"allowedOrigins"`
+	AllowDevelopmentNetwork  bool              `json:"allowDevelopmentNetwork"`
+	CAFile                   string            `json:"caFile"`
+	PublicCertificateFile    string            `json:"publicCertificateFile"`
+	PublicKeyFile            string            `json:"publicKeyFile"`
+	InternalCertificateFile  string            `json:"internalCertificateFile"`
+	InternalKeyFile          string            `json:"internalKeyFile"`
+	NetworkKeyFile           string            `json:"networkKeyFile"`
+	SigningKeyFile           string            `json:"signingKeyFile"`
+	TrustedCommunityKeyFile  string            `json:"trustedCommunityKeyFile"`
+	TrustedVerifierKeyFile   string            `json:"trustedVerifierKeyFile"`
+	RequestKeyFile           string            `json:"requestKeyFile,omitempty"`
+	PasswordBlocklistFile    string            `json:"passwordBlocklistFile,omitempty"`
+	Gate                     *GateConfig       `json:"gate,omitempty"`
+	Posts                    *PostsConfig      `json:"posts,omitempty"`
+	Comments                 *CommentsConfig   `json:"comments,omitempty"`
+	Rankings                 *RankingsConfig   `json:"rankings,omitempty"`
+	DirectMessages           bool              `json:"directMessages,omitempty"`
+	PreparedDMDirectoryReads bool              `json:"preparedDmDirectoryReads,omitempty"`
+	Moderation               bool              `json:"moderation,omitempty"`
+	AdminDirectory           string            `json:"adminDirectory,omitempty"`
 
 	PostImages *PostImagesConfig `json:"postImages,omitempty"`
 	// Exactly four public Gate purpose keys from the other party, in evidence,

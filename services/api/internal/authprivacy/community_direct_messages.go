@@ -15,8 +15,14 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
+// DirectMessageConfig enables only derived read paths; the original directory
+// query remains available when the switch is off.
+type DirectMessageConfig struct {
+	PreparedDirectoryReads bool
+}
+
 // P1 is explicitly enabled only in isolated integration environments.
-func (c *Community) WithDirectMessages(ctx context.Context) (*Community, error) {
+func (c *Community) WithDirectMessages(ctx context.Context, configs ...DirectMessageConfig) (*Community, error) {
 	if !c.PostsEnabled() {
 		return nil, ErrAuthorizationUnavailable
 	}
@@ -29,6 +35,16 @@ func (c *Community) WithDirectMessages(ctx context.Context) (*Community, error) 
 		return nil, e
 	}
 	clone.directMessages = true
+	var config DirectMessageConfig
+	if len(configs) > 0 {
+		config = configs[0]
+	}
+	if config.PreparedDirectoryReads {
+		if e := clone.checkPreparedDMDirectorySchema(ctx); e != nil {
+			return nil, e
+		}
+		clone.dmDirectoryReads = true
+	}
 	return &clone, nil
 }
 func (c *Community) DirectMessagesEnabled() bool { return c != nil && c.directMessages }
@@ -336,7 +352,7 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 			// The reference is checked in the same final authorized transaction.
 			// Do not bind a reading/sharing identity to the shared post.
 			var visible bool
-				err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, in.Text, a).Scan(&visible)
+			err := tx.QueryRow(ctx, `SELECT visibility='PUBLISHED' AND NOT moderation_hidden AND NOT c_posts.accounts_blocked($2,owner_account_id) FROM c_posts.posts WHERE post_id=$1 FOR SHARE`, in.Text, a).Scan(&visible)
 			if errors.Is(err, pgx.ErrNoRows) || err == nil && !visible {
 				return reject("POST_NOT_FOUND")
 			}
