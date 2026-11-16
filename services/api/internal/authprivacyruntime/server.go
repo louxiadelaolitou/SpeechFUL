@@ -115,7 +115,7 @@ func CheckDatabase(ctx context.Context, pool *pgxpool.Pool, service authprivacyh
    AND NOT has_table_privilege(current_user,'v_auth.authorization_gate','INSERT')
    AND NOT has_column_privilege(current_user,'v_auth.authorization_gate','authorization_generation','UPDATE')
    AND NOT has_column_privilege(current_user,'v_auth.authorization_gate','opened_at','UPDATE')
-   AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['gate_state','trusted_high_watermark','evidence_version','evidence_issued_at','evidence_valid_until','freeze_reason','frozen_at']) AS c(name) WHERE NOT has_column_privilege(current_user,'v_auth.authorization_gate',c.name,'UPDATE'))
+   AND NOT EXISTS(SELECT 1 FROM unnest(ARRAY['gate_state','trusted_high_watermark','evidence_version','evidence_issued_at','evidence_valid_until','freeze_reason','frozen_at','checkpoint_id']) AS c(name) WHERE NOT has_column_privilege(current_user,'v_auth.authorization_gate',c.name,'UPDATE'))
    AND has_table_privilege(current_user,'v_auth.authorization_gate_audit','SELECT') AND has_table_privilege(current_user,'v_auth.authorization_gate_audit','INSERT')`).Scan(&gatePrivileges); err != nil || !gatePrivileges {
 			return errors.Join(errDatabasePrivileges, err)
 		}

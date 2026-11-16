@@ -233,7 +233,11 @@ func TestVerifierGateEvidenceAndReplicaFailuresPostgres(t *testing.T) {
 					t.Fatal("V replica B ignored persisted freeze")
 				}
 			}
-			assertVerifierFrozen(t, c)
+			if scenario == "expired" || scenario == "missing" {
+				assertTemporaryEvidenceRecovers(t, c)
+			} else {
+				assertVerifierFrozen(t, c)
+			}
 			if _, err := c.lab.gate.Snapshot(ctx); err != nil {
 				t.Fatalf("V fault affected C: %v", err)
 			}
@@ -482,7 +486,12 @@ func TestVerifierGateEvidenceProviderWaitUsesFinalClockPostgres(t *testing.T) {
 			if _, err := c.gate.Snapshot(ctx); !errors.Is(err, ErrAuthorizationUnavailable) {
 				t.Fatalf("%s during evidence retrieval escaped final V clock check: %v", scenario, err)
 			}
-			assertVerifierFrozen(t, c)
+			if scenario == "expired" {
+				c.gate.evidence = c.provider
+				assertTemporaryEvidenceRecovers(t, c)
+			} else {
+				assertVerifierFrozen(t, c)
+			}
 		})
 	}
 	// A normal recovery's second provider read occurs while both authority
@@ -539,7 +548,9 @@ func TestVerifierGateOfflineBreakGlassExpiresPostgres(t *testing.T) {
 		t.Fatalf("V break-glass failed without online provider: %+v %v", decision, err)
 	}
 	c.clock.set(c.clock.now().Add(authorizationEvidenceTTL + time.Nanosecond))
-	assertVerifierFrozen(t, c)
+	// Expired, valid offline evidence denies work until fresh online evidence
+	// arrives, without turning a temporary outage into another generation reset.
+	assertTemporaryEvidenceRecovers(t, c)
 	if count(t, c.lab.vp, `SELECT count(*) FROM v_auth.authorization_gate_audit WHERE operation_id='V-offline-recovery' AND mode='BREAK_GLASS'`) != 1 {
 		t.Fatal("V break-glass audit missing")
 	}

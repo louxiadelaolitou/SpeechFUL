@@ -144,9 +144,9 @@ func TestFeedPostSessionNativeFinalRevalidationPostgres(t *testing.T) {
 					t.Fatalf("native final authorization failed: called=%t response=%+v err=%v", called, response, err)
 				}
 				if change == "expired" {
-					var state string
-					if err := l.cp.QueryRow(ctx, `SELECT gate_state FROM c_auth.authorization_gate WHERE singleton_id=1`).Scan(&state); err != nil || state != "FROZEN" {
-						t.Fatal("expired authority freeze was not persisted", err)
+					assertTemporaryEvidenceRecovers(t, control)
+					if _, err := original.GetCurrentSession(ctx, reader.SessionToken); err != nil {
+						t.Fatal("temporary expiry revoked the existing login", err)
 					}
 				}
 			})
@@ -229,17 +229,22 @@ func TestFeedPostSessionCommitCleanupPostgres(t *testing.T) {
 			}
 			if mode == "expired" {
 				if err := l.gate.anchor.withLocked(func(a *authorizationAnchor, exists bool) error {
-					if !exists || !a.Frozen {
-						t.Fatal("failure lost independent anchor freeze")
+					if !exists || a.Frozen {
+						t.Fatal("temporary expiry changed independent security state")
 					}
 					return nil
 				}); err != nil {
 					t.Fatal(err)
 				}
 				var state string
-				if err := l.cp.QueryRow(ctx, `SELECT gate_state FROM c_auth.authorization_gate WHERE singleton_id=1`).Scan(&state); err != nil || state != "FROZEN" {
-					t.Fatal("failure rollback erased durable SQL freeze", err)
+				if err := l.cp.QueryRow(ctx, `SELECT gate_state FROM c_auth.authorization_gate WHERE singleton_id=1`).Scan(&state); err != nil || state != "OPEN" {
+					t.Fatal("temporary expiry caused a durable security freeze", err)
 				}
+				var expiry time.Time
+				if err := l.cp.QueryRow(ctx, `SELECT expires_at FROM c_auth.sessions WHERE token_digest=$1`, token[:]).Scan(&expiry); err != nil || !expiry.Equal(oldExpiry) {
+					t.Fatal("expired evidence renewed the session", err)
+				}
+				assertTemporaryEvidenceRecovers(t, control)
 			} else {
 				// This also acquires the Gate row again: a leaked panic/error
 				// transaction would block it, and an erroneous freeze rejects it.
