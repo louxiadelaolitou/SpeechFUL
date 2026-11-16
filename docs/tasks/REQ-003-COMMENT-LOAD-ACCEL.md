@@ -3,7 +3,7 @@
 - 模式：常规
 - 负责人／状态维护人：当前 Session
 - 执行 Session（指挥模式）：无
-- 分支／Worktree／PR：`perf/comment-load-accel`，Worktree `E:\speechful-comment-accel`；基线 `main@1d829b2`；实现提交 `4f824cd`；旧集成提交 `b8f6b24`（叠加旧分支，迁移 0044）；PR [#6](https://github.com/zewbby/SpeechFUL-Develop/pull/6)（open，未合并，base 已改为 `main`）；修复合并在临时 worktree 完成，合并 `main@3746d5a`
+- 分支／Worktree／PR：`perf/comment-load-accel`，Worktree `E:\speechful-comment-accel`；基线 `main@1d829b2`；实现提交 `4f824cd`；旧集成提交 `b8f6b24`（叠加旧分支，迁移 0044）；冲突修复合并提交 `1dc8aa0`（合并 `main@3746d5a`）；PR [#6](https://github.com/zewbby/SpeechFUL-Develop/pull/6)（open，未合并，base `main`）
 - 本轮规则版本（指挥模式）：不适用
 - 授权依据与边界：用户 2026-11-16 在定位卡后指令“你就修就行了，修好再停下来”，随后确认“03和07你都提交pr了么”并要求补交 PR；PR #6 出现冲突后用户选择“接手修复 #6”，授权将 base 改为 `main`、合并最新 `main` 并修正迁移编号。仅优化评论首屏与楼层读取；不修改 HTTP、OpenAPI 或客户端契约；不合并 #6、不部署、不打 tag、不发布、不 force push。PR #4 已合入 `main@3746d5a`，DM 索引迁移以 0047 占用；本任务评论索引迁移重编号为 0048。
 - 需求确认：来源为用户提供的需求清单第 7 项“评论首屏与楼层加载加速”，对应 REQ-001 中“需求 003 独立索引／评论查询优化”。已核实连续模式下客户端按可见楼层懒加载（`apps/mobile/test/comment_views_test.dart:2131`），不是本次改动点；服务端首屏与楼层共同的放大点有两处：点赞数只按 `c_comments.likes.comment_id` 过滤，而主键前缀是 `account_id`；回复数只按 `root_comment_id` 过滤，既有复合索引以 `post_id` 为前缀。前者新增单列索引；后者给查询补上恒真的 `post_id` 条件，复用 `comment_task_thread(post_id,root_comment_id)`。曾评估 `root_comment_id` 单列索引，A/B 显示它与查询改写路径等价且实际更慢，故不保留。
@@ -55,7 +55,7 @@
 | 合并后静态检查 | 同上 | PASS：改动 Go 文件 `gofmt` 无输出；`go build ./...`；`go vet ./internal/authprivacy ./internal/authprivacyruntime ./internal/comments ./internal/authprivacyhttp` |
 | 合并后迁移链 | 同上，隔离 PostgreSQL 16 lab | PASS：`TestCommentTextGooseMigrationChainPostgres` fresh/upgrade；`TestDMGooseFreshAndUpgradePostgres` fresh/upgrade 均为 48；`TestFeedGooseFreshAndUpgradePostgres` 七个环境均为 48；`TestIdentityAvatarGooseFreshAndUpgradePostgres` fresh/upgrade 均为 48；`TestMigrationVersionsAreUnique` PASS |
 | 合并后评论回归 | 同上 | PASS：`TestCommentTextTransactionsPostgres`（含首屏 `ReplyCount==2` 断言） |
-| 产品 CI（合并后） | 待推送 head | NOT_RUN（推送后补） |
+| 产品 CI（合并后） | PR #6 head `1dc8aa0`（base `main@3746d5a`） | PASS：12 个 workflow 全部 success；22 项检查 21 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure；PR `mergeable: clean`；`Comments backend text`、`gate-postgres`、`go-postgres`、`feed-postgres`、`flutter` 等均在 success 之列 |
 | 真实 SQL 行为 | 同一隔离 fixture；`TestCommentTextTransactionsPostgres` | PASS：首屏读取含 `ReplyCount==2` 断言 |
 | 查询计划 | 110,000 个任务、100,200 个根、9,800 条回复、10,000 个点赞的单帖隔离库 | PASS：回复计数 17.8ms / cost 1394.70 / 13,095 buffers → 11.7ms / cost 165.90 / 8,263 buffers，`Index Cond: post_id AND root_comment_id`；同库 A/B 点赞统计 14.2ms → 3.9ms、楼层预览 11.7ms → 1.3ms，均 `Index Only Scan using comment_likes_comment` |
 | 等价性 | 100,200 个根、9,800 条回复 | PASS：新旧回复计数逐根比对 0 差异 |
