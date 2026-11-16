@@ -197,7 +197,13 @@ func (c *Community) readDMChatDirectoryPrepared(ctx context.Context, bearer [32]
 			return nil, e
 		}
 		if len(proof.ids) > 0 {
-			proof.last = proof.ids[len(proof.ids)-1]
+			// Only a full page has a stable upper bound. A short page ends the
+			// client's pagination, so leave the bound open and revalidate the
+			// whole range after the cursor; otherwise a conversation created
+			// after preparation with a larger id would be missed.
+			if len(proof.ids) >= dmDirectoryPageLimit {
+				proof.last = proof.ids[len(proof.ids)-1]
+			}
 			items, e = readDMChatDirectoryPage(prepareCtx, tx, identity, s.account, proof.ids)
 			if e != nil {
 				pending = e

@@ -22,6 +22,7 @@ const (
 	dmDirSecond = "00000000-0000-4000-8000-000000000301"
 	dmDirThird  = "00000000-0000-4000-8000-000000000401"
 	dmDirInsert = "00000000-0000-4000-8000-000000000251"
+	dmDirLate   = "00000000-0000-4000-8000-000000000501"
 )
 
 type dmDirectoryPeer struct {
@@ -440,6 +441,22 @@ func TestDMChatDirectoryPreparedRebuildPostgres(t *testing.T) {
 			t.Fatalf("new conversation inside the returned interval was not rebuilt: %+v", directory.Items)
 		}
 	})
+	t.Run("short_page_new_conversation_after_last", func(t *testing.T) {
+		// A short page is the client's final page. A conversation created after
+		// preparation with an id larger than the last returned one still belongs
+		// on that page, so the range check must not be capped at the last id.
+		f := newDMDirectoryFixture(t)
+		dmDirectoryPreparedPool(t, f.l, "WITH page AS (", func(n int) {
+			if n != 1 {
+				return
+			}
+			dmDirectoryConversation(t, f.l, dmDirLate, f.viewerIdentity, f.peers[3].identity, f.post, 0, false, false)
+		})
+		directory := dmDirectoryValue(t, mustDirectory(t, f.l.c, context.Background(), f.viewer.SessionToken, f.viewerIdentity, ""))
+		if len(directory.Items) != 4 || dmDirectoryItems(directory)[dmDirLate].ID != dmDirLate {
+			t.Fatalf("short page missed a conversation created after its last id: %+v", directory.Items)
+		}
+	})
 	t.Run("identity_deleted", func(t *testing.T) {
 		f := newDMDirectoryFixture(t)
 		dmDirectoryPreparedPool(t, f.l, "WITH page AS (", func(n int) {
@@ -575,6 +592,37 @@ func TestDMChatDirectoryPreparedIndexesPostgres(t *testing.T) {
 	}
 }
 
+// execOpsScript applies an operator SQL file one statement at a time on one
+// connection, mirroring `psql -v ON_ERROR_STOP=1 -f`. Executing the whole file
+// as one pgx batch hides a missing BEGIN because PostgreSQL wraps the batch in
+// an implicit transaction that LOCK TABLE can use.
+func execOpsScript(t *testing.T, pool *pgxpool.Pool, body string) {
+	t.Helper()
+	ctx := context.Background()
+	conn, e := pool.Acquire(ctx)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer conn.Release()
+	var code strings.Builder
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		code.WriteString(line)
+		code.WriteByte('\n')
+	}
+	for _, statement := range strings.Split(code.String(), ";") {
+		statement = strings.TrimSpace(statement)
+		if statement == "" {
+			continue
+		}
+		if _, e := conn.Exec(ctx, statement); e != nil {
+			t.Fatalf("operator statement failed: %v\n%s", e, statement)
+		}
+	}
+}
+
 // TestDMDirectoryIndexRollbackPostgres verifies the operator rollback path.
 // The goose Down stays forward-only, so abandoning the access path uses the
 // checked-in ops scripts while the ledger remains at 0043.
@@ -603,9 +651,7 @@ func TestDMDirectoryIndexRollbackPostgres(t *testing.T) {
 	if indexes() != 2 {
 		t.Fatal("fixture did not install both cursor indexes")
 	}
-	if _, e := f.l.cp.Exec(ctx, script("rollback")); e != nil {
-		t.Fatal("rollback script", e)
-	}
+	execOpsScript(t, f.l.cp, script("rollback"))
 	if indexes() != 0 {
 		t.Fatal("rollback script left a cursor index behind")
 	}
@@ -617,9 +663,7 @@ func TestDMDirectoryIndexRollbackPostgres(t *testing.T) {
 	if _, e := legacy.ReadDMChatDirectory(ctx, f.viewer.SessionToken, f.viewerIdentity.String(), ""); e != nil {
 		t.Fatal("legacy directory after rollback", e)
 	}
-	if _, e := f.l.cp.Exec(ctx, script("reapply")); e != nil {
-		t.Fatal("reapply script", e)
-	}
+	execOpsScript(t, f.l.cp, script("reapply"))
 	if indexes() != 2 {
 		t.Fatal("reapply script did not restore both cursor indexes")
 	}
