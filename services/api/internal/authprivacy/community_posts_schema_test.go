@@ -316,10 +316,12 @@ func TestPostSchemaPartyInventoryAndPrivateColumnsPostgres(t *testing.T) {
 	expected = append(expected, "read_identity_versions", "read_account_versions")
 	expected = append(expected, "read_feed_scope_versions", "read_feed_post_versions")
 	expected = append(expected, "thumbnails", "thumbnail_storage")
+	expected = append(expected, "post_search_documents", "post_search_document_state")
 	rows, err := l.cp.Query(ctx, `SELECT c.relname,c.relkind::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='c_posts' AND c.relkind IN ('r','p','v','m','f') ORDER BY c.relname`)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	var actual []string
 	for rows.Next() {
 		var name, kind string
@@ -348,8 +350,11 @@ func TestPostSchemaPartyInventoryAndPrivateColumnsPostgres(t *testing.T) {
 	if err := l.c.checkThumbnailStorageSchema(ctx, false); err != nil {
 		t.Fatal("private thumbnail lifecycle integrity changed", err)
 	}
+	if err := l.c.checkPostSearchDocumentSchema(ctx); err != nil {
+		t.Fatal("private search projection integrity changed", err)
+	}
 	if count(t, l.cp, `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='c_posts' AND p.prosecdef AND p.oid NOT IN
- (to_regprocedure('c_posts.advance_feed_read_versions()'),to_regprocedure('c_posts.account_thumbnail_storage()'),to_regprocedure('c_posts.erase_source_thumbnails()'))`) != 0 || count(t, l.cp, `SELECT count(*) FROM pg_foreign_server`) != 0 {
+ (to_regprocedure('c_posts.advance_feed_read_versions()'),to_regprocedure('c_posts.account_thumbnail_storage()'),to_regprocedure('c_posts.erase_source_thumbnails()'),to_regprocedure('c_posts.sync_post_search_document()'))`) != 0 || count(t, l.cp, `SELECT count(*) FROM pg_foreign_server`) != 0 {
 		t.Fatal("posts acquired a privileged function or foreign-party bridge")
 	}
 	if count(t, l.vp, `SELECT count(*) FROM pg_namespace WHERE nspname='c_posts'`) != 0 {

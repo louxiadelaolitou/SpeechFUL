@@ -43,6 +43,7 @@ type PostsConfig struct {
 	CursorKeyFile      string `json:"cursorKeyFile"`
 	PreparedFeedReads  bool   `json:"preparedFeedReads,omitempty"`
 	PreparedMediaReads bool   `json:"preparedMediaReads,omitempty"`
+	SearchDocuments    bool   `json:"searchDocuments,omitempty"`
 }
 
 type CommentsConfig struct {

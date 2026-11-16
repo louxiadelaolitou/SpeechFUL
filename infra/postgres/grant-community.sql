@@ -292,3 +292,15 @@ DO $$ BEGIN
    FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
  END IF;
 END $$;
+
+-- 0047: read-model maintenance and readiness are owner/trigger operations.
+DO $$ BEGIN
+ IF to_regclass('c_posts.post_search_documents') IS NOT NULL THEN
+  REVOKE ALL ON c_posts.post_search_documents,c_posts.post_search_document_state
+   FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+  GRANT SELECT ON c_posts.post_search_documents,c_posts.post_search_document_state TO hnuhole_c_runtime;
+  REVOKE ALL ON FUNCTION c_posts.refresh_post_search_document(uuid),c_posts.sync_post_search_document(),
+   c_posts.backfill_post_search_documents(integer),c_posts.validate_post_search_documents(),c_posts.current_post_search_documents(uuid)
+   FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+ END IF;
+END $$;

@@ -45,6 +45,17 @@ func seedPostSearch(t *testing.T, s *e2eServices) postSearchFixture {
 func TestRealHTTPSPostSearchHistoryPostgres(t *testing.T) {
 	s := e2eNewServices(t)
 	f := seedPostSearch(t, s)
+	if s.postConfig.SearchDocuments {
+		// Exercise the accelerated candidate path as well as the two-character
+		// exact fallback used by the history/pagination scenario below.
+		for keyword, id := range map[string]string{"一起学习": f.exact, "今晚一起自习": f.body} {
+			page := postHTTPSJSON(t, s, "POST", postSearchPath, f.reader, "", map[string]any{"keyword": keyword}, 200)
+			items := page["items"].([]any)
+			if len(items) != 1 || items[0].(map[string]any)["postId"] != id {
+				t.Fatalf("indexed HTTPS search %q: %+v", keyword, page)
+			}
+		}
+	}
 	input := map[string]any{"keyword": " 自习 ", "channelId": f.channel, "limit": 1, "recordHistory": true}
 	page := postHTTPSJSON(t, s, "POST", postSearchPath, f.reader, "", input, 200)
 	item := page["items"].([]any)[0].(map[string]any)
@@ -95,6 +106,16 @@ func TestRealHTTPSPostSearchHistoryPostgres(t *testing.T) {
 	}
 	postHTTPSJSON(t, s, "POST", postSearchPath, f.reader, "", map[string]any{"keyword": "权限已撤销", "recordHistory": true}, 503)
 	postHTTPSJSON(t, s, "GET", postSearchHistoryPath, f.reader, "", nil, 503)
+}
+
+func TestRealHTTPSPostSearchDocumentsPostgres(t *testing.T) {
+	t.Setenv("AUTHLAB_SEARCH_DOCUMENTS", "1")
+	TestRealHTTPSPostSearchHistoryPostgres(t)
+}
+
+func TestRealHTTPSPostSearchDocumentsDartPostgres(t *testing.T) {
+	t.Setenv("AUTHLAB_SEARCH_DOCUMENTS", "1")
+	TestRealHTTPSPostSearchDartPostgres(t)
 }
 
 func TestRealHTTPSPostSearchDartPostgres(t *testing.T) {

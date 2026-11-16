@@ -44,7 +44,8 @@ BEGIN
     END LOOP;
     FOR relation IN SELECT p.oid FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE n.nspname='c_inbox' OR (n.nspname='c_comments' AND p.proname='advance_read_versions')
-        OR (n.nspname='c_posts' AND p.proname IN ('advance_feed_read_versions','account_thumbnail_storage','erase_source_thumbnails')) LOOP
+		OR (n.nspname='c_posts' AND p.proname IN ('advance_feed_read_versions','account_thumbnail_storage','erase_source_thumbnails',
+          'refresh_post_search_document','sync_post_search_document','backfill_post_search_documents','validate_post_search_documents','current_post_search_documents')) LOOP
       IF has_function_privilege(audit_role,relation.oid,'EXECUTE') THEN
         RAISE EXCEPTION 'private trigger function acquired operational execute';
       END IF;
@@ -104,6 +105,7 @@ BEGIN
               OR (relation.relname='blocked_authors' AND privilege IN ('SELECT','INSERT','DELETE'))
               OR (relation.relname='search_content_revision' AND privilege IN ('SELECT','UPDATE'))
               OR (relation.relname IN ('read_identity_versions','read_account_versions','read_feed_scope_versions','read_feed_post_versions') AND privilege='SELECT')
+              OR (relation.relname IN ('post_search_documents','post_search_document_state') AND privilege='SELECT')
               OR (relation.relname='ranking_snapshots' AND privilege IN ('SELECT','INSERT','DELETE'))
               OR (relation.relname='ranking_posts' AND privilege IN ('SELECT','INSERT'))
               OR (relation.relname='ranking_channel_data' AND privilege IN ('SELECT','INSERT','DELETE'))

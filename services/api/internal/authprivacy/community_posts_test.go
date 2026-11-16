@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +19,7 @@ import (
 
 func enablePostLab(t *testing.T, l *lab) PostConfig {
 	t.Helper()
-	config := PostConfig{Environment: "text-post-lab"}
+	config := PostConfig{Environment: "text-post-lab", SearchDocuments: os.Getenv("AUTHLAB_SEARCH_DOCUMENTS") == "1"}
 	for _, key := range []*[32]byte{&config.KeyKey, &config.FingerprintKey, &config.CursorKey} {
 		value, err := random32()
 		if err != nil {

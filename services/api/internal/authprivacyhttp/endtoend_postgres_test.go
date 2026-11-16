@@ -407,7 +407,7 @@ func e2eNewServicesWithTLSLifetime(t *testing.T, lifetime time.Duration, configu
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.postConfig = authprivacy.PostConfig{Environment: "lab", KeyKey: e2eKey(t), FingerprintKey: e2eKey(t), CursorKey: e2eKey(t)}
+	s.postConfig = authprivacy.PostConfig{Environment: "lab", KeyKey: e2eKey(t), FingerprintKey: e2eKey(t), CursorKey: e2eKey(t), SearchDocuments: os.Getenv("AUTHLAB_SEARCH_DOCUMENTS") == "1"}
 	s.c, err = s.c.WithPosts(context.Background(), s.postConfig)
 	if err != nil {
 		t.Fatal(err)

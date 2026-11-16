@@ -89,8 +89,20 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 48 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 48 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 49 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 49 {
 				t.Fatal("incomplete migration chain")
+			}
+			// 0049 installs writers immediately but leaves populated upgrades
+			// unavailable until separately committed backfill and reconciliation.
+			if mode != "fresh" {
+				if count(t, pool, `SELECT count(*) FROM c_posts.post_search_document_state WHERE ready`) != 0 {
+					t.Fatal("upgrade prematurely ready")
+				}
+				mustExec(t, pool, `SELECT c_posts.backfill_post_search_documents(1)`)
+				mustExec(t, pool, `SELECT c_posts.validate_post_search_documents()`)
+			}
+			if err := (&Community{pool: pool}).checkPostSearchDocumentSchema(ctx); err != nil {
+				t.Fatal("upgraded search documents", err)
 			}
 			if e = checkPostSearchHistorySchema(ctx, pool, true); e != nil {
 				t.Fatal(e)
@@ -155,7 +167,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("down"); e == nil {
 				t.Fatal("cumulative facts rolled back")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 48 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 49 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})

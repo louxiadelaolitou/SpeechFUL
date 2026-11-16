@@ -1,0 +1,51 @@
+name: Post search performance
+on:
+  pull_request:
+    paths:
+      - 'services/api/**'
+      - 'infra/postgres/**'
+      - '.github/workflows/post-search-performance.yml'
+      - 'tools/ci/ubuntu-apt-source.sh'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: post-search-perf-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  search-postgres-100k:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.2'
+          cache-dependency-path: services/api/go.sum
+      - name: Install pinned database tools
+        run: |
+          bash tools/ci/ubuntu-apt-source.sh
+          sudo apt-get -o Acquire::Retries=2 update
+          sudo apt-get -o Acquire::Retries=2 install -y postgresql-16
+          go install github.com/pressly/goose/v3/cmd/goose@v3.22.1
+      - name: Fixed 100k real SQL and native Gate comparison
+        env:
+          POST_SEARCH_PERF: '1'
+          FEED_TEST_PATTERN: '^TestFeedPostSearchDocumentsPerformancePostgres$'
+          FEED_TEST_TIMEOUT: '45m'
+          FEED_TEST_RACE: '0'
+        run: |
+          export PATH="$(pg_config --bindir):$PATH"
+          export FEED_GOOSE="$(go env GOPATH)/bin/goose"
+          export POST_SEARCH_PERF_OUTPUT="$RUNNER_TEMP/post-search-performance.json"
+          sh services/api/authlab/run-feed-isolated.sh > "$RUNNER_TEMP/post-search-performance.log" 2>&1 || { cat "$RUNNER_TEMP/post-search-performance.log"; exit 1; }
+          cat "$RUNNER_TEMP/post-search-performance.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: post-search-100k-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/post-search-performance.json
+            ${{ runner.temp }}/post-search-performance.log

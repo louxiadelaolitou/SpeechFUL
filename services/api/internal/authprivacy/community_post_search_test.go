@@ -204,6 +204,9 @@ type searchCandidateTrace struct {
 type searchCandidateTraceKey struct{}
 
 func (tr searchCandidateTrace) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(data.SQL, "FROM c_posts.post_search_documents TABLESAMPLE") && tr.start != nil {
+		tr.start(conn.PgConn().PID())
+	}
 	if strings.Contains(data.SQL, "WITH matched AS (") {
 		if tr.start != nil {
 			tr.start(conn.PgConn().PID())
@@ -244,11 +247,20 @@ func TestFeedPostSearchCandidateScanDoesNotHoldGatePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Rollback(context.Background())
-	if _, err = lock.Exec(ctx, `LOCK TABLE c_posts.attempt_contents IN ACCESS EXCLUSIVE MODE`); err != nil {
+	candidateTable := "c_posts.attempt_contents"
+	if l.c.posts.searchDocuments {
+		candidateTable = "c_posts.post_search_documents"
+	}
+	if _, err = lock.Exec(ctx, `LOCK TABLE `+candidateTable+` IN ACCESS EXCLUSIVE MODE`); err != nil {
 		t.Fatal(err)
 	}
 	started := make(chan uint32, 1)
-	search := tracePostSearch(t, l, searchCandidateTrace{start: func(pid uint32) { started <- pid }})
+	search := tracePostSearch(t, l, searchCandidateTrace{start: func(pid uint32) {
+		select {
+		case started <- pid:
+		default:
+		}
+	}})
 	done := make(chan error, 1)
 	go func() {
 		_, err := search.SearchPosts(ctx, searcher.SessionToken, posts.SearchQuery{Keyword: "blocked SQL"})
@@ -265,7 +277,7 @@ func TestFeedPostSearchCandidateScanDoesNotHoldGatePostgres(t *testing.T) {
 	// Confirm that PostgreSQL itself is waiting for the table lock.
 	for {
 		var waiting bool
-		err := l.cp.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation='c_posts.attempt_contents'::regclass AND NOT granted)`, int64(pid)).Scan(&waiting)
+		err := l.cp.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation=to_regclass($2) AND NOT granted)`, int64(pid), candidateTable).Scan(&waiting)
 		if err != nil {
 			t.Fatal(err)
 		}

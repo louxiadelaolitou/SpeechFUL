@@ -28,6 +28,22 @@ func TestPreparedReadConfigurationDefaultsAndIsolation(t *testing.T) {
 	}
 }
 
+func TestPostSearchDocumentConfigurationIsIndependent(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		raw := `{"posts":{},"comments":{}}`
+		if enabled {
+			raw = `{"posts":{"searchDocuments":true},"comments":{}}`
+		}
+		var config Config
+		if err := json.Unmarshal([]byte(raw), &config); err != nil {
+			t.Fatal(err)
+		}
+		if config.Posts.SearchDocuments != enabled || config.Posts.PreparedFeedReads || config.Posts.PreparedMediaReads || config.Comments.PreparedReads {
+			t.Fatal("search switch changed another read mode")
+		}
+	}
+}
+
 func TestPreparedReadsDisabledRetainsC39StartupPostgres(t *testing.T) {
 	owner, runtime := moderationStartupLabThrough(t, 39)
 	ctx := context.Background()
