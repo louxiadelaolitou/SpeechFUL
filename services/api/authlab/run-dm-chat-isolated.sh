@@ -15,7 +15,7 @@ trap 'exit 143' TERM HUP
 mkdir "$work/socket" "$work/fixtures"
 if [ "$(id -u)" = 0 ]; then chown postgres:postgres "$work" "$work/socket"; fi
 pg initdb -D "$work/data" -U dm_p2_admin -A trust --no-locale -E UTF8 >"$work/init.log" 2>&1
-pg pg_ctl -D "$work/data" -l "$work/postgres.log" -w start -o "-c listen_addresses='' -c unix_socket_directories='$work/socket' -c unix_socket_permissions=0700 -c shared_memory_type=mmap -c dynamic_shared_memory_type=mmap -c shared_buffers=16MB -c max_connections=50 -c log_statement=none -c log_min_messages=panic -c log_min_error_statement=panic -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0" >/dev/null
+pg pg_ctl -D "$work/data" -l "$work/postgres.log" -w start -o "-c listen_addresses='' -c unix_socket_directories='$work/socket' -c unix_socket_permissions=0700 -c shared_memory_type=mmap -c dynamic_shared_memory_type=mmap -c shared_buffers=${DM_CHAT_SHARED_BUFFERS:-16MB} -c max_connections=50 -c log_statement=none -c log_min_messages=panic -c log_min_error_statement=panic -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0" >/dev/null
 psql -X -v ON_ERROR_STOP=1 -h "$work/socket" -U dm_p2_admin -d postgres >/dev/null <<'SQL'
 CREATE ROLE hnuhole_c LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE ROLE hnuhole_v LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
@@ -51,5 +51,7 @@ with (p/'fixtures/png.bin').open('rb') as source:
 (p/'fixtures/png.json').write_bytes(r.stdout)
 PY
 cd "$root"
-go test -timeout=35m -race -count=1 -p 1 ./internal/authprivacy ./internal/authprivacyhttp -run "${DM_CHAT_TEST_PATTERN:-^(TestDMPostCard|TestDMChat|TestDMFirstContact|TestDMReliableText|TestDMGoose)}" -v >"$work/tests.log" 2>&1 || { cat "$work/tests.log"; exit 1; }
+race=""
+if [ "${DM_CHAT_RACE:-1}" = "1" ]; then race=-race; fi
+go test -timeout=35m $race -count=1 -p 1 ./internal/authprivacy ./internal/authprivacyhttp -run "${DM_CHAT_TEST_PATTERN:-^(TestDMPostCard|TestDMChat|TestDMFirstContact|TestDMReliableText|TestDMGoose)}" -v >"$work/tests.log" 2>&1 || { cat "$work/tests.log"; exit 1; }
 cat "$work/tests.log"

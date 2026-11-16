@@ -89,9 +89,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			// 0043 is reserved by the in-flight DM directory task; this branch
-			// installs 0044, so the ledger has 43 rows and a temporary gap.
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 43 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 44 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 44 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 44 {
 				t.Fatal("incomplete migration chain")
 			}
 			if e = checkPostSearchHistorySchema(ctx, pool, true); e != nil {

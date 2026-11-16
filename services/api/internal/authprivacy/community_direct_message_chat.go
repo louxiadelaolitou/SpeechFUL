@@ -106,9 +106,20 @@ func (c *Community) ReadDMChatDirectory(ctx context.Context, b [32]byte, identit
 	if !dmUUID(identity) || (after != "" && !dmUUID(after)) {
 		return PostResponse{}, postError("MALFORMED_REQUEST", 400)
 	}
-	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, decision AuthorizationDecision, restrictions restriction) (any, error) {
-		items := make([]DMChatConversation, 0)
-		rows, e := tx.Query(ctx, `SELECT c.conversation_id::text,i.identity_id::text,p.identity_id::text,CASE WHEN p.deleted_at IS NULL THEN p.nickname ELSE '注销身份 · '||(SELECT short_code FROM c_posts.identity_public_labels WHERE identity_id=p.identity_id) END,CASE WHEN p.deleted_at IS NULL THEN p.avatar ELSE 'inactive-v1' END,c.source_post::text,c.sequence,
+	if c.preparedDMDirectoryReads() {
+		return c.readDMChatDirectoryPrepared(ctx, b, identity, after)
+	}
+	return c.readDMChatDirectoryDirect(ctx, b, identity, after)
+}
+
+func (c *Community) preparedDMDirectoryReads() bool {
+	return c != nil && c.directMessages && c.dmDirectoryReads && c.PostsEnabled() && c.nativePreparedReads()
+}
+
+// dmDirectoryDirectSQL is the pre-index directory query. It remains the
+// fallback path and the equivalence baseline for the prepared path; tests
+// explain the exact production statement.
+const dmDirectoryDirectSQL = `SELECT c.conversation_id::text,i.identity_id::text,p.identity_id::text,CASE WHEN p.deleted_at IS NULL THEN p.nickname ELSE '注销身份 · '||(SELECT short_code FROM c_posts.identity_public_labels WHERE identity_id=p.identity_id) END,CASE WHEN p.deleted_at IS NULL THEN p.avatar ELSE 'inactive-v1' END,c.source_post::text,c.sequence,
    (SELECT count(*) FROM c_dm.messages x WHERE x.conversation_id=c.conversation_id AND x.recipient=i.identity_id AND NOT x.read AND NOT x.retracted AND x.sequence>COALESCE(s.deleted_through,0)),
    CASE WHEN c.low_identity=i.identity_id THEN c.low_sent AND NOT c.high_sent ELSE c.high_sent AND NOT c.low_sent END,
    p.deleted_at IS NULL AND pa.state='ACTIVE' AND NOT c_posts.accounts_blocked(i.account_id,p.account_id) AND NOT EXISTS(SELECT 1 FROM c_dm.blocks b WHERE (b.owner_account=i.account_id AND b.peer_account=p.account_id) OR (b.owner_account=p.account_id AND b.peer_account=i.account_id)),COALESCE((SELECT b.block_id::text FROM c_posts.blocked_authors b WHERE b.account_id=i.account_id AND b.author_account_id=p.account_id),''),c.revision,COALESCE(s.version,0),COALESCE(s.pinned,false),COALESCE(s.muted,false),COALESCE(s.hidden_through,0)>=c.sequence AND COALESCE(s.hidden_through,0)>0,c.sequence<=COALESCE(s.deleted_through,0),COALESCE(s.deleted_through,0),COALESCE(s.note,''),CASE WHEN source.visibility='PUBLISHED' AND NOT source.moderation_hidden THEN COALESCE(source_content.title,'') ELSE '' END,
@@ -116,14 +127,19 @@ func (c *Community) ReadDMChatDirectory(ctx context.Context, b [32]byte, identit
    FROM c_dm.conversations c JOIN public.community_identities i ON i.identity_id IN(c.low_identity,c.high_identity)
    JOIN public.community_identities p ON p.identity_id=CASE WHEN i.identity_id=c.low_identity THEN c.high_identity ELSE c.low_identity END
    JOIN c_auth.accounts pa ON pa.account_id=p.account_id LEFT JOIN c_posts.posts source ON source.post_id=c.source_post LEFT JOIN c_posts.publication_tasks source_task ON source_task.post_id=source.post_id LEFT JOIN c_posts.attempt_contents source_content ON source_content.task_id=source_task.task_id AND source_content.version=source.published_attempt_version AND source_content.erased_at IS NULL LEFT JOIN c_dm.settings s ON s.conversation_id=c.conversation_id AND s.identity_id=i.identity_id
-   WHERE i.account_id=$1 AND i.identity_id=$2 AND i.deleted_at IS NULL AND ($3='' OR c.conversation_id>NULLIF($3,'')::uuid) ORDER BY c.conversation_id LIMIT 100`, a, identity, after)
+   WHERE i.account_id=$1 AND i.identity_id=$2 AND i.deleted_at IS NULL AND ($3='' OR c.conversation_id>NULLIF($3,'')::uuid) ORDER BY c.conversation_id LIMIT 100`
+
+func (c *Community) readDMChatDirectoryDirect(ctx context.Context, b [32]byte, identity, after string) (PostResponse, error) {
+	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, decision AuthorizationDecision, restrictions restriction) (any, error) {
+		items := make([]DMChatConversation, 0)
+		rows, e := tx.Query(ctx, dmDirectoryDirectSQL, a, identity, after)
 		if e != nil {
 			return nil, e
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var v DMChatConversation
-			if e = rows.Scan(&v.ID, &v.IdentityID, &v.PeerID, &v.PeerName, &v.PeerAvatar, &v.SourcePostID, &v.Sequence, &v.Unread, &v.Waiting, &v.CanSend, &v.OwnBlockID, &v.Version, &v.SettingsVersion, &v.Pinned, &v.Muted, &v.Hidden, &v.Deleted, &v.DeletedThrough, &v.Note, &v.SourceTitle, &v.UnavailableUnread, &v.CanShare); e != nil {
+			v, e := scanDMChatConversation(rows)
+			if e != nil {
 				return nil, e
 			}
 			v.CanShare = v.CanShare && v.CanSend && !mutedAt(restrictions, decision.TrustedAt)
