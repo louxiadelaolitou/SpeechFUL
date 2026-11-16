@@ -15,6 +15,7 @@
   - 查询计划（110,000 个任务、100,200 个根、9,800 条回复、10,000 个点赞的隔离库）：回复计数 17.8ms / cost 1394.70 / 13,095 buffers → 11.7ms / cost 165.90 / 8,263 buffers，计划为 `Index Cond: post_id AND root_comment_id`；同库 A/B 中 50 条点赞统计 14.2ms → 3.9ms，49 条楼层预览 11.7ms → 1.3ms，均走 `Index Only Scan using comment_likes_comment`。
   - 等价性：对 100,200 个根逐条比对新旧回复计数，0 差异。
   - 产品级首屏/楼层 P95 与真机链路 `NOT_RUN`（需真实规模数据与客户端联调）。
+  - 产品 CI：PR [#6](https://github.com/zewbby/SpeechFUL-Develop/pull/6) head `4f824cd` 的 21 项检查 20 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure。
 - 回滚：`git revert $(git log --format=%H --grep='^perf(comments): accelerate first-screen and floor reads$' -1)`；目标库执行 `DROP INDEX IF EXISTS c_comments.comment_likes_comment;`。0044 的 Down 按 0041/0042 约定拒绝回退，需显式前向修复。
 - 任务：`docs/tasks/REQ-003-COMMENT-LOAD-ACCEL.md`
-- 授权：用户 2026-11-16 在定位卡后指令“你就修就行了，修好再停下来”
+- 授权：用户 2026-11-16 在定位卡后指令“你就修就行了，修好再停下来”，随后确认并要求补交 PR。已推送 `perf/comment-load-accel` 并创建 PR #6；未合并、未部署。
