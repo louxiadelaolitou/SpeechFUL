@@ -3,7 +3,7 @@
 - 模式：常规
 - 负责人／状态维护人：当前 Session
 - 执行 Session（指挥模式）：无
-- 分支／Worktree／PR：`perf/dm-directory-reads`，基线 `main@1d829b2`（已合并 `main@47bf7e9`）；实现提交 `809b00f`，审查修复提交 `a25aa8b`；PR [#4](https://github.com/zewbby/SpeechFUL-Develop/pull/4)（open，未合并）
+- 分支／Worktree／PR：`perf/dm-directory-reads`，基线 `main@1d829b2`（已合并 `main@47bf7e9`，合并提交 `2dfd309`）；实现提交 `809b00f`，审查修复提交 `a25aa8b`；PR [#4](https://github.com/zewbby/SpeechFUL-Develop/pull/4)（open，未合并）
 - 本轮规则版本（指挥模式）：不适用
 - 授权依据与边界：用户 2026-11-16 指令“按方案A执行，此会话执行06优化”。仅实现需求 06；不开始 03/07；不合并、不部署、不打 tag、不发布、不 force push。迁移号 0047 由本任务占用（`main` 已占用 0043–0046）；并行需求 03/07 使用 0048 及以后；0047 必须先合入，goose 只应用高于当前版本的新迁移。
 - 需求确认：需求 06（私信会话目录查询优化，用户提供文档）。保留会话 ID 游标分页、100 条上限、置顶/备注/静音、隐藏/删除消息边界、撤回、acknowledged/read 语义、来源帖与双向拉黑规则；新增 `(low_identity, conversation_id)`、`(high_identity, conversation_id)` 索引；候选页只做索引分支 `UNION ALL`，选中页再批量关联；未读与 acknowledged-unread 一次条件聚合；接入既有 P0 两阶段读取并在最终 C Gate 事务内重验，变化时有界重算一次。
@@ -74,7 +74,7 @@
 | 迁移链 | 同上（独立 fresh lab）；合并后 | PASS：`TestIdentityAvatarGooseFreshAndUpgradePostgres` fresh/upgrade 均为 47；该测试要求专用空库，需单独启动 lab，不能与 `TestDMGoose...` 复用同一注释库 |
 | 迁移链 | 同上（feed lab） | PASS：`TestFeedGooseFreshAndUpgradePostgres` 六个子库（fresh/upgrade/interactions/versions/reposts/history/legacy_search）均为版本 43（合并前基线；合并后由 CI `feed-postgres` 覆盖 47） |
 | 合并与迁移重编号 | 合并 `main@47bf7e9` 后的临时 worktree，WSL Ubuntu 24.04 / Go 1.22.2；隔离 PostgreSQL 16 lab | PASS：`main` 已新增 `0043_post_thumbnails`–`0046_post_tag_sync_skip`，本任务迁移与运维脚本由 0043 改为 0047，3 个迁移测试版本断言由 46 改为 47；`gofmt`（LF）、`go build ./...`、`go vet ./...`、`TestMigrationVersionsAreUnique`、prepared 全套（含短页与运维脚本事务）、`TestDMDirectoryIndexRollbackPostgres`、DM 迁移链 47、identity 迁移链 47 均 PASS；无冲突标记 |
-| 产品 CI | PR #4 head `69f8984`（合并前） | PASS：21 项检查 20 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure；`go-postgres`、`feed-postgres`、`flutter`、`policy`、`text-component` 等均 success。另有 1 个重复 `policy` 运行被 concurrency 取消，不影响结果；PR 状态 clean。合并 `main` 后的新 head 需重新跑 CI |
+| 产品 CI | PR #4 head `2dfd309`（合并 `main@47bf7e9` 后） | PASS：14 个 workflow 全部 success；24 项检查 23 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure；PR `mergeable: clean`。合并前 head `69f8984` 的 21 项检查同样为 20 success、1 skip |
 
 1M 证据复现（隔离 lab，产物写到源码外）：
 
@@ -99,4 +99,4 @@ sh services/api/authlab/run-dm-chat-isolated.sh
 - 无实现阻塞。1M p95 已在合成 lab 达标并保留完整计划/分位数，但仍是单客户端、首页、预热缓存证据，不等同生产验收；上线前应在生产规模快照或专用压测库复测（含更深游标页与冷缓存）。
 - 0047 必须先于并行需求使用的 0048+ 合入。`TestMigrationVersionsAreUnique` 只能阻止版本号碰撞，不能改变 goose 只应用更高版本的顺序约束，合并顺序仍需人工协调。
 - 0047 Down 按仓库策略保持 forward-only；放弃优化时先关闭 `preparedDmDirectoryReads`，再执行运维回退脚本，恢复用 `_reapply.sql`。
-- 当前工作区存在其他 Session 的未跟踪目录（`.agents/skills/minimal-change/`、`.zcode/`），未被本任务提交。实现提交 `809b00f`、复审修复 `a25aa8b`、合并 `main@47bf7e9` 与迁移重编号已推送至 PR #4；合并前 head `69f8984` 的 CI 已全绿，合并后的新 head 需重新跑 CI。评审两项 P2 已修复并复验，待复审；合并、发布仍待授权。
+- 当前工作区存在其他 Session 的未跟踪目录（`.agents/skills/minimal-change/`、`.zcode/`），未被本任务提交。实现提交 `809b00f`、复审修复 `a25aa8b`、合并 `main@47bf7e9`（合并提交 `2dfd309`）与迁移重编号已推送至 PR #4；head `2dfd309` 的 CI 全绿（14 个 workflow，23 success + 1 skip），PR `mergeable: clean`。评审两项 P2 已修复并复验，待复审；合并、发布仍待授权。
