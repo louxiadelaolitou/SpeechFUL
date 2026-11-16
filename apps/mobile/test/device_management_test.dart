@@ -99,11 +99,19 @@ void main() {
     await read;
     expect(c.device, isNull);
     expect(f.store.current!.session!.expiresAt, securityTestExpiry);
-    f.api.deviceWait = null;
+    // A renewed deadline requires a durable write. An identical stored
+    // deadline now verifies native storage without creating a new commit.
+    f.api.deviceWait = Completer<DeviceDirectory>()
+      ..complete(DeviceDirectory(
+        currentSignedInAt: DateTime.utc(2026),
+        sessionExpiresAt: securityTestExpiry.add(const Duration(days: 1)),
+      ));
     f.vault.failNext = true;
     await c.load();
+    expect(f.vault.failNext, isFalse);
     expect(c.device, isNull);
     expect(c.status, DeviceManagementStatus.storageFailure);
+    expect(f.store.current, isNull);
   });
   testWidgets(
     'device page contains current session only and retains explicit logout',

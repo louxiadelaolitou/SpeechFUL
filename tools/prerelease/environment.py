@@ -38,6 +38,13 @@ def write(path, value):
     Path(path).chmod(0o600)
 
 
+def checkpoint_rollback_incompatible(candidate, rollback):
+    # The old verifier cannot authenticate the extended signed checkpoint.
+    # Do not let it inspect live material and persist a false security freeze.
+    protocol = Path('services/api/internal/authprivacy/authorization_checkpoint.go')
+    return (candidate / protocol).is_file() and not (rollback / protocol).is_file()
+
+
 def free_ports(count):
     with contextlib.ExitStack() as stack:
         sockets = [stack.enter_context(socket.socket()) for _ in range(count)]
@@ -66,6 +73,7 @@ class Lab:
     def run(self, args, name, *, env=None, input=None, cwd=None, check=True, timeout=180):
         started = datetime.now(timezone.utc).isoformat()
         with (self.root / (name + '.private.log')).open('ab') as log:
+            log_start = log.tell()
             result = subprocess.run(list(map(str, args)), cwd=cwd or self.api, env=env or self.env,
                                     input=input, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
         if self.state is not None:
@@ -73,6 +81,15 @@ class Lab:
                                                              endedAtUtc=datetime.now(timezone.utc).isoformat()))
             self.save()
         if check and result.returncode:
+            if name in ('resume-c', 'resume-v'):
+                # Expose only this invocation's local authdev diagnostic. Never
+                # echo command arguments, credentials or other private logs.
+                with (self.root / (name + '.private.log')).open('rb') as log:
+                    log.seek(max(log_start, log.seek(0, 2) - 4096))
+                    lines = log.read().decode('utf-8', errors='replace').splitlines()
+                detail = next((line[:1000] for line in reversed(lines) if line.startswith('authdev: ')), '')
+                if detail:
+                    raise RuntimeError(name + ' failed: ' + detail)
             raise RuntimeError(name + ' failed (see private log)')
         return result.returncode
 
@@ -597,6 +614,16 @@ class Lab:
                     raise RuntimeError('pre-tag rollback did not refuse safely with preserved data')
                 evidence['rollbackMode'] = 'REFUSED_C33_REQUIRES_FORWARD_REPAIR'
                 passed('pre-tag-application-rollback-refused-with-data-preserved')
+            elif checkpoint_rollback_incompatible(self.source, self.root / 'rollback-source'):
+                # This is an explicit deployment preflight refusal, not a
+                # successful execution of an old binary on new Gate material.
+                # Never downgrade signed state or recover just to make an
+                # incompatible application rollback appear successful.
+                before_refusal = self.fingerprint()
+                evidence['rollbackMode'] = 'PREFLIGHT_REFUSED_CHECKPOINT_PROTOCOL_REQUIRES_FORWARD_REPAIR'
+                if self.fingerprint() != before_refusal:
+                    raise RuntimeError('checkpoint rollback preflight changed data')
+                passed('pre-checkpoint-application-rollback-refused-before-material-read')
             else:
                 self.start(prefix='rollback-')
                 self.health()

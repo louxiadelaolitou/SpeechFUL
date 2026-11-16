@@ -192,6 +192,25 @@ def main():
     if sys.argv[1:] == ["--probe"]:
         print("postmedia-validator/v1")
         return 0
+    if sys.argv[1:] == ["--thumbnail-encoder"]:
+        print("thumbnail-v1-640:" + __version__ + ":" + str(features.version("webp")))
+        return 0
+    if sys.argv[1:] == ["--thumbnail-record"]:
+        try:
+            result = thumbnail(sys.stdin.buffer.read(MAX_BYTES + 1))
+            with Image.open(io.BytesIO(result)) as image:
+                image.load()
+                if image.format != "WEBP" or getattr(image, "n_frames", 1) != 1:
+                    return 2
+                width, height = image.size
+            if not (0 < width <= 640 and 0 < height <= 640):
+                return 2
+            record = {"width": width, "height": height,
+                      "sha256": hashlib.sha256(result).hexdigest()}
+        except Exception:
+            return 2
+        sys.stdout.buffer.write(json.dumps(record, separators=(",", ":")).encode("ascii") + b"\n" + result)
+        return 0
     if sys.argv[1:] == ["--thumbnail"]:
         try:
             result = thumbnail(sys.stdin.buffer.read(MAX_BYTES + 1))

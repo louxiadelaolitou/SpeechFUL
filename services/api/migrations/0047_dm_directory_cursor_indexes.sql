@@ -16,7 +16,7 @@ CREATE INDEX dm_conversations_high_cursor
 -- +goose StatementBegin
 -- Forward-only, like 0041/0042: the prepared directory validates both indexes
 -- at startup. To abandon the access path, disable preparedDmDirectoryReads and
--- run services/api/ops/0043_dm_directory_cursor_indexes_rollback.sql; the
--- ledger stays at 0043 and the counterpart _reapply.sql restores the indexes.
+-- run services/api/ops/0047_dm_directory_cursor_indexes_rollback.sql; the
+-- ledger stays at 0047 and the counterpart _reapply.sql restores the indexes.
 DO $$ BEGIN RAISE EXCEPTION 'DM directory cursor indexes require forward repair; Down is forbidden'; END $$;
 -- +goose StatementEnd

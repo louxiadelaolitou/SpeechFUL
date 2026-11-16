@@ -85,7 +85,9 @@ class PostHttpTransport {
         }
         request.followRedirects = false;
         request.maxRedirects = 0;
-        request.persistentConnection = false;
+        // Reuse only the TLS connection, never a response or authorization.
+        // Commands still close their connection and are never replayed here.
+        request.persistentConnection = method == 'GET';
         request.headers.set(HttpHeaders.acceptHeader, 'application/json');
         request.headers.set('X-Post-Tags', 'v1');
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');

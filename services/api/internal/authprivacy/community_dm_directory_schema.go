@@ -2,7 +2,7 @@ package authprivacy
 
 import "context"
 
-// Only the explicitly enabled prepared directory requires 0043 plus the 0041
+// Only the explicitly enabled prepared directory requires 0047 plus the 0041
 // and 0042 version bases. The original directory query stays available while
 // an operator rolls the optional read optimization back.
 func (c *Community) checkPreparedDMDirectorySchema(ctx context.Context) error {

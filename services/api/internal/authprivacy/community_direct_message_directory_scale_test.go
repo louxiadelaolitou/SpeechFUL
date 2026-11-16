@@ -42,7 +42,7 @@ type dmScaleMeasurement struct {
 // synthetic million-conversation dataset. It is opt-in because seeding and the
 // sequential measurements take minutes and must not run in ordinary CI.
 //
-// The performance baseline is the production state before 0043: the fallback
+// The performance baseline is the production state before 0047: the fallback
 // query without the cursor indexes. Measuring the fallback with the new
 // indexes installed only compares two paths that both benefit from the index,
 // which hides the migration's actual effect.
@@ -96,8 +96,8 @@ func TestDMDirectoryScalePostgres(t *testing.T) {
 		return baselineQuantiles(ns)
 	}
 
-	// Pre-change baseline: 0043 is not deployed in production yet.
-	if e := dmDirectoryScaleOps(t, l, "0043_dm_directory_cursor_indexes_rollback.sql"); e != nil {
+	// Pre-change baseline: 0047 is not deployed in production yet.
+	if e := dmDirectoryScaleOps(t, l, "0047_dm_directory_cursor_indexes_rollback.sql"); e != nil {
 		t.Fatal("drop cursor indexes for pre-index baseline:", e)
 	}
 	if got := dmDirectoryScaleIndexes(t, l); got != 0 {
@@ -126,7 +126,7 @@ func TestDMDirectoryScalePostgres(t *testing.T) {
 
 	// Delivered state: both cursor indexes, then compare indexed fallback with
 	// the prepared two-phase path.
-	if e := dmDirectoryScaleOps(t, l, "0043_dm_directory_cursor_indexes_reapply.sql"); e != nil {
+	if e := dmDirectoryScaleOps(t, l, "0047_dm_directory_cursor_indexes_reapply.sql"); e != nil {
 		t.Fatal("restore cursor indexes:", e)
 	}
 	if got := dmDirectoryScaleIndexes(t, l); got != 2 {
@@ -191,7 +191,7 @@ func TestDMDirectoryScalePostgres(t *testing.T) {
 		"syntheticSeed": true, "productionDeployment": false,
 		"dataset": map[string]any{"conversations": conversations, "peerIdentities": peerCount, "viewers": len(viewers)},
 		"warmup":  warmup, "samples": samples, "pageSize": dmDirectoryPageLimit,
-		"baseline":     "fallback query with 0043 cursor indexes dropped (production state before this change)",
+		"baseline":     "fallback query with 0047 cursor indexes dropped (production state before this change)",
 		"measurements": measurements, "explain": explain,
 		"postgres": postgres, "goVersion": runtime.Version(), "goMaxProcs": runtime.GOMAXPROCS(0),
 		"note": "synthetic 1M-row lab; both paths call the production Community method and C Safety Gate; sequential single-client service-method measurement, not production acceptance",

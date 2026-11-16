@@ -18,7 +18,7 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA v_auth TO hnuhole_v_runtime;
 
 -- Runtime may advance evidence/high-watermark and freeze. It cannot advance
 -- authorization_generation, so the monotonic trigger prevents reopening.
-GRANT UPDATE(gate_state,trusted_high_watermark,evidence_version,evidence_issued_at,evidence_valid_until,freeze_reason,frozen_at)
+GRANT UPDATE(gate_state,trusted_high_watermark,evidence_version,evidence_issued_at,evidence_valid_until,freeze_reason,frozen_at,checkpoint_id)
     ON v_auth.authorization_gate TO hnuhole_v_runtime;
 GRANT INSERT ON v_auth.authorization_gate_audit TO hnuhole_v_runtime;
 REVOKE INSERT ON v_auth.authorization_gate FROM hnuhole_v_runtime;

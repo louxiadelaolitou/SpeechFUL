@@ -24,6 +24,9 @@ import time
 
 BASELINE = "69d2adcf4b153601ba218de87bb6efccd91da5c8"
 INSTRUMENTATION_COMMIT = "e8aeadd5134c0d1d2d6a5fc7cf9c9fca4059f832"
+# The squashed main commit contains exactly the approved bytes and is reachable
+# in fresh clones of SpeechFUL-Develop; the original review commit may not be.
+INSTRUMENTATION_ARCHIVE_COMMIT = "1d829b2623a6c32830ee1b74fae6c99a436ad3b3"
 INSTRUMENTATION_SHA256 = {
     "services/api/internal/authprivacy/common.go": "cde78f3abb1f0cc96907c6b5d5486818f080b33f6b5d2828543fbcf8bc628418",
     "services/api/internal/authprivacy/authorization_gate.go": "82da22126427e9f61e35fc905c1738667e52fe6385a6b2cbf7a6dc1944afcc29",
@@ -165,15 +168,16 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def overlay_observation(old, new, paths=OVERLAY):
+def overlay_observation(old, new, paths=OVERLAY, instrumentation=None):
     if len(set(paths)) != len(paths) or any(path not in OVERLAY for path in paths):
         raise ComparisonError("overlay_not_whitelisted")
     records = []
     for relative in paths:
-        source, target = new / relative, old / relative
+        origin = instrumentation if instrumentation is not None and relative in INSTRUMENTATION_SHA256 else new
+        source, target = origin / relative, old / relative
         if source.is_symlink() or not source.is_file() or target.is_symlink():
             raise ComparisonError("overlay_requires_regular_files")
-        if not inside(source.resolve(), new.resolve()) or not inside(target.resolve(), old.resolve()):
+        if not inside(source.resolve(), origin.resolve()) or not inside(target.resolve(), old.resolve()):
             raise ComparisonError("overlay_escape")
         if relative in INSTRUMENTATION_SHA256 and digest(source) != INSTRUMENTATION_SHA256[relative]:
             raise ComparisonError("instrumentation_content_not_frozen")
@@ -181,7 +185,7 @@ def overlay_observation(old, new, paths=OVERLAY):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         target.chmod(0o600)
-        records.append({"path": relative, "baselineSHA256": before, "headSHA256": digest(source), "appliedSHA256": digest(target)})
+        records.append({"path": relative, "baselineSHA256": before, "headSHA256": digest(new / relative), "appliedSHA256": digest(target)})
     return records
 
 
@@ -503,7 +507,9 @@ def run(args):
         archive_tree(source, BASELINE, old, private/"old.tar")
         archive_tree(source, head, new, private/"new.tar")
         summary["phase"] = "observation_overlay"
-        overlay = overlay_observation(old, new)
+        instrumentation = private/"instrumentation"
+        archive_tree(source, INSTRUMENTATION_ARCHIVE_COMMIT, instrumentation, private/"instrumentation.tar")
+        overlay = overlay_observation(old, new, instrumentation=instrumentation)
         manifest = {"headCommit": head, "baselineProductCommit": BASELINE, "baselineOverlay": overlay, "overlayWhitelist": list(OVERLAY),
                     "oldTreeFiles": tree_hashes(old), "newTreeFiles": tree_hashes(new), "declaredProfiles": profiles(),
                     "configuration": {"poolMaxConns":12,"goMaxProcs":4,"posts":20,"commentPageSize":50,"feedPageSize":20,
@@ -512,6 +518,7 @@ def run(args):
         manifest["comparisonRunnerSHA256"] = digest(Path(__file__))
         manifest["toolVersions"]=versions
         manifest["approvedInstrumentationCommit"]=INSTRUMENTATION_COMMIT
+        manifest["instrumentationArchiveCommit"]=INSTRUMENTATION_ARCHIVE_COMMIT
         manifest["approvedInstrumentationSHA256"]=INSTRUMENTATION_SHA256
         write_json(public/"manifest.json", manifest)
         summary["phase"] = "compile_both_trees"
@@ -550,6 +557,8 @@ def run(args):
         exit_code = 128 + error.signum
     except subprocess.TimeoutExpired:
         summary.update(result="FAIL", reason="cohort_timeout_no_retry")
+    except ComparisonError as error:
+        summary.update(result="FAIL", reason=str(error))
     except Exception:
         summary.update(result="FAIL", reason="comparison_setup_or_data_invalid")
     finally:

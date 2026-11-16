@@ -71,6 +71,24 @@ class ComparisonTests(unittest.TestCase):
             with self.assertRaises(comparison.ComparisonError):comparison.overlay_observation(old,new,paths)
         with self.assertRaises(comparison.ComparisonError):comparison.overlay_observation(old,new)
 
+    def test_fixed_instrumentation_does_not_copy_new_gate_product_into_baseline(self):
+        old,new,fixed=(self.root/name for name in ('old','new','fixed'))
+        for root in (old,new,fixed):root.mkdir()
+        for name in comparison.OVERLAY:
+            path=new/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('new product or harness')
+            if name in comparison.INSTRUMENTATION_SHA256:
+                path=fixed/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('approved observation')
+        approved={name:comparison.digest(fixed/name) for name in comparison.INSTRUMENTATION_SHA256}
+        with mock.patch.dict(comparison.INSTRUMENTATION_SHA256,approved,clear=True):
+            records=comparison.overlay_observation(old,new,instrumentation=fixed)
+            for row in records:
+                expected=fixed if row['path'] in approved else new
+                self.assertEqual(comparison.digest(expected/row['path']),row['appliedSHA256'])
+                self.assertEqual(comparison.digest(new/row['path']),row['headSHA256'])
+            (fixed/'services/api/internal/authprivacy/authorization_gate.go').write_text('unapproved')
+            with self.assertRaises(comparison.ComparisonError):
+                comparison.overlay_observation(old,new,instrumentation=fixed)
+
     def test_archive_rejects_parent_absolute_symlink_and_special_entries(self):
         for name,kind,link in (("../outside",tarfile.REGTYPE,""),("/outside",tarfile.REGTYPE,""),
                                ("link",tarfile.SYMTYPE,"../../outside"),("device",tarfile.CHRTYPE,""),

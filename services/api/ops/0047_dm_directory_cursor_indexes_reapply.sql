@@ -1,4 +1,4 @@
--- Operator-only reapply for migration 0043 after a rollback.
+-- Operator-only reapply for migration 0047 after a rollback.
 --
 -- Keep source writes quiesced while this runs: the migration uses the same
 -- transaction-scoped lock and plain CREATE INDEX, because the repository

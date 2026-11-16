@@ -65,7 +65,7 @@ function Get-BackendStatus($Settings) {
 
 function Write-BackendStatus($Status) {
     Write-Output ($Status | ConvertTo-Json -Compress)
-    if ($Status.result -ne 'PASS') { Write-Output 'Backend unavailable. Use the backend logs tool. Frozen Gates require reviewed recovery; this tool never recovers them.' }
+    if ($Status.result -ne 'PASS') { Write-Output 'Backend unavailable. See backend Logs for the exact cause. Normal Start preserves credential generations; security recovery requires maintenance review.' }
 }
 
 function Start-BackendKeeper($Settings,[string]$Record) {

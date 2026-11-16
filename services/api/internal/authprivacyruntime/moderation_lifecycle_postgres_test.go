@@ -55,7 +55,7 @@ func moderationStartupLabThrough(t *testing.T, ceiling int64) (*pgxpool.Pool, *p
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err = tx.Exec(ctx, `DROP SCHEMA IF EXISTS c_inbox,c_rate_limit,c_dm,c_comments,c_moderation,c_posts,c_auth CASCADE;
 DROP TABLE IF EXISTS public.identity_avatar_assets, public.identity_change_receipts,public.community_identities,public.identity_account_state,public.sessions,public.channels,public.goose_db_version CASCADE;
 DROP FUNCTION IF EXISTS public.guard_identity_account_state(),public.guard_community_identity(),public.guard_identity_receipt(),public.check_identity_account_shape() CASCADE`); err != nil {
@@ -85,6 +85,19 @@ DROP FUNCTION IF EXISTS public.guard_identity_account_state(),public.guard_commu
 		sql, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if strings.Contains(string(sql), "-- +goose NO TRANSACTION") {
+			if err = tx.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = owner.Exec(ctx, strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
+				t.Fatalf("nontransactional migration %s: %v", filepath.Base(file), err)
+			}
+			tx, err = owner.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			continue
 		}
 		if _, err = tx.Exec(ctx, strings.SplitN(string(sql), "-- +goose Down", 2)[0]); err != nil {
 			t.Fatalf("formal migration %s: %v", filepath.Base(file), err)

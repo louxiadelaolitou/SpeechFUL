@@ -4,7 +4,14 @@ on:
   pull_request:
     paths:
       - 'tools/ci/ubuntu-apt-source.sh'
-      - 'services/api/internal/authprivacy/authorization_gate*.go'
+      - 'services/api/internal/authprivacy/authorization_*.go'
+      - 'services/api/internal/authprivacy/verifier_gate*.go'
+      - 'services/api/internal/authprivacyruntime/**'
+      - 'services/api/migrations/**'
+      - 'services/api/verifier-migrations/**'
+      - 'infra/postgres/grant-*.sql'
+      - 'tools/prerelease/environment.py'
+      - 'tools/tests/test_prerelease_environment.py'
       - 'services/api/authlab/run-isolated.sh'
       - 'services/api/authlab/run-shared-rate-limit-isolated.sh'
       - 'tools/ci/**'
@@ -38,7 +45,9 @@ jobs:
           go-version: '1.22.2'
           cache: false
       - name: Component scope selection regression
-        run: python3 -m unittest discover -s tools/ci/tests -v
+        run: |
+          python3 -m unittest discover -s tools/ci/tests -v
+          python3 -m unittest discover -s tools/tests -p test_prerelease_environment.py -v
       - name: PostgreSQL tools
         run: |
           bash "$GITHUB_WORKSPACE/tools/ci/ubuntu-apt-source.sh"
@@ -55,7 +64,7 @@ jobs:
       - name: Formatting and build
         working-directory: services/api
         run: |
-          test -z "$(gofmt -l internal/authprivacy/authorization_gate.go internal/authprivacy/authorization_gate_cancellation_test.go)"
+          test -z "$(gofmt -l internal/authprivacy/authorization_*.go)"
           go build -mod=readonly ./...
       - name: New isolated C/V SQL, cancellation, recovery and affected backend regressions
         working-directory: services/api

@@ -22,3 +22,11 @@ func TestPostImagesRequiresExplicitCommunityConfiguration(t *testing.T) {
 		t.Fatal("V acquired image policy")
 	}
 }
+
+func TestThumbnailReuseRequiresPreparedMedia(t *testing.T) {
+	c := Config{Environment: "dev", Posts: &PostsConfig{}, PostImages: &PostImagesConfig{
+		PythonFile: "python", ValidatorFile: "validate.py", ValidatorSHA256: strings.Repeat("a", 64), ThumbnailReuse: true}}
+	if e := c.Validate(authprivacyhttp.CommunityService); e == nil || !strings.Contains(e.Error(), "preparedMediaReads") {
+		t.Fatal("reuse accepted without final prepared-media proof", e)
+	}
+}

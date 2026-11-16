@@ -44,7 +44,7 @@ BEGIN
     END LOOP;
     FOR relation IN SELECT p.oid FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE n.nspname='c_inbox' OR (n.nspname='c_comments' AND p.proname='advance_read_versions')
-        OR (n.nspname='c_posts' AND p.proname='advance_feed_read_versions') LOOP
+        OR (n.nspname='c_posts' AND p.proname IN ('advance_feed_read_versions','account_thumbnail_storage','erase_source_thumbnails')) LOOP
       IF has_function_privilege(audit_role,relation.oid,'EXECUTE') THEN
         RAISE EXCEPTION 'private trigger function acquired operational execute';
       END IF;
@@ -96,6 +96,8 @@ BEGIN
             allowed := allowed OR (relation.relname IN ('post_view_totals','post_daily_views','feed_preferences') AND privilege IN ('SELECT','INSERT'))
               OR (relation.relname='post_edit_receipts' AND privilege IN ('SELECT','INSERT'))
               OR (relation.relname='post_edit_media' AND privilege IN ('SELECT','INSERT','DELETE'))
+              OR (relation.relname='thumbnails' AND privilege IN ('SELECT','INSERT','DELETE'))
+              OR (relation.relname='thumbnail_storage' AND privilege='SELECT')
               OR (relation.relname='post_tag_terms' AND privilege IN ('SELECT','INSERT','DELETE'))
               -- 0039 author blocks: runtime reads, creates and removes its own
               -- rows; the public snapshot stays immutable (no UPDATE).

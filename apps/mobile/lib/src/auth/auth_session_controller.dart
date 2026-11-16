@@ -573,7 +573,7 @@ class AuthSessionController extends ChangeNotifier {
           approvedPendingResetId: record.approvedPendingResetId,
         ),
       );
-    });
+    }, skipUnchanged: true);
     if (!changed || !permitted()) return false;
     final view = _currentSession;
     if (view == null) return false;

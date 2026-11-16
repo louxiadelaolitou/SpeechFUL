@@ -75,6 +75,20 @@ android {
     }
 
     buildTypes {
+        val thumbnailDeviceValue = System.getenv("HNUHOLE_THUMBNAIL_DEVICE")
+        require(thumbnailDeviceValue == null || thumbnailDeviceValue == "1") {
+            "HNUHOLE_THUMBNAIL_DEVICE must be unset or 1"
+        }
+        val thumbnailDevice = thumbnailDeviceValue == "1"
+        configureEach {
+            if (name == "profile" && thumbnailDevice) {
+                applicationIdSuffix = ".thumbnails"
+                // AOT performance fixture; run-as transfers only private synthetic
+                // credentials. This opt-in package is never distributed.
+                isDebuggable = true
+                signingConfig = signingConfigs.getByName("debug")
+            }
+        }
         debug {
             // P1 uses its own durable fixture data, separate from the UI preview.
             val dmText = System.getenv("HNUHOLE_DM_TEXT") == "1"
@@ -87,9 +101,10 @@ android {
             require(snapshotValue == null || snapshotValue == "1") { "HNUHOLE_COMMENT_SNAPSHOT_DEVICE must be unset or 1" }
             val snapshotDevice = snapshotValue == "1"
             val identityAvatar = System.getenv("HNUHOLE_IDENTITY_AVATAR") == "1"
-            require(listOf(dmText,dmChat,dmRecovery,sharedRateDevice,snapshotDevice,identityAvatar,System.getenv("HNUHOLE_DM_PREVIEW") == "1",providers.gradleProperty("hnuholeCommentsValidation").orNull == "true").count { it } <= 1) {
+            require(listOf(thumbnailDevice,dmText,dmChat,dmRecovery,sharedRateDevice,snapshotDevice,identityAvatar,System.getenv("HNUHOLE_DM_PREVIEW") == "1",providers.gradleProperty("hnuholeCommentsValidation").orNull == "true").count { it } <= 1) {
                 "Choose one isolated DM package"
             }
+            if (thumbnailDevice) applicationIdSuffix = ".thumbnails"
             if (sharedRateDevice) applicationIdSuffix = ".ratelimit"
             if (snapshotDevice) applicationIdSuffix = ".commentsnapshot"
             if (dmChat) applicationIdSuffix = ".dmchat"

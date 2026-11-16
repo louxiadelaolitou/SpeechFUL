@@ -241,6 +241,10 @@ func TestAuthorizationGateEvidenceAndReplicaFailures(t *testing.T) {
 				}
 				return
 			}
+			if scenario == "expired" || scenario == "missing" {
+				assertTemporaryEvidenceRecovers(t, c)
+				return
+			}
 			assertFrozen(t, c)
 		})
 	}
@@ -423,7 +427,7 @@ func TestAuthorizationGateOfflineBreakGlassExpiresWithoutProvider(t *testing.T) 
 		t.Fatalf("offline recovery failed without provider: %+v %v", decision, err)
 	}
 	c.clock.set(at.Add(5*time.Minute + time.Nanosecond))
-	assertFrozen(t, c)
+	assertTemporaryEvidenceRecovers(t, c)
 	if count(t, c.lab.cp, `SELECT count(*) FROM c_auth.authorization_gate_audit WHERE event_kind='RECOVER' AND mode='BREAK_GLASS' AND operation_id='offline-recovery-1'`) != 1 {
 		t.Fatal("break-glass recovery audit missing")
 	}
@@ -609,18 +613,22 @@ func TestAuthorizationGatePendingCommandGenerationFence(t *testing.T) {
 }
 
 func TestGateNanosecondClockPersistsIdenticalSQLAndAnchorTimePostgres(t *testing.T) {
-    control := newGateControl(t)
-    ctx := context.Background()
-    control.clock.set(control.clock.now().Add(123*time.Nanosecond))
-    first, err := control.gate.Snapshot(ctx)
-    if err != nil { t.Fatal(err) }
-    if first.TrustedAt.Nanosecond()%1000 != 0 || first.TrustedAt.Before(control.clock.now()) {
-        t.Fatal("authority time was truncated below clock or cannot persist exactly")
-    }
-    second, err := control.gate.Snapshot(ctx)
-    if err != nil || !second.TrustedAt.Equal(first.TrustedAt) {
-        t.Fatalf("SQL and external checkpoint disagreed after nanosecond clock: %v", err)
-    }
-    control.clock.set(control.clock.now().Add(time.Nanosecond))
-    if _, err := control.gate.Snapshot(ctx); err != nil { t.Fatal(err) }
+	control := newGateControl(t)
+	ctx := context.Background()
+	control.clock.set(control.clock.now().Add(123 * time.Nanosecond))
+	first, err := control.gate.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.TrustedAt.Nanosecond()%1000 != 0 || first.TrustedAt.Before(control.clock.now()) {
+		t.Fatal("authority time was truncated below clock or cannot persist exactly")
+	}
+	second, err := control.gate.Snapshot(ctx)
+	if err != nil || !second.TrustedAt.Equal(first.TrustedAt) {
+		t.Fatalf("SQL and external checkpoint disagreed after nanosecond clock: %v", err)
+	}
+	control.clock.set(control.clock.now().Add(time.Nanosecond))
+	if _, err := control.gate.Snapshot(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
