@@ -335,6 +335,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 		return err
 	}
 	var runRankings func(context.Context)
+	var runThumbnails func(context.Context)
 	if service == authprivacyhttp.CommunityService {
 		request, err := c.Key32(c.RequestKeyFile)
 		if err != nil {
@@ -427,6 +428,13 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 			if err != nil {
 				return err
 			}
+			if c.PostImages.ThumbnailReuse {
+				community, err = community.WithPostThumbnailReuse(ctx)
+				if err != nil {
+					return err
+				}
+			}
+			runThumbnails = community.RunPostThumbnailMaintenance
 		}
 		if c.Moderation {
 			community, err = community.WithModeration(ctx)
@@ -635,6 +643,10 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 	if runRankings != nil {
 		wg.Add(1)
 		go func() { defer wg.Done(); runRankings(runCtx) }()
+	}
+	if runThumbnails != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); runThumbnails(runCtx) }()
 	}
 	slog.Info("development runtime listening", "service", service, "public", c.PublicListen, "internal", c.InternalListen, "worker_batch", workerConfig.BatchSize, "worker_concurrency", workerConfig.Concurrency, "worker_task_seconds", workerConfig.TaskTimeout.Seconds(), "receipt_lease_seconds", workerConfig.ReceiptLease.Seconds())
 	var result error

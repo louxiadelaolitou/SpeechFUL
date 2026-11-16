@@ -114,6 +114,12 @@ type Thumbnailer interface {
 }
 
 func (v *ProcessValidator) Thumbnail(ctx context.Context, data []byte) ([]byte, error) {
+	return v.runThumbnail(ctx, data, false)
+}
+
+const thumbnailTimeout = 8 * time.Second
+
+func (v *ProcessValidator) runThumbnail(ctx context.Context, data []byte, record bool) ([]byte, error) {
 	if len(data) < 1 || len(data) > MaxBytes {
 		return nil, ErrInvalid
 	}
@@ -127,27 +133,37 @@ func (v *ProcessValidator) Thumbnail(ctx context.Context, data []byte) ([]byte, 
 	if e != nil || sha256.Sum256(source) != v.scriptHash {
 		return nil, ErrUnavailable
 	}
-	child, cancel := context.WithTimeout(ctx, 8*time.Second)
+	child, cancel := context.WithTimeout(ctx, thumbnailTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(child, v.python, "-I", "-B", v.script, "--thumbnail")
+	flag := "--thumbnail"
+	if record {
+		flag = "--thumbnail-record"
+	}
+	cmd := exec.CommandContext(child, v.python, "-I", "-B", v.script, flag)
 	cmd.Env = []string{"PATH=/usr/bin:/bin", "LANG=C.UTF-8"}
 	cmd.Stdin = bytes.NewReader(data)
-	var out thumbnailOutput
+	out := thumbnailOutput{extra: 0}
+	if record {
+		out.extra = 513
+	}
 	cmd.Stdout, cmd.Stderr = &out, io.Discard
 	if cmd.Run() != nil {
 		return nil, ErrUnavailable
 	}
 	b := out.Bytes()
-	if len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP" {
+	if !record && (len(b) < 12 || string(b[:4]) != "RIFF" || string(b[8:12]) != "WEBP") {
 		return nil, ErrUnavailable
 	}
 	return b, nil
 }
 
-type thumbnailOutput struct{ bytes.Buffer }
+type thumbnailOutput struct {
+	bytes.Buffer
+	extra int
+}
 
 func (b *thumbnailOutput) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > MaxThumbnailBytes {
+	if b.Len()+len(p) > MaxThumbnailBytes+b.extra {
 		return 0, ErrUnavailable
 	}
 	return b.Buffer.Write(p)

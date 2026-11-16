@@ -61,6 +61,7 @@ type PostImagesConfig struct {
 	PythonFile      string `json:"pythonFile"`
 	ValidatorFile   string `json:"validatorFile"`
 	ValidatorSHA256 string `json:"validatorSHA256"`
+	ThumbnailReuse  bool   `json:"thumbnailReuse,omitempty"`
 }
 
 type SharedRateConfig struct {
@@ -201,6 +202,9 @@ func (c Config) Validate(service authprivacyhttp.Service) error {
 	if c.PostImages != nil {
 		if service != authprivacyhttp.CommunityService || c.Posts == nil || c.PostImages.PythonFile == "" || c.PostImages.ValidatorFile == "" || len(c.PostImages.ValidatorSHA256) != 64 {
 			return errors.New("postImages requires explicit C posts and pinned validator paths")
+		}
+		if c.PostImages.ThumbnailReuse && !c.Posts.PreparedMediaReads {
+			return errors.New("thumbnail reuse requires preparedMediaReads")
 		}
 	}
 	if c.Environment != "dev" || (service != authprivacyhttp.CommunityService && service != authprivacyhttp.VerifierService) {

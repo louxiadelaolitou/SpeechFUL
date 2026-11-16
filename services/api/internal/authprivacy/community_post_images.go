@@ -13,7 +13,12 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
 )
 
-type postImageServices struct{ validator postmedia.Validator }
+type postImageServices struct {
+	validator        postmedia.Validator
+	thumbnails       *thumbnailReuse
+	thumbnailStorage bool
+	thumbnailCleanup *thumbnailCleanupState
+}
 type ImageBytes struct {
 	Bytes []byte
 	MIME  string
@@ -46,6 +51,20 @@ func (c *Community) WithPostImages(ctx context.Context, v postmedia.Validator) (
 	}
 	clone := *c
 	clone.postImages = &postImageServices{validator: v}
+	var stored bool
+	if e = c.pool.QueryRow(ctx, `SELECT to_regclass('c_posts.thumbnails') IS NOT NULL`).Scan(&stored); e != nil {
+		return nil, e
+	}
+	// Rollback disables reads, never the already-installed erasure lifecycle.
+	if stored {
+		if e = c.checkThumbnailStorageSchema(ctx, false); e != nil {
+			return nil, e
+		}
+	}
+	clone.postImages.thumbnailStorage = stored
+	if stored {
+		clone.postImages.thumbnailCleanup = &thumbnailCleanupState{}
+	}
 	return &clone, nil
 }
 func (c *Community) PostImagesEnabled() bool {

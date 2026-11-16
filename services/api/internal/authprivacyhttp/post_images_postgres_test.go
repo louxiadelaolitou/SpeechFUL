@@ -19,16 +19,12 @@ import (
 )
 
 func TestRealHTTPSPostImagesUploadReadRevocationPostgres(t *testing.T) {
-	for _, prepared := range []bool{false, true} {
-		name := "legacy"
-		if prepared {
-			name = "prepared"
-		}
-		t.Run(name, func(t *testing.T) { testRealHTTPSPostImagesUploadReadRevocation(t, prepared) })
+	for _, name := range []string{"legacy", "prepared", "reuse"} {
+		t.Run(name, func(t *testing.T) { testRealHTTPSPostImagesUploadReadRevocation(t, name != "legacy", name == "reuse") })
 	}
 }
 
-func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared bool) {
+func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared, reuse bool) {
 	python := os.Getenv("POST_MEDIA_PYTHON")
 	if python == "" {
 		t.Skip("dedicated image validator absent")
@@ -56,6 +52,13 @@ func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared bool) {
 	})
 	if prepared {
 		enablePreparedMediaHTTP(t, s)
+	}
+	if reuse {
+		enabled, e := s.c.WithPostThumbnailReuse(context.Background())
+		if e != nil {
+			t.Fatal(e)
+		}
+		*s.c = *enabled
 	}
 	token, _ := e2ePrivacySignup(t, s, "media_https")
 	reader, _ := e2ePrivacySignup(t, s, "media_http_reader")
@@ -123,6 +126,17 @@ func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared bool) {
 		t.Fatal("invalid real derived preview")
 	}
 	mediaHTTPSBytes(t, s, "GET", previewPath, "Upload "+grants[0], "", nil, 401)
+	if reuse {
+		before, e := s.c.PostThumbnailStats(context.Background())
+		if e != nil {
+			t.Fatal(e)
+		}
+		warm := mediaHTTPSBytes(t, s, "GET", previewPath, "Bearer "+reader, "", nil, 200)
+		after, e := s.c.PostThumbnailStats(context.Background())
+		if e != nil || !bytes.Equal(warm, preview) || after.Transforms != before.Transforms || after.SourceReads != before.SourceReads {
+			t.Fatal("HTTPS hit loaded original or transformed", e)
+		}
+	}
 	req, err := http.NewRequest("GET", s.cPublic.URL+"/api/v1/feed", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -141,9 +155,13 @@ func testRealHTTPSPostImagesUploadReadRevocation(t *testing.T, prepared bool) {
 	original := items[0].(map[string]any)["original"].(map[string]any)["path"].(string)
 	// Delete after the original read and transform, while this preview request
 	// is still in flight. The final resource/Gate transaction must reject it.
-	probe.setAfter(func() {
+	if !reuse {
+		probe.setAfter(func() {
+			postHTTPSJSON(t, s, "POST", "/api/v1/posts/"+post+"/delete", token, httpTestEncoding(16, 75), nil, 200)
+		})
+	} else {
 		postHTTPSJSON(t, s, "POST", "/api/v1/posts/"+post+"/delete", token, httpTestEncoding(16, 75), nil, 200)
-	})
+	}
 	mediaHTTPSBytes(t, s, "GET", previewPath, "Bearer "+reader, "", nil, 404)
 	mediaHTTPSBytes(t, s, "GET", original, "Bearer "+reader, "", nil, 404)
 	mediaHTTPSBytes(t, s, "GET", previewPath, "Bearer "+reader, "", nil, 404)
@@ -171,6 +189,13 @@ type postThumbnailGateProbe struct {
 	preview postmedia.Thumbnailer
 	mu      sync.Mutex
 	after   func()
+}
+
+func (p *postThumbnailGateProbe) ThumbnailEncoderVersion(ctx context.Context) (string, error) {
+	return p.preview.(postmedia.ReusableThumbnailer).ThumbnailEncoderVersion(ctx)
+}
+func (p *postThumbnailGateProbe) ThumbnailRecord(ctx context.Context, data []byte) (postmedia.ThumbnailRecord, error) {
+	return p.preview.(postmedia.ReusableThumbnailer).ThumbnailRecord(ctx, data)
 }
 
 func (p *postThumbnailGateProbe) setAfter(fn func()) {

@@ -1,5 +1,9 @@
 # 帖子图片媒体契约与实现交接（2026-10-15）
 
+> **2026-11-16 需求004内部衍生存储扩展（实现／验收状态见[任务记录](../tasks/REQ-004-PROTECTED-THUMBNAILS.md)）：**在0041／0042两阶段读取基座上，0043增加私有 `c_posts.thumbnails` 和统一容量账本。显式设置 `posts.preparedMediaReads=true`、`postImages.thumbnailReuse=true` 才复用；默认关闭，外部 thumbnail-v1 协议不变。键绑定帖子、内容版本、固定规格 `thumbnail-v1-640` 及编码版本；来源绑定包含完整源元数据／摘要，编码版本覆盖可信helper摘要、Pillow及libwebp版本。命中只读缩略图并检查摘要；首次读取／完整校验／静态首帧转码在锁外合并，关闭准备事务及连接后才启动Python。每位等待者独立执行当前Bearer、会话代次、源版本／可见性和最终C Gate；首次落库也在该最终事务内完成。跨实例允许重复计算，唯一键仅保证一份存储。现有原图、上传和发布前SHA校验全部保留。
+>
+> 源删除、擦除、编辑替换及审核隐藏通过同事务触发器清除衍生行；关闭复用仍必须保留并校验这些触发器。单个观看者撤销会话或拉黑通过各自最终鉴权拒绝，不把共享衍生字节当作授权结果。默认衍生payload预算256MiB，单条最大512KiB；只有迁移所有者可调整预算。容量满时本次请求可返回已获最终授权的临时缩略字节，不超额持久化；后台每分钟有界清理孤儿，并在超过90%预算时按生成时间淘汰最旧记录。无客户端长缓存、公开URL或新读取能力。旧图按首次访问生成，手动预热工具见[操作说明](../../tools/post-thumbnails/README.md)。新帖最多3图，历史4–9图读取兼容。实现／SQL／设备性能／CI／合并／发布分别记录，不沿用下方历史部署结论。
+
 > **2026-10-23 thumbnail-v1扩展（`fix/mobile-navigation-refresh`，已合并main／开发C已部署／生产未部署）：**下方v1三份原图来源继续作为无协商头时的兼容契约。新客户端在清单和feed GET发送 `X-Post-Preview: thumbnail-v1`；启用新校验器的后端将thumbnail改为受保护 `/thumbnail`、`image/webp`、`maxByteLength<=524288`，不再声称衍生图有预先确定的byteLength。full／original保持原字节。缩略图为EXIF归正、最长边640px的静态首帧，客户端标注动图；feed可同时返回有序imageSizes预留布局。两个读取入口均需当前Bearer／C最终Gate，编码完成后再次检查帖子与会话。无新SQL迁移或磁盘缓存；部署需同步可信helper、其SHA-256和runtime重启。新客户端兼容旧清单及缺少尺寸的旧feed。详细资源上限、测试、候选包和未验范围见[本轮任务](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/fix-mobile-navigation-refresh.md)。
 
 本任务只实现帖子图片服务端；评论与私信只登记复用边界。独立分支 `codex/post-image-media`，目录 `E:/Hnuhole-post-image-media-20261015/repo`，实际起点 `e0c128033682923d519ea99546d72503b085a99e`。没有合并前端、社区或 main。只读核对的前端提交是 `a696742f943c1cfe6a5005024dccaf40be752d8f`，其组件来源 `bd7458ad94b7f9aea377ef060acf1316a6cfc6de`；前端后续交付仍由该分支提供固定提交。本文件不是完整 App 或生产验收声明。

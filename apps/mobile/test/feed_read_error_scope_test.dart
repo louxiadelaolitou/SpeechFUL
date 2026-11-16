@@ -59,6 +59,7 @@ class _Store implements PostStore {
 class _Api extends interactions.InteractionTestApi {
   Object? preferencesFailure, saveFailure;
   Object? interactionsFailure;
+  DateTime? preferencesExpiry;
   bool commandLost = true;
   @override
   Future<PostResponse<List<PostInteractions>>> interactions({
@@ -78,7 +79,15 @@ class _Api extends interactions.InteractionTestApi {
     final failure = preferencesFailure;
     preferencesFailure = null;
     if (failure != null) throw failure;
-    return super.feedPreferences(sessionToken: sessionToken);
+    final response = await super.feedPreferences(sessionToken: sessionToken);
+    if (preferencesExpiry == null) return response;
+    return PostResponse(
+      value: response.value,
+      serverTime: response.serverTime,
+      sessionExpiresAt: preferencesExpiry!,
+      requestId: response.requestId,
+      statusCode: response.statusCode,
+    );
   }
 
   @override
@@ -443,8 +452,13 @@ void main() {
       final f = await _Fixture.create();
       addTearDown(f.dispose);
       await f.controller.loadTimeline();
-      f.auth.vault.failContaining = '2031-01-31';
+      // Exercise a real renewal write, rather than an identical deadline that
+      // already passed durable storage verification on the preceding load.
+      f.api.preferencesExpiry = identityTestRenewed.add(const Duration(days: 1));
+      f.auth.vault.failContaining = '2031-02-01';
       await f.controller.loadTimeline();
+      expect(f.auth.vault.failContaining, isNull);
+      expect(f.auth.store.current, isNull);
       expect(f.auth.sessions.status, AuthStatus.storageFailure);
       expect(f.controller.available, false);
       expect(f.controller.timelineItems, isEmpty);
