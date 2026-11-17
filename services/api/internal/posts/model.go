@@ -249,6 +249,16 @@ type CrossChannelFeedPage struct {
 	NextCursor *string    `json:"nextCursor"`
 }
 
+// IncrementalFeedPage is opt-in; legacy strict clients keep their old shape.
+// InsertAfter is a public post anchor, never a private sorting ordinal.
+type IncrementalFeedPage struct {
+	Items           []FeedPost          `json:"items"`
+	NextCursor      *string             `json:"nextCursor"`
+	RefreshCursor   *string             `json:"refreshCursor"`
+	InsertAfter     *string             `json:"insertAfter"`
+	RefreshPosition FeedRefreshPosition `json:"-"`
+}
+
 // AuthorProfilePage anchors a public profile to a source post so no identity
 // or account selector crosses the API boundary.
 type AuthorProfilePage struct {

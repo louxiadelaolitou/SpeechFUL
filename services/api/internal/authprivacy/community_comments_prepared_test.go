@@ -42,6 +42,19 @@ func (q *preparedReadTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, d
 	return ctx
 }
 
+// The existing account-lock hook is at the first command boundary. A batch
+// hook runs before that first command is sent, never at a fictitious per-row
+// QueryStart after other queued commands may already have executed.
+func (q *preparedReadTracer) TraceBatchStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchStartData) context.Context {
+	if len(data.Batch.QueuedQueries) > 0 {
+		first := data.Batch.QueuedQueries[0]
+		return q.TraceQueryStart(ctx, conn, pgx.TraceQueryStartData{SQL: first.SQL, Args: first.Arguments})
+	}
+	return ctx
+}
+func (*preparedReadTracer) TraceBatchQuery(context.Context, *pgx.Conn, pgx.TraceBatchQueryData) {}
+func (*preparedReadTracer) TraceBatchEnd(context.Context, *pgx.Conn, pgx.TraceBatchEndData)     {}
+
 func TestCommentPreparedPrivateErrorAuthorizationPostgres(t *testing.T) {
 	for _, kind := range []string{"missing_post", "missing_snapshot"} {
 		t.Run(kind, func(t *testing.T) {

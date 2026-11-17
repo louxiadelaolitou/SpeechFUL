@@ -102,6 +102,24 @@ Future<void> main(List<String> args) async {
       step,
     );
     step = 'pagination';
+    final initialWindow = (await api.timelineWindow(sessionToken: reader))
+        .value;
+    check(
+      initialWindow.items.length == 3 &&
+          initialWindow.refreshCursor != null &&
+          initialWindow.insertAfter == null,
+      'incremental_initial',
+    );
+    final noUpdates = (await api.timelineWindow(
+      sessionToken: reader,
+      refreshCursor: initialWindow.refreshCursor,
+    )).value;
+    check(
+      noUpdates.items.isEmpty &&
+          noUpdates.nextCursor == null &&
+          noUpdates.refreshCursor != null,
+      'incremental_no_updates',
+    );
     final first = (await api.timeline(sessionToken: reader, limit: 1)).value;
     check(
       first.items.length == 1 &&
@@ -355,6 +373,8 @@ Future<void> main(List<String> args) async {
         'checks': [
           'real_preferences',
           'cross_channel_pagination',
+          'incremental_initial',
+          'incremental_no_updates',
           'exposure_no_count',
           'author_excluded',
           'legacy_detail',

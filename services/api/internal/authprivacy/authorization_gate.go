@@ -60,6 +60,7 @@ type PostgresAuthorizationGate struct {
 	breakGlassPublicKey ed25519.PublicKey
 	anchor              *FileAuthorizationAnchorStore
 	clock               func() time.Time
+	signatures          *authorizationSignatureMemo
 }
 
 func NewPostgresAuthorizationGate(c AuthorizationGateConfig) (*PostgresAuthorizationGate, error) {
@@ -79,7 +80,7 @@ func NewPostgresAuthorizationGate(c AuthorizationGateConfig) (*PostgresAuthoriza
 		evidencePublicKey:   append(ed25519.PublicKey(nil), c.EvidencePublicKey...),
 		recoveryPublicKey:   append(ed25519.PublicKey(nil), c.RecoveryPublicKey...),
 		breakGlassPublicKey: append(ed25519.PublicKey(nil), c.BreakGlassPublicKey...),
-		anchor:              c.Anchor, clock: c.Clock,
+		anchor:              c.Anchor, clock: c.Clock, signatures: &authorizationSignatureMemo{},
 	}, nil
 }
 
@@ -109,7 +110,7 @@ func (g *PostgresAuthorizationGate) verifyEvidence(s SignedAuthorizationEvidence
 func (g *PostgresAuthorizationGate) verifyEvidenceAt(s SignedAuthorizationEvidence, at time.Time, key ed25519.PublicKey, allowExpired bool) (AuthorizationEvidence, error) {
 	e := s.Evidence
 	message, err := json.Marshal(e)
-	if err != nil || !ed25519.Verify(key, message, s.Signature) || e.Domain != g.domain ||
+	if err != nil || !g.signatures.verify(key, message, s.Signature) || e.Domain != g.domain ||
 		e.Version == 0 || e.Generation == 0 || e.Version > math.MaxInt64 || e.Generation > math.MaxInt64 ||
 		e.IssuedAt.IsZero() || e.TrustedAt.IsZero() || e.ValidUntil.IsZero() ||
 		!e.ValidUntil.After(e.IssuedAt) || e.ValidUntil.Sub(e.IssuedAt) > authorizationEvidenceTTL ||
@@ -291,9 +292,18 @@ func (g *PostgresAuthorizationGate) RecheckForCommit(ctx context.Context, tx pgx
 	if expected == 0 || row.generation < 0 || uint64(row.generation) != expected {
 		return AuthorizationDecision{}, ErrAuthorizationUnavailable
 	}
+	return g.recheckLockedGateRow(ctx, tx, row)
+}
+
+// The native private-read precheck already obtained this row FOR UPDATE. Reuse
+// that exact row; a final commit still requires the caller's expected generation.
+func (g *PostgresAuthorizationGate) recheckLockedGateRow(ctx context.Context, tx pgx.Tx, row gateRow) (AuthorizationDecision, error) {
+	if row.generation <= 0 {
+		return AuthorizationDecision{}, ErrAuthorizationUnavailable
+	}
 	var decision AuthorizationDecision
 	var reason string
-	err = g.observedAnchorLock(ctx, func(a *authorizationAnchor, exists bool) error {
+	err := g.observedAnchorLock(ctx, func(a *authorizationAnchor, exists bool) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -376,7 +386,7 @@ func (g *PostgresAuthorizationGate) CommitAuthorized(ctx context.Context, tx pgx
 		if !offline {
 			updated.OfflineEvidence = nil
 		}
-		if err := g.observedAnchorWrite(ctx, updated); err != nil {
+		if err := g.observedBusinessAnchorWrite(ctx, updated); err != nil {
 			reason = "ANCHOR_WRITE_FAILURE"
 			return err
 		}

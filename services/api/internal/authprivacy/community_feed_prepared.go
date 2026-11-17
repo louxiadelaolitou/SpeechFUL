@@ -18,31 +18,41 @@ type feedReadProof struct {
 	initial  bool
 	ids      []string
 	versions []byte
+	prepared bool // Complete fresh proof read with the projection in this plan only.
 }
 
-const feedReadVersionsSQL = `WITH channels AS (
- SELECT id FROM public.channels WHERE $3::uuid IS NULL OR id=$3
-), sources AS (
+// Each fact has an unambiguous 36-byte representation: kind (4), UUID (16),
+// revision (8), secondary revision (8), ordered by kind and UUID. The separate
+// completeness flag distinguishes an absent version row from a valid zero.
+// These bytes live only in this prepared plan, never in storage or a cursor.
+const feedReadVersionsSQL = `WITH facts AS (
+WITH sources AS (
  SELECT p.post_id,p.owner_account_id,t.identity_id FROM c_posts.posts p
  JOIN c_posts.publication_tasks t ON t.post_id=p.post_id WHERE p.post_id=ANY($2::uuid[])
 ), identities AS (SELECT DISTINCT identity_id FROM sources),
  accounts AS (SELECT owner_account_id AS account_id FROM sources UNION SELECT $1::uuid)
- SELECT jsonb_build_object(
- 'channels',(SELECT coalesce(jsonb_agg(jsonb_build_array(c.id,v.membership_revision,CASE WHEN $4 THEN v.publication_revision ELSE 0 END) ORDER BY c.id),'[]'::jsonb) FROM channels c LEFT JOIN c_posts.read_feed_scope_versions v ON v.channel_id=c.id),
- 'posts',(SELECT coalesce(jsonb_agg(jsonb_build_array(s.post_id,v.projection_revision) ORDER BY s.post_id),'[]'::jsonb) FROM sources s LEFT JOIN c_posts.read_feed_post_versions v USING(post_id)),
- 'identities',(SELECT coalesce(jsonb_agg(jsonb_build_array(i.identity_id,v.projection_revision) ORDER BY i.identity_id),'[]'::jsonb) FROM identities i LEFT JOIN c_posts.read_identity_versions v USING(identity_id)),
- 'accounts',(SELECT coalesce(jsonb_agg(jsonb_build_array(a.account_id,v.projection_revision) ORDER BY a.account_id),'[]'::jsonb) FROM accounts a LEFT JOIN c_posts.read_account_versions v USING(account_id)),
- 'viewer',(SELECT visibility_revision FROM c_posts.read_account_versions WHERE account_id=$1),
- 'filters',coalesce((SELECT revision FROM c_posts.feed_preferences WHERE account_id=$1),0)),
- NOT EXISTS(SELECT 1 FROM channels c LEFT JOIN c_posts.read_feed_scope_versions v ON v.channel_id=c.id WHERE v.channel_id IS NULL)
- AND NOT EXISTS(SELECT 1 FROM sources s LEFT JOIN c_posts.read_feed_post_versions v USING(post_id) WHERE v.post_id IS NULL)
- AND NOT EXISTS(SELECT 1 FROM identities i LEFT JOIN c_posts.read_identity_versions v USING(identity_id) WHERE v.identity_id IS NULL)
- AND NOT EXISTS(SELECT 1 FROM accounts a LEFT JOIN c_posts.read_account_versions v USING(account_id) WHERE v.account_id IS NULL)`
+ SELECT 0::integer AS kind,c.id AS id,coalesce(v.membership_revision,0) AS revision,
+ CASE WHEN $4 THEN coalesce(v.publication_revision,0) ELSE 0 END AS secondary,v.channel_id IS NOT NULL AS intact
+ FROM public.channels c LEFT JOIN c_posts.read_feed_scope_versions v ON v.channel_id=c.id WHERE $3::uuid IS NULL OR c.id=$3
+ UNION ALL
+ SELECT 1,s.post_id,coalesce(v.projection_revision,0),0,v.post_id IS NOT NULL FROM sources s LEFT JOIN c_posts.read_feed_post_versions v USING(post_id)
+ UNION ALL
+ SELECT 2,i.identity_id,coalesce(v.projection_revision,0),0,v.identity_id IS NOT NULL FROM identities i LEFT JOIN c_posts.read_identity_versions v USING(identity_id)
+ UNION ALL
+ SELECT 3,a.account_id,coalesce(v.projection_revision,0),CASE WHEN a.account_id=$1 THEN coalesce(v.visibility_revision,0) ELSE 0 END,v.account_id IS NOT NULL FROM accounts a LEFT JOIN c_posts.read_account_versions v USING(account_id)
+ UNION ALL
+ SELECT 4,$1::uuid,coalesce((SELECT revision FROM c_posts.feed_preferences WHERE account_id=$1),0),0,true
+) SELECT coalesce(string_agg(pg_catalog.int4send(kind)||pg_catalog.uuid_send(id)||pg_catalog.int8send(revision)||pg_catalog.int8send(secondary),''::bytea ORDER BY kind,id),''::bytea),coalesce(bool_and(intact),true) FROM facts`
 
 func (p *feedReadProof) read(ctx context.Context, tx pgx.Tx, a uuid.UUID) ([]byte, error) {
+	defer readtiming.Span(ctx, "list_proof")()
+	return scanFeedReadProof(tx.QueryRow(ctx, feedReadVersionsSQL, a, p.ids, nullablePostID(p.channel), p.initial))
+}
+
+func scanFeedReadProof(row pgx.Row) ([]byte, error) {
 	var proof []byte
 	var intact bool
-	e := tx.QueryRow(ctx, feedReadVersionsSQL, a, p.ids, nullablePostID(p.channel), p.initial).Scan(&proof, &intact)
+	e := row.Scan(&proof, &intact)
 	if e != nil {
 		return nil, e
 	}
@@ -65,21 +75,54 @@ func (p *feedReadProof) revalidate(ctx context.Context, tx pgx.Tx, a uuid.UUID) 
 
 func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q PostQuery) (PostResponse, error) {
 	ctx = readtiming.Phase(ctx, "feed")
+	q.deferViewCounts = c.posts.batchListReads
 	return c.withPreparedReadPlan(ctx, bearer, postError("SERVICE_UNAVAILABLE", 503), func(prepareCtx context.Context, tx pgx.Tx, s readSubject) (*preparedReadPlan, error) {
 		proof := &feedReadProof{channel: q.ID, initial: q.Cursor == ""}
 		var position posts.CursorPosition
-		value, pending := c.listPublicPostsCaptured(prepareCtx, tx, s.account, q, s.decision.TrustedAt, func(p posts.CursorPosition, ids []string) { position = p; proof.ids = append([]string{}, ids...) })
-		var e error
-		proof.versions, e = proof.read(prepareCtx, tx, s.account)
-		if e != nil {
-			pending = e
+		capture := func(p posts.CursorPosition, ids []string) { position = p; proof.ids = append([]string{}, ids...) }
+		var value any
+		var pending error
+		if c.posts.batchListReads {
+			value, pending = c.listPublicPostsBatchWithProof(prepareCtx, tx, s.account, q, s.decision.TrustedAt, capture, proof)
+		} else {
+			value, pending = c.listPublicPostsCaptured(prepareCtx, tx, s.account, q, s.decision.TrustedAt, capture)
+		}
+		// Empty/error pages and the legacy path still need a complete fresh proof.
+		if !proof.prepared {
+			var e error
+			proof.versions, e = proof.read(prepareCtx, tx, s.account)
+			if e != nil {
+				pending = e
+			}
+		}
+		var finalViews map[string]int64
+		var pageIDs []string
+		batchViews := c.posts.batchListReads && q.Kind == PostFeed
+		if batchViews {
+			switch page := value.(type) {
+			case posts.IncrementalFeedPage:
+				for _, item := range page.Items {
+					pageIDs = append(pageIDs, item.PostID)
+				}
+			case posts.CrossChannelFeedPage:
+				for _, item := range page.Items {
+					pageIDs = append(pageIDs, item.PostID)
+				}
+			}
 		}
 		plan := &preparedReadPlan{
 			Revalidate: func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) error {
 				if len(proof.ids) > q.Limit+1 {
 					return ErrAuthorizationUnavailable
 				}
-				if e := proof.revalidate(ctx, tx, a); e != nil {
+				var views map[string]int64
+				var e error
+				if batchViews && len(pageIDs) > 0 {
+					views, e = proof.revalidateWithViewCounts(ctx, tx, a, pageIDs)
+				} else {
+					e = proof.revalidate(ctx, tx, a)
+				}
+				if e != nil {
 					return e
 				}
 				if q.Cursor != "" && position.Scope != "" {
@@ -87,6 +130,13 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 						return e
 					}
 				}
+				if q.RefreshCursor != "" && position.Scope != "" {
+					if _, e := c.posts.cursors.DecodeFeedRefresh(q.RefreshCursor, posts.FeedRefreshPosition{AccountID: a.String(), ChannelID: q.ID, Revision: position.FilterRevision}, d.TrustedAt); e != nil {
+						return e
+					}
+				}
+				// A conflicting or expired plan never publishes its queued counts.
+				finalViews = views
 				return nil
 			},
 			Complete: func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
@@ -95,6 +145,8 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 				}
 				var cursor *string
 				switch page := value.(type) {
+				case posts.IncrementalFeedPage:
+					cursor = page.NextCursor
 				case posts.CrossChannelFeedPage:
 					cursor = page.NextCursor
 				case posts.FeedPage:
@@ -108,15 +160,45 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 					cursor = &encoded
 				}
 				switch page := value.(type) {
+				case posts.IncrementalFeedPage:
+					page.NextCursor = cursor
+					if !page.RefreshPosition.HeadAt.IsZero() {
+						page.RefreshPosition.ExpiresAt = d.TrustedAt.Add(posts.CursorTTL)
+						token, e := c.posts.cursors.EncodeFeedRefresh(page.RefreshPosition)
+						if e != nil {
+							return nil, e
+						}
+						page.RefreshCursor = &token
+					}
+					ids := make([]string, len(page.Items))
+					for i := range page.Items {
+						ids[i] = page.Items[i].PostID
+					}
+					views := finalViews
+					if !batchViews {
+						var e error
+						views, e = readPreparedViewCounts(ctx, tx, ids)
+						if e != nil {
+							return nil, e
+						}
+					}
+					for i := range page.Items {
+						page.Items[i].ViewCount = views[page.Items[i].PostID]
+					}
+					return page, nil
 				case posts.CrossChannelFeedPage:
 					page.NextCursor = cursor
 					ids := make([]string, len(page.Items))
 					for i := range page.Items {
 						ids[i] = page.Items[i].PostID
 					}
-					views, e := readPreparedViewCounts(ctx, tx, ids)
-					if e != nil {
-						return nil, e
+					views := finalViews
+					if !batchViews {
+						var e error
+						views, e = readPreparedViewCounts(ctx, tx, ids)
+						if e != nil {
+							return nil, e
+						}
 					}
 					for i := range page.Items {
 						page.Items[i].ViewCount = views[page.Items[i].PostID]
@@ -136,12 +218,14 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 
 // Mutable display counters do not invalidate candidate order or public body
 // projection. Refresh only the returned page's counters under final authority.
+const preparedViewCountsSQL = `SELECT id::text,coalesce(v.view_count,0) FROM unnest($1::uuid[]) id LEFT JOIN c_posts.post_view_totals v ON v.post_id=id`
+
 func readPreparedViewCounts(ctx context.Context, tx pgx.Tx, ids []string) (map[string]int64, error) {
 	counts := make(map[string]int64, len(ids))
 	if len(ids) == 0 {
 		return counts, nil
 	}
-	rows, e := tx.Query(ctx, `SELECT id::text,coalesce(v.view_count,0) FROM unnest($1::uuid[]) id LEFT JOIN c_posts.post_view_totals v ON v.post_id=id`, ids)
+	rows, e := tx.Query(ctx, preparedViewCountsSQL, ids)
 	if e != nil {
 		return nil, e
 	}

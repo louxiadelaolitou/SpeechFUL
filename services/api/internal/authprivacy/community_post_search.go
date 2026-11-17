@@ -96,6 +96,7 @@ func (c *Community) SearchPosts(ctx context.Context, bearer [32]byte, query post
 // This unlocked read rejects invalid bearers before scanning content. The
 // final transaction locks these rows, samples trusted time and checks activity.
 func (c *Community) precheckPostSearchSession(ctx context.Context, token [32]byte, decision AuthorizationDecision) (uuid.UUID, int64, error) {
+	defer readtiming.Span(ctx, "precheck_session")()
 	var account credentialAccount
 	var session credentialSession
 	err := c.pool.QueryRow(ctx, `SELECT a.account_id,a.state,a.session_generation,r.ban_state,r.ban_ends_at,

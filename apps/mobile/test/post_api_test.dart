@@ -585,6 +585,52 @@ void main() {
     },
   );
   test(
+    'incremental feed requests ten then five without mixing directions',
+    () async {
+      Map<String, Object?> page({String? next, String? refresh}) => {
+        'items': [
+          {..._card(), 'body': '正文', 'viewCount': 0},
+        ],
+        'nextCursor': next,
+        'refreshCursor': refresh,
+        'insertAfter': null,
+      };
+      endpoint.respond = (r) =>
+          _json(r, 200, page(next: 'opaque_cursor', refresh: 'refresh_cursor'));
+      final first = await api.timelineWindow(sessionToken: _token);
+      expect(endpoint.requests.last.uri.queryParameters, {
+        'paging': 'incremental-v1',
+        'limit': '10',
+      });
+      endpoint.respond = (r) => _json(r, 200, page());
+      await api.timelineWindow(
+        sessionToken: _token,
+        cursor: first.value.nextCursor,
+      );
+      expect(endpoint.requests.last.uri.queryParameters, {
+        'paging': 'incremental-v1',
+        'limit': '5',
+        'cursor': 'opaque_cursor',
+      });
+      endpoint.respond = (r) => _json(r, 200, page(refresh: 'next_refresh'));
+      await api.timelineWindow(
+        sessionToken: _token,
+        refreshCursor: first.value.refreshCursor,
+      );
+      expect(endpoint.requests.last.uri.queryParameters, {
+        'paging': 'incremental-v1',
+        'limit': '5',
+        'refreshCursor': 'refresh_cursor',
+      });
+      endpoint.respond = (r) =>
+          _json(r, 200, {...page(refresh: 'next_refresh'), 'accountId': _id});
+      await expectLater(
+        api.timelineWindow(sessionToken: _token),
+        throwsA(isA<PostFailure>()),
+      );
+    },
+  );
+  test(
     'author profile is anchored by post, preview-only and strictly matched',
     () async {
       endpoint.respond = (r) => _json(r, 200, {

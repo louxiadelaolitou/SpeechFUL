@@ -74,6 +74,11 @@ func (g *PostgresAuthorizationGate) observedAnchorWrite(ctx context.Context, a a
 	return g.anchor.writeLocked(a)
 }
 
+func (g *PostgresAuthorizationGate) observedBusinessAnchorWrite(ctx context.Context, a authorizationAnchor) error {
+	defer readtiming.Span(ctx, "anchor_write")()
+	return g.anchor.writeBusinessLocked(a)
+}
+
 func (g *PostgresAuthorizationGate) observedAnchorLock(ctx context.Context, fn func(*authorizationAnchor, bool) error) error {
 	finish := readtiming.Span(ctx, "anchor_lock_read_verify")
 	entered := false

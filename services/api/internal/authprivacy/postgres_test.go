@@ -27,6 +27,8 @@ type lab struct {
 	vGate                            *PostgresAuthorizationGate
 	cp, vp                           *pgxpool.Pool
 	vPrivate, cPrivate, cNextPrivate ed25519.PrivateKey
+	// Nil retains real PostgreSQL time; controlled fixtures bind their own clock.
+	ticketClock func() time.Time
 }
 
 func connectLab(t *testing.T, role, dsn string) *pgxpool.Pool {
@@ -298,7 +300,9 @@ func (l *lab) ticket(t *testing.T) (protocol.SignedTicket, ed25519.PrivateKey) {
 		t.Fatal(err)
 	}
 	var at time.Time
-	if err = l.cp.QueryRow(context.Background(), `SELECT clock_timestamp()`).Scan(&at); err != nil {
+	if l.ticketClock != nil {
+		at = l.ticketClock()
+	} else if err = l.cp.QueryRow(context.Background(), `SELECT clock_timestamp()`).Scan(&at); err != nil {
 		t.Fatal(err)
 	}
 	ticket := protocol.SignedTicket{Ticket: protocol.Ticket{Epoch: 1, Window: uint32(at.Unix() / 1800), Slot: slot, BootstrapKey: key}}

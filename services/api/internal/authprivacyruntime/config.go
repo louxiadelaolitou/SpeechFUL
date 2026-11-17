@@ -42,6 +42,7 @@ type PostsConfig struct {
 	FingerprintKeyFile string `json:"fingerprintKeyFile"`
 	CursorKeyFile      string `json:"cursorKeyFile"`
 	PreparedFeedReads  bool   `json:"preparedFeedReads,omitempty"`
+	LegacyListReads    bool   `json:"legacyListReads,omitempty"`
 	PreparedMediaReads bool   `json:"preparedMediaReads,omitempty"`
 	SearchDocuments    bool   `json:"searchDocuments,omitempty"`
 }

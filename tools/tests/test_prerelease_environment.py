@@ -27,6 +27,30 @@ class ResumeDiagnosticTests(unittest.TestCase):
             (rollback / relative).write_text('compatible checkpoint protocol')
             self.assertFalse(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
 
+    def test_checkpoint_container_guard_rejects_json_only_reader_before_live_io(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate, rollback = root / 'candidate', root / 'rollback'
+            relative = Path('services/api/internal/authprivacy')
+            for source in (candidate, rollback):
+                (source / relative).mkdir(parents=True)
+                (source / relative / 'authorization_checkpoint.go').write_text('same signed checkpoint schema')
+                (source / relative / 'authorization_evidence.go').write_text('JSON reader')
+            file = relative / 'authorization_evidence.go'
+            v1 = 'const authorizationCheckpointMagic = "HNUHOLE-AUTH-CHECKPOINT-V1\\n"\n'
+            (candidate / file).write_text(v1)
+            self.assertTrue(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
+            (rollback / file).write_text(v1)
+            self.assertFalse(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
+            (rollback / file).write_text(v1.replace('V1', 'V2'))
+            self.assertTrue(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
+            v2 = v1 + v1.replace('authorizationCheckpointMagic', 'authorizationCheckpointWriteMagic').replace('V1', 'V2')
+            (candidate / file).write_text(v2)
+            (rollback / file).write_text(v1)
+            self.assertTrue(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
+            (rollback / file).write_text(v2)
+            self.assertFalse(MODULE.checkpoint_rollback_incompatible(candidate, rollback))
+
     def fixture(self, directory):
         # Exercise only subprocess/log handling, with no runtime or database.
         lab = object.__new__(MODULE.Lab)

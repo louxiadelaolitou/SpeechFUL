@@ -77,6 +77,30 @@ func (tracer baselinePoolTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Co
 		tracer.reportError(code, operation, conn.PgConn().PID())
 	}
 }
+
+type baselineBatchErrorKey struct{}
+
+func (baselinePoolTracer) TraceBatchStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceBatchStartData) context.Context {
+	return context.WithValue(ctx, baselineBatchErrorKey{}, new(bool))
+}
+func (tracer baselinePoolTracer) TraceBatchQuery(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchQueryData) {
+	if data.Err != nil {
+		if seen, ok := ctx.Value(baselineBatchErrorKey{}).(*bool); ok {
+			*seen = true
+		}
+		tracer.TraceQueryEnd(ctx, conn, pgx.TraceQueryEndData{CommandTag: data.CommandTag, Err: data.Err})
+	}
+}
+func (tracer baselinePoolTracer) TraceBatchEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceBatchEndData) {
+	seen, _ := ctx.Value(baselineBatchErrorKey{}).(*bool)
+	if data.Err != nil && (seen == nil || !*seen) {
+		if seen != nil {
+			*seen = true
+		}
+		tracer.TraceQueryEnd(ctx, conn, pgx.TraceQueryEndData{Err: data.Err})
+	}
+}
+
 func (baselinePoolTracer) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
 	return context.WithValue(ctx, baselineAcquireKey{}, readtiming.Span(ctx, "pool_wait"))
 }

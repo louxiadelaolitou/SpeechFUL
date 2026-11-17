@@ -17,7 +17,7 @@ concurrency:
 jobs:
   feed-postgres:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,3 +67,36 @@ jobs:
           export POST_MEDIA_PYTHON="$RUNNER_TEMP/feed-image-python/bin/python"
           export POST_MEDIA_FIXTURES="$RUNNER_TEMP/feed-media-fixtures"
           sh services/api/authlab/run-feed-isolated.sh
+      - name: Independent checkpoint, cancellation, recovery and C/V Gate regression
+        env:
+          PGPORT: '55439'
+          FEED_TEST_PATTERN: '^(TestAuthorization|TestGate|TestVerifier)'
+        run: |
+          export PATH="$(pg_config --bindir):$PATH"
+          export FEED_GOOSE="$(go env GOPATH)/bin/goose"
+          sh services/api/authlab/run-feed-isolated.sh
+      - uses: actions/checkout@v4
+        with:
+          ref: 1d829b2623a6c32830ee1b74fae6c99a436ad3b3
+          path: .req002-frozen-baseline
+          persist-credentials: false
+      - name: Frozen feed batch HTTPS performance (35 percent hard gate)
+        env:
+          PGPORT: '55440'
+        run: |
+          export PATH="$(pg_config --bindir):$PATH"
+          export FEED_GOOSE="$(go env GOPATH)/bin/goose"
+          export POST_MEDIA_PYTHON="$RUNNER_TEMP/feed-image-python/bin/python"
+          export POST_MEDIA_FIXTURES="$RUNNER_TEMP/feed-media-fixtures"
+          export REQ002_SOURCE="$(git rev-parse HEAD)"
+          export REQ002_BASELINE_SOURCE="$GITHUB_WORKSPACE/.req002-frozen-baseline"
+          git -C "$REQ002_BASELINE_SOURCE" rev-parse HEAD > "$REQ002_BASELINE_SOURCE/.req002-frozen-baseline"
+          export REQ002_PERFORMANCE_DIRECTORY="$RUNNER_TEMP/feed-batch-performance"
+          python3 services/api/authlab/test_compare_feed_performance.py
+          sh services/api/authlab/run-feed-performance.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feed-batch-performance
+          path: ${{ runner.temp }}/feed-batch-performance/
+          if-no-files-found: ignore

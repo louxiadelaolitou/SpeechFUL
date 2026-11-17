@@ -13,17 +13,18 @@ import (
 )
 
 const (
-	CursorReposts   = "reposts"
-	CursorChannel   = "channel"
-	CursorOwn       = "own"
-	CursorAuthor    = "author"
-	CursorLiked     = "liked"
-	CursorFavorites = "favorites"
-	CursorTask      = "task"
-	CursorFeed      = "feed"
-	CursorSearch    = "search"
-	CursorTags      = "tags"
-	CursorTTL       = 30 * time.Minute
+	CursorReposts    = "reposts"
+	CursorChannel    = "channel"
+	CursorOwn        = "own"
+	CursorAuthor     = "author"
+	CursorLiked      = "liked"
+	CursorFavorites  = "favorites"
+	CursorTask       = "task"
+	CursorFeed       = "feed"
+	CursorFeedWindow = "feed-window"
+	CursorSearch     = "search"
+	CursorTags       = "tags"
+	CursorTTL        = 30 * time.Minute
 )
 
 type CursorPosition struct {
@@ -127,7 +128,7 @@ func validPosition(position CursorPosition) bool {
 		return err == nil && len(key) == 32 && position.FilterRevision >= 0 && (position.ChannelID == "" || validID(position.ChannelID)) && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == "" && position.SearchGroups == "" && position.SearchGroup == 0 && position.SearchRank == 0
 	case CursorSearch:
 		return validSearchPosition(position)
-	case CursorFeed:
+	case CursorFeed, CursorFeedWindow:
 		return (position.ChannelID == "" || validID(position.ChannelID)) && position.FilterRevision >= 0 && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""
 	case CursorChannel:
 		return validID(position.ChannelID) && position.LastOrdinal > 0 && position.LastOrdinal <= position.Ceiling && position.LastID == ""

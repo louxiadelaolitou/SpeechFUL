@@ -1,6 +1,46 @@
 part of 'http_post_api.dart';
 
 extension _FeedHttp on HttpPostApi {
+  Future<PostResponse<FeedWindow>> _timelineWindow({
+    required String sessionToken,
+    String? channelId,
+    String? cursor,
+    String? refreshCursor,
+  }) => _input(() {
+    if (cursor != null && refreshCursor != null) {
+      throw const FormatException('Conflicting feed directions');
+    }
+    final limit = cursor == null && refreshCursor == null ? 10 : 5;
+    return _send(
+      sessionToken,
+      'GET',
+      '/api/v1/feed',
+      headers: const {'X-Post-Preview': 'thumbnail-v1'},
+      query: {
+        ...HttpPostApi._pageQuery(cursor, limit),
+        'paging': 'incremental-v1',
+        if (refreshCursor != null)
+          'refreshCursor': PostProtocol.cursor(refreshCursor)!,
+        if (channelId != null) 'channelId': PostProtocol.resourceId(channelId),
+      },
+      maxResponseBytes: 24 * 1024 * 1024,
+      decode: (raw) {
+        final page = FeedWindow.fromJson(raw);
+        if (page.items.length > limit ||
+            channelId != null &&
+                page.items.any((p) => p.channelId != channelId) ||
+            cursor == null && page.refreshCursor == null ||
+            cursor != null &&
+                (page.refreshCursor != null || page.insertAfter != null) ||
+            refreshCursor == null && page.insertAfter != null ||
+            refreshCursor != null && page.nextCursor != null) {
+          throw const FormatException('Invalid feed window');
+        }
+        return page;
+      },
+    );
+  });
+
   Future<PostResponse<PostsPage<FeedPost>>> _timeline({
     required String sessionToken,
     String? channelId,

@@ -44,6 +44,7 @@ class HttpPostApi
         PostEditApi,
         PostMediaApi,
         FeedApi,
+        IncrementalFeedApi,
         HiddenPostApi,
         AuthorBlockApi,
         PostInteractionsApi,
@@ -321,6 +322,18 @@ class HttpPostApi
     channelId: channelId,
     cursor: cursor,
     limit: limit,
+  );
+  @override
+  Future<PostResponse<FeedWindow>> timelineWindow({
+    required String sessionToken,
+    String? channelId,
+    String? cursor,
+    String? refreshCursor,
+  }) => _timelineWindow(
+    sessionToken: sessionToken,
+    channelId: channelId,
+    cursor: cursor,
+    refreshCursor: refreshCursor,
   );
   @override
   Future<PostResponse<AuthorProfile>> authorProfile({

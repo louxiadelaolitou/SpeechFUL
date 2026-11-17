@@ -1,5 +1,9 @@
 # 新版帖子列表后端接线
 
+REQ-002 新增 opt-in `GET /api/v1/feed?paging=incremental-v1`：首屏10条，返回绑定5条续页的 `nextCursor` 和独立 `refreshCursor`。续页携带 `cursor`、limit=5；刷新携带 `refreshCursor`、limit=5，二者互斥。增量响应包含 `items,nextCursor,refreshCursor,insertAfter`；刷新保留客户端原旧帖游标，按公开帖子 `insertAfter` 锚点插入，null 则置顶。新帖超过5条时先显示最新5条，再按冻结区间分批补齐，补完后打开下一轮新帖范围；不足5条不凑数。空首屏也有刷新游标。旧客户端响应和游标scope／limit绑定继续按原契约处理；新增scope及刷新游标不接受旧方向令牌。期限或筛选变化失效后重新加载首屏。
+
+六类共用列表使用类型化批量投影，图片几何单独批量读取；首页开启两阶段读取时阅读量在最终事务批量更新。运行配置 `posts.legacyListReads=true` 回退旧六类列表读取；新增首页协议保留其边界查询和响应，使用逐篇正文投影回退。实现及验收状态集中在 [REQ-002](../tasks/REQ-002-HOME-FEED.md)。
+
 > **2026-10-19 合并事实：**PR #27 已以 `f1752e1` 合入 main；下文“本分支／未合并”为原后端交接快照。FEED-UI-01 从该最新主线单独完成接线，见[前端任务](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-ui.md)。未部署。
 
 工作项 `FEED-BACKEND-01`，分支 `codex/feat/feed-backend`，基线 main `fc2348f`。本页描述本分支新增能力，未合并、未部署。精确 JSON、错误与 header 以 [feed-api.yaml](../../packages/openapi/feed-api.yaml) 为准；实际验证见[分支交接](https://github.com/zewbby/SpeechFUL-Develop/blob/50baa3c2768b69188f2d6562cdb8b6c51e9fa674/docs/branches/feat-feed-backend.md)。

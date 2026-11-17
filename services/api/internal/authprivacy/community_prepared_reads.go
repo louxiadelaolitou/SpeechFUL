@@ -77,10 +77,9 @@ func (c *Community) withPreparedReadPlan(ctx context.Context, bearer [32]byte, c
 		return PostResponse{}, err
 	}
 	token := sha256.Sum256(bearer[:])
-	account, generation, err := c.precheckPostSearchSession(ctx, token, decision)
-	if err != nil {
-		return PostResponse{}, err
-	}
+	// Bind the session in the first preparation snapshot, before reading any
+	// protected resource. Keep that exact binding across the bounded rebuild.
+	subject := readSubject{token: token, decision: decision}
 	for attempt := 0; attempt < 2; attempt++ {
 		if attempt > 0 {
 			readtiming.Span(ctx, "prepared_read_rebuild")()
@@ -96,8 +95,8 @@ func (c *Community) withPreparedReadPlan(ctx context.Context, bearer [32]byte, c
 			}
 			decision = fresh
 		}
-		subject := readSubject{token: token, account: account, generation: generation, decision: decision}
-		response, e := c.preparedReadAttempt(ctx, token, subject, prepare)
+		subject.decision = decision
+		response, e := c.preparedReadAttempt(ctx, token, &subject, prepare)
 		if !errors.Is(e, errReadConflict) {
 			return response, e
 		}
@@ -109,7 +108,7 @@ func (c *Community) withPreparedReadPlan(ctx context.Context, bearer [32]byte, c
 	return PostResponse{}, conflictUnavailable
 }
 
-func (c *Community) preparedReadAttempt(ctx context.Context, token [32]byte, subject readSubject, prepare prepareReadPlanAction) (PostResponse, error) {
+func (c *Community) preparedReadAttempt(ctx context.Context, token [32]byte, subject *readSubject, prepare prepareReadPlanAction) (PostResponse, error) {
 	var plan *preparedReadPlan
 	defer func() {
 		if plan != nil && plan.Release != nil {
@@ -121,16 +120,12 @@ func (c *Community) preparedReadAttempt(ctx context.Context, token [32]byte, sub
 		defer readtiming.Span(ctx, "prepare_read")()
 		prepareCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		tx, e := c.pool.BeginTx(prepareCtx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+		tx, e := c.pool.BeginTx(prepareCtx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly, BeginQuery: "begin isolation level repeatable read read only; " + transactionLocalTimeouts})
 		if e != nil {
 			pending = ErrAuthorizationUnavailable
 			return
 		}
 		defer tx.Rollback(context.Background())
-		if _, e = tx.Exec(prepareCtx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '10s'`); e != nil {
-			pending = ErrAuthorizationUnavailable
-			return
-		}
 		a := credentialAccount{}
 		s := credentialSession{}
 		e = tx.QueryRow(prepareCtx, `SELECT a.account_id,a.state,a.session_generation,r.ban_state,r.ban_ends_at,
@@ -148,15 +143,26 @@ func (c *Community) preparedReadAttempt(ctx context.Context, token [32]byte, sub
 		if pending = s.validate(a, subject.decision); pending != nil {
 			return
 		}
+		if subject.account == uuid.Nil {
+			subject.account, subject.generation = a.account, s.generation
+		}
 		if a.account != subject.account || s.generation != subject.generation {
 			pending = ErrSessionInvalid
 			return
 		}
-		plan, pending = prepare(prepareCtx, tx, subject)
+		plan, pending = prepare(prepareCtx, tx, *subject)
 		if e = tx.Rollback(ctx); e != nil && !errors.Is(e, pgx.ErrTxClosed) {
 			pending = ErrAuthorizationUnavailable
 		}
 	}()
+	if subject.account == uuid.Nil {
+		// No session was bound and no private preparation ran. This has the
+		// same error boundary as the former independent session precheck.
+		if pending == nil {
+			pending = ErrAuthorizationUnavailable
+		}
+		return PostResponse{}, pending
+	}
 	if plan != nil && plan.Revalidate == nil {
 		// A plan without its resource proof must never release protected
 		// data, including when preparation already produced an error.

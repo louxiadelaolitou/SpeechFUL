@@ -358,7 +358,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 			if e != nil {
 				return e
 			}
-			community, err = community.WithPosts(ctx, authprivacy.PostConfig{Environment: c.PublicOrigin, KeyKey: commandKey, FingerprintKey: fingerprintKey, CursorKey: cursorKey, PreparedFeedReads: c.Posts.PreparedFeedReads, PreparedMediaReads: c.Posts.PreparedMediaReads, SearchDocuments: c.Posts.SearchDocuments})
+			community, err = community.WithPosts(ctx, authprivacy.PostConfig{Environment: c.PublicOrigin, KeyKey: commandKey, FingerprintKey: fingerprintKey, CursorKey: cursorKey, PreparedFeedReads: c.Posts.PreparedFeedReads, PreparedMediaReads: c.Posts.PreparedMediaReads, LegacyListReads: c.Posts.LegacyListReads, SearchDocuments: c.Posts.SearchDocuments})
 			if err != nil {
 				return err
 			}

@@ -252,6 +252,14 @@ paths:
         Account-hidden posts are excluded before LIMIT. Reading/exposing the
         feed never increments views.
       parameters:
+        - name: paging
+          in: query
+          schema: {type: string, enum: [incremental-v1]}
+          description: Opt in to a ten-row initial page, five-row continuations and five-row incremental refresh batches. Initial continuation tokens bind limit=5. Legacy queries retain their exact limit binding and response shape.
+        - name: refreshCursor
+          in: query
+          schema: {$ref: '#/components/schemas/Cursor'}
+          description: Only with incremental-v1, limit=5 and no cursor. Returns newest five first; subsequent refreshes drain the frozen gap in order before opening another new range. Bindings include account, channel, filter revision and trusted expiry. Merge the batch after insertAfter, or prepend when null. Preserve the old nextCursor locally during refresh.
         - name: X-Post-Preview
           in: header
           required: false
@@ -282,7 +290,10 @@ paths:
             Server-Time: { $ref: '#/components/headers/ServerTime' }
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/FeedPage' }
+              schema:
+                oneOf:
+                  - {$ref: '#/components/schemas/FeedPage'}
+                  - {$ref: '#/components/schemas/IncrementalFeedPage'}
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
@@ -548,6 +559,29 @@ components:
             properties:
               width: {type: integer, minimum: 1, maximum: 16384}
               height: {type: integer, minimum: 1, maximum: 16384}
+    IncrementalFeedPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, refreshCursor, insertAfter]
+      properties:
+        items:
+          type: array
+          maxItems: 10
+          items: {$ref: '#/components/schemas/FeedPost'}
+        nextCursor:
+          type: string
+          nullable: true
+          maxLength: 1024
+        refreshCursor:
+          type: string
+          nullable: true
+          maxLength: 1024
+          description: Present on initial and refresh responses; null on old-direction continuations.
+        insertAfter:
+          type: string
+          format: uuid
+          nullable: true
+          description: Public post insertion anchor for a pending refresh gap. Null prepends the batch. No private ordinal or identity selector is exposed.
     FeedPage:
       type: object
       additionalProperties: false

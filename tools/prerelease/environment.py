@@ -42,7 +42,23 @@ def checkpoint_rollback_incompatible(candidate, rollback):
     # The old verifier cannot authenticate the extended signed checkpoint.
     # Do not let it inspect live material and persist a false security freeze.
     protocol = Path('services/api/internal/authprivacy/authorization_checkpoint.go')
-    return (candidate / protocol).is_file() and not (rollback / protocol).is_file()
+    if (candidate / protocol).is_file() and not (rollback / protocol).is_file():
+        return True
+    # The signed checkpoint schema and its physical file format are separate
+    # compatibility boundaries. A JSON-only binary may understand checkpointId
+    # yet reject the V1 checkpoint container and freeze otherwise healthy data.
+    storage = Path('services/api/internal/authprivacy/authorization_evidence.go')
+    def container_format(source):
+        path = source / storage
+        if not path.is_file():
+            return None
+        text = path.read_text(encoding='utf-8')
+        match = re.search(r'^const authorizationCheckpointWriteMagic = ("(?:\\.|[^"\\])*")$', text, re.MULTILINE)
+        if match is None:
+            match = re.search(r'^const authorizationCheckpointMagic = ("(?:\\.|[^"\\])*")$', text, re.MULTILINE)
+        return match.group(1) if match else None
+    current_format = container_format(candidate)
+    return current_format is not None and current_format != container_format(rollback)
 
 
 def free_ports(count):

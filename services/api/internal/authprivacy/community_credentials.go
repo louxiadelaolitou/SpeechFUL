@@ -131,10 +131,12 @@ type credentialSession struct {
 	reason                     *string
 }
 
+const lockCredentialSessionSQL = `SELECT session_generation,authorization_generation,expires_at,last_activity_at,revoked_at,revocation_reason
+ FROM c_auth.sessions WHERE account_id=$1 AND token_digest=$2 FOR UPDATE`
+
 func lockCredentialSession(ctx context.Context, tx pgx.Tx, a credentialAccount, token [32]byte) (credentialSession, error) {
 	s := credentialSession{token: token}
-	err := tx.QueryRow(ctx, `SELECT session_generation,authorization_generation,expires_at,last_activity_at,revoked_at,revocation_reason
- FROM c_auth.sessions WHERE account_id=$1 AND token_digest=$2 FOR UPDATE`, a.account, token[:]).Scan(&s.generation, &s.authGeneration, &s.expires, &s.lastActivity, &s.revoked, &s.reason)
+	err := tx.QueryRow(ctx, lockCredentialSessionSQL, a.account, token[:]).Scan(&s.generation, &s.authGeneration, &s.expires, &s.lastActivity, &s.revoked, &s.reason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s, ErrSessionInvalid
 	}

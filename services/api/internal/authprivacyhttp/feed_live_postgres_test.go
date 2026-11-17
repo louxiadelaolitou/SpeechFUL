@@ -8,17 +8,29 @@ import (
 	"os"
 	"testing"
 
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
 // The shipped Dart transport talks to the actual C handlers and isolated PG.
 // A compiled probe is opt-in locally; feed-ui CI supplies it explicitly.
 func TestRealHTTPSFeedDartPostgres(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "original", true: "prepared"}[prepared], func(t *testing.T) { testRealHTTPSFeedDart(t, prepared) })
+	}
+}
+
+func testRealHTTPSFeedDart(t *testing.T, prepared bool) {
 	probe := os.Getenv("FEED_DART_PROBE")
 	if probe == "" {
 		t.Skip("compiled feed Dart probe absent")
 	}
-	s := e2eNewServices(t)
+	s := e2eNewServices(t, func(c *authprivacy.Community) *authprivacy.Community {
+		if prepared {
+			return preparedFeedHTTP(t, c)
+		}
+		return c
+	})
 	rootPEM := e2eDartPublicTLS(t, s)
 	owner, _ := e2ePrivacySignup(t, s, "feed_dart_owner")
 	reader, _ := e2ePrivacySignup(t, s, "feed_dart_reader")

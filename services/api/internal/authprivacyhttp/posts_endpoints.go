@@ -46,6 +46,8 @@ type postRoute struct {
 	seal             bool
 	methods          string
 	preview          bool
+	incremental      bool
+	windowDirection  string
 	limit            int
 	version          int32
 	ids              []string
@@ -364,6 +366,16 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 			return
 		}
 		route.limit = query.Limit
+		route.incremental = query.Incremental
+		if query.Incremental {
+			route.windowDirection = "initial"
+			if query.Cursor != "" {
+				route.windowDirection = "older"
+			}
+			if query.RefreshCursor != "" {
+				route.windowDirection = "newer"
+			}
+		}
 		if route.kind == authprivacy.PostFeed || route.kind == authprivacy.PostAuthor {
 			var previewErr error
 			route.preview, previewErr = postPreviewRequested(r)
@@ -498,6 +510,16 @@ func postReadQuery(r *http.Request, route postRoute) (authprivacy.PostQuery, err
 			return query, errMalformed
 		}
 		switch name {
+		case "paging":
+			if route.kind != authprivacy.PostFeed || items[0] != "incremental-v1" {
+				return query, errMalformed
+			}
+			query.Incremental = true
+		case "refreshCursor":
+			if route.kind != authprivacy.PostFeed || !validPostCursor(items[0]) {
+				return query, errMalformed
+			}
+			query.RefreshCursor = items[0]
 		case "identityId":
 			if route.kind != authprivacy.PostOwnList || !postValidID(items[0]) {
 				return query, errMalformed
@@ -520,6 +542,20 @@ func postReadQuery(r *http.Request, route postRoute) (authprivacy.PostQuery, err
 			}
 			query.Cursor = items[0]
 		default:
+			return query, errMalformed
+		}
+	}
+	if query.RefreshCursor != "" && !query.Incremental || query.RefreshCursor != "" && query.Cursor != "" {
+		return query, errMalformed
+	}
+	if query.Incremental {
+		if _, explicit := values["limit"]; !explicit {
+			query.Limit = 5
+			if query.Cursor == "" && query.RefreshCursor == "" {
+				query.Limit = 10
+			}
+		}
+		if (query.Cursor == "" && query.RefreshCursor == "" && query.Limit != 10) || (query.Cursor != "" || query.RefreshCursor != "") && query.Limit != 5 {
 			return query, errMalformed
 		}
 	}
@@ -856,6 +892,22 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 
 // 先限定实际 DTO 类型再校验内容，不能把 backend 的任意 row/map 直接序列化。
 func strictPostValue(value any, route postRoute) (any, error) {
+	if route.incremental {
+		p, ok := value.(posts.IncrementalFeedPage)
+		if route.kind != authprivacy.PostFeed || !ok || !validNullablePostCursor(p.RefreshCursor) || p.InsertAfter != nil && !postValidID(*p.InsertAfter) {
+			return nil, errMalformed
+		}
+		if route.windowDirection != "older" && p.RefreshCursor == nil || route.windowDirection == "older" && (p.RefreshCursor != nil || p.InsertAfter != nil) || route.windowDirection == "initial" && p.InsertAfter != nil || route.windowDirection == "newer" && p.NextCursor != nil {
+			return nil, errMalformed
+		}
+		route.incremental = false
+		v, e := strictPostValue(posts.CrossChannelFeedPage{Items: p.Items, NextCursor: p.NextCursor}, route)
+		if e != nil {
+			return nil, e
+		}
+		p.Items = v.(posts.CrossChannelFeedPage).Items
+		return p, nil
+	}
 	if route.kind == postShareRoute {
 		return strictPostShareLink(value, route.id)
 	}

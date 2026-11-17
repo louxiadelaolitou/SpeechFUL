@@ -39,6 +39,9 @@ type PostQuery struct {
 	Limit            int
 	ImageSizes       bool
 	EditCapabilities bool
+	Incremental      bool
+	RefreshCursor    string
+	deferViewCounts  bool
 }
 
 func readOwnPostTask(ctx context.Context, tx pgx.Tx, account uuid.UUID, id string, at time.Time, mute restriction) (posts.OwnTaskDetail, error) {
@@ -107,8 +110,22 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 	}
 	if query.Limit == 0 {
 		query.Limit = 20
+		if query.Incremental {
+			query.Limit = 10
+			if query.Cursor != "" || query.RefreshCursor != "" {
+				query.Limit = 5
+			}
+		}
 	}
 	if query.Limit < 1 || query.Limit > 50 {
+		return PostResponse{}, posts.ErrInvalidIntent
+	}
+	if query.Incremental {
+		if query.Kind != PostFeed || !c.PostsEnabled() || !c.posts.typedSearchEnabled || query.Cursor != "" && query.RefreshCursor != "" ||
+			(query.Cursor == "" && query.RefreshCursor == "" && query.Limit != 10) || (query.Cursor != "" || query.RefreshCursor != "") && query.Limit != 5 {
+			return PostResponse{}, posts.ErrInvalidIntent
+		}
+	} else if query.RefreshCursor != "" {
 		return PostResponse{}, posts.ErrInvalidIntent
 	}
 	if c.PostsEnabled() && c.posts.preparedFeedReads && c.nativePreparedReads() && (query.Kind == PostFeed || query.Kind == PostChannelFeed) {
@@ -354,6 +371,13 @@ func (c *Community) listPublicPosts(ctx context.Context, tx pgx.Tx, account uuid
 // capture retains the complete bounded candidate page, including lookahead,
 // before public projection can produce a private preparation error.
 func (c *Community) listPublicPostsCaptured(ctx context.Context, tx pgx.Tx, account uuid.UUID, query PostQuery, at time.Time, capture func(posts.CursorPosition, []string)) (any, error) {
+	if c.posts.batchListReads || query.Incremental {
+		return c.listPublicPostsBatchCaptured(ctx, tx, account, query, at, capture)
+	}
+	return c.listPublicPostsLegacyCaptured(ctx, tx, account, query, at, capture)
+}
+
+func (c *Community) listPublicPostsLegacyCaptured(ctx context.Context, tx pgx.Tx, account uuid.UUID, query PostQuery, at time.Time, capture func(posts.CursorPosition, []string)) (any, error) {
 	if query.Kind == PostChannelFeed || query.Kind == PostFeed && query.ID != "" {
 		var exists bool
 		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.channels WHERE id=$1)`, query.ID).Scan(&exists); err != nil {

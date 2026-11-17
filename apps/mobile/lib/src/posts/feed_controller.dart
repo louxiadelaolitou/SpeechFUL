@@ -39,6 +39,7 @@ class FeedController extends ChangeNotifier {
   int _epoch = 0, _timelineRequest = 0, _timelineGeneration = 0;
   String? _timelineChannelId,
       _timelineCursor,
+      _timelineRefreshCursor,
       _timelineError,
       _preferencesError;
   bool _timelineLoading = false,
@@ -77,6 +78,7 @@ class FeedController extends ChangeNotifier {
     _timelineLoaded = false;
     _timelineChannelId = _timelineCursor = _timelineError = _preferencesError =
         null;
+    _timelineRefreshCursor = null;
     _timelineLoading = _preferencesSaving = false;
     // A new account never waits behind the old account's pending network request.
     _preferenceWrites = Future.value();
@@ -98,6 +100,7 @@ class FeedController extends ChangeNotifier {
     ++_timelineGeneration;
     _timeline = [];
     _timelineCursor = null;
+    _timelineRefreshCursor = null;
     _timelineError = null;
     _timelineLoading = false;
     if (notify) _notify();
@@ -142,11 +145,19 @@ class FeedController extends ChangeNotifier {
     final request = ++_timelineRequest;
     final epoch = _epoch;
     final cursor = more ? _timelineCursor : null;
+    var refreshing =
+        !more &&
+        _api is IncrementalFeedApi &&
+        _timelineLoaded &&
+        channelId == _timelineChannelId &&
+        _timelineRefreshCursor != null &&
+        _preferencesReady;
     if (!more) {
       _invalidateInteractionReads();
       if (_timelineChannelId != channelId || !_preferencesReady) {
         _timeline = [];
         _timelineCursor = null;
+        _timelineRefreshCursor = null;
       }
       _timelineChannelId = channelId;
     }
@@ -164,6 +175,11 @@ class FeedController extends ChangeNotifier {
           (token) => _api!.feedPreferences(sessionToken: token),
         );
         if (request != _timelineRequest) return;
+        if (!setEquals(_blockedChannels, preferences.blockedChannelIds)) {
+          refreshing = false;
+          _timeline = [];
+          _timelineCursor = _timelineRefreshCursor = null;
+        }
         _blockedChannels = preferences.blockedChannelIds;
         _timeline = _timeline
             .where((post) => !_blockedChannels.contains(post.channelId))
@@ -173,13 +189,31 @@ class FeedController extends ChangeNotifier {
         if (reconciling) _preferencesError = null;
       }
       timelineRead = true;
-      final page = await a.request(
-        (token) => _api!.timeline(
-          sessionToken: token,
-          channelId: channelId,
-          cursor: cursor,
-        ),
-      );
+      FeedWindow? window;
+      final PostsPage<FeedPost> page;
+      if (_api case final IncrementalFeedApi incremental) {
+        final received = await a.request(
+          (token) => incremental.timelineWindow(
+            sessionToken: token,
+            channelId: channelId,
+            cursor: cursor,
+            refreshCursor: refreshing ? _timelineRefreshCursor : null,
+          ),
+        );
+        window = received;
+        page = PostsPage(
+          items: received.items,
+          nextCursor: received.nextCursor,
+        );
+      } else {
+        page = await a.request(
+          (token) => _api!.timeline(
+            sessionToken: token,
+            channelId: channelId,
+            cursor: cursor,
+          ),
+        );
+      }
       timelineRead = false;
       if (request != _timelineRequest) return;
       if (page.items.any(
@@ -189,22 +223,43 @@ class FeedController extends ChangeNotifier {
       )) {
         throw const PostFailure(kind: PostFailureKind.invalidResponse);
       }
-      final ids = (more ? _timeline : <FeedPost>[])
+      final ids = (more || refreshing ? _timeline : <FeedPost>[])
           .map((p) => p.postId)
           .toSet();
-      _timeline = [
-        if (more) ..._timeline,
-        ...page.items.where(
-          (p) => !_isPostDeleted(p.postId) && ids.add(p.postId),
-        ),
-      ];
+      final incoming = page.items
+          .where((p) => !_isPostDeleted(p.postId) && ids.add(p.postId))
+          .toList();
+      if (refreshing) {
+        final anchor = window?.insertAfter;
+        var index = 0;
+        if (anchor != null && incoming.isNotEmpty) {
+          index = _timeline.indexWhere((p) => p.postId == anchor);
+          if (index < 0) {
+            _timelineRefreshCursor = null;
+            _timelineLoading = false;
+            await loadTimeline(channelId: channelId);
+            return;
+          }
+          index++;
+        }
+        _timeline = [
+          ..._timeline.take(index),
+          ...incoming,
+          ..._timeline.skip(index),
+        ];
+      } else {
+        _timeline = [if (more) ..._timeline, ...incoming];
+      }
       for (final post in page.items) {
         final old = _postViews[post.postId] ?? 0;
         _postViews[post.postId] = post.viewCount > old ? post.viewCount : old;
       }
-      _timelineCursor = page.nextCursor;
+      if (!refreshing) _timelineCursor = page.nextCursor;
+      if (window?.refreshCursor != null) {
+        _timelineRefreshCursor = window!.refreshCursor;
+      }
       _timelineLoaded = true;
-      if (!more) _timelineGeneration++;
+      if (!more && !refreshing) _timelineGeneration++;
       _notify();
       final found = await _loadInteractions(
         page.items.map((p) => p.postId).toList(),
@@ -213,6 +268,7 @@ class FeedController extends ChangeNotifier {
           recoverMissingInteractions &&
           a.isCurrent &&
           request == _timelineRequest) {
+        _timelineRefreshCursor = null;
         await loadTimeline(
           channelId: channelId,
           recoverMissingInteractions: false,
@@ -234,6 +290,7 @@ class FeedController extends ChangeNotifier {
         if (error is PostFailure && error.code == 'CURSOR_INVALID') {
           // Never append another scope to the current page or treat this as EOF.
           _timelineCursor = null;
+          _timelineRefreshCursor = null;
           _preferencesReady = false;
           _timelineLoading = false;
           await loadTimeline(channelId: channelId);
@@ -270,6 +327,7 @@ class FeedController extends ChangeNotifier {
     ++_timelineRequest;
     _timelineLoading = false;
     _timelineCursor = null;
+    _timelineRefreshCursor = null;
     _timeline = [];
     _notify();
     try {

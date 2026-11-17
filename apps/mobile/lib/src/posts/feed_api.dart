@@ -179,3 +179,52 @@ abstract interface class FeedApi {
     required String postId,
   });
 }
+
+abstract interface class IncrementalFeedApi {
+  Future<PostResponse<FeedWindow>> timelineWindow({
+    required String sessionToken,
+    String? channelId,
+    String? cursor,
+    String? refreshCursor,
+  });
+}
+
+class FeedWindow {
+  FeedWindow({
+    required List<FeedPost> items,
+    required this.nextCursor,
+    required this.refreshCursor,
+    required this.insertAfter,
+  }) : items = List.unmodifiable(items);
+  final List<FeedPost> items;
+  final String? nextCursor, refreshCursor, insertAfter;
+
+  factory FeedWindow.fromJson(Object? raw) {
+    final m = PostJson.record(raw, {
+      'items',
+      'nextCursor',
+      'refreshCursor',
+      'insertAfter',
+    });
+    final items = m['items'];
+    if (items is! List ||
+        items.length > 10 ||
+        m['nextCursor'] != null && m['nextCursor'] is! String ||
+        m['refreshCursor'] != null && m['refreshCursor'] is! String ||
+        m['insertAfter'] != null && m['insertAfter'] is! String) {
+      throw const FormatException('Invalid incremental feed');
+    }
+    final posts = items.map(FeedPost.fromJson).toList();
+    if (posts.map((p) => p.postId).toSet().length != posts.length) {
+      throw const FormatException('Duplicate incremental posts');
+    }
+    return FeedWindow(
+      items: posts,
+      nextCursor: PostProtocol.cursor(m['nextCursor'] as String?),
+      refreshCursor: PostProtocol.cursor(m['refreshCursor'] as String?),
+      insertAfter: m['insertAfter'] == null
+          ? null
+          : PostProtocol.resourceId(m['insertAfter'] as String),
+    );
+  }
+}

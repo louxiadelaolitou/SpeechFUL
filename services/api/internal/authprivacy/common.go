@@ -93,15 +93,16 @@ func recoveryDigest(code string) ([32]byte, error) {
 	return digest("HNUHOLE/RECOVERY/V1", raw), nil
 }
 
+const transactionLocalTimeouts = `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '10s'`
+
 func begin(ctx context.Context, pool interface {
 	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 }) (pgx.Tx, error) {
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	// pgx sends this parameter-free command through the simple protocol. The
+	// transaction mode and both local timeouts are installed in one round trip,
+	// before any protected query. BeginTx discards the connection on failure.
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted, BeginQuery: "begin isolation level read committed; " + transactionLocalTimeouts})
 	if err != nil {
-		return nil, err
-	}
-	if _, err = tx.Exec(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '10s'`); err != nil {
-		_ = tx.Rollback(ctx)
 		return nil, err
 	}
 	return observeAuthorizationTransaction(ctx, tx), nil

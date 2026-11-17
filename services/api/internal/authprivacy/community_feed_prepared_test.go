@@ -75,7 +75,7 @@ func TestFeedPreparedTimelinePostgres(t *testing.T) {
 }
 
 func TestFeedPreparedCandidateInterleavingPostgres(t *testing.T) {
-	for _, mode := range []string{"lookahead", "new", "hide", "block", "filters", "profile", "twice", "missing_scope", "missing_projection"} {
+	for _, mode := range []string{"lookahead", "new", "hide", "block", "filters", "profile", "twice", "missing_scope", "missing_projection", "missing_identity", "missing_owner", "missing_viewer"} {
 		t.Run(mode, func(t *testing.T) {
 			l := preparedFeedLab(t)
 			owner := sessionTestAccount(t, l, "pf_race_owner")
@@ -127,6 +127,12 @@ func TestFeedPreparedCandidateInterleavingPostgres(t *testing.T) {
 					mustExec(t, l.cp, `DELETE FROM c_posts.read_feed_scope_versions WHERE channel_id=(SELECT channel_id FROM c_posts.posts WHERE post_id=$1)`, latest)
 				case "missing_projection":
 					mustExec(t, l.cp, `DELETE FROM c_posts.read_feed_post_versions WHERE post_id=$1`, latest)
+				case "missing_identity":
+					mustExec(t, l.cp, `DELETE FROM c_posts.read_identity_versions WHERE identity_id=$1`, i)
+				case "missing_owner":
+					mustExec(t, l.cp, `DELETE FROM c_posts.read_account_versions WHERE account_id=$1`, owner.AccountID)
+				case "missing_viewer":
+					mustExec(t, l.cp, `DELETE FROM c_posts.read_account_versions WHERE account_id=$1`, reader.AccountID)
 				}
 			})
 			r, e := l.c.ReadPosts(context.Background(), reader.SessionToken, PostQuery{Kind: PostFeed, Limit: 1})
@@ -139,7 +145,7 @@ func TestFeedPreparedCandidateInterleavingPostgres(t *testing.T) {
 				assertPreparedReadAnchorMatches(t, l, after)
 				return
 			}
-			if mode == "missing_scope" || mode == "missing_projection" {
+			if mode == "missing_scope" || mode == "missing_projection" || mode == "missing_identity" || mode == "missing_owner" || mode == "missing_viewer" {
 				if !errors.Is(e, ErrAuthorizationUnavailable) || r.Value != nil {
 					t.Fatal("missing facts failed open", e)
 				}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
 
@@ -29,7 +30,7 @@ func TestPreparedReadFlagsRejectMissingSchemaPostgres(t *testing.T) {
 }
 
 func TestPreparedReadPlanLifecyclePostgres(t *testing.T) {
-	for _, mode := range []string{"success", "prepare_error", "cpu_error", "stale_prepare_error", "stale_cpu_error", "conflicts", "cancel", "panic", "session_generation", "commit_ack_loss"} {
+	for _, mode := range []string{"success", "prepare_error", "cpu_error", "stale_prepare_error", "stale_cpu_error", "conflicts", "cancel", "panic", "session_generation", "retry_session_generation", "commit_ack_loss"} {
 		t.Run(mode, func(t *testing.T) {
 			control := newGateControl(t)
 			l := control.lab
@@ -60,8 +61,8 @@ func TestPreparedReadPlanLifecyclePostgres(t *testing.T) {
 					func(prepareCtx context.Context, ro pgx.Tx, subject readSubject) (*preparedReadPlan, error) {
 						prepares++
 						attempt := prepares
-						var isolation, access string
-						if e := ro.QueryRow(prepareCtx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only')`).Scan(&isolation, &access); e != nil || isolation != "repeatable read" || access != "on" {
+						var isolation, access, lockTimeout, statementTimeout string
+						if e := ro.QueryRow(prepareCtx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only'),current_setting('lock_timeout'),current_setting('statement_timeout')`).Scan(&isolation, &access, &lockTimeout, &statementTimeout); e != nil || isolation != "repeatable read" || access != "on" || lockTimeout != "5s" || statementTimeout != "10s" {
 							t.Fatal("preparation is not a read-only consistent snapshot", e)
 						}
 						if subject.account != reader.AccountID || subject.token != token {
@@ -112,16 +113,28 @@ func TestPreparedReadPlanLifecyclePostgres(t *testing.T) {
 							},
 							Revalidate: func(pgx.Tx, uuid.UUID, AuthorizationDecision, restriction) error {
 								revalidations++
-								if mode == "conflicts" || attempt == 1 && (mode == "stale_prepare_error" || mode == "stale_cpu_error") {
+								if mode == "conflicts" || attempt == 1 && (mode == "stale_prepare_error" || mode == "stale_cpu_error" || mode == "retry_session_generation") {
 									return errReadConflict
 								}
 								return nil
 							},
-							Complete: func(pgx.Tx, uuid.UUID, AuthorizationDecision, restriction) (any, error) {
+							Complete: func(tx pgx.Tx, _ uuid.UUID, _ AuthorizationDecision, _ restriction) (any, error) {
+								if e := tx.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only'),current_setting('lock_timeout'),current_setting('statement_timeout')`).Scan(&isolation, &access, &lockTimeout, &statementTimeout); e != nil || isolation != "read committed" || access != "off" || lockTimeout != "5s" || statementTimeout != "10s" {
+									t.Fatal("final transaction lost its mode or timeouts", e)
+								}
 								completions++
 								return data, nil
 							},
-							Release: func() { releases++; data = nil },
+							Release: func() {
+								releases++
+								data = nil
+								if mode == "retry_session_generation" && attempt == 1 {
+									// Even a bearer that is valid for a newly advanced account
+									// generation cannot replace this read's original binding.
+									mustExec(t, l.cp, `UPDATE c_auth.accounts SET session_generation=session_generation+1 WHERE account_id=$1`, reader.AccountID)
+									mustExec(t, l.cp, `UPDATE c_auth.sessions SET session_generation=session_generation+1 WHERE token_digest=$1`, token[:])
+								}
+							},
 						}
 						if mode == "prepare_error" || mode == "stale_prepare_error" && attempt == 1 {
 							return plan, preparedErr
@@ -166,8 +179,12 @@ func TestPreparedReadPlanLifecyclePostgres(t *testing.T) {
 				if panicked != panicErr || revalidations != 0 {
 					t.Fatal("panic did not unwind private ownership", panicked)
 				}
-			case "session_generation":
-				if !errors.Is(err, ErrSessionInvalid) || revalidations != 0 {
+			case "session_generation", "retry_session_generation":
+				wantRevalidations := 0
+				if mode == "retry_session_generation" {
+					wantRevalidations = 1
+				}
+				if !errors.Is(err, ErrSessionInvalid) || revalidations != wantRevalidations {
 					t.Fatal("CPU plan survived session generation change", err)
 				}
 			case "commit_ack_loss":
@@ -197,5 +214,58 @@ func TestPreparedReadPlanLifecyclePostgres(t *testing.T) {
 			}
 			assertPreparedReadAnchorMatches(t, l, after)
 		})
+	}
+}
+
+// Inject a server failure after BEGIN and both local settings have succeeded.
+// The pgx BeginTx failure boundary must discard that connection, not return a
+// live or wrongly configured transaction to the application pool.
+type failingReadBeginPool struct {
+	pool interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	}
+}
+
+func (p failingReadBeginPool) BeginTx(ctx context.Context, opts pgx.TxOptions) (pgx.Tx, error) {
+	opts.BeginQuery += "; SET LOCAL req002_nonexistent_setting = 'failure'"
+	return p.pool.BeginTx(ctx, opts)
+}
+func TestPreparedReadBeginFailureDoesNotLeakTransactionPostgres(t *testing.T) {
+	l := newLab(t)
+	ctx := context.Background()
+	cfg := l.cp.Config()
+	cfg.MaxConns, cfg.MinConns = 1, 0
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	before, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforePID := before.Conn().PgConn().PID()
+	before.Release()
+	tx, err := begin(ctx, failingReadBeginPool{pool: pool})
+	if err == nil || tx != nil {
+		t.Fatal("injected BEGIN setting failure was accepted")
+	}
+	// Puddle destroys failed connections asynchronously. A pool with one
+	// permit must still return a fresh, idle connection within the deadline;
+	// no spare healthy connection can hide a leaked or poisoned transaction.
+	acquireCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	conn, err := pool.Acquire(acquireCtx)
+	if err != nil {
+		t.Fatal("failed BEGIN retained its only pool lease", err)
+	}
+	defer conn.Release()
+	if conn.Conn().PgConn().PID() == beforePID || conn.Conn().PgConn().TxStatus() != 'I' {
+		t.Fatal("failed BEGIN reused its failed or open transaction")
+	}
+	var isolation, access, lockTimeout, statementTimeout string
+	err = conn.QueryRow(ctx, `SELECT current_setting('transaction_isolation'),current_setting('transaction_read_only'),current_setting('lock_timeout'),current_setting('statement_timeout')`).Scan(&isolation, &access, &lockTimeout, &statementTimeout)
+	if err != nil || isolation != "read committed" || access != "off" || lockTimeout != "0" || statementTimeout != "0" {
+		t.Fatal("failed BEGIN leaked its local transaction settings", err, isolation, access, lockTimeout, statementTimeout)
 	}
 }

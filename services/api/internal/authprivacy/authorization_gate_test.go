@@ -87,6 +87,9 @@ func newGateControl(t *testing.T) *gateControl {
 	c := &gateControl{lab: l, gate: g, config: cfg, provider: provider, clock: clock, evidence: ek, recovery: rk, glass: bk}
 	c.recover(t, AuthorizationRecoveryBreakGlass, 2, 2)
 	l.gate, l.c.gate = g, g
+	// Signed registration fixtures must use the same controlled timeline as C.
+	// Otherwise wall time crossing a half-hour creates a future admission window.
+	l.ticketClock = clock.now
 	return c
 }
 

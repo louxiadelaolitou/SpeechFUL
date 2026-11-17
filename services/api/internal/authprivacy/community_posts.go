@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
 
 // PostConfig 的三份用途密钥独立于认证材料；只在启动时装配。
@@ -19,6 +20,7 @@ type PostConfig struct {
 	Environment                           string
 	KeyKey, FingerprintKey, CursorKey     [32]byte
 	PreparedFeedReads, PreparedMediaReads bool
+	LegacyListReads                       bool
 	SearchDocuments                       bool
 }
 type postServices struct {
@@ -32,6 +34,7 @@ type postServices struct {
 	hiddenPostsEnabled         bool
 	preparedFeedReads          bool
 	preparedMediaReads         bool
+	batchListReads             bool
 }
 type PostResponse struct {
 	Value                 any
@@ -97,6 +100,7 @@ func (c *Community) WithPosts(ctx context.Context, config PostConfig) (*Communit
 	if err = c.pool.QueryRow(ctx, postSearchColumnsSQL).Scan(&clone.posts.typedSearchEnabled); err != nil {
 		return nil, err
 	}
+	clone.posts.batchListReads = clone.posts.typedSearchEnabled && !config.LegacyListReads
 	clone.posts.commandTag = postKeyCommitment("HNUHOLE/POST-COMMAND-KEY-COMMITMENT/V1", config.KeyKey)
 	clone.posts.fingerprintTag = postKeyCommitment("HNUHOLE/POST-FINGERPRINT-KEY-COMMITMENT/V1", config.FingerprintKey)
 	if err = clone.checkPostProtocolKeys(ctx, nil); err != nil {
@@ -128,6 +132,7 @@ func (c *Community) freezePostProtocol(ctx context.Context) error {
 // 启动只校验材料；全新空库可在FROZEN启动。首次合法访问在最终Gate事务
 // 固定两份永久密钥承诺，之后每次最终事务重新核对。丢失历史承诺只能冻结。
 func (c *Community) checkPostProtocolKeys(ctx context.Context, tx pgx.Tx) error {
+	defer readtiming.Span(ctx, "protocol_keys")()
 	var db interface {
 		QueryRow(context.Context, string, ...any) pgx.Row
 	} = c.pool
@@ -220,14 +225,18 @@ func (c *Community) withPostSessionAtPrepared(ctx context.Context, token [32]byt
 	a := credentialAccount{account: account}
 	var session credentialSession
 	var mute restriction
-	if account != uuid.Nil {
+	if account != uuid.Nil && expectedSessionGeneration != nil && c.nativePreparedReads() {
+		a, session, mute, err = lockPreparedPostSession(ctx, tx, account, token)
+		if err != nil && !errors.Is(err, ErrSessionInvalid) {
+			return result, ErrAuthorizationUnavailable
+		}
+	} else if account != uuid.Nil {
 		if err = tx.QueryRow(ctx, `SELECT state,session_generation FROM c_auth.accounts WHERE account_id=$1 FOR UPDATE`, account).Scan(&a.state, &a.generation); err != nil {
 			return result, ErrAuthorizationUnavailable
 		}
-		if a.ban, err = lockRestriction(ctx, tx, account); err != nil {
-			return result, ErrAuthorizationUnavailable
-		}
-		if err = tx.QueryRow(ctx, `SELECT mute_state,mute_ends_at FROM c_auth.account_restrictions WHERE account_id=$1`, account).Scan(&mute.state, &mute.ends); err != nil {
+		// Ban and mute are fields of the same locked restriction row. Read
+		// them together while preserving account -> restrictions -> session.
+		if err = tx.QueryRow(ctx, `SELECT ban_state,ban_ends_at,mute_state,mute_ends_at FROM c_auth.account_restrictions WHERE account_id=$1 FOR UPDATE`, account).Scan(&a.ban.state, &a.ban.ends, &mute.state, &mute.ends); err != nil {
 			return result, ErrAuthorizationUnavailable
 		}
 		session, err = lockCredentialSession(ctx, tx, a, token)
