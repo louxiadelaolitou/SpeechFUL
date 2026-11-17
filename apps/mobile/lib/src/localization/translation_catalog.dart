@@ -3,6 +3,7 @@ import 'translations_auth.dart';
 import 'translations_community_settings.dart';
 import 'translations_messaging_notifications.dart';
 import 'translations_security_identity.dart';
+import 'translations_student_letter.dart';
 
 export 'app_language.dart' show AppLanguage, UiTranslation;
 
@@ -13,6 +14,7 @@ final uiTranslations = Map<String, UiTranslation>.unmodifiable({
   ...securityIdentityTranslations,
   ...messagingNotificationTranslations,
   ...communitySettingsTranslations,
+  ...studentLetterTranslations,
 });
 
 final _placeholder = RegExp(r'\{([A-Za-z][A-Za-z0-9_]*)\}');

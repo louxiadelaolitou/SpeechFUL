@@ -384,6 +384,7 @@ void main() {
       await tester.pumpWidget(
         app.HnuholeApp(
           directory: base.directory,
+          studentLetters: base.studentLetters,
           repository: base.repository,
           api: base.api,
           sessions: base.sessions,

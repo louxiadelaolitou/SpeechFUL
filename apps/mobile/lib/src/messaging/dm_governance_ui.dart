@@ -7,13 +7,11 @@ import 'package:flutter/material.dart';
 import '../design_system/telegram_theme.dart';
 import '../identity/identity_avatar.dart';
 import '../localization/app_localizations.dart';
-import '../posts/author_block_api.dart';
-import '../posts/post_controller.dart';
-import '../posts/post_models.dart';
-import '../posts/x_feed.dart';
 import '../reports/report_screens.dart';
 import '../system_notifications/notification_models.dart';
 import 'dm_controller.dart';
+
+export 'blacklist_screen.dart';
 
 /// One block mode: the confirmation applies the account-level author block for
 /// this conversation peer. The sheet only names the peer and the action.
@@ -44,9 +42,8 @@ Future<void> showDmBlock(
     await controller.setBlocked(row['identityId'], row['id'], !blocked);
   } catch (_) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(hhText(context, '操作未保存，请重试'))),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(hhText(context, '操作未保存，请重试'))));
     }
   }
 }
@@ -112,251 +109,6 @@ class _DmBlockSheet extends StatelessWidget {
               minimumSize: const Size.fromHeight(48),
             ),
             child: Text(hhText(context, blocked ? '解除拉黑' : '拉黑')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(hhText(context, '取消')),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The blacklist lists only account-level author blocks: one record covers
-/// every identity of the blocked account in posts, comments and DMs.
-class DmBlacklistScreen extends StatefulWidget {
-  const DmBlacklistScreen({super.key, required this.posts});
-
-  final PostController posts;
-  @override
-  State<DmBlacklistScreen> createState() => _DmBlacklistScreenState();
-}
-
-class _DmBlacklistScreenState extends State<DmBlacklistScreen> {
-  List<BlockedAuthor>? _authors;
-  String? _error;
-  bool _busy = false;
-  final _unblocking = <String>{};
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.posts.supportsAuthorBlock) unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final posts = widget.posts;
-    if (!posts.supportsAuthorBlock || _busy) return;
-    final epoch = posts.authorityVersion;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final authors = await posts.blockedAuthors();
-      if (mounted && posts.authorityVersion == epoch) {
-        setState(() => _authors = authors);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _error = '黑名单读取失败，请重试');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _unblockAuthor(BlockedAuthor item) async {
-    final posts = widget.posts;
-    if (_unblocking.contains(item.blockId)) return;
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      barrierColor: Colors.transparent,
-      builder: (context) => _AuthorUnblockSheet(author: item.author),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _unblocking.add(item.blockId));
-    final removed = await posts.unblockAuthor(item.blockId);
-    if (!mounted) return;
-    setState(() => _unblocking.remove(item.blockId));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          hhText(
-            context,
-            removed ? '已解除拉黑' : posts.authorBlockError ?? '操作未保存，请重试',
-          ),
-        ),
-      ),
-    );
-    if (!removed) return;
-    setState(() {
-      _authors = [
-        for (final author in _authors ?? const <BlockedAuthor>[])
-          if (author.blockId != item.blockId) author,
-      ];
-    });
-    await _load();
-    unawaited(posts.reloadVisibleFeeds());
-  }
-
-  Widget _notice(String text, {bool retry = false}) => Center(
-    child: retry
-        ? TextButton(onPressed: _load, child: Text(text))
-        : Text(text),
-  );
-
-  Widget _empty(HhTelegramPalette palette) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.shield_outlined, size: 56, color: palette.secondary),
-        const SizedBox(height: 12),
-        Text(hhText(context, '暂无记录')),
-      ],
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.posts,
-      builder: (context, _) {
-        final palette = HhTelegramPalette.of(context);
-        final posts = widget.posts;
-        final available = posts.supportsAuthorBlock && posts.available;
-        Widget body;
-        if (!available) {
-          body = _notice(hhText(context, '会话已变化，请重新进入'));
-        } else if (_busy && _authors == null) {
-          body = const Center(child: CircularProgressIndicator());
-        } else if (_error != null && (_authors?.isEmpty ?? true)) {
-          body = _notice(hhText(context, _error!), retry: true);
-        } else if (_authors?.isEmpty != false) {
-          body = _empty(palette);
-        } else {
-          body = ListView.separated(
-            padding: const EdgeInsets.only(top: 8),
-            itemCount: _authors!.length,
-            separatorBuilder: (_, _) =>
-                Divider(height: 1, indent: 76, color: palette.line),
-            itemBuilder: (context, index) {
-              final item = _authors![index];
-              final name = localizedPostAuthor(context, item.author);
-              return ListTile(
-                key: ValueKey('author-block:${item.blockId}'),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                leading: _AuthorAvatar(author: item.author, name: name),
-                title: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: OutlinedButton(
-                  key: ValueKey('author-unblock:${item.blockId}'),
-                  onPressed: _unblocking.contains(item.blockId)
-                      ? null
-                      : () => unawaited(_unblockAuthor(item)),
-                  child: Text(hhText(context, '解除')),
-                ),
-              );
-            },
-          );
-        }
-        return Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            title: Text(hhText(context, '黑名单')),
-          ),
-          body: Column(
-            children: [
-              if (_busy && _authors != null)
-                const LinearProgressIndicator(minHeight: 2),
-              if (_error != null && _authors?.isNotEmpty == true)
-                ListTile(
-                  title: Text(hhText(context, _error!)),
-                  onTap: _load,
-                ),
-              Expanded(child: body),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AuthorAvatar extends StatelessWidget {
-  const _AuthorAvatar({
-    required this.author,
-    required this.name,
-    this.radius = 22,
-  });
-  final PostAuthor author;
-  final String name;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = HhTelegramPalette.of(context);
-    return IdentityAvatar(
-      avatar: author.avatar,
-      radius: radius,
-      fallback: CircleAvatar(
-        radius: radius,
-        backgroundColor: palette.raised,
-        foregroundColor: palette.secondary,
-        child: Text(
-          name.isEmpty ? '?' : name.characters.first,
-          textScaler: TextScaler.noScaling,
-          style: TextStyle(fontSize: radius * .8),
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthorUnblockSheet extends StatelessWidget {
-  const _AuthorUnblockSheet({required this.author});
-  final PostAuthor author;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = localizedPostAuthor(context, author);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            hhText(context, '解除拉黑？'),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _AuthorAvatar(author: author, name: name, radius: 20),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          FilledButton(
-            key: const ValueKey('author-unblock-confirm'),
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-            ),
-            child: Text(hhText(context, '解除拉黑')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),

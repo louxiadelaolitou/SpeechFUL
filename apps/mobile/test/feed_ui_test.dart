@@ -64,6 +64,8 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
   final authorBlocks = <BlockedAuthor>[];
   PostFailure? blockAuthorFailure;
   PostFailure? blockedAuthorsFailure;
+  PostFailure? unblockAuthorFailure;
+  Completer<PostResponse<BlockedAuthorPage>>? blockedAuthorsWait;
 
   static bool sameAuthor(PostAuthor left, PostAuthor right) =>
       left.state == right.state &&
@@ -105,6 +107,7 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
   }) async {
     calls.add('blocks');
     if (blockedAuthorsFailure case final failure?) throw failure;
+    if (blockedAuthorsWait case final wait?) return wait.future;
     return reply(BlockedAuthorPage(List.of(authorBlocks)));
   }
 
@@ -114,6 +117,7 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
     required String blockId,
   }) async {
     calls.add('unblock:$blockId');
+    if (unblockAuthorFailure case final failure?) throw failure;
     final existed = authorBlocks.any((block) => block.blockId == blockId);
     authorBlocks.removeWhere((block) => block.blockId == blockId);
     return reply(
@@ -1526,9 +1530,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('author-unblock-confirm')));
     await tester.pumpAndSettle();
     expect(
-      find.byKey(
-        const ValueKey('author-block:${FeedTestApi.blockedAuthorId}'),
-      ),
+      find.byKey(const ValueKey('author-block:${FeedTestApi.blockedAuthorId}')),
       findsNothing,
     );
     expect(find.text('暂无记录'), findsNothing);

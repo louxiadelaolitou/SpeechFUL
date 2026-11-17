@@ -50,3 +50,6 @@ export 'src/system_notifications/notification_models.dart';
 export 'src/system_notifications/notification_screens.dart';
 export 'src/system_notifications/moderation_access.dart';
 export 'src/system_notifications/governance_material_vault.dart';
+export 'src/onboarding/student_letter_dialog.dart';
+export 'src/onboarding/student_letter_gate.dart';
+export 'src/onboarding/student_letter_store.dart';

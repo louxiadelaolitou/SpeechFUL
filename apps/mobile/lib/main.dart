@@ -377,6 +377,7 @@ class HnuholeApp extends StatefulWidget {
     this.comments,
     this.dm,
     this.dmNotifications,
+    this.studentLetters,
   });
 
   final ChannelDirectoryController directory;
@@ -399,12 +400,25 @@ class HnuholeApp extends StatefulWidget {
   final DmRuntime? dm;
   final DmNotifications? dmNotifications;
   final AuthPresentationController? presentation;
+  final StudentLetterStore? studentLetters;
 
   @override
   State<HnuholeApp> createState() => _HnuholeAppState();
 }
 
 class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
+  late final _studentLetters =
+      widget.studentLetters ??
+      StudentLetterStore.native(environment: widget.store.scope);
+  (String?, int)? _studentLetterWindow;
+
+  void _studentLetterReady((String?, int) window) {
+    if (!mounted || _postWindow.value != window) return;
+    _studentLetterWindow = window;
+    _schedulePostLink();
+    _scheduleDmNotification();
+  }
+
   late final ActiveIdentityController _activeIdentity;
   late final _authPresentation =
       widget.presentation ??
@@ -450,6 +464,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       return;
     }
     if (_authRouteOpen ||
+        _studentLetterWindow != _postWindow.value ||
         !widget.identities.entryReady ||
         !widget.posts.available ||
         widget.directory.status != ChannelDirectoryStatus.ready ||
@@ -553,7 +568,10 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       _openAuth();
       return;
     }
-    if (!widget.identities.entryReady || !c.available || c.accountId == null) {
+    if (!widget.identities.entryReady ||
+        _studentLetterWindow != _postWindow.value ||
+        !c.available ||
+        c.accountId == null) {
       return;
     }
     if (target.scope != n.scopeFor(c.accountId!)) {
@@ -1165,50 +1183,57 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
             if (widget.sessions.isAuthenticated &&
                 widget.posts.available &&
                 widget.directory.status == ChannelDirectoryStatus.ready) {
+              final window = _postWindow.value;
               return IdentityInitialGate(
                 controller: widget.identities,
                 sessions: widget.sessions,
-                child: PrimaryTabs(
-                  key: _primaryTabs,
-                  window: _postWindow.value,
-                  onSelected: _selectPrimary,
-                  homeMenu: _settingsScreen,
-                  builders: {
-                    AppDestination.home: (_) => FeedScreen(
-                      // New authorization owns fresh protected data. Its channel
-                      // preference survives within this app run for the same account.
-                      key: ValueKey(_postWindow.value),
-                      showNavigation: false,
-                      controller: widget.posts,
-                      channels: widget.directory.channels,
-                      initialChannelId: _homeChannels[widget.posts.accountId],
-                      loadImages: widget.loadPostImages,
-                      onOpenMessages: widget.governance == null
-                          ? null
-                          : _openMessages,
-                      onOpenPersonal: _openPersonal,
-                      onOpenDirectMessages: _openDirectMessages,
-                      onManageIdentities: _openIdentity,
-                      onAuthenticationRequired: _openAuth,
-                    ),
-                    AppDestination.messages: (_) => widget.governance == null
-                        ? Center(child: Text(hhText(context, '系统通知暂时不可用')))
-                        : _notificationsScreen(),
-                    AppDestination.directMessages: (_) => widget.dm != null
-                        ? DmInboxRoute(
-                            key: ValueKey((
-                              _postWindow.value,
-                              _dmInboxRevision,
-                            )),
-                            runtime: widget.dm!,
-                            activeIdentity: _activeIdentity,
-                            initialIdentity: _dmInitialIdentity,
-                            onManageIdentities: () =>
-                                _openIdentity(initialCreate: true),
-                          )
-                        : const DirectMessagesUnavailableScreen(),
-                    AppDestination.personal: (_) => _personalScreen(),
-                  },
+                child: StudentLetterGate(
+                  key: ValueKey(_postWindow.value),
+                  accountId: widget.posts.accountId!,
+                  store: _studentLetters,
+                  onReady: () => _studentLetterReady(window),
+                  child: PrimaryTabs(
+                    key: _primaryTabs,
+                    window: _postWindow.value,
+                    onSelected: _selectPrimary,
+                    homeMenu: _settingsScreen,
+                    builders: {
+                      AppDestination.home: (_) => FeedScreen(
+                        // New authorization owns fresh protected data. Its channel
+                        // preference survives within this app run for the same account.
+                        key: ValueKey(_postWindow.value),
+                        showNavigation: false,
+                        controller: widget.posts,
+                        channels: widget.directory.channels,
+                        initialChannelId: _homeChannels[widget.posts.accountId],
+                        loadImages: widget.loadPostImages,
+                        onOpenMessages: widget.governance == null
+                            ? null
+                            : _openMessages,
+                        onOpenPersonal: _openPersonal,
+                        onOpenDirectMessages: _openDirectMessages,
+                        onManageIdentities: _openIdentity,
+                        onAuthenticationRequired: _openAuth,
+                      ),
+                      AppDestination.messages: (_) => widget.governance == null
+                          ? Center(child: Text(hhText(context, '系统通知暂时不可用')))
+                          : _notificationsScreen(),
+                      AppDestination.directMessages: (_) => widget.dm != null
+                          ? DmInboxRoute(
+                              key: ValueKey((
+                                _postWindow.value,
+                                _dmInboxRevision,
+                              )),
+                              runtime: widget.dm!,
+                              activeIdentity: _activeIdentity,
+                              initialIdentity: _dmInitialIdentity,
+                              onManageIdentities: () =>
+                                  _openIdentity(initialCreate: true),
+                            )
+                          : const DirectMessagesUnavailableScreen(),
+                      AppDestination.personal: (_) => _personalScreen(),
+                    },
+                  ),
                 ),
               );
             }
