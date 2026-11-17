@@ -30,6 +30,7 @@ class ViewerItem {
   ViewerItem({
     required String id,
     required this.loadSource,
+    this.previewProvider,
     this.semanticLabel,
     this.resolveOriginal,
     this.saveAllowed = true,
@@ -39,6 +40,7 @@ class ViewerItem {
     required String id,
     required ImageProvider provider,
     required Size pixelSize,
+    ImageProvider? previewProvider,
     String? semanticLabel,
     ViewerOriginalResolver? resolveOriginal,
     bool saveAllowed = true,
@@ -47,6 +49,7 @@ class ViewerItem {
     return ViewerItem(
       id: id,
       loadSource: () async => source,
+      previewProvider: previewProvider,
       semanticLabel: semanticLabel,
       resolveOriginal: resolveOriginal,
       saveAllowed: saveAllowed,
@@ -55,9 +58,29 @@ class ViewerItem {
 
   final String id;
   final ViewerSourceLoader loadSource;
+
+  /// Caller-owned preview shown while [loadSource] has not produced a frame.
+  ///
+  /// This is visual only. It never becomes the viewing [ViewerSource], never
+  /// reports readiness, never counts against resource limits, never enables
+  /// saving, and is not evicted by the viewer. The caller must keep it
+  /// authorized and dispose/evict it under its own media policy. A thumbnail
+  /// or screenshot must still never be used as the complete original.
+  final ImageProvider? previewProvider;
   final String? semanticLabel;
   final ViewerOriginalResolver? resolveOriginal;
   final bool saveAllowed;
+
+  /// Copies this item with another display-only preview, preserving every
+  /// source, save and semantics field.
+  ViewerItem withPreview(ImageProvider? provider) => ViewerItem(
+    id: id,
+    loadSource: loadSource,
+    previewProvider: provider,
+    semanticLabel: semanticLabel,
+    resolveOriginal: resolveOriginal,
+    saveAllowed: saveAllowed,
+  );
 
   static String _validatedId(String id) {
     if (id.isEmpty || id.trim() != id) {

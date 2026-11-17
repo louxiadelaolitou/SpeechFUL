@@ -18,6 +18,7 @@ class PostImage {
     this.pixelSize,
     this.animated = false,
     this.registerDecodeProvider,
+    this.loadedPreview,
   }) : loadThumbnail = null,
        retryThumbnail = null;
   const PostImage.deferred({
@@ -27,6 +28,7 @@ class PostImage {
     this.animated = false,
     this.registerDecodeProvider,
     this.retryThumbnail,
+    this.loadedPreview,
   }) : thumbnail = null;
   final ImageProvider? thumbnail;
   final Future<ImageProvider> Function()? loadThumbnail;
@@ -37,6 +39,10 @@ class PostImage {
   final Size? pixelSize;
   final bool animated;
   final ValueChanged<ImageProvider>? registerDecodeProvider;
+
+  /// The provider the grid actually painted, so the viewer can avoid a visible
+  /// reload. It remains a preview only: [item] still loads the full source.
+  final ImageProvider? Function()? loadedPreview;
 }
 
 /// One immutable, ordered post image group, owned by the calling media layer.
@@ -301,7 +307,12 @@ class _PostImagesSectionState extends State<PostImagesSection>
       return;
     }
     final viewer = ViewerController(
-      items: [for (final image in group.images) image.item],
+      items: [
+        for (final image in group.images)
+          image.item.withPreview(
+            image.loadedPreview?.call() ?? image.thumbnail,
+          ),
+      ],
       initialIndex: index,
     );
     _viewer = viewer;

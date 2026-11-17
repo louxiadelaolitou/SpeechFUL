@@ -183,6 +183,7 @@ class _MediaLease {
   final _visibility = <ValueNotifier<bool>, bool Function()>{};
   final _providers = <ImageProvider>{};
   final _pending = <String, Future<MemoryImage>>{};
+  final _previews = <String, ImageProvider>{};
   final _decodeKeys = <(ImageProvider, int?, int?, ResizeImagePolicy)>{};
   Timer? _timer;
   Timer? _renewalTimer;
@@ -328,6 +329,7 @@ class _MediaLease {
     _renewalTimer?.cancel();
     _visibility.clear();
     _pending.clear();
+    _previews.clear();
     for (final provider in _providers) {
       unawaited(provider.evict());
     }
@@ -467,6 +469,9 @@ class _MediaLease {
     animated: item.frames > 1,
     registerDecodeProvider: (provider) {
       held();
+      if (provider is ResizeImage) {
+        _previews[item.contentVersionId] = provider;
+      }
       if (provider is ResizeImage &&
           _decodeKeys.add((
             provider.imageProvider,
@@ -482,6 +487,7 @@ class _MediaLease {
             4;
       }
     },
+    loadedPreview: () => _previews[item.contentVersionId],
     loadThumbnail: () async {
       held();
       final image = await provider(item.preview);

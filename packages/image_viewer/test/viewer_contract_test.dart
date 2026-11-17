@@ -26,6 +26,33 @@ class _ControlledCompleter extends ImageStreamCompleter {
   void publish(ImageInfo image) => setImage(image);
 }
 
+class _CountingProvider extends ImageProvider<_CountingProvider> {
+  _CountingProvider(this.bytes);
+  final Uint8List bytes;
+  late final MemoryImage _delegate = MemoryImage(bytes);
+  int loads = 0, evictions = 0;
+  @override
+  Future<_CountingProvider> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture(this);
+  @override
+  ImageStreamCompleter loadImage(
+    _CountingProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    loads++;
+    return _delegate.loadImage(_delegate, decode);
+  }
+
+  @override
+  Future<bool> evict({
+    ImageCache? cache,
+    ImageConfiguration configuration = ImageConfiguration.empty,
+  }) async {
+    evictions++;
+    return true;
+  }
+}
+
 class _UiGallery implements ViewerGalleryWriter {
   Completer<void>? pendingWrite;
   int writes = 0;
@@ -365,6 +392,124 @@ void main() {
     controller.select(2);
     await frames(tester);
     expect(calls, [0, 1, 1]);
+  });
+  testWidgets(
+    'caller preview paints while the source loads, then the full frame wins',
+    (tester) async {
+      final pending = Completer<ViewerSource>();
+      final preview = _CountingProvider(bytes['ordinary.png']!);
+      final controller = ViewerController(
+        items: [
+          ViewerItem(
+            id: 'a',
+            loadSource: () => pending.future,
+            previewProvider: preview,
+            semanticLabel: '预览图片',
+          ),
+        ],
+      );
+      await mount(tester, controller);
+      expect(controller.status, ViewerLoadStatus.loading);
+      expect(controller.resourceUsage, isNull);
+      expect(
+        find.byKey(const ValueKey('viewer-item-preview')),
+        findsOneWidget,
+      );
+      expect(find.text('正在加载图片'), findsNothing);
+      expect(find.bySemanticsLabel('预览图片'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const ValueKey('viewer-save')))
+            .onPressed,
+        isNull,
+      );
+      expect(preview.loads, 1);
+      pending.complete(source());
+      await frames(tester);
+      expect(controller.status, ViewerLoadStatus.ready);
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
+      expect(preview.evictions, 0);
+    },
+  );
+  testWidgets('preview never replaces a mismatched full source', (
+    tester,
+  ) async {
+    final pending = Completer<ViewerSource>();
+    final preview = _CountingProvider(bytes['long.png']!);
+    final controller = ViewerController(
+      items: [
+        ViewerItem(
+          id: 'a',
+          loadSource: () => pending.future,
+          previewProvider: preview,
+        ),
+      ],
+    );
+    await mount(tester, controller);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
+    pending.complete(
+      ViewerSource(
+        provider: MemoryImage(Uint8List.fromList(bytes['ordinary.png']!)),
+        pixelSize: const Size(1, 1),
+      ),
+    );
+    await frames(tester);
+    expect(controller.failure, ViewerFailure.invalidSource);
+    expect(find.text('图片尺寸与来源不匹配'), findsOneWidget);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
+    expect(preview.evictions, 0);
+  });
+  testWidgets('preview disappears on access invalidation and is never evicted', (
+    tester,
+  ) async {
+    final pending = Completer<ViewerSource>();
+    final preview = _CountingProvider(bytes['ordinary.png']!);
+    final controller = ViewerController(
+      items: [
+        ViewerItem(
+          id: 'a',
+          loadSource: () => pending.future,
+          previewProvider: preview,
+        ),
+      ],
+    );
+    await mount(tester, controller);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
+    controller.invalidateAccess();
+    await frames(tester);
+    expect(find.text('访问已失效'), findsOneWidget);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
+    expect(preview.evictions, 0);
+  });
+  testWidgets('neighbor previews are not decoded before selection', (
+    tester,
+  ) async {
+    final pending = Completer<ViewerSource>();
+    final first = _CountingProvider(bytes['ordinary.png']!);
+    final second = _CountingProvider(bytes['long.png']!);
+    final controller = ViewerController(
+      items: [
+        ViewerItem(
+          id: 'a',
+          loadSource: () => pending.future,
+          previewProvider: first,
+        ),
+        ViewerItem(
+          id: 'b',
+          loadSource: () => pending.future,
+          previewProvider: second,
+        ),
+      ],
+    );
+    await mount(tester, controller);
+    expect(first.loads, 1);
+    expect(second.loads, 0);
+    controller.select(1);
+    await frames(tester);
+    expect(first.loads, 1);
+    expect(second.loads, 1);
+    expect(first.evictions, 0);
+    expect(second.evictions, 0);
   });
   testWidgets('source failure is sanitized, explicit retry succeeds', (
     tester,

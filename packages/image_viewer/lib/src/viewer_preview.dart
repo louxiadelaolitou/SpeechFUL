@@ -79,6 +79,108 @@ class _ViewerPreviewState extends State<_ViewerPreview> {
   );
 }
 
+/// Paints a caller-owned preview until the complete source provides its first
+/// validated frame. It never enters the source cache, resource accounting,
+/// readiness or saving, and it never evicts the caller's provider.
+class _ViewerItemPreview extends StatefulWidget {
+  const _ViewerItemPreview({
+    required this.provider,
+    required this.semanticLabel,
+    this.reading,
+    super.key,
+  });
+  final ImageProvider provider;
+  final String semanticLabel;
+  final ViewerReadingPosition? reading;
+  @override
+  State<_ViewerItemPreview> createState() => _ViewerItemPreviewState();
+}
+
+class _ViewerItemPreviewState extends State<_ViewerItemPreview> {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  ui.Image? _image;
+  bool _failed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ViewerItemPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.provider, widget.provider)) {
+      _release();
+      _failed = false;
+      _listen();
+    }
+  }
+
+  void _listen() {
+    if (_image != null || _failed || _stream != null) return;
+    final stream = widget.provider.resolve(
+      createLocalImageConfiguration(context),
+    );
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, synchronous) {
+        final image = info.image.clone();
+        info.dispose();
+        stream.removeListener(listener);
+        if (!mounted) {
+          image.dispose();
+          return;
+        }
+        _image = image;
+        if (!synchronous) setState(() {});
+      },
+      onError: (Object error, StackTrace? stack) {
+        stream.removeListener(listener);
+        if (mounted) setState(() => _failed = true);
+      },
+    );
+    _stream = stream;
+    _listener = listener;
+    stream.addListener(listener);
+  }
+
+  void _release() {
+    final listener = _listener;
+    if (listener != null) _stream?.removeListener(listener);
+    _listener = null;
+    _stream = null;
+    final image = _image;
+    _image = null;
+    // RawImage may still paint this frame until the next frame.
+    if (image != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => image.dispose());
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
+  }
+
+  @override
+  void dispose() {
+    _release();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    image: true,
+    label: widget.semanticLabel,
+    child: ExcludeSemantics(
+      child: ClipRect(
+        child: CustomPaint(
+          painter: _ViewerPreviewPainter(_image, widget.reading),
+          size: Size.infinite,
+        ),
+      ),
+    ),
+  );
+}
+
 class _ViewerPreviewPainter extends CustomPainter {
   _ViewerPreviewPainter(this.image, this.reading);
   final ui.Image? image;

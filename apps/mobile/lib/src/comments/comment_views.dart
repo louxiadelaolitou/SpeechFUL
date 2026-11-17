@@ -3153,6 +3153,8 @@ class _CommentImageViewState extends State<CommentImageView> {
     final m = row.data['image'] as Map;
     final access = ValueNotifier(true);
     final providers = <ImageProvider>[];
+    Future<ImageProvider>? pendingProvider;
+    ImageProvider? thumbnailPreview;
     Timer? timer;
     var expired = false;
     final clock = Stopwatch()..start();
@@ -3166,6 +3168,8 @@ class _CommentImageViewState extends State<CommentImageView> {
       timer?.cancel();
       r.removeListener(changed);
       access.value = false;
+      pendingProvider = null;
+      thumbnailPreview = null;
       for (final p in providers) {
         unawaited(p.evict());
       }
@@ -3208,12 +3212,29 @@ class _CommentImageViewState extends State<CommentImageView> {
       }
     }
 
-    Future<ImageProvider> provider() async {
+    Future<ImageProvider> loadProvider() async {
       final p = MemoryImage(await bytes());
+      if (!access.value) throw StateError('Image access ended');
       providers.add(p);
       // PostImagesSection owns the bounded thumbnail decode. Nesting a second
       // ResizeImage here gives Flutter two competing decode-size callbacks.
       return p;
+    }
+
+    Future<ImageProvider> provider() {
+      final existing = pendingProvider;
+      if (existing != null) return existing;
+      final future = loadProvider();
+      pendingProvider = future;
+      unawaited(
+        future.then<void>(
+          (_) {},
+          onError: (Object _, StackTrace __) {
+            if (identical(pendingProvider, future)) pendingProvider = null;
+          },
+        ),
+      );
+      return future;
     }
 
     r.addListener(changed);
@@ -3225,7 +3246,11 @@ class _CommentImageViewState extends State<CommentImageView> {
       images: [
         PostImage.deferred(
           loadThumbnail: provider,
-          registerDecodeProvider: providers.add,
+          registerDecodeProvider: (provider) {
+            providers.add(provider);
+            if (provider is ResizeImage) thumbnailPreview = provider;
+          },
+          loadedPreview: () => thumbnailPreview,
           animated: m['mimeType'] == 'image/gif',
           item: ViewerItem(
             id: m['contentVersionId'] as String,

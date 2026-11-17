@@ -405,6 +405,76 @@ void main() {
   );
 
   mediaTestWidgets(
+    'opening a painted thumbnail shows it immediately while the full source loads',
+    (tester) async {
+      virtualRepository(tester);
+      api.bytes = (await tester.runAsync(
+        () => File(
+          '../../packages/image_viewer/example/assets/fixtures/ordinary.png',
+        ).readAsBytes(),
+      ))!;
+      final manifest = mediaManifest(
+        bytes: api.bytes.length,
+        width: 640,
+        height: 480,
+      );
+      final image = (manifest['images'] as List).single as Map;
+      image['thumbnail'] = {
+        'path':
+            '/api/v1/posts/$mediaPostId/images/${image['contentVersionId']}/thumbnail',
+        'mimeType': 'image/webp',
+        'maxByteLength': 524288,
+      };
+      api.manifest = manifest;
+      final group = await activeGroup(tester);
+      final item = group.images.single;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PostImagesSection(
+              postId: mediaPostId,
+              expectedCount: 1,
+              loadImages: (_) async => group,
+              authority: posts,
+              isCurrent: () => posts.available,
+            ),
+          ),
+        ),
+      );
+      await flushMedia(tester);
+      await tester.pumpAndSettle();
+      expect(api.byteReads, 1);
+      expect(item.loadedPreview!(), isNotNull);
+
+      api.bytesWait = Completer<PostResponse<Uint8List>>();
+      await tester.tap(find.byKey(ValueKey(('post-image', item.item.id))));
+      await flushMedia(tester);
+      await tester.pumpAndSettle();
+      final viewer = tester.widget<HnuImageViewer>(
+        find.byType(HnuImageViewer),
+      );
+      expect(api.byteReads, 2);
+      expect(viewer.controller.status, ViewerLoadStatus.loading);
+      expect(
+        find.byKey(const ValueKey('viewer-item-preview')),
+        findsOneWidget,
+      );
+      expect(find.text('正在加载图片'), findsNothing);
+
+      api.bytesWait!.complete(_response(api.bytes));
+      await flushMedia(tester);
+      await tester.pumpAndSettle();
+      expect(viewer.controller.status, ViewerLoadStatus.ready);
+      expect(
+        find.byKey(const ValueKey('viewer-item-preview')),
+        findsNothing,
+      );
+      expect(api.byteReads, 2);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  mediaTestWidgets(
     'connection failure retains only the original deadline with no retry loop',
     (tester) async {
       virtualRepository(tester);

@@ -2,6 +2,16 @@
 
 记录本仓库的写入型改动，最新条目在最上面；格式与门禁见 `.agents/skills/minimal-change/SKILL.md`。
 
+## 2026-11-17 17:02 · 点击图片复用已加载预览
+
+- 状态：已完成（本地提交，未推送）
+- 改动：查看器新增调用方所有的纯视觉 `previewProvider`；帖子、评论、私信打开查看器时先显示已加载图片，原图首帧到达后替换；评论 provider 记忆化，避免重复请求 `/original`。预览不进入来源缓存、`ready` 判定、保存或资源上限，组件不驱逐调用方 provider。
+- 文件：`packages/image_viewer/lib/src/viewer_controller.dart`、`viewer_preview.dart`、`viewer_surface.dart`、`viewer.dart`、`packages/image_viewer/README.md`、`packages/image_viewer/test/viewer_contract_test.dart`、`packages/image_viewer/example/test/component_example_test.dart`、`apps/mobile/lib/src/posts/post_images.dart`、`apps/mobile/lib/src/posts/post_media_repository.dart`、`apps/mobile/lib/src/comments/comment_views.dart`、`apps/mobile/lib/src/messaging/dm_chat_ui.dart`、`apps/mobile/test/post_media_repository_test.dart`、`apps/mobile/test/comment_runtime_test.dart`、`docs/design/image-viewer-component-plan.md`、`docs/design/post-image-media-contract.md`、`docs/design/modules/post-detail.md`、`docs/design/modules/comments.md`、`docs/tasks/IMG-VIEWER-PREVIEW-01.md`（新增）
+- 验证：环境 Windows 11 25H2 x64 / Flutter 3.47.5 / Dart 3.13.4，基线 `315f151`。查看器包 `flutter analyze --no-pub` PASS、`flutter test --no-pub` 147 项 PASS；移动端 `flutter analyze --no-pub` PASS、`flutter test --no-pub --concurrency=2` 1353 项通过／4 项跳过 PASS、`flutter build bundle --debug --no-pub` PASS；示例 `flutter analyze --no-pub` PASS、`flutter build bundle --debug --no-pub` PASS，测试 6 项通过、2 项失败（iOS 保存门控与重试场景 `pumpAndSettle` 超时），两项已在基线查看器代码复现，非本改动回归；`git diff --check` PASS；锁定文件已恢复。真机慢网／保存／账号切换 `NOT_RUN`。
+- 回滚：`git revert <本条目实现提交>`（本地提交，未推送）；无迁移、服务端或发布步骤。
+- 任务：`docs/tasks/IMG-VIEWER-PREVIEW-01.md`
+- 授权：用户 2026-11-17 指令“现在有一个问题，我们的页面图片明明已经加载出来了，但是直接点击图片却又要再加载一遍……你看看能不能优化成这样”；仅本地实现与验证，未授权推送、PR、合并、发布或部署。
+
 ## 2026-11-16 04:24 · 加速通知列表与未读统计读取
 
 - 状态：已完成

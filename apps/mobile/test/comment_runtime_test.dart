@@ -76,7 +76,7 @@ class _Journal extends NativeCommentJournal {
 class _Http extends CommentHttp {
   _Http() : super(Uri.parse('https://unused.invalid'));
   Completer<_Reply>? pending;
-  int commands = 0, taskReads = 0;
+  int commands = 0, taskReads = 0, imageReads = 0;
   Map<String, dynamic>? command;
   bool published = false;
   Uint8List? imageBytes;
@@ -88,6 +88,7 @@ class _Http extends CommentHttp {
     String path,
     String mime,
   ) async {
+    imageReads++;
     if (imageFailure case final failure?) throw failure;
     return (bytes: imageBytes!, lease: const Duration(seconds: 60));
   }
@@ -344,84 +345,141 @@ void main() {
       }
     });
   }
-  for (final denied in [false, true]) {
-    testWidgets(
-      'comment viewer ${denied ? "closes on denied access" : "keeps retry after transport failure"}',
-      (tester) async {
-        final f = await _fixture();
-        try {
-          f.http.imageBytes = await tester.runAsync(
-            () => File(
-              '../../packages/image_viewer/example/assets/fixtures/ordinary.png',
-            ).readAsBytes(),
-          );
-          final page = await f.runtime.request(
-            'GET',
-            '/api/v1/posts/$_post/comments',
-          );
-          final data = Map<String, dynamic>.from(
-            (page['comments'] as List).first as Map,
-          );
-          data['image'] = {
-            'contentVersionId': _root,
-            'mimeType': 'image/png',
-            'pixelWidth': 640,
-            'pixelHeight': 480,
-          };
-          await tester.pumpWidget(
-            MaterialApp(
-              home: Scaffold(
-                body: Center(
-                  child: SizedBox(
-                    width: 160,
-                    child: CommentImageView(
-                      runtime: f.runtime,
-                      row: CommentRow(data),
-                    ),
+  testWidgets(
+    'comment viewer reuses the loaded original without another read',
+    (tester) async {
+      final f = await _fixture();
+      try {
+        f.http.imageBytes = await tester.runAsync(
+          () => File(
+            '../../packages/image_viewer/example/assets/fixtures/ordinary.png',
+          ).readAsBytes(),
+        );
+        final page = await f.runtime.request(
+          'GET',
+          '/api/v1/posts/$_post/comments',
+        );
+        final data = Map<String, dynamic>.from(
+          (page['comments'] as List).first as Map,
+        );
+        data['image'] = {
+          'contentVersionId': _root,
+          'mimeType': 'image/png',
+          'pixelWidth': 640,
+          'pixelHeight': 480,
+        };
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 160,
+                  child: CommentImageView(
+                    runtime: f.runtime,
+                    row: CommentRow(data),
                   ),
                 ),
               ),
             ),
-          );
-          Future<void> settleImage() async {
-            for (var i = 0; i < 20; i++) {
-              await tester.runAsync(
-                () => Future<void>.delayed(const Duration(milliseconds: 5)),
-              );
-              await tester.pump(const Duration(milliseconds: 40));
-            }
-          }
-
-          await settleImage();
-          f.http.imageFailure = CommentHttpFailure(
-            denied ? 403 : null,
-            denied ? 'FORBIDDEN' : 'TRANSPORT',
-          );
-          await tester.tap(find.byKey(const ValueKey(('post-image', _root))));
-          await settleImage();
-          if (denied) {
-            expect(find.byType(HnuImageViewer), findsNothing);
-            expect(find.text('重新读取图片'), findsOneWidget);
-          } else {
-            expect(find.byType(HnuImageViewer), findsOneWidget);
-            expect(find.byKey(const ValueKey('viewer-retry')), findsOneWidget);
-            f.http.imageFailure = null;
-            await tester.tap(find.byKey(const ValueKey('viewer-retry')));
-            await settleImage();
-            final viewer = tester.widget<HnuImageViewer>(
-              find.byType(HnuImageViewer),
+          ),
+        );
+        Future<void> settleImage() async {
+          for (var i = 0; i < 20; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
             );
-            expect(viewer.controller.status, ViewerLoadStatus.ready);
+            await tester.pump(const Duration(milliseconds: 40));
           }
-          expect(tester.takeException(), isNull);
-        } finally {
-          await tester.pumpWidget(const SizedBox());
-          f.runtime.dispose();
-          f.auth.dispose();
         }
-      },
-    );
-  }
+
+        await settleImage();
+        expect(f.http.imageReads, 1);
+        // A failed fresh read would prove the viewer attempted a second GET.
+        f.http.imageFailure = const CommentHttpFailure(null, 'TRANSPORT');
+        await tester.tap(find.byKey(const ValueKey(('post-image', _root))));
+        await settleImage();
+        final viewer = tester.widget<HnuImageViewer>(
+          find.byType(HnuImageViewer),
+        );
+        expect(viewer.controller.status, ViewerLoadStatus.ready);
+        expect(f.http.imageReads, 1);
+        expect(find.byKey(const ValueKey('viewer-retry')), findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        f.runtime.dispose();
+        f.auth.dispose();
+      }
+    },
+  );
+  testWidgets(
+    'comment denial never opens a viewer and retry keeps one read per attempt',
+    (tester) async {
+      final f = await _fixture();
+      try {
+        f.http.imageBytes = await tester.runAsync(
+          () => File(
+            '../../packages/image_viewer/example/assets/fixtures/ordinary.png',
+          ).readAsBytes(),
+        );
+        final page = await f.runtime.request(
+          'GET',
+          '/api/v1/posts/$_post/comments',
+        );
+        final data = Map<String, dynamic>.from(
+          (page['comments'] as List).first as Map,
+        );
+        data['image'] = {
+          'contentVersionId': _root,
+          'mimeType': 'image/png',
+          'pixelWidth': 640,
+          'pixelHeight': 480,
+        };
+        f.http.imageFailure = const CommentHttpFailure(403, 'FORBIDDEN');
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 160,
+                  child: CommentImageView(
+                    runtime: f.runtime,
+                    row: CommentRow(data),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        Future<void> settleImage() async {
+          for (var i = 0; i < 20; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 5)),
+            );
+            await tester.pump(const Duration(milliseconds: 40));
+          }
+        }
+
+        await settleImage();
+        expect(f.http.imageReads, 1);
+        expect(find.byType(HnuImageViewer), findsNothing);
+        expect(find.text('重新读取图片'), findsOneWidget);
+        f.http.imageFailure = null;
+        await tester.tap(find.text('重新读取图片'));
+        await settleImage();
+        expect(f.http.imageReads, 2);
+        await tester.tap(find.byKey(const ValueKey(('post-image', _root))));
+        await settleImage();
+        expect(find.byType(HnuImageViewer), findsOneWidget);
+        expect(f.http.imageReads, 2);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+        f.runtime.dispose();
+        f.auth.dispose();
+      }
+    },
+  );
 
   Future<void> submit(WidgetTester tester, CommentRuntime runtime) async {
     await tester.pumpAndSettle();

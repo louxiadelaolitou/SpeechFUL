@@ -63,6 +63,9 @@ UTF8("HNUHOLE/POST-MEDIA-COMMAND/V1") || 0x00 || 原文字命令完整帧
 | original 经过宿主再次授权的原字节 | `resolveOriginal -> ViewerOriginal.bytes(bytes, ViewerOriginalFormat.gif/webp/png/jpeg)` |
 | saveAllowed | 原样传入 `ViewerItem.saveAllowed` |
 | 身份/环境代次、失效事件、租约计时器 | 宿主持有并终止 `accessGranted`；在每次 await 后检查代次，拒绝迟到响应 |
+| 已绘制缩略图的查看器占位 | `PostImage.loadedPreview` / `ViewerItem.previewProvider`；仅视觉占位，不改写上述 full/original 读取与保存映射 |
+
+已绘制预览的复用不改变上述映射：调用方可把栅格实际绘制、仍受同一 group 授权约束的缩略图 provider 交给查看器作完整来源首帧前的占位；`full`/`original` 与保存仍走原有独立读取，预览不标记 `ready`、不参与保存或资源上限，也不得被当作完整原图。
 
 宿主认证只保留在调用层闭包/transport 内，不能把账号、Bearer、密码、恢复材料放进图片组件、provider header、文件名或异常。宿主必须限制只接受上述当前 C origin 的相对路径，禁止凭返回 path 去任意域下载。临时字节只存在受控内存，不建长期公开私有图片缓存；撤销/账号切换时清空本层字节引用并逐个 evict 对应 MemoryImage，包括原预览 provider，禁止全局清其他会话缓存。保存仍使用既有 packages/image_viewer 的 gal 原格式流程与 Android 默认开启策略。
 
