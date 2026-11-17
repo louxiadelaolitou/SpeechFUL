@@ -94,6 +94,9 @@ func sessionReplay(ctx context.Context, q interface {
 	if !hmac.Equal(storedMAC, mac[:]) {
 		return true, ErrConflict
 	}
+	if result != nil && *result == "AUTHENTICATION_FAILED" {
+		return true, ErrAuthenticationFailed
+	}
 	if result == nil || *result != "SESSION_CREATED" {
 		return true, ErrConflict
 	}
@@ -162,6 +165,12 @@ func (c *Community) createSession(ctx context.Context, request SessionCreateRequ
 	key := digest("HNUHOLE/C-REQUEST-TOMBSTONE/V1", request.IdempotencyKey[:])
 	mac := requestMAC(c.requestKey, []byte("SESSION_CREATE"), []byte(request.Username),
 		[]byte(request.Password), request.InstallationID[:])
+	subject := c.passwordLoginSubject(request.Username)
+	if emailProof == nil {
+		if err = passwordLoginLock(ctx, c.pool, subject); err != nil {
+			return zero, err
+		}
+	}
 	if found, e := sessionReplay(ctx, c.pool, key, mac); found || e != nil {
 		return zero, e
 	}
@@ -169,6 +178,9 @@ func (c *Community) createSession(ctx context.Context, request SessionCreateRequ
 	var proof usernamePasswordProof
 	if emailProof == nil {
 		proof, err = c.proveUsernamePassword(ctx, request.Username, request.Password, verifier)
+		if errors.Is(err, ErrAuthenticationFailed) {
+			return zero, c.recordPasswordLoginFailure(ctx, subject, key, mac, decision.Generation)
+		}
 	} else {
 		err = c.pool.QueryRow(ctx, `SELECT a.account_id,a.password_hash,a.password_salt,a.password_params_version,a.credential_version FROM c_auth.accounts a JOIN c_auth.slot_ledger l ON l.account_id=a.account_id WHERE l.slot_id=$1 AND l.state='ACTIVE' AND a.username=$2`, emailProof.Slot[:], request.Username).Scan(&proof.account, &proof.hash, &proof.salt, &proof.params, &proof.version)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -185,6 +197,11 @@ func (c *Community) createSession(ctx context.Context, request SessionCreateRequ
 		return zero, ErrAuthorizationUnavailable
 	}
 	defer c.gate.Abort(ctx, tx)
+	if emailProof == nil {
+		if err = lockPasswordLogin(ctx, tx, subject); err != nil {
+			return zero, err
+		}
+	}
 	var state, username string
 	var lockedHash, lockedSalt []byte
 	var lockedParams, lockedVersion, sessionGeneration, closureGeneration int64
@@ -268,6 +285,14 @@ func (c *Community) createSession(ctx context.Context, request SessionCreateRequ
 	revokeHash := digest("HNUHOLE/REVOKE-STORAGE/V1", revoke[:])
 	var expires time.Time
 	_, err = c.gate.CommitAuthorized(ctx, tx, decision.Generation, func(final AuthorizationDecision) error {
+		if emailProof == nil {
+			if err := passwordLoginLock(ctx, tx, subject); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE c_auth.password_login_limits SET failures=0,locked_until=NULL WHERE subject_digest=$1`, subject[:]); err != nil {
+				return err
+			}
+		}
 		if emailProof != nil && (final.TrustedAt.Unix() < 0 || uint64(final.TrustedAt.Unix()) >= emailProof.Expires) {
 			return ErrEmailProofInvalid
 		}

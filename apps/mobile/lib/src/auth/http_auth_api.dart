@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'auth_api.dart';
+import 'captcha.dart';
 import 'auth_crypto.dart';
 import 'auth_models.dart';
 import 'credential_management_api.dart';
@@ -16,6 +17,7 @@ import '../identity/identity_api.dart';
 class HttpAuthApi
     implements
         AuthApi,
+        CaptchaApi,
         RegistrationResultApi,
         EmailLoginApi,
         EmailResetApi,
@@ -62,6 +64,101 @@ class HttpAuthApi
   /// A server response can never select or expand this configured authority.
   final String? passkeyRpId;
   final HttpClient _client;
+  @override
+  CaptchaPresenter? captchaPresenter;
+
+  Future<String> _captchaToken(
+    bool verifier,
+    String path,
+    Map<String, Object> body,
+    Map<String, String> headers,
+  ) async {
+    final present = captchaPresenter!;
+    try {
+      final token = await present(
+        CaptchaExchange(
+          load: () async {
+            final reply = await _send(
+              verifier,
+              'POST',
+              '/api/v1/captcha/challenges',
+              body: {
+                'action': path,
+                'installationId': verifier
+                    ? headers['V-Installation-ID']!
+                    : body['installationId']!,
+                'requestKey': headers['Idempotency-Key']!,
+                'subject': body[verifier ? 'email' : 'username']!,
+              },
+              expected: {200},
+              maxReplyBytes: 512 * 1024,
+            );
+            return _model(() {
+              final m = _record(reply.body, {
+                'id',
+                'background',
+                'piece',
+                'width',
+                'height',
+                'pieceWidth',
+                'pieceHeight',
+                'startX',
+                'y',
+                'expiresAt',
+              });
+              Uint8List picture(String field) {
+                final text = _text(m, field, maxLength: 400000);
+                final value = text.replaceFirst(
+                  RegExp(r'^data:image/(jpeg|png);base64,'),
+                  '',
+                );
+                final bytes = base64Decode(value);
+                if (bytes.isEmpty || bytes.length > 300000) {
+                  throw const FormatException('Invalid captcha image');
+                }
+                return bytes;
+              }
+
+              final width = _integer(m, 'width', 320, 320);
+              final height = _integer(m, 'height', 160, 160);
+              final pieceWidth = _integer(m, 'pieceWidth', 20, 80);
+              final pieceHeight = _integer(m, 'pieceHeight', 20, 80);
+              return CaptchaChallenge(
+                id: _encoded(m, 'id', 32),
+                background: picture('background'),
+                piece: picture('piece'),
+                width: width,
+                height: height,
+                pieceWidth: pieceWidth,
+                pieceHeight: pieceHeight,
+                startX: _integer(m, 'startX', 0, width - pieceWidth - 1),
+                y: _integer(m, 'y', 0, height - pieceHeight),
+                expiresAt: _date(m, 'expiresAt'),
+              );
+            });
+          },
+          solve: (id, x) async {
+            final reply = await _send(
+              verifier,
+              'POST',
+              '/api/v1/captcha/solutions',
+              body: {'id': _bytes(id, 32), 'x': x},
+              expected: {200},
+            );
+            return _model(
+              () => _encoded(_record(reply.body, {'token'}), 'token', 32),
+            );
+          },
+        ),
+      );
+      if (token == null) throw const CaptchaNotSubmitted(cancelled: true);
+      return _bytes(token, 32);
+    } on CaptchaNotSubmitted {
+      rethrow;
+    } on Object {
+      throw const CaptchaNotSubmitted();
+    }
+  }
 
   static void _validateOrigin(Uri uri) {
     if (uri.scheme != 'https' ||
@@ -1427,8 +1524,23 @@ class HttpAuthApi
     String? rawMime,
     bool binaryResponse = false,
     bool allowNull = false,
+    int? maxReplyBytes,
     required Set<int> expected,
   }) async {
+    final protected =
+        verifier &&
+        method == 'POST' &&
+        const {
+          '/api/v1/eligibility/otp-requests',
+          '/api/v1/email-login/otp-requests',
+          '/api/v1/email-reset/otp-requests',
+        }.contains(path);
+    if (protected && captchaPresenter != null) {
+      headers = {
+        ...headers,
+        'Captcha-Token': await _captchaToken(verifier, path, body!, headers),
+      };
+    }
     HttpClientRequest? active;
     int? responseStatus;
     var expired = false;
@@ -1472,7 +1584,7 @@ class HttpAuthApi
         responseStatus = response.statusCode;
         final responseLimit = binaryResponse && response.statusCode == 200
             ? 512 * 1024
-            : maxResponseBytes;
+            : maxReplyBytes ?? maxResponseBytes;
         final bytes = <int>[];
         if (response.contentLength > responseLimit) {
           throw const FormatException('Oversized response');
@@ -1541,7 +1653,15 @@ class HttpAuthApi
           response.headers.value('Session-Expires-At'),
         );
       })().timeout(timeout);
-    } on AuthFailure {
+    } on AuthFailure catch (failure) {
+      if (protected &&
+          const {
+            'CAPTCHA_REQUIRED',
+            'CAPTCHA_INVALID',
+            'CAPTCHA_UNAVAILABLE',
+          }.contains(failure.code)) {
+        throw const CaptchaNotSubmitted();
+      }
       rethrow;
     } on TimeoutException {
       expired = true;
@@ -1624,11 +1744,15 @@ class HttpAuthApi
   }
 
   static const _errorCodes = {
+    'CAPTCHA_REQUIRED',
+    'CAPTCHA_INVALID',
+    'CAPTCHA_UNAVAILABLE',
     'REQUEST_INVALID',
     'EMAIL_INVALID',
     'EMAIL_UNREGISTERED',
     'EMAIL_PROOF_INVALID',
     'AUTHENTICATION_FAILED',
+    'PASSWORD_LOGIN_LOCKED',
     'IDEMPOTENCY_KEY_REUSED',
     'IDEMPOTENCY_CONFLICT',
     'OTP_INVALID',

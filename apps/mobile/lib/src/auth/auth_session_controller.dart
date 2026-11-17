@@ -341,10 +341,13 @@ class AuthSessionController extends ChangeNotifier {
       _status = AuthStatus.storageFailure;
       _error = '安全存储写入失败，不能确认本机登录。';
     } on AuthFailure catch (e) {
-      _error = e.code == 'ACCOUNT_BANNED'
+      _status = _emptyStatus(_store.current ?? const AuthState());
+      _error = e.code == 'PASSWORD_LOGIN_LOCKED'
+          ? '尝试次数过多，请5分钟后重试'
+          : e.code == 'ACCOUNT_BANNED'
           ? '账号已被封禁'
           : e.unauthorized || e.code == 'CLIENT_INPUT_INVALID'
-          ? '用户名或密码不正确。'
+          ? '账号或密码错误，请重试'
           : e.code == 'SESSION_CREATED_RETRY_LOGIN'
           ? '上次登录已建立会话，请主动重新登录。'
           : '登录结果暂时无法确认，请主动重试。';

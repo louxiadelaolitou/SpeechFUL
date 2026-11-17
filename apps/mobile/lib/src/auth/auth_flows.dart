@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hnuhole_auth_passkey/hnuhole_auth_passkey.dart';
 
 import 'auth_api.dart';
+import 'captcha.dart';
 import 'auth_crypto.dart';
 import 'auth_models.dart';
 import 'auth_store.dart';
@@ -188,6 +189,9 @@ class AuthFlows extends ChangeNotifier {
         _clock().isBefore(DateTime.parse(m['waitUntil'] as String))) {
       throw const AuthFailure(kind: AuthFailureKind.rejected, code: 'OTP_WAIT');
     }
+    final previousRequest = m;
+    final freshRequest =
+        m == null || m['sendState'] == 'ACCEPTED' || changingEmail;
     if (m == null || m['sendState'] == 'ACCEPTED' || changingEmail) {
       m = {
         'email': email,
@@ -215,6 +219,18 @@ class AuthFlows extends ChangeNotifier {
         installationId: state.vInstallationId!,
         idempotencyKey: original['sendKey'] as String,
       );
+    } on CaptchaNotSubmitted {
+      if (freshRequest && _current(epoch)) {
+        await _store.update(
+          (s) => s.emailLogin?['sendKey'] == original['sendKey']
+              ? s.copyWith(
+                  emailLogin: previousRequest,
+                  clearEmailLogin: previousRequest == null,
+                )
+              : s,
+        );
+      }
+      rethrow;
     } on AuthFailure catch (failure) {
       if (failure.resultsExpired && _current(epoch)) {
         await _store.update(
@@ -434,6 +450,9 @@ class AuthFlows extends ChangeNotifier {
         _clock().isBefore(DateTime.parse(m['waitUntil'] as String))) {
       throw const AuthFailure(kind: AuthFailureKind.rejected, code: 'OTP_WAIT');
     }
+    final previousRequest = m;
+    final freshRequest =
+        m == null || m['sendState'] == 'ACCEPTED' || changingEmail;
     if (m == null || m['sendState'] == 'ACCEPTED' || changingEmail) {
       m = {
         'email': email,
@@ -461,6 +480,18 @@ class AuthFlows extends ChangeNotifier {
         installationId: state.vInstallationId!,
         idempotencyKey: original['sendKey'] as String,
       );
+    } on CaptchaNotSubmitted {
+      if (freshRequest && _current(epoch)) {
+        await _store.update(
+          (s) => s.emailReset?['sendKey'] == original['sendKey']
+              ? s.copyWith(
+                  emailReset: previousRequest,
+                  clearEmailReset: previousRequest == null,
+                )
+              : s,
+        );
+      }
+      rethrow;
     } on AuthFailure catch (failure) {
       if (failure.resultsExpired && _current(epoch)) {
         await _store.update(
@@ -789,7 +820,9 @@ class AuthFlows extends ChangeNotifier {
         code: 'PENDING_CHECK_REQUIRED',
       );
     }
+    final previousRegistration = Map<String, dynamic>.from(registration);
     var request = _map(registration['request']);
+    final freshRequest = request == null || request['state'] != 'UNKNOWN';
     if (request != null && request['state'] == 'UNKNOWN') {
       if (request['email'] != email) {
         throw const AuthFailure(
@@ -830,15 +863,37 @@ class AuthFlows extends ChangeNotifier {
     _status = AuthFlowStatus.otpRequestUnknown;
     _notify();
     final key = request['key'] as String;
-    final accepted = await _callOtp(
-      () => _api.requestOtp(
-        email: email,
-        installationId: state.vInstallationId!,
-        idempotencyKey: key,
-      ),
-      key: key,
-      epoch: epoch,
-    );
+    late OtpRequestAccepted accepted;
+    try {
+      accepted = await _callOtp(
+        () => _api.requestOtp(
+          email: email,
+          installationId: state.vInstallationId!,
+          idempotencyKey: key,
+        ),
+        key: key,
+        epoch: epoch,
+      );
+    } on CaptchaNotSubmitted {
+      if (freshRequest && _current(epoch)) {
+        await _store.update((latest) {
+          if (_map(latest.registration?['request'])?['key'] != key) {
+            return latest;
+          }
+          return latest.copyWith(registration: previousRegistration);
+        });
+        final previous = _map(previousRegistration['request']);
+        _otpWaitUntil = previous == null
+            ? null
+            : DateTime.parse(previous['waitUntil'] as String);
+        _status = previousRegistration['ticket'] != null
+            ? AuthFlowStatus.eligibilityReady
+            : previous?['state'] == 'ACCEPTED'
+            ? AuthFlowStatus.otpRequested
+            : AuthFlowStatus.idle;
+      }
+      rethrow;
+    }
     if (!_current(epoch)) {
       return;
     }
@@ -1997,8 +2052,16 @@ class AuthFlows extends ChangeNotifier {
       if (!_current(epoch)) {
         return;
       }
+      if (failure is CaptchaNotSubmitted) {
+        _errorMessage = failure.cancelled ? null : '安全验证暂时不可用，请重试。';
+        return;
+      }
       _error = failure;
-      _errorMessage = failure.code == 'ACCOUNT_BANNED'
+      _errorMessage =
+          failure.code == 'CAPTCHA_REQUIRED' ||
+              failure.code == 'CAPTCHA_INVALID'
+          ? '请重新完成安全验证。'
+          : failure.code == 'ACCOUNT_BANNED'
           ? '账号已被封禁'
           : failure.code == 'ELIGIBILITY_RESERVED'
           ? '该邮箱已注册'

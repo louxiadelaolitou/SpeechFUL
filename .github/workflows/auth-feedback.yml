@@ -7,6 +7,16 @@ on:
       - 'apps/mobile/**'
       - 'packages/auth_passkey/**'
       - 'packages/openapi/community-auth-api.yaml'
+      - 'packages/openapi/verifier-auth-api.yaml'
+      - 'services/api/internal/authcaptcha/**'
+      - 'services/api/internal/authprivacyhttp/**'
+      - 'services/api/internal/authprivacyruntime/**'
+      - 'services/api/migrations/*password_login*'
+      - 'services/api/internal/authprivacy/password_login*'
+      - 'services/api/internal/authprivacy/community_sessions.go'
+      - 'services/api/verifier-migrations/*captcha*'
+      - 'services/api/go.*'
+      - 'infra/postgres/grant-*.sql'
       - 'services/api/internal/authprivacy/community_signup_result*.go'
       - 'services/api/internal/authprivacyhttp/signup_result*.go'
       - 'services/api/authlab/run-email-login-isolated.sh'
@@ -45,6 +55,7 @@ jobs:
           test/auth_flows_test.dart
           test/registration_recovery_test.dart
           test/auth_api_test.dart
+          test/captcha_flow_test.dart
           ../../packages/auth_passkey/test/native_passkey_client_test.dart
           test/passkey_recovery_flow_test.dart
           test/security_management_controller_test.dart
@@ -80,14 +91,15 @@ jobs:
       - name: Auth HTTP boundary and server checks
         working-directory: services/api
         run: |
-          go test -mod=readonly ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime
-          go vet -mod=readonly ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime
+          go test -mod=readonly ./internal/authcaptcha ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime
+          go vet -mod=readonly ./internal/authcaptcha ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime
           go build -mod=readonly ./cmd/api ./cmd/verifier
       - name: Original signup results, late commit fence and email recovery in private PostgreSQL
         working-directory: services/api
         env:
-          AUTHLAB_EMAIL_TEST_PATTERN: '^Test(SignupResult|EmailResetPasswordAndPausedCredentials|EmailLogin)'
-          AUTHLAB_EMAIL_HTTP_TEST_PATTERN: '^TestHTTPSPostgresEligibilityAndSignup$'
+          AUTHLAB_EMAIL_TEST_PATTERN: '^Test(SignupResult|EmailResetPasswordAndPausedCredentials|EmailLogin|PasswordLogin|PrivacySchemaPartyBoundary|PrivacySeededPartyRows)'
+          AUTHLAB_EMAIL_HTTP_TEST_PATTERN: '^Test(HTTPSPostgresEligibilityAndSignup|CaptchaHTTPSPostgres)$'
+          AUTHLAB_EMAIL_RUNTIME_TEST_PATTERN: '^TestPasswordLogin.*Postgres$'
         run: sh authlab/run-email-login-isolated.sh
       - uses: subosito/flutter-action@v2
         with:

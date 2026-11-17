@@ -115,6 +115,22 @@ func field(body map[string]any, name string) (string, error) {
 	return s, nil
 }
 func (p *probe) request(ctx context.Context, method, origin, path string, body any, headers map[string]string, want int) (map[string]any, http.Header, error) {
+	if method == "POST" && origin == p.v && (path == "/api/v1/eligibility/otp-requests" || path == "/api/v1/email-login/otp-requests" || path == "/api/v1/email-reset/otp-requests") {
+		payload, ok := body.(map[string]string)
+		if !ok {
+			return nil, nil, errors.New("invalid probe mail payload")
+		}
+		token, err := p.captcha(ctx, path, payload["email"], headers)
+		if err != nil {
+			return nil, nil, err
+		}
+		copy := make(map[string]string, len(headers)+1)
+		for name, value := range headers {
+			copy[name] = value
+		}
+		copy["Captcha-Token"] = token
+		headers = copy
+	}
 	var input io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -139,8 +155,12 @@ func (p *probe) request(ctx context.Context, method, origin, path string, body a
 		return nil, nil, errors.New("probe HTTPS transport failed")
 	}
 	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, 32769))
-	if err != nil || len(data) > 32768 {
+	limit := 32768
+	if origin == p.v && path == "/api/v1/captcha/challenges" {
+		limit = 512 * 1024
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, int64(limit+1)))
+	if err != nil || len(data) > limit {
 		return nil, nil, errors.New("probe response exceeded bound")
 	}
 	if response.StatusCode != want || response.Header.Get("Cache-Control") != "no-store" || response.Header.Get("X-Request-ID") == "" {

@@ -41,6 +41,7 @@ func TestSessionHTTPBannedLoginIsDistinctFromInvalidCredentials(t *testing.T) {
 	}{
 		{authprivacy.ErrAccountBanned, 403, "ACCOUNT_BANNED"},
 		{authprivacy.ErrAuthenticationFailed, 401, "AUTHENTICATION_FAILED"},
+		{&authprivacy.PasswordLoginLocked{RetryAfterSeconds: 297}, 429, "PASSWORD_LOGIN_LOCKED"},
 		{authprivacy.ErrAccountUnavailable, 403, "ACCOUNT_UNAVAILABLE"},
 		{authprivacy.ErrAuthorizationUnavailable, 503, "SERVICE_UNAVAILABLE"},
 	} {
@@ -49,6 +50,9 @@ func TestSessionHTTPBannedLoginIsDistinctFromInvalidCredentials(t *testing.T) {
 		failure, ok := body["error"].(map[string]any)
 		if response.StatusCode != test.status || !ok || failure["code"] != test.code || body["sessionToken"] != nil || response.Header.Get("Session-Expires-At") != "" {
 			t.Fatalf("wrong login failure projection: %d", response.StatusCode)
+		}
+		if test.code == "PASSWORD_LOGIN_LOCKED" && response.Header.Get("Retry-After") != "297" {
+			t.Fatal("password freeze lost remaining duration")
 		}
 	}
 }

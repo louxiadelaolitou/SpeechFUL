@@ -91,7 +91,8 @@ INSERT INTO c_inbox.like_events VALUES('33333333-3333-4333-8333-333333333333','d
 			if count(t, pool, `SELECT count(*) FROM pg_indexes WHERE schemaname='c_inbox' AND indexname='inbox_unread' AND indexdef LIKE '%latest_like_version%'`) != 1 {
 				t.Fatal("unread-only page index absent")
 			}
-			if e = run("down"); e == nil {
+			// Newer reversible auth migrations may precede the permanent 0050 facts.
+			if e = run("down-to", "49"); e == nil {
 				t.Fatal("recipient facts rolled back")
 			}
 			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 50 {

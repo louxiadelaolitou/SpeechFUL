@@ -52,3 +52,6 @@ go test -race -count=1 -p 1 ./internal/authprivacy -run "${AUTHLAB_EMAIL_TEST_PA
 if [ -n "${AUTHLAB_EMAIL_HTTP_TEST_PATTERN:-}" ]; then
     go test -race -count=1 -p 1 ./internal/authprivacyhttp -run "$AUTHLAB_EMAIL_HTTP_TEST_PATTERN" -v
 fi
+if [ -n "${AUTHLAB_EMAIL_RUNTIME_TEST_PATTERN:-}" ]; then
+    go test -race -count=1 -p 1 ./internal/authprivacyruntime -run "$AUTHLAB_EMAIL_RUNTIME_TEST_PATTERN" -v
+fi

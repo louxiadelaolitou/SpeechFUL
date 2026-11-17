@@ -401,6 +401,9 @@ class Lab:
         env = self.password_env('c', 'runtime')
         tcp_dsn = 'postgres://hnuhole_c_runtime@127.0.0.1:' + str(self.state['pgPorts'][self.state['target']]['c']) + '/hnuhole_c?sslmode=disable&application_name=' + self.state['tag']
         env.update(AUTHRUNTIME_TAG=self.state['tag'], AUTHRUNTIME_C_DSN=tcp_dsn)
+        v_dsn = 'postgres://hnuhole_v_runtime@127.0.0.1:' + str(self.state['pgPorts'][self.state['target']]['v']) + '/hnuhole_v?sslmode=disable&application_name=' + self.state['tag']
+        env.update(AUTHRUNTIME_V_DSN=v_dsn,
+                   AUTHRUNTIME_V_PASSWORD=self.password_env('v', 'runtime')['PGPASSWORD'])
         self.run([self.root / 'bin/runtimeprobe', '-phase', phase, '-community', 'https://127.0.0.1:' + str(ports['c']),
                   '-verifier', 'https://127.0.0.1:' + str(ports['v']), '-mailpit', 'http://127.0.0.1:' + str(ports['mail']),
                   '-ca', self.root / 'material/dev-ca.pem', '-state', self.root / 'probe-state/session.json'], 'probe-' + phase, env=env)

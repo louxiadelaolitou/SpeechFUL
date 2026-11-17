@@ -2,6 +2,48 @@ import 'app_language.dart';
 
 // Application-owned authentication text; interpolated values are never translated.
 const authTranslations = <String, UiTranslation>{
+  '账号或密码错误，请重试': (
+    '帳號或密碼錯誤，請重試',
+    'Incorrect account or password. Please try again.',
+    'アカウント名またはパスワードが正しくありません。再試行してください。',
+  ),
+  '尝试次数过多，请5分钟后重试': (
+    '嘗試次數過多，請5分鐘後重試',
+    'Too many attempts. Please try again in 5 minutes.',
+    '試行回数が多すぎます。5分後に再試行してください。',
+  ),
+  '确认密码': ('確認密碼', 'Confirm password', 'パスワードの確認'),
+  '再次输入密码': ('再次輸入密碼', 'Enter password again', 'パスワードを再入力'),
+  '两次输入的密码不一致': ('兩次輸入的密碼不一致', 'Passwords do not match', 'パスワードが一致しません'),
+  '安全验证': ('安全驗證', 'Security check', 'セキュリティ認証'),
+  '拖动滑块，使拼图与缺口重合': (
+    '拖動滑塊，使拼圖與缺口重合',
+    'Drag the slider to fit the puzzle piece',
+    'スライダーを動かしてピースを合わせてください',
+  ),
+  '拖动滑块完成验证': ('拖動滑塊完成驗證', 'Drag the slider to verify', 'スライダーを動かして認証'),
+  '验证加载失败，请重试': (
+    '驗證載入失敗，請重試',
+    'Could not load verification. Try again.',
+    '認証を読み込めませんでした。再試行してください',
+  ),
+  '验证未通过，请重试': (
+    '驗證未通過，請重試',
+    'Verification failed. Try again.',
+    '認証できませんでした。再試行してください',
+  ),
+  '换一张': ('換一張', 'New puzzle', '別の画像'),
+  '安全验证暂时不可用，请重试。': (
+    '安全驗證暫時不可用，請重試。',
+    'Security verification is unavailable. Try again.',
+    'セキュリティ認証を利用できません。再試行してください。',
+  ),
+  '请重新完成安全验证。': (
+    '請重新完成安全驗證。',
+    'Please complete security verification again.',
+    'セキュリティ認証をやり直してください。',
+  ),
+
   '注册成功，请重新登陆': (
     '註冊成功，請重新登錄',
     'Registration successful. Please sign in.',

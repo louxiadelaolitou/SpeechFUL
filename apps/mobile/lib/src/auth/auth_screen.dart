@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'auth_flows.dart';
+import 'captcha.dart';
+import 'captcha_dialog.dart';
 import 'auth_presentation.dart';
 import '../localization/app_localizations.dart';
 import 'auth_session_controller.dart';
@@ -18,6 +20,7 @@ class AuthScreen extends StatefulWidget {
     super.key,
     required this.sessions,
     required this.flows,
+    this.captchaApi,
     this.onAuthenticated,
     this.onManageSecurity,
     this.onModerationAccess,
@@ -25,6 +28,7 @@ class AuthScreen extends StatefulWidget {
 
   final AuthSessionController sessions;
   final AuthFlows flows;
+  final CaptchaApi? captchaApi;
   final VoidCallback? onAuthenticated;
   final VoidCallback? onManageSecurity;
   final VoidCallback? onModerationAccess;
@@ -37,6 +41,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   final _username = TextEditingController();
   final _password = TextEditingController();
+  final _registrationPasswordConfirmation = TextEditingController();
   final _email = TextEditingController();
   final _otp = TextEditingController();
   final _recoveryCode = TextEditingController();
@@ -72,6 +77,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   void initState() {
     super.initState();
+    widget.captchaApi?.captchaPresenter = _presentCaptcha;
     _authenticated = widget.sessions.status == AuthStatus.authenticated;
     _lastFlowError = widget.flows.errorMessage;
     _lastFlowStatus = widget.flows.status;
@@ -101,6 +107,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
+    widget.captchaApi?.captchaPresenter = null;
     widget.sessions.removeListener(_changed);
     widget.flows.removeListener(_changed);
     widget.flows.cancelPasskeyRecovery();
@@ -109,6 +116,7 @@ class _AuthScreenState extends State<AuthScreen> {
     for (final controller in [
       _username,
       _password,
+      _registrationPasswordConfirmation,
       _email,
       _otp,
       _recoveryCode,
@@ -141,6 +149,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _registrationFinishing = false;
       _emailLogin = false;
       _password.clear();
+      _registrationPasswordConfirmation.clear();
       _confirmation.clear();
       _otp.clear();
       _visiblePasswords.clear();
@@ -176,6 +185,7 @@ class _AuthScreenState extends State<AuthScreen> {
         _loginEmail.clear();
         _loginOtp.clear();
         _password.clear();
+        _registrationPasswordConfirmation.clear();
         _newPassword.clear();
         _recoveryCode.clear();
         _confirmation.clear();
@@ -195,6 +205,7 @@ class _AuthScreenState extends State<AuthScreen> {
     FocusScope.of(context).unfocus();
     widget.flows.resetFlow();
     _password.clear();
+    _registrationPasswordConfirmation.clear();
     _newPassword.clear();
     _recoveryCode.clear();
     _confirmation.clear();
@@ -216,6 +227,17 @@ class _AuthScreenState extends State<AuthScreen> {
     if (_busy || !(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     await action();
+  }
+
+  Future<String?> _presentCaptcha(CaptchaExchange exchange) async {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) return null;
+    final token = await showCaptchaDialog(
+      _presentationContext ?? context,
+      exchange,
+    );
+    return mounted && (ModalRoute.of(context)?.isCurrent ?? false)
+        ? token
+        : null;
   }
 
   void _queueErrorDialog(String message) {
@@ -707,6 +729,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ? null
                     : () => setState(() {
                         _password.clear();
+                        _registrationPasswordConfirmation.clear();
                         _loginOtp.clear();
                         _visiblePasswords.clear();
                         _emailLogin = !_emailLogin;
@@ -979,6 +1002,14 @@ class _AuthScreenState extends State<AuthScreen> {
           newPassword: true,
           placeholder: '输入密码',
         ),
+        _field(
+          '确认密码',
+          _registrationPasswordConfirmation,
+          key: 'registration-password-confirmation',
+          password: true,
+          confirmPassword: true,
+          placeholder: '再次输入密码',
+        ),
         _registrationNext(
           widget.flows.legacyRecoveryEnabled ? '生成并保存恢复码' : '创建账号',
           () => _submit(() async {
@@ -1214,6 +1245,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _button('我已保存，继续确认', () async {
         _copyFeedback = null;
         _password.clear();
+        _registrationPasswordConfirmation.clear();
         _recoveryCode.clear();
         _confirmation.clear();
         widget.flows.hideRecoveryCode();
@@ -1629,6 +1661,7 @@ class _AuthScreenState extends State<AuthScreen> {
     bool username = false,
     bool newUsername = false,
     bool newPassword = false,
+    bool confirmPassword = false,
     bool email = false,
     bool otp = false,
     bool pending = false,
@@ -1661,7 +1694,11 @@ class _AuthScreenState extends State<AuthScreen> {
           : TextInputType.text,
       textInputAction: TextInputAction.next,
       autofillHints: password
-          ? [newPassword ? AutofillHints.newPassword : AutofillHints.password]
+          ? [
+              newPassword || confirmPassword
+                  ? AutofillHints.newPassword
+                  : AutofillHints.password,
+            ]
           : username
           ? [newUsername ? AutofillHints.newUsername : AutofillHints.username]
           : email
@@ -1709,6 +1746,9 @@ class _AuthScreenState extends State<AuthScreen> {
         if (otp && !_validateOtp) return null;
         if (input.isEmpty) {
           return hhText(context, '请输入{field}', args: {'field': _text(label)});
+        }
+        if (confirmPassword && input != _password.text) {
+          return _text('两次输入的密码不一致');
         }
         if (email &&
             (RegExp(r'\s').hasMatch(input) ||

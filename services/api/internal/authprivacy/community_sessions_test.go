@@ -53,12 +53,12 @@ func TestSessionLoginReplacementAndRevocationPostgres(t *testing.T) {
 	passwords := sessionTestPasswordWorker(t, 2)
 	request := sessionTestRequest(t, "session_lifecycle_user")
 	wrong := request
+	wrong.IdempotencyKey, _ = random32()
 	wrong.Password = "a definitely wrong long password"
 	if _, err := l.c.CreateSession(ctx, wrong, passwords); !errors.Is(err, ErrAuthenticationFailed) {
 		t.Fatalf("wrong password granted login: %v", err)
 	}
-	missing := request
-	missing.Username = "missing_session_user"
+	missing := sessionTestRequest(t, "missing_session_user")
 	if _, err := l.c.CreateSession(ctx, missing, passwords); !errors.Is(err, ErrAuthenticationFailed) {
 		t.Fatalf("unknown username had a distinct result: %v", err)
 	}

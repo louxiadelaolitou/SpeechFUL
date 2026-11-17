@@ -89,7 +89,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 50 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 50 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 51 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 51 {
 				t.Fatal("incomplete migration chain")
 			}
 			// 0049 installs writers immediately but leaves populated upgrades
@@ -164,7 +164,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if count(t, pool, `SELECT count(*) FROM c_posts.post_interaction_versions`) != 0 {
 				t.Fatal("fabricated historical write versions")
 			}
-			if e = run("down"); e == nil {
+			if e = run("down-to", "49"); e == nil {
 				t.Fatal("cumulative facts rolled back")
 			}
 			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 50 {

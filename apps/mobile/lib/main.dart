@@ -879,6 +879,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
         .push(
           MaterialPageRoute<void>(
             builder: (context) => AuthScreen(
+              captchaApi: widget.api,
               sessions: widget.sessions,
               flows: widget.flows,
               onModerationAccess: widget.governance?.restrictedAccess == null

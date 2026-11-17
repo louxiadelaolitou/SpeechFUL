@@ -225,6 +225,10 @@ void main() {
           find.byKey(const ValueKey('registration-password')),
           'IndependentPassword123!',
         );
+        await tester.enterText(
+          find.byKey(const ValueKey('registration-password-confirmation')),
+          'IndependentPassword123!',
+        );
         await tester.tap(find.byKey(const ValueKey('registration-next')));
         await tester.pumpAndSettle();
         expect(

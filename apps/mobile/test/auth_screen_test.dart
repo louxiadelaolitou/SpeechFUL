@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:hnuhole_mobile/src/auth/captcha.dart';
+import 'package:hnuhole_mobile/src/auth/captcha_dialog.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -406,6 +409,171 @@ Future<void> _seedEligibility(_Harness h) async {
 }
 
 void main() {
+  testWidgets(
+    'registration requires matching second password before creation',
+    (tester) async {
+      final h = _Harness();
+      await _seedEligibility(h);
+      await h.mount(tester);
+      await _tap(tester, '创建账号');
+      await tester.enterText(
+        find.byKey(const ValueKey('registration-username')),
+        'campus_echo',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('registration-password')),
+        'IndependentPassword123',
+      );
+      final confirmation = find.byKey(
+        const ValueKey('registration-password-confirmation'),
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: confirmation,
+                matching: find.byType(TextField),
+              ),
+            )
+            .autofillHints,
+        contains(AutofillHints.newPassword),
+      );
+      final next = find.byKey(const ValueKey('registration-next'));
+      await tester.ensureVisible(next);
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+      expect(h.flows.status, AuthFlowStatus.eligibilityReady);
+      expect(find.text('请输入确认密码'), findsOneWidget);
+      await tester.enterText(confirmation, 'DifferentPassword123');
+      await tester.ensureVisible(next);
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+      expect(find.text('两次输入的密码不一致'), findsOneWidget);
+      expect(h.flows.status, AuthFlowStatus.eligibilityReady);
+      await tester.enterText(confirmation, 'IndependentPassword123');
+      await tester.ensureVisible(next);
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+      expect(h.flows.status, isNot(AuthFlowStatus.eligibilityReady));
+      await h.finish(tester);
+    },
+  );
+  for (final (width, dark, scale) in [
+    (375.0, false, 1.0),
+    (375.0, true, 1.0),
+    (320.0, true, 1.6),
+  ]) {
+    testWidgets('captcha matches authentication theme $width $dark $scale', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 812);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final h = _Harness();
+      await h.mount(tester, dark: dark, scale: scale);
+      final fallback = (await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        ui.Canvas(recorder)
+            .drawColor(const Color(0xFF0088CC), ui.BlendMode.src);
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(320, 160);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        picture.dispose();
+        return bytes!.buffer.asUint8List();
+      }))!;
+      CaptchaChallenge puzzle = CaptchaChallenge(
+        id: 'fixture',
+        background: fallback,
+        piece: fallback,
+        width: 320,
+        height: 160,
+        pieceWidth: 48,
+        pieceHeight: 48,
+        startX: 10,
+        y: 40,
+        expiresAt: DateTime.now().add(const Duration(minutes: 2)),
+      );
+      const qaDirectory = String.fromEnvironment('AUTH_UI_QA_DIR');
+      if (qaDirectory.isNotEmpty) {
+        final fixture = File('$qaDirectory/challenge.json');
+        final raw = await tester.runAsync(() => fixture.readAsString());
+        final m = jsonDecode(raw!) as Map;
+        Uint8List image(String k) =>
+            base64Decode((m[k] as String).split(',').last);
+        puzzle = CaptchaChallenge(
+          id: m['id'] as String,
+          background: image('background'),
+          piece: image('piece'),
+          width: m['width'] as int,
+          height: m['height'] as int,
+          pieceWidth: m['pieceWidth'] as int,
+          pieceHeight: m['pieceHeight'] as int,
+          startX: m['startX'] as int,
+          y: m['y'] as int,
+          expiresAt: DateTime.parse(m['expiresAt'] as String),
+        );
+      }
+      var loads = 0, solves = 0;
+      final source = tester.element(
+        find.byKey(const ValueKey('login-password')),
+      );
+      await tester.runAsync(() async {
+        await precacheImage(MemoryImage(puzzle.background), source);
+        await precacheImage(MemoryImage(puzzle.piece), source);
+      });
+      final expectedColors = Theme.of(source).colorScheme;
+      String? result;
+      unawaited(
+        showCaptchaDialog(
+          source,
+          CaptchaExchange(
+            load: () async {
+              loads++;
+              return puzzle;
+            },
+            solve: (_, _) async {
+              solves++;
+              return 'verified';
+            },
+          ),
+        ).then((value) => result = value),
+      );
+      await tester.pumpAndSettle();
+      final dialog = tester.element(
+        find.byKey(const ValueKey('captcha-dialog')),
+      );
+      expect(Theme.of(dialog).colorScheme.primary, expectedColors.primary);
+      expect(
+        Theme.of(dialog).brightness,
+        dark ? Brightness.dark : Brightness.light,
+      );
+      expect(tester.takeException(), isNull);
+      await _snapshot(tester, 'captcha-$width-$dark-$scale');
+      await tester.tap(find.byKey(const ValueKey('captcha-refresh')));
+      await tester.pumpAndSettle();
+      expect(loads, 2);
+      if (scale == 1.6) {
+        await tester.tap(find.byTooltip('取消'));
+        await tester.pumpAndSettle();
+        expect(result, isNull);
+        expect(solves, 0);
+      } else {
+        final slider = tester.widget<Slider>(
+          find.byKey(const ValueKey('captcha-slider')),
+        );
+        slider.onChanged!(120);
+        slider.onChangeEnd!(120);
+        await tester.pumpAndSettle();
+        expect(result, 'verified');
+        expect(solves, 1);
+      }
+      expect(find.byKey(const ValueKey('captcha-dialog')), findsNothing);
+      await h.finish(tester);
+    });
+  }
+
   for (final appeal in [false, true]) {
     testWidgets('verified banned login offers appeal and cancel: $appeal', (
       tester,
@@ -459,7 +627,7 @@ void main() {
       'wrong password here',
     );
     await _tap(tester, '登录并进入');
-    expect(find.text('用户名或密码不正确。'), findsOneWidget);
+    expect(find.text('账号或密码错误，请重试'), findsOneWidget);
     expect(find.text('账号已被封禁'), findsNothing);
     expect(find.text('申诉'), findsNothing);
     expect(appeals, 0);
@@ -635,6 +803,10 @@ void main() {
           find.byKey(const ValueKey('registration-password')),
           'IndependentPassword123',
         );
+        await tester.enterText(
+          find.byKey(const ValueKey('registration-password-confirmation')),
+          'IndependentPassword123',
+        );
         tester.testTextInput.hide();
         await _snapshot(tester, 'registration-account-${width.toInt()}');
         await _tap(tester, '生成并保存恢复码');
@@ -728,6 +900,10 @@ void main() {
       );
       await tester.enterText(
         find.byKey(const ValueKey('registration-password')),
+        'IndependentPassword123',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('registration-password-confirmation')),
         'IndependentPassword123',
       );
       await _tap(tester, '生成并保存恢复码');
@@ -1121,6 +1297,37 @@ void main() {
     await h.finish(tester);
   });
 
+  testWidgets('password freeze uses a dismissible themed error dialog', (
+    tester,
+  ) async {
+    final h = _Harness();
+    h.api.loginFailure = const AuthFailure(
+      kind: AuthFailureKind.rejected,
+      statusCode: 429,
+      code: 'PASSWORD_LOGIN_LOCKED',
+      retryAfterSeconds: 300,
+    );
+    await h.mount(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('login-username')),
+      'private_name',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('login-password')),
+      'incorrect password',
+    );
+    await tester.tap(find.byKey(const ValueKey('login-submit')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('尝试次数过多，请5分钟后重试'), findsOneWidget);
+    expect(find.byKey(const ValueKey('captcha-dialog')), findsNothing);
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(h.api.logins, 1);
+    await h.finish(tester);
+  });
+
   testWidgets('password errors use a dismissible dialog and retain inputs', (
     tester,
   ) async {
@@ -1178,12 +1385,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('取消'), findsNothing);
-      expect(find.text('用户名或密码不正确。'), findsOneWidget);
+      expect(find.text('账号或密码错误，请重试'), findsOneWidget);
       await _snapshot(tester, 'auth-password-error-dialog');
       await tester.tap(find.text('确定'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('用户名或密码不正确。'), findsNothing);
+      expect(find.text('账号或密码错误，请重试'), findsNothing);
       expect(
         tester
             .widget<TextFormField>(find.byKey(const ValueKey('login-username')))
@@ -1452,6 +1659,10 @@ void main() {
       );
       await tester.enterText(
         find.byKey(const ValueKey('registration-password')),
+        'IndependentPassword123',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('registration-password-confirmation')),
         'IndependentPassword123',
       );
       await _tap(tester, '生成并保存恢复码');

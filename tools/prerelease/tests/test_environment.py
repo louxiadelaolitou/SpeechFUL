@@ -12,6 +12,26 @@ spec.loader.exec_module(environment)
 
 
 class IsolatedEnvironmentTest(unittest.TestCase):
+    def test_probe_keeps_verifier_captcha_connection_on_its_own_restored_cluster(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lab = environment.Lab(Path(directory) / 'new-root', Path('/source'))
+            lab.state = dict(target='restore', tag='hnuhole_runtime_synthetic',
+                             ports=dict(c=14443, v=14444, mail=18025),
+                             pgPorts={'restore': dict(c=15432, v=15433)})
+            lab.password_env = Mock(side_effect=lambda party, role: {
+                'PGPASSWORD': 'synthetic-' + party + '-password',
+                'AUTHRUNTIME_ISOLATED': '1',
+            })
+            lab.run = Mock()
+            lab.probe('lifecycle')
+            args, kwargs = lab.run.call_args
+            env = kwargs['env']
+            self.assertIn('@127.0.0.1:15432/hnuhole_c?', env['AUTHRUNTIME_C_DSN'])
+            self.assertIn('@127.0.0.1:15433/hnuhole_v?', env['AUTHRUNTIME_V_DSN'])
+            self.assertEqual(env['PGPASSWORD'], 'synthetic-c-password')
+            self.assertEqual(env['AUTHRUNTIME_V_PASSWORD'], 'synthetic-v-password')
+            self.assertNotIn('synthetic-v-password', str(args))
+
     def test_cleanup_does_not_treat_pg_status_error_as_stopped(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'new-root'

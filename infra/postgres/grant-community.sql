@@ -30,6 +30,12 @@ REVOKE ALL ON SCHEMA c_auth FROM hnuhole_c_recovery,hnuhole_business;
 REVOKE ALL ON public.sessions FROM hnuhole_business;
 GRANT USAGE ON SCHEMA c_auth,public TO hnuhole_c_runtime;
 GRANT SELECT ON ALL TABLES IN SCHEMA c_auth TO hnuhole_c_runtime;
+-- Password-login failure state is separate from account/session authority.
+DO $$ BEGIN
+ IF to_regclass('c_auth.password_login_limits') IS NOT NULL THEN
+  GRANT SELECT,INSERT,UPDATE ON c_auth.password_login_limits TO hnuhole_c_runtime;
+ END IF;
+END $$;
 GRANT INSERT ON c_auth.account_restrictions,c_auth.accounts,c_auth.auth_challenges,c_auth.authorization_gate_audit,c_auth.closure_requests,c_auth.credential_change_intents,c_auth.passkeys,c_auth.receipt_outbox,c_auth.recent_device_replacement,c_auth.recovery_codes,c_auth.request_results,c_auth.reset_intents,c_auth.sessions,c_auth.signup_intents,c_auth.slot_ledger TO hnuhole_c_runtime;
 GRANT UPDATE ON c_auth.account_restrictions,c_auth.accounts,c_auth.auth_challenges,c_auth.authorization_gate,c_auth.closure_requests,c_auth.credential_change_intents,c_auth.passkeys,c_auth.receipt_outbox,c_auth.recent_device_replacement,c_auth.recovery_codes,c_auth.request_results,c_auth.reset_intents,c_auth.sessions,c_auth.signup_intents,c_auth.slot_ledger TO hnuhole_c_runtime;
 GRANT DELETE ON c_auth.auth_challenges,c_auth.closure_requests,c_auth.credential_change_intents,c_auth.passkeys,c_auth.receipt_outbox,c_auth.recent_device_replacement,c_auth.recovery_codes,c_auth.reset_intents,c_auth.security_events,c_auth.sessions TO hnuhole_c_runtime;

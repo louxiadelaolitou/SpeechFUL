@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authcaptcha"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy/protocol"
 )
 
 func privacyRelations(t *testing.T, pool *pgxpool.Pool) []string {
@@ -57,6 +59,8 @@ func TestPrivacySchemaPartyBoundaryPostgres(t *testing.T) {
 			"c_auth.account_restrictions", "c_auth.accounts", "c_auth.auth_challenges",
 			"c_auth.authorization_gate", "c_auth.authorization_gate_audit", "c_auth.closure_requests",
 			"c_auth.credential_change_intents", "c_auth.passkeys", "c_auth.receipt_outbox",
+			// C-only keyed username digest and password-login failure timing.
+			"c_auth.password_login_limits",
 			"c_auth.recent_device_replacement", "c_auth.recovery_codes", "c_auth.request_results",
 			"c_auth.reset_intents", "c_auth.security_events", "c_auth.sessions", "c_auth.signup_intents",
 			"c_auth.slot_ledger", "public.channels", "public.community_identities",
@@ -65,6 +69,8 @@ func TestPrivacySchemaPartyBoundaryPostgres(t *testing.T) {
 		}, []string{"email", "otp", "mail"}},
 		{"verifier", l.vp, []string{
 			"v_auth.authorization_gate", "v_auth.authorization_gate_audit", "v_auth.confirmation_rejections",
+			// V-only expiring puzzle/proof digests; no C identifiers or credentials.
+			"v_auth.captcha_challenges", "v_auth.captcha_proofs",
 			"v_auth.confirmation_sign_jobs", "v_auth.device_email_limits", "v_auth.email_quota",
 			// V-only 0005/0006 proof/replay state; no C account or profile identifiers.
 			"v_auth.email_login_confirmations",
@@ -162,6 +168,43 @@ JOIN c_auth.sessions s USING(account_id) WHERE a.account_id=$1`, account.Account
 	if len(cInstallation) != 16 || bytes.Equal(cInstallation, vRequest.InstallationID[:]) {
 		t.Fatal("party installation identifiers were reused")
 	}
+	// Populate the new state through its real persistence paths, so the row
+	// boundary audit also covers request fingerprints and security bindings.
+	wrong := sessionTestRequest(t, username)
+	wrong.Password = "privacy boundary incorrect independent password"
+	if _, err = l.c.CreateSession(ctx, wrong, sessionTestPasswordWorker(t, 1)); !errors.Is(err, ErrAuthenticationFailed) {
+		t.Fatal("cannot seed synthetic password failure", err)
+	}
+	captcha := authcaptcha.NewSQL(l.vp, "v_auth")
+	captchaKey, err := random32()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := authcaptcha.Binding("/api/v1/email-login/otp-requests", protocol.EncodeCanonicalBase64url(vRequest.InstallationID[:]), protocol.EncodeCanonicalBase64url(captchaKey[:]), email)
+	challenge, err := captcha.Create(ctx, binding)
+	if err != nil {
+		t.Fatal("cannot seed synthetic captcha", err)
+	}
+	raw, err := protocol.DecodeCanonicalBase64url(challenge.ID, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(raw)
+	var answer int
+	if err = l.vp.QueryRow(ctx, `SELECT answer_x FROM v_auth.captcha_challenges WHERE id=$1`, digest[:]).Scan(&answer); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = captcha.Solve(ctx, challenge.ID, float64(answer)); err != nil {
+		t.Fatal("cannot seed synthetic captcha proof", err)
+	}
+	if _, err = captcha.Create(ctx, binding); err != nil {
+		t.Fatal(err)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_auth.password_login_limits`) != 1 ||
+		count(t, l.vp, `SELECT count(*) FROM v_auth.captcha_challenges`) != 1 ||
+		count(t, l.vp, `SELECT count(*) FROM v_auth.captcha_proofs`) != 1 {
+		t.Fatal("privacy audit did not populate the new security state")
+	}
 	cRows, vRows := privacyRows(t, l.cp), privacyRows(t, l.vp)
 	emailHash := sha256.Sum256([]byte(email))
 	for _, forbidden := range []string{email, hex.EncodeToString([]byte(email)), hex.EncodeToString(emailHash[:]), hex.EncodeToString(vRequest.InstallationID[:])} {
@@ -169,7 +212,7 @@ JOIN c_auth.sessions s USING(account_id) WHERE a.account_id=$1`, account.Account
 			t.Fatal("community rows retained verifier email, unkeyed email hash or installation")
 		}
 	}
-	for _, forbidden := range []string{account.AccountID.String(), identity.IdentityID.String(), username, nickname, hex.EncodeToString(passwordHash), hex.EncodeToString(cInstallation)} {
+	for _, forbidden := range []string{account.AccountID.String(), identity.IdentityID.String(), username, nickname, hex.EncodeToString(passwordHash), hex.EncodeToString(cInstallation), hex.EncodeToString(wrong.InstallationID[:])} {
 		if strings.Contains(vRows, forbidden) {
 			t.Fatal("verifier rows retained community account, profile, credential or installation")
 		}

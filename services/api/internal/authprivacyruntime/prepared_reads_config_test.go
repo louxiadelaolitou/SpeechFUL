@@ -3,6 +3,8 @@ package authprivacyruntime
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacyhttp"
@@ -44,7 +46,7 @@ func TestPostSearchDocumentConfigurationIsIndependent(t *testing.T) {
 	}
 }
 
-func TestPreparedReadsDisabledRetainsC39StartupPostgres(t *testing.T) {
+func TestPasswordLoginMigrationDoesNotRequirePreparedReadsPostgres(t *testing.T) {
 	owner, runtime := moderationStartupLabThrough(t, 39)
 	ctx := context.Background()
 	var oldSchema bool
@@ -53,7 +55,28 @@ func TestPreparedReadsDisabledRetainsC39StartupPostgres(t *testing.T) {
  AND (SELECT max(version_id) FROM public.goose_db_version WHERE is_applied)=39`).Scan(&oldSchema); err != nil || !oldSchema {
 		t.Fatal("fixture did not install the actual pre-optimization schema", err)
 	}
-	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err != nil {
-		t.Fatal("disabled prepared reads raised common C's minimum schema", err)
+	if err := CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err == nil {
+		t.Fatal("missing mandatory password-login schema accepted")
+	}
+	// The mandatory authentication migration is independent of optional 0040+
+	// prepared reads. Apply only 0051 to the frozen C39 fixture, with an honest
+	// ledger entry, and keep all prepared-read tables absent.
+	migration, err := os.ReadFile("../../migrations/0051_password_login_limits.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = owner.Exec(ctx, strings.SplitN(string(migration), "-- +goose Down", 2)[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = owner.Exec(ctx, `INSERT INTO public.goose_db_version VALUES(51,true);
+GRANT SELECT,INSERT,UPDATE ON c_auth.password_login_limits TO hnuhole_c_runtime`); err != nil {
+		t.Fatal(err)
+	}
+	if err = CheckDatabase(ctx, runtime, authprivacyhttp.CommunityService); err != nil {
+		t.Fatal("password-login schema incorrectly required optional prepared reads", err)
+	}
+	if err = owner.QueryRow(ctx, `SELECT to_regclass('c_comments.read_scope_versions') IS NULL
+ AND to_regclass('c_posts.read_feed_scope_versions') IS NULL`).Scan(&oldSchema); err != nil || !oldSchema {
+		t.Fatal("authentication migration installed optional prepared reads", err)
 	}
 }

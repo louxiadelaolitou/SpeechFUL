@@ -67,6 +67,12 @@ BEGIN
           allowed := relation.nspname='public' AND relation.relname='channels' AND privilege='SELECT';
         ELSIF audit_role=runtime_role THEN
           allowed := relation.nspname=own_schema AND privilege IN ('SELECT','INSERT','UPDATE','DELETE');
+          IF party='c' AND relation.nspname='c_auth' AND relation.relname='password_login_limits' THEN
+            allowed := privilege IN ('SELECT','INSERT','UPDATE');
+          END IF;
+          IF party='v' AND relation.nspname='v_auth' AND relation.relname IN ('captcha_challenges','captcha_proofs') THEN
+            allowed := privilege IN ('SELECT','INSERT','DELETE');
+          END IF;
           IF relation.nspname='public' THEN
             allowed := privilege='SELECT' AND relation.relname='goose_db_version';
             IF party='c' THEN

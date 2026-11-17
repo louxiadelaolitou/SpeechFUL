@@ -52,6 +52,8 @@ func TestEmailLoginExistingAccountAndReplayPostgres(t *testing.T) {
 	if _, err = l.c.CreateEmailSession(ctx, wrong); !errors.Is(err, ErrEmailProofInvalid) {
 		t.Fatal("wrong device admitted", err)
 	}
+	passwordSubject := l.c.passwordLoginSubject("email_login_user")
+	mustExec(t, l.cp, `INSERT INTO c_auth.password_login_limits(subject_digest,failures,locked_until) VALUES($1,5,clock_timestamp()+interval '5 minutes')`, passwordSubject[:])
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	success, replays := 0, 0
@@ -75,6 +77,9 @@ func TestEmailLoginExistingAccountAndReplayPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	if count(t, l.cp, `SELECT failures FROM c_auth.password_login_limits WHERE subject_digest=$1`, passwordSubject[:]) != 5 {
+		t.Fatal("email login cleared password-only freeze")
+	}
 	if success != 1 || replays != 1 {
 		t.Fatal("same-key race created extra sessions", success, replays)
 	}

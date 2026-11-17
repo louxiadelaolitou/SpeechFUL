@@ -162,6 +162,11 @@ func (b *boundary) sessionCapabilityFailure(w http.ResponseWriter, err error) {
 }
 
 func (b *boundary) sessionFailure(w http.ResponseWriter, err error) {
+	var locked *authprivacy.PasswordLoginLocked
+	if errors.As(err, &locked) {
+		b.fail(w, 429, "PASSWORD_LOGIN_LOCKED", locked.RetryAfterSeconds)
+		return
+	}
 	switch {
 	case errors.Is(err, authprivacy.ErrAuthorizationUnavailable):
 		b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)

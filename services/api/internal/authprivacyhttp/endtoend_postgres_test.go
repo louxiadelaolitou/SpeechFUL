@@ -739,7 +739,8 @@ func TestHTTPSPostgresEligibilityAndSignup(t *testing.T) {
 	loginInstall := e2eInstallation(t)
 	loginBody := map[string]string{"username": "synthetic_user", "password": "a-separate-long-community-password", "installationId": protocol.EncodeCanonicalBase64url(loginInstall[:])}
 	wrong := map[string]string{"username": "synthetic_user", "password": "wrong login password phrase", "installationId": loginBody["installationId"]}
-	failed := e2eJSON(t, s.client, http.MethodPost, s.cPublic.URL+"/api/v1/auth/sessions", wrong, loginHeaders, http.StatusUnauthorized)
+	wrongLoginKey := e2eKey(t)
+	failed := e2eJSON(t, s.client, http.MethodPost, s.cPublic.URL+"/api/v1/auth/sessions", wrong, map[string]string{"Idempotency-Key": protocol.EncodeCanonicalBase64url(wrongLoginKey[:])}, http.StatusUnauthorized)
 	if failed["error"].(map[string]any)["code"] != "AUTHENTICATION_FAILED" {
 		t.Fatal("wrong password disclosed account state")
 	}

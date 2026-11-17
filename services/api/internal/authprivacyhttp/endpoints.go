@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authcaptcha"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy/protocol"
 )
@@ -69,6 +70,7 @@ type Endpoints struct {
 }
 
 type VerifierOptions struct {
+	Captcha        *authcaptcha.Service
 	Shared         *SharedLimits
 	Eligibility    EligibilityBackend
 	Receipts       ReceiptProcessor
@@ -116,6 +118,7 @@ type errorDetails struct {
 	RetryAfterSeconds int `json:"retryAfterSeconds"`
 }
 type boundary struct {
+	captcha        *authcaptcha.Service
 	postLinkOrigin string
 	shared         *SharedLimits
 	service        Service
@@ -133,6 +136,7 @@ func NewVerifierEndpoints(options VerifierOptions) (*Endpoints, error) {
 		return nil, err
 	}
 	b.shared = options.Shared
+	b.captcha = options.Captcha
 	return &Endpoints{
 		Public:   b.wrap(false, func(w http.ResponseWriter, r *http.Request) { b.verifierPublic(w, r, options.Eligibility) }),
 		Internal: b.wrap(true, func(w http.ResponseWriter, r *http.Request) { b.verifierInternal(w, r, options.Receipts) }),
@@ -368,6 +372,15 @@ func (b *boundary) wrap(internal bool, next http.HandlerFunc) http.Handler {
 			b.preflight(w, r)
 			return
 		}
+		if !internal {
+			if b.service == VerifierService && captchaPath(r.URL.Path) {
+				b.captchaPublic(w, r)
+				return
+			}
+			if !b.requireCaptcha(w, r) {
+				return
+			}
+		}
 		next(w, r)
 	})
 }
@@ -384,6 +397,9 @@ func (b *boundary) preflight(w http.ResponseWriter, r *http.Request) {
 	}
 	requested := r.Header.Get("Access-Control-Request-Headers")
 	allowed := map[string]bool{"content-type": true, "idempotency-key": true}
+	if method == http.MethodPost && captchaAction(b.service, r.URL.Path) {
+		allowed["captcha-token"] = true
+	}
 	if b.service == VerifierService {
 		allowed["v-installation-id"] = true
 		allowed["otp-flow-id"] = true
@@ -470,6 +486,9 @@ func publicMethodAllowed(service Service, path, method string) bool {
 }
 
 func publicMethod(service Service, path string) string {
+	if service == VerifierService && captchaPath(path) {
+		return http.MethodPost
+	}
 	if service == VerifierService {
 		switch path {
 		case "/api/v1/eligibility/otp-requests", "/api/v1/eligibility/otp-confirmations", "/api/v1/email-login/otp-requests", "/api/v1/email-login/otp-confirmations", "/api/v1/email-reset/otp-requests", "/api/v1/email-reset/otp-confirmations":
