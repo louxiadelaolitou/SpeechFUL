@@ -6,6 +6,7 @@
 
 - 默认使用常规模式：一个 Session 按下述需求确认规则完成设计、实现、验证和交付。
 - 只有用户明确调用 `$orchestrator` 时，才加载[指挥 Skill](.agents/skills/orchestrator/SKILL.md)并进入多 Session 协作。任务复杂度不会自动切换模式。
+- 论文研究任务以[研究执行方案 v1.0](docs/research/multi-pseudonym-revocation.md)为唯一方案，评估与阶段状态见[对应任务记录](docs/tasks/THESIS-RESEARCH-DIRECTION-20261116.md)。已被取代的旧研究方案不再执行或另行维护；后续调整更新同一正文并记录依据。
 
 ## 需求确认
 

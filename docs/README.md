@@ -14,6 +14,7 @@ SpeechFUL 是一个多端仓库：Flutter 手机 App、静态审核工作台和�
 | 产品术语与规则来源 | [唯一术语表](../GLOSSARY.md)、[设计索引](design/README.md) |
 | HTTP 契约与固定协议样例 | [OpenAPI](../packages/openapi/README.md)、[认证向量](../packages/auth-protocol-vectors/v1.json)、[帖子向量](../packages/post-protocol-vectors/README.md) |
 | 工程决策 | [ADR](adr/) |
+| 论文研究执行方案（唯一） | [多假名统一撤销研究 v1.0](research/multi-pseudonym-revocation.md)（Astra Ultra 复核通过，后续研究按此推进） |
 | 开发协作 | [AGENTS.md](../AGENTS.md)、[CONTRIBUTING.md](../CONTRIBUTING.md) |
 | 近期工作与具体任务 | [RECENT_WORK](RECENT_WORK.md)、[任务记录](tasks/) |
 | 旧讨论、设计与验收资料 | [历史追溯](archive/README.md) |

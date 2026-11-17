@@ -2,6 +2,7 @@
 
 这里只保留近期任务入口。实现、验证、合并与发布分别以对应任务记录和固定提交为准；旧仓库的 PR、Actions 与 Release 页面在仓库删除后可能无法访问。
 
+- [研究执行方案 v1.0：唯一方案、独立评估与合并记录](tasks/THESIS-RESEARCH-DIRECTION-20261116.md)
 - [需求005：帖子搜索查询加速](tasks/REQ-005-POST-SEARCH.md)
 - [仓库重建与文档整理](tasks/REPOSITORY-RECOVERY-20261115.md)
 - [Android v1.1.2 构建与公网链路](tasks/RELEASE-V1.1.2-FRP-20261113.md)
