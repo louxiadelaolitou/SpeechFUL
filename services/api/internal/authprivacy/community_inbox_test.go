@@ -105,6 +105,16 @@ func TestNotificationInboxPostgres(t *testing.T) {
 	// Likes aggregate by content, never disclose a liker identity, and only the
 	// observed revision is acknowledged even when a newer like has arrived.
 	interactionTestSet(t, l, sender.SessionToken, post, posts.PostLike, true)
+	likeVersions := func() (int64, int64) {
+		var version, latest int64
+		if e := l.cp.QueryRow(ctx, `SELECT version,latest_like_version FROM c_inbox.records WHERE account_id=$1 AND kind='LIKE_POST' AND content_id=$2`, owner.AccountID, post).Scan(&version, &latest); e != nil {
+			t.Fatal(e)
+		}
+		return version, latest
+	}
+	if version, latest := likeVersions(); version != 1 || latest != 1 {
+		t.Fatalf("like version not denormalized: %d/%d", version, latest)
+	}
 	response, e = l.c.ReadInbox(ctx, owner.SessionToken, InboxQuery{IdentityID: first.String(), Category: "like"})
 	if e != nil {
 		t.Fatal(e)
@@ -114,6 +124,9 @@ func TestNotificationInboxPostgres(t *testing.T) {
 		t.Fatal(like)
 	}
 	interactionTestSet(t, l, third.SessionToken, post, posts.PostLike, true)
+	if version, latest := likeVersions(); version != 2 || latest != 2 {
+		t.Fatalf("new like did not advance latest version: %d/%d", version, latest)
+	}
 	if _, e = l.c.MarkInboxRead(ctx, owner.SessionToken, like.ID, first.String(), like.Version); e != nil {
 		t.Fatal(e)
 	}
@@ -126,17 +139,41 @@ func TestNotificationInboxPostgres(t *testing.T) {
 		t.Fatal("read swallowed newly arriving like", newer)
 	}
 	interactionTestSet(t, l, third.SessionToken, post, posts.PostLike, false)
+	if version, latest := likeVersions(); version != 2 || latest != 1 {
+		t.Fatalf("cancel did not restore the newest live like version: %d/%d", version, latest)
+	}
 	response, e = l.c.ReadInbox(ctx, owner.SessionToken, InboxQuery{IdentityID: first.String(), Category: "like", UnreadOnly: true})
 	if e != nil || len(response.Value.(InboxPage).Items) != 0 {
 		t.Fatal("cancelled unread like", e)
 	}
 	interactionTestSet(t, l, sender.SessionToken, post, posts.PostLike, false)
+	if version, latest := likeVersions(); version != 2 || latest != 0 {
+		t.Fatalf("last cancel did not clear latest version: %d/%d", version, latest)
+	}
 	response, e = l.c.ReadInbox(ctx, owner.SessionToken, InboxQuery{IdentityID: first.String(), Category: "like"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if len(response.Value.(InboxPage).Items) != 1 || response.Value.(InboxPage).Items[0].Unread {
 		t.Fatal("read history must survive cancellation")
+	}
+	// Closing a liker removes its event outside the like trigger; the owner must
+	// not retain a phantom unread or page entry.
+	closer := sessionTestAccount(t, l, "notice_closer")
+	interactionTestSet(t, l, closer.SessionToken, post, posts.PostLike, true)
+	if version, latest := likeVersions(); version != 3 || latest != 3 {
+		t.Fatalf("closer like version: %d/%d", version, latest)
+	}
+	mustExec(t, l.cp, `UPDATE c_auth.accounts SET state='CLOSED',username=NULL,password_hash=NULL,password_salt=NULL,password_params_version=NULL WHERE account_id=$1`, closer.AccountID)
+	if version, latest := likeVersions(); version != 3 || latest != 0 {
+		t.Fatalf("account closure left a phantom like version: %d/%d", version, latest)
+	}
+	if count(t, l.cp, `SELECT count(*) FROM c_inbox.like_events WHERE liker_account_id=$1`, closer.AccountID) != 0 {
+		t.Fatal("closed liker event survived")
+	}
+	response, e = l.c.ReadInboxCounts(ctx, owner.SessionToken, first.String())
+	if e != nil || response.Value.(InboxCounts).Like != 0 {
+		t.Fatal("closed liker counted as unread", e)
 	}
 	raw, _ := json.Marshal(response.Value)
 	if strings.Contains(string(raw), sender.AccountID.String()) || strings.Contains(string(raw), third.AccountID.String()) {

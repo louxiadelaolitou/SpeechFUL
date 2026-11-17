@@ -112,18 +112,34 @@ func inboxIdentity(ctx context.Context, tx pgx.Tx, account uuid.UUID, identity s
 
 // The recipient identity filters interactions only. Every system notice belongs
 // to this authenticated account and is shared across its own identity selections.
-const inboxRows = `WITH inbox AS (
+// latest_like_version is the newest live like event (maintained by 0050), so the
+// unread predicate is row-local instead of one event probe per notification.
+const inboxListRows = `WITH inbox AS (
  SELECT 'i_'||n.notification_id::text AS id,n.updated_at AS at,
- CASE WHEN n.kind='COMMENT' THEN 'comment' ELSE 'like' END AS kind,n.is_reply,
- CASE WHEN n.kind='COMMENT' THEN n.read_version=0 ELSE EXISTS(SELECT 1 FROM c_inbox.like_events e WHERE e.notification_id=n.notification_id AND e.version>n.read_version) END AS unread
+ CASE WHEN n.kind='COMMENT' THEN 'comment' ELSE 'like' END AS kind,n.is_reply
  FROM c_inbox.records n JOIN public.community_identities i ON i.identity_id=n.identity_id
  WHERE n.account_id=$1 AND n.identity_id=$2::uuid AND i.deleted_at IS NULL
- AND (n.kind='COMMENT' OR n.seen_like_count>0 OR EXISTS(SELECT 1 FROM c_inbox.like_events e WHERE e.notification_id=n.notification_id))
+ AND (n.kind='COMMENT' OR n.seen_like_count>0 OR n.latest_like_version>0)
  UNION ALL
- SELECT 's_'||n.notification_id::text,n.created_at,'system',false,n.read_at IS NULL
+ SELECT 's_'||n.notification_id::text,n.created_at,'system',false
  FROM c_moderation.notifications n WHERE n.account_id=$1
  AND (n.identity_id IS NULL OR EXISTS(SELECT 1 FROM public.community_identities i WHERE i.identity_id=n.identity_id AND i.account_id=$1 AND i.deleted_at IS NULL))
 ) `
+const inboxUnreadRows = `WITH inbox AS (
+ SELECT 'i_'||n.notification_id::text AS id,n.updated_at AS at,
+ CASE WHEN n.kind='COMMENT' THEN 'comment' ELSE 'like' END AS kind,n.is_reply
+ FROM c_inbox.records n JOIN public.community_identities i ON i.identity_id=n.identity_id
+ WHERE n.account_id=$1 AND n.identity_id=$2::uuid AND i.deleted_at IS NULL
+ AND ((n.kind='COMMENT' AND n.read_version=0) OR (n.kind<>'COMMENT' AND n.latest_like_version>n.read_version))
+ UNION ALL
+ SELECT 's_'||n.notification_id::text,n.created_at,'system',false
+ FROM c_moderation.notifications n WHERE n.account_id=$1 AND n.read_at IS NULL
+ AND (n.identity_id IS NULL OR EXISTS(SELECT 1 FROM public.community_identities i WHERE i.identity_id=n.identity_id AND i.account_id=$1 AND i.deleted_at IS NULL))
+) `
+const inboxPageRows = `SELECT id,at FROM inbox WHERE
+ ($3='all' OR $3='reply' AND is_reply OR $3=kind)
+ AND ($4::timestamptz IS NULL OR (at,id)<($4,$5))
+ ORDER BY at DESC,id DESC LIMIT $6`
 
 func (c *Community) ReadInbox(ctx context.Context, bearer [32]byte, q InboxQuery) (PostResponse, error) {
 	cursor, e := q.validate()
@@ -138,10 +154,11 @@ func (c *Community) ReadInbox(ctx context.Context, bearer [32]byte, q InboxQuery
 		if !cursor.At.IsZero() {
 			before = cursor.At
 		}
-		rows, e := tx.Query(ctx, inboxRows+`SELECT id,at FROM inbox WHERE
- ($3='all' OR $3='reply' AND is_reply OR $3=kind)
- AND (NOT $4::boolean OR unread) AND ($5::timestamptz IS NULL OR (at,id)<($5,$6))
- ORDER BY at DESC,id DESC LIMIT $7`, account, nullablePostID(q.IdentityID), q.Category, q.UnreadOnly, before, cursor.ID, q.Limit+1)
+		pageRows := inboxListRows
+		if q.UnreadOnly {
+			pageRows = inboxUnreadRows
+		}
+		rows, e := tx.Query(ctx, pageRows+inboxPageRows, account, nullablePostID(q.IdentityID), q.Category, before, cursor.ID, q.Limit+1)
 		if e != nil {
 			return nil, e
 		}
@@ -192,26 +209,43 @@ func (c *Community) ReadInboxCounts(ctx context.Context, bearer [32]byte, identi
 		if e := inboxIdentity(ctx, tx, account, identity); e != nil {
 			return nil, e
 		}
-		var counts InboxCounts
-		e := tx.QueryRow(ctx, inboxRows+`SELECT count(*),count(*) FILTER(WHERE is_reply),count(*) FILTER(WHERE kind='like'),count(*) FILTER(WHERE kind='system') FROM inbox WHERE unread`, account, nullablePostID(identity)).Scan(&counts.All, &counts.Reply, &counts.Like, &counts.System)
+		type unread struct{ all, reply, like int64 }
+		groups := map[string]unread{}
+		counts := InboxCounts{IdentityUnread: map[string]int64{}}
+		rows, e := tx.Query(ctx, `SELECT n.identity_id::text,
+ count(*),count(*) FILTER(WHERE n.kind='COMMENT' AND n.is_reply),count(*) FILTER(WHERE n.kind<>'COMMENT')
+ FROM c_inbox.records n JOIN public.community_identities i ON i.identity_id=n.identity_id
+ WHERE n.account_id=$1 AND i.deleted_at IS NULL
+ AND ((n.kind='COMMENT' AND n.read_version=0) OR (n.kind<>'COMMENT' AND n.latest_like_version>n.read_version))
+ GROUP BY n.identity_id`, account)
 		if e != nil {
 			return nil, e
 		}
-		counts.IdentityUnread = map[string]int64{}
-		rows, e := tx.Query(ctx, `SELECT n.identity_id::text,count(*) FROM c_inbox.records n JOIN public.community_identities i ON i.identity_id=n.identity_id WHERE n.account_id=$1 AND i.deleted_at IS NULL AND (n.kind='COMMENT' AND n.read_version=0 OR n.kind<>'COMMENT' AND EXISTS(SELECT 1 FROM c_inbox.like_events e WHERE e.notification_id=n.notification_id AND e.version>n.read_version)) GROUP BY n.identity_id`, account)
-		if e != nil {
-			return nil, e
-		}
-		defer rows.Close()
 		for rows.Next() {
 			var id string
-			var unread int64
-			if e := rows.Scan(&id, &unread); e != nil {
+			var group unread
+			if e := rows.Scan(&id, &group.all, &group.reply, &group.like); e != nil {
+				rows.Close()
 				return nil, e
 			}
-			counts.IdentityUnread[id] = unread
+			groups[id] = group
+			counts.IdentityUnread[id] = group.all
 		}
-		return counts, rows.Err()
+		e = rows.Err()
+		rows.Close()
+		if e != nil {
+			return nil, e
+		}
+		e = tx.QueryRow(ctx, `SELECT count(*) FROM c_moderation.notifications n WHERE n.account_id=$1 AND n.read_at IS NULL AND (n.identity_id IS NULL OR EXISTS(SELECT 1 FROM public.community_identities i WHERE i.identity_id=n.identity_id AND i.account_id=$1 AND i.deleted_at IS NULL))`, account).Scan(&counts.System)
+		if e != nil {
+			return nil, e
+		}
+		if identity != "" {
+			selected := groups[identity]
+			counts.All, counts.Reply, counts.Like = selected.all, selected.reply, selected.like
+		}
+		counts.All += counts.System
+		return counts, nil
 	})
 }
 func (c *Community) MarkInboxRead(ctx context.Context, bearer [32]byte, id, identity string, version int64) (PostResponse, error) {
@@ -276,8 +310,8 @@ func readInboxNotice(ctx context.Context, tx pgx.Tx, account uuid.UUID, identity
 	}
 	var kind, post string
 	var comment *string
-	var readVersion, seen int64
-	e := tx.QueryRow(ctx, `SELECT kind,identity_id::text,post_id::text,comment_id::text,is_reply,version,read_version,seen_like_count,updated_at FROM c_inbox.records WHERE notification_id=$1 AND account_id=$2 AND identity_id=$3::uuid`, id[2:], account, nullablePostID(identity)).Scan(&kind, &n.IdentityID, &post, &comment, &n.IsReply, &n.Version, &readVersion, &seen, &n.CreatedAt)
+	var readVersion, seen, latest int64
+	e := tx.QueryRow(ctx, `SELECT kind,identity_id::text,post_id::text,comment_id::text,is_reply,version,read_version,seen_like_count,latest_like_version,updated_at FROM c_inbox.records WHERE notification_id=$1 AND account_id=$2 AND identity_id=$3::uuid`, id[2:], account, nullablePostID(identity)).Scan(&kind, &n.IdentityID, &post, &comment, &n.IsReply, &n.Version, &readVersion, &seen, &latest, &n.CreatedAt)
 	if e != nil {
 		return n, e
 	}
@@ -313,9 +347,11 @@ func readInboxNotice(ctx context.Context, tx pgx.Tx, account uuid.UUID, identity
 		}
 	} else {
 		n.Kind = "like"
-		e = tx.QueryRow(ctx, `SELECT count(*) FROM c_inbox.like_events WHERE notification_id=$1 AND version>$2`, id[2:], readVersion).Scan(&n.NewLikeCount)
-		if e != nil {
-			return n, e
+		if latest > readVersion {
+			e = tx.QueryRow(ctx, `SELECT count(*) FROM c_inbox.like_events WHERE notification_id=$1 AND version>$2`, id[2:], readVersion).Scan(&n.NewLikeCount)
+			if e != nil {
+				return n, e
+			}
 		}
 		n.Unread = n.NewLikeCount > 0
 		n.Title = "你的帖子收到了赞"
