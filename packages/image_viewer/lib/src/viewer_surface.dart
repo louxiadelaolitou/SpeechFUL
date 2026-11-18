@@ -571,8 +571,7 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
                                 key: const ValueKey('viewer-item-preview'),
                                 provider: preview,
                                 semanticLabel:
-                                    item.semanticLabel ??
-                                    '第${index + 1}张图片',
+                                    item.semanticLabel ?? '第${index + 1}张图片',
                                 reading: _c._reading[item.id],
                               );
                             }

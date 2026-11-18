@@ -26,6 +26,19 @@ class _ControlledCompleter extends ImageStreamCompleter {
   void publish(ImageInfo image) => setImage(image);
 }
 
+class _FailingProvider extends ImageProvider<_FailingProvider> {
+  @override
+  Future<_FailingProvider> obtainKey(ImageConfiguration configuration) =>
+      SynchronousFuture(this);
+  @override
+  ImageStreamCompleter loadImage(
+    _FailingProvider key,
+    ImageDecoderCallback decode,
+  ) => OneFrameImageStreamCompleter(
+    Future<ImageInfo>.error(StateError('preview failed')),
+  );
+}
+
 class _CountingProvider extends ImageProvider<_CountingProvider> {
   _CountingProvider(this.bytes);
   final Uint8List bytes;
@@ -411,10 +424,7 @@ void main() {
       await mount(tester, controller);
       expect(controller.status, ViewerLoadStatus.loading);
       expect(controller.resourceUsage, isNull);
-      expect(
-        find.byKey(const ValueKey('viewer-item-preview')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
       expect(find.text('正在加载图片'), findsNothing);
       expect(find.bySemanticsLabel('预览图片'), findsOneWidget);
       expect(
@@ -431,6 +441,28 @@ void main() {
       expect(preview.evictions, 0);
     },
   );
+  testWidgets('preview decode failure falls back to a loading indicator', (
+    tester,
+  ) async {
+    final pending = Completer<ViewerSource>();
+    final controller = ViewerController(
+      items: [
+        ViewerItem(
+          id: 'a',
+          loadSource: () => pending.future,
+          previewProvider: _FailingProvider(),
+        ),
+      ],
+    );
+    await mount(tester, controller);
+    await frames(tester);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('正在加载图片'), findsNothing);
+    pending.complete(source());
+    await frames(tester);
+    expect(controller.status, ViewerLoadStatus.ready);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
   testWidgets('preview never replaces a mismatched full source', (
     tester,
   ) async {
@@ -459,28 +491,29 @@ void main() {
     expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
     expect(preview.evictions, 0);
   });
-  testWidgets('preview disappears on access invalidation and is never evicted', (
-    tester,
-  ) async {
-    final pending = Completer<ViewerSource>();
-    final preview = _CountingProvider(bytes['ordinary.png']!);
-    final controller = ViewerController(
-      items: [
-        ViewerItem(
-          id: 'a',
-          loadSource: () => pending.future,
-          previewProvider: preview,
-        ),
-      ],
-    );
-    await mount(tester, controller);
-    expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
-    controller.invalidateAccess();
-    await frames(tester);
-    expect(find.text('访问已失效'), findsOneWidget);
-    expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
-    expect(preview.evictions, 0);
-  });
+  testWidgets(
+    'preview disappears on access invalidation and is never evicted',
+    (tester) async {
+      final pending = Completer<ViewerSource>();
+      final preview = _CountingProvider(bytes['ordinary.png']!);
+      final controller = ViewerController(
+        items: [
+          ViewerItem(
+            id: 'a',
+            loadSource: () => pending.future,
+            previewProvider: preview,
+          ),
+        ],
+      );
+      await mount(tester, controller);
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
+      controller.invalidateAccess();
+      await frames(tester);
+      expect(find.text('访问已失效'), findsOneWidget);
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
+      expect(preview.evictions, 0);
+    },
+  );
   testWidgets('neighbor previews are not decoded before selection', (
     tester,
   ) async {

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as hashes;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:hnuhole_image_viewer/image_viewer.dart';
 import 'package:hnuhole_mobile/src/messaging/dm_controller.dart';
 import 'package:hnuhole_mobile/src/messaging/dm_protocol.dart';
 import 'package:hnuhole_mobile/src/messaging/dm_store.dart';
@@ -531,4 +532,61 @@ void main() {
       });
     },
   );
+
+  testWidgets('opening a cached chat photo reuses it as the viewer preview', (
+    tester,
+  ) async {
+    final api = ChatApi();
+    late DmController c;
+    final id = dmId();
+    await tester.runAsync(() async {
+      c = await controller(api);
+      await c.savePhoto(p1.own, p1.peer, descriptor(id), photo);
+      expect(await c.sendPhotos(textIntent(''), [id]), isTrue);
+      await c.sync();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DmChatRoute(
+          runtime: ChatRuntime(c),
+          own: const DmIdentity(id: p1.own, name: '本人面具'),
+          peer: const DmIdentity(id: p1.peer, name: '对方当前昵称'),
+          conversation: p1.conversation,
+          sourcePost: p1.post,
+        ),
+      ),
+    );
+    for (var i = 0; i < 40 && find.byType(Image).evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+    }
+    expect(find.byType(Image), findsOneWidget);
+    final photoProvider = tester.widget<Image>(find.byType(Image)).image;
+    await tester.ensureVisible(find.byType(Image));
+    await tester.tap(find.byType(Image));
+    for (
+      var i = 0;
+      i < 10 && find.byType(HnuImageViewer).evaluate().isEmpty;
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(find.byType(HnuImageViewer), findsOneWidget);
+    final viewer = tester.widget<HnuImageViewer>(find.byType(HnuImageViewer));
+    expect(
+      identical(viewer.controller.items.single.previewProvider, photoProvider),
+      isTrue,
+    );
+    await tester.tap(find.byKey(const ValueKey('viewer-close')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpWidget(const SizedBox());
+    // Store work triggered from the widget zone settles on the fake clock;
+    // let it drain before detaching so the encrypted database closes.
+    final closed = close(c);
+    await tester.pump();
+    await closed;
+  });
 }

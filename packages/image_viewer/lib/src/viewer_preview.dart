@@ -167,18 +167,31 @@ class _ViewerItemPreviewState extends State<_ViewerItemPreview> {
   }
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    image: true,
-    label: widget.semanticLabel,
-    child: ExcludeSemantics(
-      child: ClipRect(
-        child: CustomPaint(
-          painter: _ViewerPreviewPainter(_image, widget.reading),
-          size: Size.infinite,
+  Widget build(BuildContext context) {
+    // A failed preview must not leave the loading surface blank while the
+    // complete source is still in flight.
+    if (_failed) {
+      return Center(
+        child: Semantics(
+          label: '正在加载图片',
+          liveRegion: true,
+          child: const CircularProgressIndicator(),
+        ),
+      );
+    }
+    return Semantics(
+      image: true,
+      label: widget.semanticLabel,
+      child: ExcludeSemantics(
+        child: ClipRect(
+          child: CustomPaint(
+            painter: _ViewerPreviewPainter(_image, widget.reading),
+            size: Size.infinite,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ViewerPreviewPainter extends CustomPainter {

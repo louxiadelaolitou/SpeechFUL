@@ -450,25 +450,17 @@ void main() {
       await tester.tap(find.byKey(ValueKey(('post-image', item.item.id))));
       await flushMedia(tester);
       await tester.pumpAndSettle();
-      final viewer = tester.widget<HnuImageViewer>(
-        find.byType(HnuImageViewer),
-      );
+      final viewer = tester.widget<HnuImageViewer>(find.byType(HnuImageViewer));
       expect(api.byteReads, 2);
       expect(viewer.controller.status, ViewerLoadStatus.loading);
-      expect(
-        find.byKey(const ValueKey('viewer-item-preview')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
       expect(find.text('正在加载图片'), findsNothing);
 
       api.bytesWait!.complete(_response(api.bytes));
       await flushMedia(tester);
       await tester.pumpAndSettle();
       expect(viewer.controller.status, ViewerLoadStatus.ready);
-      expect(
-        find.byKey(const ValueKey('viewer-item-preview')),
-        findsNothing,
-      );
+      expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
       expect(api.byteReads, 2);
       await tester.pumpWidget(const SizedBox());
     },

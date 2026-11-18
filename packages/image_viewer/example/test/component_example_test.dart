@@ -96,10 +96,7 @@ void main() {
     );
     await tester.pump();
     expect(controller.status, ViewerLoadStatus.loading);
-    expect(
-      find.byKey(const ValueKey('viewer-item-preview')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
     expect(find.text('正在加载图片'), findsNothing);
     expect(find.bySemanticsLabel('已加载预览'), findsOneWidget);
     pending.complete(
