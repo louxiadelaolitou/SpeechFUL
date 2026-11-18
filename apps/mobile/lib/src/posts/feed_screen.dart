@@ -90,6 +90,9 @@ class _FeedScreenState extends State<FeedScreen> {
         'buddy' => Icons.people_outline,
         'emotion' => Icons.favorite_border,
         'mutual_help' => Icons.volunteer_activism_outlined,
+        'clubs' => Icons.groups_outlined,
+        'careers' => Icons.work_outline,
+        'alumni' => Icons.school_outlined,
         _ => Icons.memory_outlined,
       }),
   ];

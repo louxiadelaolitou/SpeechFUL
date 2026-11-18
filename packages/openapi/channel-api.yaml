@@ -113,8 +113,8 @@ components:
       properties:
         channels:
           type: array
-          minItems: 7
-          maxItems: 7
+          minItems: 10
+          maxItems: 10
           items:
             $ref: '#/components/schemas/Channel'
     ErrorBody:
@@ -206,7 +206,7 @@ components:
     ServiceUnavailable:
       description: >-
         503 SERVICE_UNAVAILABLE for C Gate, evidence, anchor, database or unknown commit outcome;
-        CHANNEL_DIRECTORY_UNAVAILABLE when the complete seven-channel directory cannot
+        CHANNEL_DIRECTORY_UNAVAILABLE when the complete ten-channel directory cannot
         be read or validated. Preserve a safely persisted token, hide all nodes and permit
         a foreground retry. The result does not prove whether renewal committed.
       headers:

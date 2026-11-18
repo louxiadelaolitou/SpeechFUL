@@ -64,6 +64,24 @@ func TestSnapshotRejectsStaleCrossGenerationAndMalformedMetadata(t *testing.T) {
 	}
 }
 
+func TestSnapshotCoversAllTenCampusCategories(t *testing.T) {
+	now := time.Date(2026, 11, 14, 4, 5, 30, 0, time.UTC)
+	bucket := now.Truncate(Interval)
+	s := Snapshot{Version: Version(2, bucket), Generation: 2, Bucket: bucket}
+	for i := 0; i < 10; i++ {
+		s.Channels = append(s.Channels, uuid.NewString())
+		s.Counts = append(s.Counts, int64(i))
+	}
+	if !s.ValidAt(2, now) {
+		t.Fatal("complete ten-category hotlist rejected")
+	}
+	s.Channels = append(s.Channels, uuid.NewString())
+	s.Counts = append(s.Counts, 0)
+	if s.ValidAt(2, now) {
+		t.Fatal("oversized hotlist accepted")
+	}
+}
+
 func TestFeedRankingCachePublicationAndEviction(t *testing.T) {
 	socket := os.Getenv("RANKING_REDIS_SOCKET")
 	if socket == "" {

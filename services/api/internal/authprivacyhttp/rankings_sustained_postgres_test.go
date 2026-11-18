@@ -405,7 +405,7 @@ func (e *rankingLoadEngine) start() {
 					slot := (seq * 37) % 100
 					switch {
 					case slot < 70:
-						_, _, _ = e.request(phase, "search", "POST", postSearchPath, token, map[string]any{"keyword": "跨页样本", "channelId": e.f.channels[(seq/100)%7], "limit": 20}, "", due)
+						_, _, _ = e.request(phase, "search", "POST", postSearchPath, token, map[string]any{"keyword": "跨页样本", "channelId": e.f.channels[(seq/100)%len(e.f.channels)], "limit": 20}, "", due)
 					case slot < 90:
 						_, _, _ = e.request(phase, "detail", "GET", "/api/v1/posts/"+e.f.sample, token, nil, "", due)
 					case slot < 98:

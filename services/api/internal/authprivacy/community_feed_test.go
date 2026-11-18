@@ -29,7 +29,7 @@ func feedTestChannels(t *testing.T, l *lab) []string {
 		}
 		ids = append(ids, id)
 	}
-	if rows.Err() != nil || len(ids) != 7 {
+	if rows.Err() != nil || len(ids) != 10 {
 		t.Fatal("missing channel catalog")
 	}
 	return ids

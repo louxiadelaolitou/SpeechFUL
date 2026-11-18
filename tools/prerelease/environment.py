@@ -178,6 +178,20 @@ class Lab:
             self.run(['go', 'build', '-mod=readonly', '-o', self.root / 'bin' / (prefix + name),
                       './cmd/' + package], 'build-' + prefix + name, cwd=source / 'services/api')
 
+    def export_rollback_source(self, rollback_ref):
+        archive = self.root / 'rollback.tar'
+        with archive.open('wb') as stream:
+            # Mobile LFS assets are not needed to build the rollback services.
+            subprocess.run(['git', '-C', self.source, 'archive', rollback_ref, 'services/api'],
+                           stdout=stream, check=True)
+        with tarfile.open(archive) as tar:
+            members = [m for m in tar.getmembers() if m.name.startswith('services/api/')]
+            for member in members:
+                if member.issym() or member.islnk() or not (self.root / 'rollback-source' / member.name).resolve().is_relative_to(self.root / 'rollback-source'):
+                    raise RuntimeError('unsafe source archive')
+            tar.extractall(self.root / 'rollback-source', members=members)
+        archive.unlink()
+
     def init(self, rollback_ref):
         if self.state is not None or self.root.exists():
             raise RuntimeError('init requires a new root')
@@ -210,17 +224,7 @@ class Lab:
         self.build(self.source, 'candidate-')
         for name in ('authdev', 'runtimeprobe'):
             self.run(['go', 'build', '-mod=readonly', '-o', self.root / 'bin' / name, './cmd/' + name], 'build-' + name)
-        archive = self.root / 'rollback.tar'
-        with archive.open('wb') as stream:
-            subprocess.run(['git', '-C', self.source, 'archive', rollback_ref,
-                            'services/api'], stdout=stream, check=True)
-        with tarfile.open(archive) as tar:
-            members = [m for m in tar.getmembers() if m.name.startswith('services/api/')]
-            for member in members:
-                if member.issym() or member.islnk() or not (self.root / 'rollback-source' / member.name).resolve().is_relative_to(self.root / 'rollback-source'):
-                    raise RuntimeError('unsafe source archive')
-            tar.extractall(self.root / 'rollback-source', members=members)
-        archive.unlink()
+        self.export_rollback_source(rollback_ref)
         self.build(self.root / 'rollback-source', 'rollback-')
         args = [self.root / 'bin/authdev', 'init', '-dir', self.root / 'material']
         for key, flag in [('c', 'community-port'), ('v', 'verifier-port'), ('ci', 'community-internal-port'), ('vi', 'verifier-internal-port'), ('smtp', 'smtp-port')]:
@@ -297,7 +301,10 @@ class Lab:
         directory = self.api / ('migrations' if party == 'c' else 'verifier-migrations')
         if party == 'c':
             self.run(['goose', '-dir', directory, 'postgres', self.dsn(party, 'migrator'), 'up-to', '13'], 'upgrade-c-to13', env=self.password_env(party, 'migrator'))
-            before = self.sql(party, 'SELECT json_agg(x ORDER BY id) FROM public.channels x')
+            # 0040 intentionally renames labels and appends three categories.
+            # All original identifiers and settings must survive the upgrade.
+            preserved_catalog = "SELECT jsonb_agg(to_jsonb(x)-ARRAY['name','updated_at'] ORDER BY id) FROM public.channels x WHERE display_order<=70"
+            before = self.sql(party, preserved_catalog)
             snapshot = self.root / 'backup/c-schema13.dump'
             self.run(['pg_dump', '--format=custom', '--no-owner', '--no-privileges', '--file', snapshot,
                       self.dsn('c', 'migrator')], 'schema13-snapshot', env=self.password_env('c', 'migrator'))
@@ -307,15 +314,15 @@ class Lab:
             self.run(['goose', '-dir', directory, 'postgres', self.dsn('c', 'migrator', 'upgrade'), 'up'],
                      'schema13-snapshot-upgrade', env=self.password_env('c', 'migrator'))
             self.grants('c', target='upgrade')
-            if self.sql('c', 'SELECT json_agg(x ORDER BY id) FROM public.channels x', target='upgrade') != before:
-                raise RuntimeError('schema13 snapshot catalog changed during restored upgrade')
+            if self.sql('c', preserved_catalog, target='upgrade') != before:
+                raise RuntimeError('schema13 snapshot category identifiers or settings changed during restored upgrade')
             self.state['oldSnapshot'] = dict(version=13, sha256=sha(snapshot), catalogRowsPreserved=7,
-                                            scope='synthetic schema13 snapshot; catalog/goose data, no historical user data')
+                                            scope='synthetic schema13 snapshot; original category identifiers/settings and goose data, no historical user data')
             self.save()
         for step in ('up', 'up'):
             self.run(['goose', '-dir', directory, 'postgres', self.dsn(party, 'migrator'), step], 'goose-' + party, env=self.password_env(party, 'migrator'))
-        if party == 'c' and before != self.sql(party, 'SELECT json_agg(x ORDER BY id) FROM public.channels x'):
-            raise RuntimeError('13 -> latest changed existing catalog')
+        if party == 'c' and before != self.sql(party, preserved_catalog):
+            raise RuntimeError('13 -> latest changed original category identifiers or settings')
         self.grants(party)
 
     def grants(self, party, target=None):

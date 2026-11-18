@@ -65,6 +65,9 @@ CREATE DATABASE hnuhole_feed_versions OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_reposts OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_history OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_legacy_search OWNER hnuhole_c;
+CREATE DATABASE hnuhole_feed_categories OWNER hnuhole_c;
+REVOKE CONNECT ON DATABASE hnuhole_feed_categories FROM PUBLIC;
+GRANT CONNECT ON DATABASE hnuhole_feed_categories TO hnuhole_c;
 REVOKE CONNECT ON DATABASE hnuhole_feed_legacy_search FROM PUBLIC;
 GRANT CONNECT ON DATABASE hnuhole_feed_legacy_search TO hnuhole_c;
 REVOKE CONNECT ON DATABASE hnuhole_feed_reposts,hnuhole_feed_history FROM PUBLIC;
@@ -86,6 +89,8 @@ FEED_VERSIONS_DSN="postgresql://hnuhole_c@/hnuhole_feed_versions?host=$feed_dir/
 FEED_REPOSTS_DSN="postgresql://hnuhole_c@/hnuhole_feed_reposts?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
 FEED_HISTORY_DSN="postgresql://hnuhole_c@/hnuhole_feed_history?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
 FEED_LEGACY_SEARCH_DSN="postgresql://hnuhole_c@/hnuhole_feed_legacy_search?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
+FEED_CATEGORIES_DSN="postgresql://hnuhole_c@/hnuhole_feed_categories?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
+export FEED_CATEGORIES_DSN
 export FEED_LEGACY_SEARCH_DSN
 export FEED_REPOSTS_DSN FEED_HISTORY_DSN
 AUTHLAB_ALLOW_SCHEMA_RESET=1

@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 /// A channel returned by the server directory.
 ///
@@ -152,6 +152,15 @@ class ChannelDirectory {
     'technology',
   ];
 
+  /// Accept the legacy directory while the server migration is being deployed.
+  /// Only complete seven- or ten-category catalogs are accepted.
+  static const List<String> catalogCodes = <String>[
+    ...requiredCodes,
+    'clubs',
+    'careers',
+    'alumni',
+  ];
+
   static const Set<String> initiallyVisibleCodes = <String>{
     'vent',
     'warning',
@@ -162,7 +171,10 @@ class ChannelDirectory {
 
   static List<Channel> validate(Iterable<Channel> input) {
     final channels = input.toList(growable: false);
-    if (channels.length != requiredCodes.length) {
+    final expectedCodes = channels.length == requiredCodes.length
+        ? requiredCodes
+        : catalogCodes;
+    if (channels.length != expectedCodes.length) {
       throw const FormatException('The channel directory is incomplete');
     }
 
@@ -170,15 +182,22 @@ class ChannelDirectory {
     final codes = <String>{};
     for (final channel in channels) {
       if (!ids.add(channel.id)) {
-        throw const FormatException('The channel directory contains duplicate ids');
+        throw const FormatException(
+          'The channel directory contains duplicate ids',
+        );
       }
       if (!codes.add(channel.code)) {
-        throw const FormatException('The channel directory contains duplicate codes');
+        throw const FormatException(
+          'The channel directory contains duplicate codes',
+        );
       }
     }
 
-    if (!codes.containsAll(requiredCodes) || codes.length != requiredCodes.length) {
-      throw const FormatException('The channel directory contains unknown codes');
+    if (!codes.containsAll(expectedCodes) ||
+        codes.length != expectedCodes.length) {
+      throw const FormatException(
+        'The channel directory contains unknown codes',
+      );
     }
 
     final visibleCodes = channels
@@ -187,12 +206,15 @@ class ChannelDirectory {
         .toSet();
     if (visibleCodes.length != initiallyVisibleCodes.length ||
         !visibleCodes.containsAll(initiallyVisibleCodes)) {
-      throw const FormatException('The channel directory has invalid initial visibility');
+      throw const FormatException(
+        'The channel directory has invalid initial visibility',
+      );
     }
 
-    final ordered = channels.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    for (var index = 0; index < requiredCodes.length; index++) {
-      if (ordered[index].code != requiredCodes[index]) {
+    final ordered = channels.toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    for (var index = 0; index < expectedCodes.length; index++) {
+      if (ordered[index].code != expectedCodes[index]) {
         throw const FormatException('The channel directory order is invalid');
       }
     }

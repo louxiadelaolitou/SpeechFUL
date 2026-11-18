@@ -1,3 +1,4 @@
+import '../channels/channel.dart';
 import 'post_api.dart';
 import 'post_models.dart';
 import 'post_protocol.dart';
@@ -82,7 +83,7 @@ class FeedPost extends PostCard {
 class FeedPreferences {
   FeedPreferences(Iterable<String> ids)
     : blockedChannelIds = Set.unmodifiable(ids) {
-    if (blockedChannelIds.length > 7) {
+    if (blockedChannelIds.length > ChannelDirectory.catalogCodes.length) {
       throw const FormatException('Too many channels');
     }
     for (final id in blockedChannelIds) {

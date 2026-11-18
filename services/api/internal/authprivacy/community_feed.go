@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
@@ -66,7 +67,7 @@ func readFeedPreferences(ctx context.Context, tx pgx.Tx, account uuid.UUID) (pos
 // ReplaceFeedPreferences replaces the complete account preference atomically.
 // Replaying the same set is idempotent and does not invalidate existing cursors.
 func (c *Community) ReplaceFeedPreferences(ctx context.Context, bearer [32]byte, input posts.FeedPreferences) (PostResponse, error) {
-	if input.BlockedChannelIDs == nil || len(input.BlockedChannelIDs) > 7 {
+	if input.BlockedChannelIDs == nil || len(input.BlockedChannelIDs) > channels.CatalogSize {
 		return PostResponse{}, postError("MALFORMED_REQUEST", 400)
 	}
 	ids := append([]string{}, input.BlockedChannelIDs...)

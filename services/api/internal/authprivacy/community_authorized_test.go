@@ -18,7 +18,7 @@ func TestDirectoryRenewalAndInvalidCatalogRollbackPostgres(t *testing.T) {
     session := sessionTestAccount(t, l, "catalog_renewal_user")
     hash := sha256.Sum256(session.SessionToken[:])
     first, err := l.c.ListAuthorizedChannels(ctx, session.SessionToken)
-    if err != nil || len(first.Channels) != 7 || !first.ExpiresAt.Equal(session.ExpiresAt) {
+    if err != nil || len(first.Channels) != 10 || !first.ExpiresAt.Equal(session.ExpiresAt) {
         t.Fatalf("complete catalog changed a >7-day session: %v", err)
     }
     before := control.clock.now().Add(6*24*time.Hour)
@@ -31,7 +31,7 @@ func TestDirectoryRenewalAndInvalidCatalogRollbackPostgres(t *testing.T) {
     if err := l.cp.QueryRow(ctx, `SELECT expires_at FROM c_auth.sessions WHERE token_digest=$1`, hash[:]).Scan(&expiry); err != nil || !expiry.Equal(before) {
         t.Fatalf("failed catalog renewed session: %v", err)
     }
-    mustExec(t, l.cp, `UPDATE public.channels SET name='吐槽' WHERE code='vent'`)
+    mustExec(t, l.cp, `UPDATE public.channels SET name='校园吐槽' WHERE code='vent'`)
     var wg sync.WaitGroup
     errorsOut := make(chan error, 4)
     for i:=0; i<4; i++ {
@@ -39,7 +39,7 @@ func TestDirectoryRenewalAndInvalidCatalogRollbackPostgres(t *testing.T) {
         go func() {
             defer wg.Done()
             result, err := l.c.ListAuthorizedChannels(ctx, session.SessionToken)
-            if err == nil && (!result.ExpiresAt.Equal(control.clock.now().Add(sessionLifetime)) || len(result.Channels)!=7) {
+            if err == nil && (!result.ExpiresAt.Equal(control.clock.now().Add(sessionLifetime)) || len(result.Channels)!=10) {
                 err = errors.New("concurrent renewal accumulated lifetime or returned partial catalog")
             }
             errorsOut <- err
@@ -125,7 +125,7 @@ func TestDirectoryCommitPrecedesWaitingRevocationPostgres(t *testing.T) {
     go func(){
         _,err:=l.c.withAuthorizedSession(ctx,session.SessionToken,false,func(query channels.Queryer)error{
             items,err:=channels.NewService(channels.NewPostgresRepository(query)).List(ctx)
-            if err!=nil || len(items)!=7 {return ErrChannelDirectoryUnavailable}
+            if err!=nil || len(items)!=10 {return ErrChannelDirectoryUnavailable}
             close(read)
             <-release
             return nil

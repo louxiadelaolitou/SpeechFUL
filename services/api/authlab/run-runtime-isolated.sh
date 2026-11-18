@@ -283,7 +283,7 @@ PGPASSWORD=$C_RUNTIME_PASSWORD psql -X -v ON_ERROR_STOP=1 "$AUTHRUNTIME_C_DSN" >
 DO $$ BEGIN
  IF current_user <> 'hnuhole_c_runtime' OR pg_has_role(current_user,'hnuhole_c_owner','MEMBER')
   OR has_schema_privilege(current_user,'c_auth','CREATE') OR has_database_privilege(current_user,current_database(),'CREATE,TEMP') THEN RAISE EXCEPTION 'runtime privilege boundary'; END IF;
- IF (SELECT count(*) FROM public.channels)<>7 THEN RAISE EXCEPTION 'seven channels absent'; END IF;
+ IF (SELECT count(*) FROM public.channels)<>10 THEN RAISE EXCEPTION 'ten channels absent'; END IF;
  BEGIN PERFORM 1 FROM public.sessions; RAISE EXCEPTION 'legacy read unexpectedly allowed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN CREATE TABLE c_auth.runtime_ddl_forbidden(i int); RAISE EXCEPTION 'DDL unexpectedly allowed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN UPDATE c_auth.authorization_gate SET gate_state='OPEN',authorization_generation=1,evidence_version=1,evidence_issued_at=clock_timestamp(),evidence_valid_until=clock_timestamp()+interval '1 minute',freeze_reason=NULL WHERE singleton_id=1; RAISE EXCEPTION 'API recovery unexpectedly allowed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
@@ -315,11 +315,12 @@ END $$;
 SQL
 if PGPASSWORD=$V_RUNTIME_PASSWORD psql -X "postgres://hnuhole_v_runtime@127.0.0.1:$C_DATABASE_PORT/hnuhole_c?sslmode=disable" -c 'SELECT 1' >/dev/null 2>&1; then echo 'Cross-party access unexpectedly accepted' >&2; exit 1; fi
 # Upgrade verification uses a separately named one-shot database owned by the
-# migration owner. Preserve every seed field and UUID across the auth additions.
+# migration owner. Preserve original identities and settings across the additions;
+# category labels are intentionally renamed by 0040.
 PGPASSWORD=$C_ADMIN_PASSWORD psql -X -v ON_ERROR_STOP=1 "postgres://hnuhole_c_admin@127.0.0.1:$C_DATABASE_PORT/hnuhole_c?sslmode=disable" -c 'CREATE DATABASE hnuhole_upgrade OWNER hnuhole_c_owner' >/dev/null
 runtime_upgrade="postgres://hnuhole_c_migrator@127.0.0.1:$C_DATABASE_PORT/hnuhole_upgrade?sslmode=disable&options=-c%20role%3Dhnuhole_c_owner"
 PGPASSWORD=$C_MIGRATOR_PASSWORD goose -dir migrations postgres "$runtime_upgrade" up-to 2 >/dev/null
-PGPASSWORD=$C_MIGRATOR_PASSWORD psql -X -v ON_ERROR_STOP=1 "$runtime_upgrade" -c '\copy (SELECT * FROM public.channels ORDER BY id) TO STDOUT CSV' >"$runtime_dir/channels-before.csv"
+PGPASSWORD=$C_MIGRATOR_PASSWORD psql -X -v ON_ERROR_STOP=1 "$runtime_upgrade" -c '\copy (SELECT id,code,initially_visible,display_order,created_at FROM public.channels ORDER BY id) TO STDOUT CSV' >"$runtime_dir/channels-before.csv"
 PGPASSWORD=$C_MIGRATOR_PASSWORD goose -dir migrations postgres "$runtime_upgrade" up-to 10 >/dev/null
 PGPASSWORD=$C_MIGRATOR_PASSWORD psql -X -v ON_ERROR_STOP=1 "$runtime_upgrade" >/dev/null <<'SQL'
 INSERT INTO c_auth.accounts(account_id,platform_number,username,password_hash,password_salt,password_params_version)
@@ -399,7 +400,7 @@ DO $$ BEGIN
   THEN RAISE EXCEPTION 'legacy closed profile forward repair invalid'; END IF;
 END $$;
 SQL
-PGPASSWORD=$C_MIGRATOR_PASSWORD psql -X -v ON_ERROR_STOP=1 "$runtime_upgrade" -c '\copy (SELECT * FROM public.channels ORDER BY id) TO STDOUT CSV' >"$runtime_dir/channels-after.csv"
+PGPASSWORD=$C_MIGRATOR_PASSWORD psql -X -v ON_ERROR_STOP=1 "$runtime_upgrade" -c '\copy (SELECT id,code,initially_visible,display_order,created_at FROM public.channels WHERE display_order<=70 ORDER BY id) TO STDOUT CSV' >"$runtime_dir/channels-after.csv"
 cmp "$runtime_dir/channels-before.csv" "$runtime_dir/channels-after.csv"
 # A deliberately failing COPY of the sole official 0003 Up belongs only to a
 # separately named one-shot failure database. Goose must roll back every change.

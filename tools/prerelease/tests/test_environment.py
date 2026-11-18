@@ -1,6 +1,8 @@
 import importlib.util
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import unittest
 import urllib.parse
@@ -31,6 +33,42 @@ class IsolatedEnvironmentTest(unittest.TestCase):
             self.assertEqual(env['PGPASSWORD'], 'synthetic-c-password')
             self.assertEqual(env['AUTHRUNTIME_V_PASSWORD'], 'synthetic-v-password')
             self.assertNotIn('synthetic-v-password', str(args))
+
+    @unittest.skipUnless(shutil.which('git'), 'Git executable required')
+    def test_rollback_export_does_not_smudge_unrelated_mobile_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source'
+            source.mkdir()
+            git = ['git', '-C', str(source)]
+            subprocess.run(git + ['init', '--quiet'], check=True)
+            for key, value in (
+                ('user.name', 'Test Fixture'),
+                ('user.email', 'fixture@example.invalid'),
+                ('filter.no-download.clean', 'cat'),
+                ('filter.no-download.smudge', 'false'),
+                ('filter.no-download.required', 'true'),
+            ):
+                subprocess.run(git + ['config', key, value], check=True)
+            (source / '.gitattributes').write_text('*.ttf filter=no-download\n')
+            (source / 'mobile.ttf').write_text('unavailable mobile font\n')
+            api = source / 'services/api'
+            api.mkdir(parents=True)
+            (api / 'go.mod').write_text('module rollback_fixture\n')
+            subprocess.run(git + ['add', '.gitattributes', 'mobile.ttf', 'services/api'], check=True)
+            subprocess.run(git + ['commit', '--quiet', '-m', 'test fixture'], check=True)
+            revision = subprocess.check_output(git + ['rev-parse', 'HEAD'], text=True).strip()
+            # A full export would require the unavailable font filter.
+            full = subprocess.run(git + ['archive', revision], stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.PIPE)
+            self.assertNotEqual(full.returncode, 0)
+            root = Path(directory) / 'lab'
+            lab = environment.Lab(root, source)
+            (root / 'rollback-source').mkdir(parents=True)
+            lab.export_rollback_source(revision)
+            self.assertEqual((root / 'rollback-source/services/api/go.mod').read_text(),
+                             'module rollback_fixture\n')
+            self.assertFalse((root / 'rollback.tar').exists())
+            self.assertFalse((root / 'rollback-source/mobile.ttf').exists())
 
     def test_cleanup_does_not_treat_pg_status_error_as_stopped(self):
         with tempfile.TemporaryDirectory() as directory:

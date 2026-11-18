@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
@@ -595,7 +596,7 @@ func feedPreferencesInput(r *http.Request) (posts.FeedPreferences, error) {
 }
 
 func validFeedPreferences(input posts.FeedPreferences) bool {
-	if input.BlockedChannelIDs == nil || len(input.BlockedChannelIDs) > 7 {
+	if input.BlockedChannelIDs == nil || len(input.BlockedChannelIDs) > channels.CatalogSize {
 		return false
 	}
 	seen := make(map[string]bool)

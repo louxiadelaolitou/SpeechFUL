@@ -194,7 +194,7 @@ func (p *probe) directory(ctx context.Context, token string, want int) (time.Tim
 		return time.Time{}, errors.New("invalid committed directory expiry")
 	}
 	raw, ok := body["channels"].([]any)
-	if !ok || len(body) != 1 || len(raw) != 7 {
+	if !ok || len(body) != 1 || len(raw) != channels.CatalogSize {
 		return time.Time{}, errors.New("directory shape invalid")
 	}
 	records := make([]channels.Channel, len(raw))

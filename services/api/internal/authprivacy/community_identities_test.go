@@ -75,7 +75,7 @@ func TestIdentityInitialManagementAndAccountLocalNamesPostgres(t *testing.T) {
 	if len(empty.Identities) != 0 || empty.CreatedCount != 0 || empty.NextCreateAt != nil {
 		t.Fatal("signup automatically created an identity")
 	}
-	if directory, err := l.c.ListAuthorizedChannels(ctx,owner.SessionToken); err != nil || len(directory.Channels) != 7 {
+	if directory, err := l.c.ListAuthorizedChannels(ctx,owner.SessionToken); err != nil || len(directory.Channels) != 10 {
 		t.Fatalf("zero-identity account could not browse: %v",err)
 	}
 	first := identityChange(t,l.c,owner.SessionToken,"CREATE",uuid.Nil,"e\u0301风")

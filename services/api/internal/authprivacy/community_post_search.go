@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
@@ -304,7 +305,7 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 		}
 		prepared.candidates = append(prepared.candidates, hit)
 	}
-	if len(prepared.leaders) > 7 {
+	if len(prepared.leaders) > channels.CatalogSize {
 		return prepared, ErrAuthorizationUnavailable
 	}
 	position.SearchGroups = strings.Join(groups, ",")
@@ -312,7 +313,7 @@ func (c *Community) preparePostSearch(ctx context.Context, account uuid.UUID, qu
 	return prepared, rows.Err()
 }
 
-// The input is bounded by the page, one lookahead, and the seven catalog
+// The input is bounded by the page, one lookahead, and the complete catalog
 // groups. LIMIT keeps the lookup correlated to one indexed post ID at a time.
 const projectSearchCandidatesSQL = `
 SELECT card.*

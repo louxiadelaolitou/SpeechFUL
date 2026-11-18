@@ -232,7 +232,7 @@ void main() {
       await sessions.login(username, password);
       expect(sessions.isAuthenticated, isTrue);
       expect(directory.status, ChannelDirectoryStatus.ready);
-      expect(directory.channels, hasLength(7));
+      expect(directory.channels, hasLength(10));
       final durableSession = AuthState.parse(
         jsonDecode(vault.value!) as Map<String, dynamic>,
         store.scope,
@@ -325,7 +325,7 @@ void main() {
       final priorDeadline = DateTime.parse(nearExpiry['expiresAt'] as String);
       await directory.load();
       expect(directory.status, ChannelDirectoryStatus.ready);
-      expect(directory.channels, hasLength(7));
+      expect(directory.channels, hasLength(10));
       final renewedDeadline = store.current!.session!.expiresAt;
       expect(
         renewedDeadline.isAfter(priorDeadline.add(const Duration(days: 23))),
@@ -345,7 +345,7 @@ void main() {
       expect(store.current!.session!.token, signupToken);
       expect(store.current!.session!.expiresAt, renewedDeadline);
       expect(directory.status, ChannelDirectoryStatus.ready);
-      expect(directory.channels, hasLength(7));
+      expect(directory.channels, hasLength(10));
       final expiry = await api.renewSession(signupToken);
       expect(expiry.isBefore(store.current!.session!.expiresAt), isFalse);
 

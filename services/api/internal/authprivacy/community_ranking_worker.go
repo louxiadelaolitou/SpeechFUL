@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/rankings"
 )
 
@@ -157,14 +158,14 @@ func (c *Community) buildRankingSnapshot(ctx context.Context, pool *pgxpool.Pool
 	if err != nil {
 		return err
 	}
-	channels, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil || len(channels) == 0 || len(channels) > 7 {
+	channelIDs, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(channelIDs) != channels.CatalogSize {
 		return errors.New("ranking channel directory unavailable")
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO c_posts.hot_snapshots(version,generation,bucket,channel_ids) VALUES($1,$2,$3,$4)`, version, decision.Generation, bucket, channels); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO c_posts.hot_snapshots(version,generation,bucket,channel_ids) VALUES($1,$2,$3,$4)`, version, decision.Generation, bucket, channelIDs); err != nil {
 		return err
 	}
-	for _, channel := range channels {
+	for _, channel := range channelIDs {
 		policy := fmt.Sprintf("global-block-v2:%d:%d:%d:%d", weights.Like, weights.Favorite, weights.Discussion, weights.HalfLifeHours)
 		reused, err := tx.Exec(ctx, reuseRankingChannelSQL, version, decision.Generation, bucket, channel, policy)
 		if err != nil {

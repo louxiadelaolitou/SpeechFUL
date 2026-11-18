@@ -37,9 +37,9 @@ func (d *httpTestDirectory) setError(err error) {
     d.err = err
 }
 func httpTestCatalog() []channels.Channel {
-    codes:=[]string{"vent","warning","recommendation","buddy","emotion","mutual_help","technology"}
-    names:=[]string{"吐槽","避雷","安利","搭子","情感","互助","科技"}
-    items:=make([]channels.Channel,7)
+    codes:=[]string{"vent","warning","recommendation","buddy","emotion","mutual_help","technology","clubs","careers","alumni"}
+    names:=[]string{"校园吐槽","避雷指南","吐血推荐","搭子寻觅","情感树洞","互助问答","人工智能","社团活动","求职经验","校友评论"}
+    items:=make([]channels.Channel,10)
     for i:=range items {
         items[i]=channels.Channel{ID:uuid.MustParse(fmt.Sprintf("5f6f4f88-8f64-4bb2-9d34-%012d",i+1)),Code:codes[i],Name:names[i],InitiallyVisible:i<5,DisplayOrder:10*(i+1)}
     }
@@ -75,7 +75,7 @@ func TestDirectoryHTTPSContractAndCanonicalCapabilities(t *testing.T) {
         t.Fatal("committed directory omitted authoritative metadata")
     }
     items,ok:=body["channels"].([]any)
-    if !ok || len(items)!=7 || len(body)!=1 {t.Fatal("directory public shape changed")}
+    if !ok || len(items)!=10 || len(body)!=1 {t.Fatal("directory public shape changed")}
     first,ok:=items[0].(map[string]any)
     if !ok || len(first)!=5 || first["code"]!="vent" || first["initiallyVisible"]!=true {t.Fatal("directory exposed domain or auth fields")}
     for _,tc:=range []struct{err error;status int;code string}{
@@ -101,7 +101,7 @@ func TestRealHTTPSDirectoryUsesCommunitySessionsAndGatePostgres(t *testing.T) {
     token,_:=e2eCredentialSignup(t,s)
     headers:=map[string]string{"Authorization":"Bearer "+token}
     body:=e2eJSON(t,s.client,"GET",s.cPublic.URL+"/api/v1/channels",nil,headers,200)
-    if items,ok:=body["channels"].([]any); !ok || len(items)!=7 {t.Fatal("real authenticated catalog incomplete")}
+    if items,ok:=body["channels"].([]any); !ok || len(items)!=10 {t.Fatal("real authenticated catalog incomplete")}
     if err:=s.gate.Freeze(context.Background(),"real catalog freeze");err!=nil {t.Fatal(err)}
     body=e2eJSON(t,s.client,"GET",s.cPublic.URL+"/api/v1/channels",nil,headers,503)
     if body["error"].(map[string]any)["code"]!="SERVICE_UNAVAILABLE" {t.Fatal("frozen directory returned a different backend error")}

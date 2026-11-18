@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 )
 
 func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
@@ -16,7 +17,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 	if tool == "" {
 		t.Skip("owned Goose fixture absent")
 	}
-	for _, mode := range []string{"fresh", "upgrade", "interactions", "versions", "reposts", "history", "legacy_search"} {
+	for _, mode := range []string{"fresh", "upgrade", "interactions", "versions", "reposts", "history", "legacy_search", "categories"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
 			dsn := os.Getenv("FEED_" + strings.ToUpper(mode) + "_DSN")
@@ -41,7 +42,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 				return exec.Command(tool, append([]string{"-dir", dir, "postgres", dsn, command}, args...)...).Run()
 			}
 			var before string
-			preserved := `SELECT md5(jsonb_build_object('posts',(SELECT jsonb_agg(to_jsonb(p)-ARRAY['edit_revision','edited_at','edited_title','edited_body','edited_image_ids','tags','tag_keys']) FROM c_posts.posts p),'contents',(SELECT jsonb_agg(to_jsonb(x)-'tags') FROM c_posts.attempt_contents x),'tasks',(SELECT jsonb_agg(to_jsonb(t)) FROM c_posts.publication_tasks t),'channels',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM public.channels c))::text)`
+			preserved := `SELECT md5(jsonb_build_object('posts',(SELECT jsonb_agg(to_jsonb(p)-ARRAY['edit_revision','edited_at','edited_title','edited_body','edited_image_ids','tags','tag_keys']) FROM c_posts.posts p),'contents',(SELECT jsonb_agg(to_jsonb(x)-'tags') FROM c_posts.attempt_contents x),'tasks',(SELECT jsonb_agg(to_jsonb(t)) FROM c_posts.publication_tasks t),'channels',(SELECT jsonb_agg(to_jsonb(c)-ARRAY['name','updated_at'] ORDER BY c.id) FROM public.channels c WHERE display_order<=70))::text)`
 			if mode != "fresh" {
 				base := "18"
 				if mode == "interactions" {
@@ -59,6 +60,9 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 				if mode == "legacy_search" {
 					base = "29"
 				}
+				if mode == "categories" {
+					base = "39"
+				}
 				if e = run("up-to", base); e != nil {
 					t.Fatal("main schema install", e)
 				}
@@ -74,6 +78,10 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
  UPDATE c_posts.publication_attempts SET state='PUBLISHED',terminal_at='2026-10-19T00:00:00Z' WHERE task_id='33333333-3333-4333-8333-333333333333';
  UPDATE c_posts.posts SET visibility='PUBLISHED',published_attempt_version=1,published_at='2026-10-19T00:00:00Z',publication_ordinal=nextval('c_posts.publication_ordinal_seq') WHERE post_id='22222222-2222-4222-8222-222222222222';
  COMMIT;`)
+				if mode == "categories" {
+					mustExec(t, pool, `INSERT INTO c_posts.feed_preferences(account_id,blocked_channel_ids,revision)
+						SELECT 'd2c920f5-5563-452d-901c-be133844b0fa',array_agg(id ORDER BY display_order),3 FROM public.channels`)
+				}
 				if mode == "interactions" || mode == "versions" {
 					mustExec(t, pool, `INSERT INTO c_posts.post_view_totals VALUES('22222222-2222-4222-8222-222222222222',7);
  INSERT INTO c_posts.post_daily_views VALUES('d2c920f5-5563-452d-901c-be133844b0fa','22222222-2222-4222-8222-222222222222','2026-10-19');
@@ -89,7 +97,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("up"); e != nil {
 				t.Fatal("latest migration failed", e)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 51 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 51 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 52 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 52 {
 				t.Fatal("incomplete migration chain")
 			}
 			// 0049 installs writers immediately but leaves populated upgrades
@@ -103,6 +111,10 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			}
 			if err := (&Community{pool: pool}).checkPostSearchDocumentSchema(ctx); err != nil {
 				t.Fatal("upgraded search documents", err)
+			}
+			catalog, err := channels.NewService(channels.NewPostgresRepository(pool)).List(ctx)
+			if err != nil || len(catalog) != 10 || count(t, pool, `SELECT count(*) FROM c_posts.ranking_inputs`) != 10 {
+				t.Fatalf("campus catalog or ranking inputs incomplete: %v", err)
 			}
 			if e = checkPostSearchHistorySchema(ctx, pool, true); e != nil {
 				t.Fatal(e)
@@ -154,6 +166,21 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 					t.Fatal("0020 changed feed facts")
 				}
 			}
+			if mode == "categories" {
+				if count(t, pool, `SELECT cardinality(blocked_channel_ids) FROM c_posts.feed_preferences`) != 7 ||
+					count(t, pool, `SELECT revision FROM c_posts.feed_preferences`) != 3 {
+					t.Fatal("migration changed existing blocked categories")
+				}
+				mustExec(t, pool, `UPDATE c_posts.feed_preferences SET blocked_channel_ids=
+					(SELECT array_agg(id ORDER BY display_order) FROM public.channels)`)
+				if count(t, pool, `SELECT cardinality(blocked_channel_ids) FROM c_posts.feed_preferences`) != 10 {
+					t.Fatal("cannot block the complete campus catalog")
+				}
+				mustExec(t, pool, `INSERT INTO c_posts.hot_snapshots(version,generation,bucket,channel_ids)
+					SELECT 'category-upgrade',1,'2026-11-14T00:00:00Z',array_agg(id ORDER BY display_order) FROM public.channels`)
+				mustExec(t, pool, `INSERT INTO c_posts.ranking_snapshots(version,generation,bucket,channel_ids)
+					SELECT 'category-upgrade',1,'2026-11-14T00:00:00Z',array_agg(id ORDER BY display_order) FROM public.channels`)
+			}
 			wantFacts := 0
 			if mode == "versions" {
 				wantFacts = 1
@@ -167,7 +194,7 @@ func TestFeedGooseFreshAndUpgradePostgres(t *testing.T) {
 			if e = run("down-to", "49"); e == nil {
 				t.Fatal("cumulative facts rolled back")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 50 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 52 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})

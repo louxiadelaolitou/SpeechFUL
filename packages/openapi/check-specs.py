@@ -67,8 +67,8 @@ def check_channel(spec):
     }
     directory = schemas["ChannelListResponse"]
     assert set(directory["properties"]) == {"channels"}
-    assert directory["properties"]["channels"]["minItems"] == 7
-    assert directory["properties"]["channels"]["maxItems"] == 7
+    assert directory["properties"]["channels"]["minItems"] == 10
+    assert directory["properties"]["channels"]["maxItems"] == 10
 
 
 def main():

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
@@ -17,7 +18,7 @@ const (
 	MaxAge          = 3 * Interval
 	cacheTTL        = 6 * Interval
 	ReadLimit       = 64
-	GlobalReadLimit = 7 * ReadLimit
+	GlobalReadLimit = channels.CatalogSize * ReadLimit
 	foregroundGrace = 100 * time.Millisecond
 )
 
@@ -37,7 +38,7 @@ func (s Snapshot) ValidAt(generation uint64, now time.Time) bool {
 	if s.Generation == 0 || s.Generation != generation || s.Version != Version(generation, s.Bucket) ||
 		s.Bucket.Unix() <= 0 || !s.Bucket.Equal(s.Bucket.Truncate(Interval)) ||
 		s.Bucket.After(now) || !s.Bucket.After(now.Add(-MaxAge)) ||
-		len(s.Channels) < 1 || len(s.Channels) > 7 || len(s.Counts) != len(s.Channels) {
+		len(s.Channels) < 1 || len(s.Channels) > channels.CatalogSize || len(s.Counts) != len(s.Channels) {
 		return false
 	}
 	seen := make(map[string]bool, len(s.Channels))
@@ -126,7 +127,7 @@ func (c *Cache) Snapshot(ctx context.Context) (Snapshot, error) {
 }
 
 func (c *Cache) Candidates(ctx context.Context, snapshot Snapshot, channel string, count int64) ([]string, error) {
-	limit := min(count, GlobalReadLimit)
+	limit := min(count, int64(GlobalReadLimit))
 	if limit == 0 {
 		return []string{}, nil
 	}

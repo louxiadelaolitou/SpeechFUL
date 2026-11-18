@@ -8,6 +8,20 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
+func TestFeedPreferencesSupportCompleteCampusDirectory(t *testing.T) {
+	input := posts.FeedPreferences{BlockedChannelIDs: []string{}}
+	for _, channel := range httpTestCatalog() {
+		input.BlockedChannelIDs = append(input.BlockedChannelIDs, channel.ID.String())
+	}
+	if !validFeedPreferences(input) {
+		t.Fatal("cannot submit all ten blocked categories")
+	}
+	input.BlockedChannelIDs = append(input.BlockedChannelIDs, "00000000-0000-4000-8000-000000000011")
+	if validFeedPreferences(input) {
+		t.Fatal("accepted more than ten blocked categories")
+	}
+}
+
 func TestFeedHTTPRoutesAndStrictInputs(t *testing.T) {
 	backend, handler := newPostHTTP(t, httpTestLimits())
 	for _, tc := range []struct {

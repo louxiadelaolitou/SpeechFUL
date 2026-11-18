@@ -190,7 +190,7 @@ func newRankingLoadFixture(t *testing.T, clients int, recorder *rankingLoadRecor
 			t.Fatalf("synthetic ranking seed %d: %v", i, err)
 		}
 	}
-	rows, err := tx.Query(ctx, `SELECT post::text FROM rank_seed WHERE i BETWEEN 3001 AND 3007 ORDER BY channel`)
+	rows, err := tx.Query(ctx, `SELECT post::text FROM rank_seed WHERE i BETWEEN 3001 AND 3000+cardinality($1::uuid[]) ORDER BY channel`, f.channels)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func newRankingLoadFixture(t *testing.T, clients int, recorder *rankingLoadRecor
 	}
 	// Align the canary IDs to the same directory order used by input fences.
 	for i, channel := range f.channels {
-		if err := tx.QueryRow(ctx, `SELECT post::text FROM rank_seed WHERE i BETWEEN 3001 AND 3007 AND channel=$1`, channel).Scan(&f.canaries[i]); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT post::text FROM rank_seed WHERE i BETWEEN 3001 AND 3000+cardinality($2::uuid[]) AND channel=$1`, channel, f.channels).Scan(&f.canaries[i]); err != nil {
 			t.Fatal(err)
 		}
 	}

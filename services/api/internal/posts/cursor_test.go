@@ -3,6 +3,7 @@ package posts
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -86,20 +87,35 @@ func TestSearchCursorFitsAllChannelsAndBindsSearchKey(t *testing.T) {
 		LastAt: now.Add(-time.Hour), LastOrdinal: 9223372036854775806, Limit: 50,
 		ExpiresAt: now.Add(CursorTTL), FilterRevision: 9223372036854775807,
 		SearchKey:   base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32)),
-		SearchGroup: 7, SearchRank: 3,
+		SearchGroup: 10, SearchRank: 3, SearchRevision: 9223372036854775807,
 		SearchGroups: strings.Join([]string{
 			"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002",
 			"00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000004",
 			"00000000-0000-4000-8000-000000000005", "00000000-0000-4000-8000-000000000006",
 			"00000000-0000-4000-8000-000000000007",
+			"00000000-0000-4000-8000-000000000008", "00000000-0000-4000-8000-000000000009",
+			"00000000-0000-4000-8000-000000000010",
 		}, ","),
 	}
 	token, err := codec.Encode(position)
 	if err != nil || len(token) > 1024 {
-		t.Fatalf("seven-channel cursor exceeds wire limit: %v", err)
+		t.Fatalf("ten-channel cursor exceeds wire limit: %v", err)
 	}
 	if got, err := codec.Decode(token, position, now); err != nil || got != position {
 		t.Fatalf("search cursor roundtrip: %v", err)
+	}
+	legacy := position
+	legacy.SearchGroup = 7
+	legacy.SearchGroups = strings.Join(strings.Split(position.SearchGroups, ",")[:7], ",")
+	plain, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := make([]byte, 1+codec.aead.NonceSize())
+	raw[0] = 1
+	raw = codec.aead.Seal(raw, raw[1:], plain, codec.aad)
+	if got, err := codec.Decode(base64.RawURLEncoding.EncodeToString(raw), legacy, now); err != nil || got != legacy {
+		t.Fatalf("legacy uncompressed search cursor rejected: %v", err)
 	}
 	wrong := position
 	wrong.SearchKey = base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))

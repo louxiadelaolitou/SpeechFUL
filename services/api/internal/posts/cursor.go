@@ -10,6 +10,9 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/channels"
 )
 
 const (
@@ -76,6 +79,19 @@ func (c *CursorCodec) Encode(position CursorPosition) (string, error) {
 	}
 	position.LastAt = position.LastAt.UTC()
 	position.ExpiresAt = position.ExpiresAt.UTC()
+	// Pack directory UUIDs inside the authenticated payload to retain the
+	// existing 1024-character wire bound as the catalog grows.
+	if position.SearchGroups != "" {
+		packed := make([]byte, 0, 16*channels.CatalogSize)
+		for _, group := range strings.Split(position.SearchGroups, ",") {
+			id, err := uuid.Parse(group)
+			if err != nil {
+				return "", ErrCursorInvalid
+			}
+			packed = append(packed, id[:]...)
+		}
+		position.SearchGroups = "v2:" + base64.RawURLEncoding.EncodeToString(packed)
+	}
 	plaintext, err := json.Marshal(position)
 	if err != nil {
 		return "", ErrCursorInvalid
@@ -109,7 +125,23 @@ func (c *CursorCodec) Decode(token string, expected CursorPosition, trustedAt ti
 		return CursorPosition{}, ErrCursorInvalid
 	}
 	var position CursorPosition
-	if json.Unmarshal(plaintext, &position) != nil || !validPosition(position) || position.Scope != expected.Scope || position.IdentityID != expected.IdentityID || position.AccountID != expected.AccountID || position.ChannelID != expected.ChannelID || position.Limit != expected.Limit || position.FilterRevision != expected.FilterRevision || position.SearchKey != expected.SearchKey || !trustedAt.Before(position.ExpiresAt) || position.ExpiresAt.After(trustedAt.Add(CursorTTL)) {
+	if json.Unmarshal(plaintext, &position) != nil {
+		return CursorPosition{}, ErrCursorInvalid
+	}
+	if strings.HasPrefix(position.SearchGroups, "v2:") {
+		encoded := strings.TrimPrefix(position.SearchGroups, "v2:")
+		packed, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
+		if err != nil || len(packed) == 0 || len(packed)%16 != 0 || len(packed) > 16*channels.CatalogSize || base64.RawURLEncoding.EncodeToString(packed) != encoded {
+			return CursorPosition{}, ErrCursorInvalid
+		}
+		groups := make([]string, 0, len(packed)/16)
+		for offset := 0; offset < len(packed); offset += 16 {
+			id, _ := uuid.FromBytes(packed[offset : offset+16])
+			groups = append(groups, id.String())
+		}
+		position.SearchGroups = strings.Join(groups, ",")
+	}
+	if !validPosition(position) || position.Scope != expected.Scope || position.IdentityID != expected.IdentityID || position.AccountID != expected.AccountID || position.ChannelID != expected.ChannelID || position.Limit != expected.Limit || position.FilterRevision != expected.FilterRevision || position.SearchKey != expected.SearchKey || !trustedAt.Before(position.ExpiresAt) || position.ExpiresAt.After(trustedAt.Add(CursorTTL)) {
 		return CursorPosition{}, ErrCursorInvalid
 	}
 	return position, nil
@@ -153,7 +185,7 @@ func validSearchPosition(position CursorPosition) bool {
 		return false
 	}
 	groups := strings.Split(position.SearchGroups, ",")
-	if len(groups) > 7 || position.SearchGroup < 1 || position.SearchGroup > len(groups) ||
+	if len(groups) > channels.CatalogSize || position.SearchGroup < 1 || position.SearchGroup > len(groups) ||
 		position.ChannelID != "" && (len(groups) != 1 || groups[0] != position.ChannelID) {
 		return false
 	}
