@@ -300,6 +300,7 @@ extension _ChatPhotoUi on _DmChatRouteState {
           ViewerItem(
             id: r['_id'],
             saveAllowed: false,
+            previewProvider: _photoProviders[r['_id']],
             loadSource: () async {
               final bytes = await _photoBytes(r['_id']);
               if (scope != c.scope ||

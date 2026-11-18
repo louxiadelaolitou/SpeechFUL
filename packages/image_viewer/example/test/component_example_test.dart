@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -61,6 +62,50 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('caller preview stays visible until the delayed source arrives', (
+    tester,
+  ) async {
+    final loaded = await tester.runAsync(() async {
+      final data = await rootBundle.load('assets/fixtures/ordinary.png');
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      final size = Size(
+        frame.image.width.toDouble(),
+        frame.image.height.toDouble(),
+      );
+      frame.image.dispose();
+      codec.dispose();
+      return (bytes: data.buffer.asUint8List(), size: size);
+    });
+    final pending = Completer<ViewerSource>();
+    final controller = ViewerController(
+      items: [
+        ViewerItem(
+          id: 'preview',
+          semanticLabel: '已加载预览',
+          previewProvider: MemoryImage(loaded!.bytes),
+          loadSource: () => pending.future,
+        ),
+      ],
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(home: HnuImageViewer(controller: controller)),
+    );
+    await tester.pump();
+    expect(controller.status, ViewerLoadStatus.loading);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsOneWidget);
+    expect(find.text('正在加载图片'), findsNothing);
+    expect(find.bySemanticsLabel('已加载预览'), findsOneWidget);
+    pending.complete(
+      ViewerSource(provider: MemoryImage(loaded.bytes), pixelSize: loaded.size),
+    );
+    await finishSourceLoad(tester);
+    expect(controller.status, ViewerLoadStatus.ready);
+    expect(find.byKey(const ValueKey('viewer-item-preview')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('16MiB valid encoded PNG is accepted and next byte is rejected', (

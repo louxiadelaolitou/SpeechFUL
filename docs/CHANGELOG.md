@@ -2,6 +2,18 @@
 
 记录本仓库的写入型改动，最新条目在最上面；格式与门禁见 `.agents/skills/minimal-change/SKILL.md`。
 
+## 2026-11-17 17:02 · 点击图片复用已加载预览
+
+- 状态：已完成（已推送并创建 PR [#18](https://github.com/zewbby/SpeechFUL-Develop/pull/18)，未合并）
+- 改动：查看器新增调用方所有的纯视觉 `previewProvider`；帖子、评论、私信打开查看器时先显示已加载图片，原图首帧到达后替换；评论 provider 记忆化，避免重复请求 `/original`。预览不进入来源缓存、`ready` 判定、保存或资源上限，组件不驱逐调用方 provider。修正提交 `7ed7419`：预览解码失败时回退为加载指示器，避免完整来源仍在加载时留下空白画面；补私信查看器复用已缓存照片的 UI 测试；统一受影响 Dart 文件格式。
+- 文件：`packages/image_viewer/lib/src/viewer_controller.dart`、`viewer_preview.dart`、`viewer_surface.dart`、`viewer.dart`、`packages/image_viewer/README.md`、`packages/image_viewer/test/viewer_contract_test.dart`、`packages/image_viewer/example/test/component_example_test.dart`、`apps/mobile/lib/src/posts/post_images.dart`、`apps/mobile/lib/src/posts/post_media_repository.dart`、`apps/mobile/lib/src/comments/comment_views.dart`、`apps/mobile/lib/src/messaging/dm_chat_ui.dart`、`apps/mobile/test/post_media_repository_test.dart`、`apps/mobile/test/comment_runtime_test.dart`、`apps/mobile/test/dm_chat_test.dart`、`docs/design/image-viewer-component-plan.md`、`docs/design/post-image-media-contract.md`、`docs/design/modules/post-detail.md`、`docs/design/modules/comments.md`、`docs/tasks/IMG-VIEWER-PREVIEW-01.md`（新增）
+- 验证：环境 Windows 11 25H2 x64 / Flutter 3.47.5 / Dart 3.13.4，基线 `315f151`。查看器包 `flutter analyze --no-pub` PASS、`flutter test --no-pub` 148 项 PASS（新增 5 项，含预览解码失败回退）；移动端 `flutter analyze --no-pub` PASS、`flutter test --no-pub --concurrency=2` 1354 项通过／4 项跳过 PASS、`flutter build bundle --debug --no-pub` PASS；私信专项 `flutter test --no-pub test/dm_chat_test.dart` 10 项 PASS；示例 `flutter analyze --no-pub` PASS、`flutter build bundle --debug --no-pub` PASS，测试 6 项通过、2 项失败（iOS 保存门控与重试场景 `pumpAndSettle` 超时），两项已在基线查看器代码复现，非本改动回归；`git diff --check` PASS；锁定文件已恢复。
+- 真机验证（2026-11-17，Xiaomi `24129PN74C`／Android 17／API 37／arm64-v8a，`org.hnuhole.hnuhole_mobile` 1.2.0（`2026111701`）debug APK，一次性开发 C 服务）：暂停 C 后点击信息流已显示图片，查看器首帧直接显示且无加载态，保存保持禁用；失败超时显示“图片加载失败／重试加载”，恢复后重试转为可保存完整图片；暂停 C 后点击评论图片直接进入可保存状态，证明缩略图与查看器共用已记忆化 provider、未重复请求 `/original`；保存原图为 256,652 字节，与发布原图字节数一致（未做 SHA-256 比对，不能断言二进制完全一致）。私信照片、账号切换、访问撤销 `NOT_RUN`（无含图私信会话；未取得可切换账号的密码；修正项未重新装机）。截图留存于本地未提交的 `.zcode/`。
+- 产品 CI：PR #18 代码 head `7ed7419` 的 26 项检查 25 success、1 skip（`actual-process-acceptance` 按设计跳过），无 failure；`rehearsal` 首轮因 `proxy.golang.org` 下载 `golang.org/x/text@v0.21.0` 流中断失败，与本改动无关，重跑后 success；协作 CI 不代表真机或生产验收。
+- 回滚：`git revert 7ed7419847a3b53a509b70148a94aa062e0ffba4`（修正提交），再 `git revert d4c8be4faa19a25a30e470fdb4008eb66749791d`（实现提交）；两者均已随 PR #18 推送。无迁移、服务端或发布步骤。
+- 任务：`docs/tasks/IMG-VIEWER-PREVIEW-01.md`
+- 授权：用户 2026-11-17 指令“现在有一个问题，我们的页面图片明明已经加载出来了，但是直接点击图片却又要再加载一遍……你看看能不能优化成这样”；2026-11-18 指令“提pr”，已推送 `feat/image-viewer-preview` 并创建 PR #18；同日指令“修正”，授权修复审查发现的代码、测试和记录问题；未授权合并、发布或部署。
+
 ## 2026-11-16 04:24 · 加速通知列表与未读统计读取
 
 - 状态：已完成

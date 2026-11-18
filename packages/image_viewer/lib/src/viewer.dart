@@ -307,6 +307,9 @@ class _HnuImageViewerState extends State<HnuImageViewer>
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final current = c.currentItem;
+    final hasFrame = c._cache[current.id]?.frame != null;
+    final hasPreview = current.previewProvider != null;
     final saveLabel = _saveAvailability;
     final saveEnabled = saveLabel == '保存图片';
     return PopScope<void>(
@@ -408,8 +411,7 @@ class _HnuImageViewerState extends State<HnuImageViewer>
                                   c.active &&
                                       c.status != ViewerLoadStatus.ready &&
                                       (c.status == ViewerLoadStatus.failed ||
-                                          c._cache[c.currentItem.id]?.frame ==
-                                              null))
+                                          !hasFrame && !hasPreview))
                                 _feedback(c),
                             ],
                           ),

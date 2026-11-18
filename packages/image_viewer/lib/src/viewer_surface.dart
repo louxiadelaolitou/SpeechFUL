@@ -476,7 +476,32 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
                         return const SizedBox.expand();
                       }
                       if (index != selectedIndex || source == null) {
-                        if (!_c.foreground || entry == null) {
+                        final pageItem = _c.items[index];
+                        if (!_c.foreground) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (entry != null && entry.frame != null) {
+                          return _ViewerPreview(
+                            key: ValueKey(entry),
+                            entry: entry,
+                            reading: _c._reading[pageItem.id],
+                          );
+                        }
+                        final preview = pageItem.previewProvider;
+                        if (index == selectedIndex &&
+                            preview != null &&
+                            _c.status != ViewerLoadStatus.failed) {
+                          return _ViewerItemPreview(
+                            key: const ValueKey('viewer-item-preview'),
+                            provider: preview,
+                            semanticLabel:
+                                pageItem.semanticLabel ?? '第${index + 1}张图片',
+                            reading: _c._reading[pageItem.id],
+                          );
+                        }
+                        if (entry == null) {
                           return const Center(
                             child: CircularProgressIndicator(),
                           );
@@ -484,7 +509,7 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
                         return _ViewerPreview(
                           key: ValueKey(entry),
                           entry: entry,
-                          reading: _c._reading[_c.items[index].id],
+                          reading: _c._reading[pageItem.id],
                         );
                       }
                       // Capture at construction: an old stream callback must never
@@ -532,13 +557,24 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
                         ),
                         loadStateChanged: (state) {
                           if (state.extendedImageLoadState ==
-                                  LoadState.loading &&
-                              entry?.frame != null) {
-                            return _ViewerPreview(
-                              key: ValueKey(entry),
-                              entry: entry!,
-                              reading: _c._reading[item.id],
-                            );
+                              LoadState.loading) {
+                            if (entry != null && entry.frame != null) {
+                              return _ViewerPreview(
+                                key: ValueKey(entry),
+                                entry: entry,
+                                reading: _c._reading[item.id],
+                              );
+                            }
+                            final preview = item.previewProvider;
+                            if (preview != null) {
+                              return _ViewerItemPreview(
+                                key: const ValueKey('viewer-item-preview'),
+                                provider: preview,
+                                semanticLabel:
+                                    item.semanticLabel ?? '第${index + 1}张图片',
+                                reading: _c._reading[item.id],
+                              );
+                            }
                           }
                           if (state.extendedImageLoadState ==
                               LoadState.failed) {
