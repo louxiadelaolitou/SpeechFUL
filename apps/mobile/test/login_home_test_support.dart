@@ -130,11 +130,8 @@ class HomeTestFixture {
   HomeTestFixture({HomeTestPostsApi? api})
     : postApi = api ?? HomeTestPostsApi();
   final vault = IdentityTestVault();
-  final studentLetterVaults = <String, IdentityTestVault>{};
-  late final studentLetters = StudentLetterStore(
-    vaultFor: (accountId) =>
-        studentLetterVaults.putIfAbsent(accountId, IdentityTestVault.new),
-  );
+  final studentLetterVault = IdentityTestVault();
+  late final studentLetters = StudentLetterStore(studentLetterVault);
   late final store = AuthStore(vault);
   final sessionApi = _Sessions();
   final channels = _Channels();
@@ -153,8 +150,7 @@ class HomeTestFixture {
     bool studentLetterRead = true,
   }) async {
     if (studentLetterRead) {
-      await studentLetters.markRead(identityTestAccount);
-      await studentLetters.markRead(_b);
+      await studentLetters.markRead();
     }
     if (signedIn) {
       await store.update(
@@ -230,7 +226,6 @@ class HomeTestFixture {
     bool openPersonal = true,
     bool directoryPending = false,
     String? expectedChannelId,
-    bool expectStudentLetter = false,
   }) async {
     await tester.tap(find.byKey(const ValueKey('destination:home')));
     await tester.pumpAndSettle();
@@ -280,10 +275,6 @@ class HomeTestFixture {
     expect(find.byType(SettingsScreen), findsNothing);
     expect(find.byType(PersonalPostsScreen), findsNothing);
     if (directoryPending) return;
-    if (expectStudentLetter) {
-      expect(find.byType(StudentLetterDialog), findsOneWidget);
-      return;
-    }
     expect(find.byType(FeedScreen), findsOneWidget);
     expect(posts.timelineChannelId, expectedChannelId);
     if (openPersonal) {

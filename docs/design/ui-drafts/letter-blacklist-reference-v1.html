@@ -5,12 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SpeechFUL · 信件与黑名单参考</title>
   <style>
-    @font-face {
-      font-family: "Letter Serif";
-      src: url("../../../apps/mobile/assets/fonts/StudentLetterSerif.ttf") format("truetype");
-      font-display: swap;
-    }
-
     :root {
       color-scheme: light;
       --review-bg: #dfe5e8;
@@ -18,20 +12,20 @@
       --review-ink: #17232d;
       --review-muted: #697780;
       --review-line: #cbd4d9;
-      --review-accent: #34536f;
+      --review-accent: #168bda;
       --review-shadow: rgba(31, 48, 61, .14);
 
-      --app-bg: #f1f4f6;
+      --app-bg: #f1f1f3;
       --surface: #ffffff;
       --surface-raised: #ffffff;
       --surface-soft: #eef3f7;
-      --ink: #17222c;
-      --secondary: #66747f;
-      --line: #e7ecef;
-      --line-strong: #cfd8de;
-      --accent: #34536f;
-      --accent-pressed: #263f56;
-      --accent-soft: #edf3f8;
+      --ink: #1d1d1d;
+      --secondary: #757575;
+      --line: #eaeaea;
+      --line-strong: #d7d7d7;
+      --accent: #229af0;
+      --accent-pressed: #168bda;
+      --accent-soft: #ecf7fd;
       --danger: #b94b53;
       --scrim: rgba(17, 28, 37, .42);
       --status: #17222c;
@@ -45,20 +39,20 @@
       --review-ink: #f0f4f6;
       --review-muted: #9eacb5;
       --review-line: #354149;
-      --review-accent: #9ab4cb;
+      --review-accent: #64b5ef;
       --review-shadow: rgba(0, 0, 0, .28);
 
-      --app-bg: #111920;
-      --surface: #1a242d;
-      --surface-raised: #202b34;
-      --surface-soft: #24313b;
-      --ink: #f2f6f8;
-      --secondary: #a6b4be;
-      --line: #2d3942;
-      --line-strong: #43515b;
-      --accent: #8fb3d1;
-      --accent-pressed: #b1cbe0;
-      --accent-soft: #243442;
+      --app-bg: #151e27;
+      --surface: #1d2733;
+      --surface-raised: #212d3b;
+      --surface-soft: #232e3b;
+      --ink: #fafafa;
+      --secondary: #a1b2c2;
+      --line: #2b3b4b;
+      --line-strong: #3b4d5f;
+      --accent: #229af0;
+      --accent-pressed: #64b5ef;
+      --accent-soft: #314a61;
       --danger: #e0777d;
       --scrim: rgba(1, 7, 12, .64);
       --status: #f2f6f8;
@@ -123,7 +117,7 @@
       color: var(--review-surface);
       font-family: Georgia, serif;
       font-size: 20px;
-      font-weight: 700;
+      font-weight: 600;
     }
 
     .review-identity h1 {
@@ -475,11 +469,11 @@
       min-height: calc(100% + 1px);
       padding: 23px 24px 28px;
       color: var(--ink);
-      font-family: "Letter Serif", "Songti SC", SimSun, serif;
+      font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
       font-size: 16px;
       font-weight: 400;
       letter-spacing: 0;
-      line-height: 1.85;
+      line-height: 1.75;
     }
 
     .letter-body p {
@@ -488,8 +482,9 @@
 
     .letter-body .salutation {
       color: var(--ink);
-      font-size: 17px;
-      line-height: 1.7;
+      font-size: inherit;
+      font-weight: 600;
+      line-height: 1.6;
     }
 
     .letter-signature {
@@ -515,13 +510,13 @@
       align-items: center;
       justify-content: center;
       border: 0;
-      border-radius: 8px;
+      border-radius: 999px;
       background: var(--accent);
       color: #ffffff;
       cursor: pointer;
       font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 500;
       line-height: 1;
       padding: 0 18px;
       touch-action: manipulation;
@@ -529,7 +524,7 @@
     }
 
     body[data-theme="dark"] .primary-button {
-      color: #12202b;
+      color: #ffffff;
     }
 
     .primary-button:hover {

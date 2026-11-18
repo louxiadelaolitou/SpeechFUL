@@ -66,30 +66,22 @@ Future<void> _dispose(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('first home entry requires reading the letter to the end', (
+  testWidgets('signed-out first entry requires reading to the end', (
     tester,
   ) async {
     final fixture = HomeTestFixture();
-    await tester.pumpWidget(await fixture.create(studentLetterRead: false));
+    await tester.pumpWidget(
+      await fixture.create(signedIn: false, studentLetterRead: false),
+    );
     await tester.pumpAndSettle();
+
     expect(find.byKey(_dialogKey), findsOneWidget);
+    expect(find.byType(AuthWelcomeScreen), findsOneWidget);
     expect(find.text(studentLetterTitle), findsOneWidget);
     for (final paragraph in studentLetterParagraphs) {
       expect(find.text(paragraph), findsOneWidget);
     }
     expect(find.text(studentLetterSignature), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('student-letter-progress')),
-      findsOneWidget,
-    );
-    expect(
-      tester
-          .widget<AnimatedOpacity>(
-            find.byKey(const ValueKey('student-letter-scroll-cue')),
-          )
-          .opacity,
-      1,
-    );
     expect(find.byKey(_buttonKey).hitTestable(), findsNothing);
     expect(
       tester.widget<FilledButton>(find.byKey(_buttonKey)).onPressed,
@@ -98,176 +90,142 @@ void main() {
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('我已阅读'), findsNothing);
     semantics.dispose();
+
+    final dialog = tester.widget<Dialog>(find.byKey(_dialogKey));
+    expect(dialog.backgroundColor, HhTelegramPalette.light.raised);
+    final accent = tester.widget<Container>(
+      find.byKey(const ValueKey('student-letter-accent')),
+    );
+    expect(
+      (accent.decoration! as BoxDecoration).color,
+      HhTelegramPalette.light.action,
+    );
+    expect(
+      tester
+          .widget<ColoredBox>(
+            find.byKey(const ValueKey('student-letter-progress-fill')),
+          )
+          .color,
+      HhTelegramPalette.light.action,
+    );
+    final body = tester.widget<DefaultTextStyle>(
+      find.byKey(const ValueKey('student-letter-body')),
+    );
+    expect(body.style.fontFamily, 'Roboto');
+    expect(body.style.fontFamilyFallback, contains('HhNotoSansSC'));
+
     await tester.tapAt(const Offset(2, 2));
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.byKey(_dialogKey), findsOneWidget);
-    expect(await fixture.studentLetters.hasRead(identityTestAccount), isFalse);
-    expect(find.byType(FeedScreen, skipOffstage: false), findsOneWidget);
+    expect(await fixture.studentLetters.hasRead(), isFalse);
+
     await _acknowledge(tester);
-    expect(await fixture.studentLetters.hasRead(identityTestAccount), isTrue);
-    expect(find.byType(FeedScreen), findsOneWidget);
+    expect(await fixture.studentLetters.hasRead(), isTrue);
+    expect(find.byType(AuthWelcomeScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('auth-start')), findsOneWidget);
     await _dispose(tester);
   });
 
-  testWidgets('accounts on one installation each acknowledge once', (
+  testWidgets('signed-in entry never shows the letter', (tester) async {
+    final fixture = HomeTestFixture();
+    await tester.pumpWidget(
+      await fixture.create(signedIn: true, studentLetterRead: false),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(_dialogKey), findsNothing);
+    expect(find.byType(FeedScreen), findsOneWidget);
+    expect(await fixture.studentLetters.hasRead(), isFalse);
+
+    await tester.tap(find.byKey(const ValueKey('feed-account')));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey('settings-list')),
+      const Offset(0, -1000),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-student-letter')), findsNothing);
+    expect(find.text('致同学的一封信'), findsNothing);
+    await _dispose(tester);
+  });
+
+  testWidgets('restoring a session stays closed until signed out is final', (
     tester,
   ) async {
     final fixture = HomeTestFixture();
-    await tester.pumpWidget(await fixture.create(studentLetterRead: false));
-    await tester.pumpAndSettle();
-    await _acknowledge(tester);
-    await fixture.loginB(
-      tester,
-      openPersonal: false,
-      expectStudentLetter: true,
+    final hold = Completer<void>();
+    fixture.vault.nextReadWait = hold;
+    await tester.pumpWidget(
+      await fixture.create(signedIn: false, studentLetterRead: false),
     );
-    const b = '00000000-0000-0000-0000-000000000002';
-    expect(await fixture.studentLetters.hasRead(b), isFalse);
-    await _acknowledge(tester);
-    await fixture.loginB(
-      tester,
-      account: identityTestAccount,
-      name: '账号A的身份',
-      openPersonal: false,
-    );
+    await tester.pump();
+
+    expect(fixture.sessions.status, AuthStatus.restoring);
     expect(find.byKey(_dialogKey), findsNothing);
-    expect(await fixture.studentLetters.hasRead(b), isTrue);
+
+    hold.complete();
+    await tester.pumpAndSettle();
+    expect(fixture.sessions.status, AuthStatus.signedOut);
+    expect(find.byKey(_dialogKey), findsOneWidget);
     await _dispose(tester);
   });
 
   testWidgets(
-    'relaunch remembers reading; a fresh installation presents again',
+    'one installation acknowledges once; a new installation repeats',
     (tester) async {
       final first = HomeTestFixture();
-      await tester.pumpWidget(await first.create(studentLetterRead: false));
+      await tester.pumpWidget(
+        await first.create(signedIn: false, studentLetterRead: false),
+      );
       await tester.pumpAndSettle();
       await _acknowledge(tester);
+      final receipt = first.studentLetterVault.value;
+      expect(receipt, isNotNull);
       await _dispose(tester);
 
-      final restarted = HomeTestFixture()
-        ..studentLetterVaults.addAll(first.studentLetterVaults);
-      await tester.pumpWidget(await restarted.create(studentLetterRead: false));
+      final restarted = HomeTestFixture()..studentLetterVault.value = receipt;
+      await tester.pumpWidget(
+        await restarted.create(signedIn: false, studentLetterRead: false),
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(_dialogKey), findsNothing);
-      expect(find.byType(FeedScreen), findsOneWidget);
+      expect(find.byType(AuthWelcomeScreen), findsOneWidget);
       await _dispose(tester);
 
-      final newDevice = HomeTestFixture();
-      await tester.pumpWidget(await newDevice.create(studentLetterRead: false));
+      final newInstallation = HomeTestFixture();
+      await tester.pumpWidget(
+        await newInstallation.create(signedIn: false, studentLetterRead: false),
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(_dialogKey), findsOneWidget);
       await _dispose(tester);
     },
   );
-
-  testWidgets('interruption and authorization loss never acknowledge reading', (
-    tester,
-  ) async {
-    final fixture = HomeTestFixture();
-    await tester.pumpWidget(await fixture.create(studentLetterRead: false));
-    await tester.pumpAndSettle();
-    await _read(tester);
-    await fixture.sessions.logout();
-    await tester.pumpAndSettle();
-    expect(find.byKey(_dialogKey), findsNothing);
-    expect(find.byType(AuthWelcomeScreen), findsOneWidget);
-    expect(await fixture.studentLetters.hasRead(identityTestAccount), isFalse);
-    await _dispose(tester);
-
-    final restarted = HomeTestFixture()
-      ..studentLetterVaults.addAll(fixture.studentLetterVaults);
-    await tester.pumpWidget(await restarted.create(studentLetterRead: false));
-    await tester.pumpAndSettle();
-    expect(find.byKey(_dialogKey), findsOneWidget);
-    await _dispose(tester);
-  });
 
   testWidgets(
     'save failure keeps the letter open and retry persists the receipt',
     (tester) async {
       final fixture = HomeTestFixture();
-      await tester.pumpWidget(await fixture.create(studentLetterRead: false));
+      await tester.pumpWidget(
+        await fixture.create(signedIn: false, studentLetterRead: false),
+      );
       await tester.pumpAndSettle();
-      fixture.studentLetterVaults[identityTestAccount]!.failContaining =
-          'student-letter';
+      fixture.studentLetterVault.failContaining = 'student-letter';
       await _read(tester);
       await tester.tap(find.byKey(_buttonKey));
       await tester.pumpAndSettle();
       expect(find.text('阅读记录未保存，请重试。'), findsOneWidget);
-      expect(
-        await fixture.studentLetters.hasRead(identityTestAccount),
-        isFalse,
-      );
-      await _acknowledge(tester);
-      expect(await fixture.studentLetters.hasRead(identityTestAccount), isTrue);
-      await _dispose(tester);
-    },
-  );
+      expect(find.byKey(_dialogKey), findsOneWidget);
+      expect(await fixture.studentLetters.hasRead(), isFalse);
 
-  testWidgets(
-    'the letter waits for initial identity setup and supports rereading',
-    (tester) async {
-      final fixture = HomeTestFixture();
-      await tester.pumpWidget(
-        await fixture.create(studentLetterRead: false, zeroIdentities: true),
-      );
+      await tester.tap(find.byKey(_buttonKey));
       await tester.pumpAndSettle();
       expect(find.byKey(_dialogKey), findsNothing);
-      await tester.enterText(
-        find.byKey(const ValueKey('identity-nickname')),
-        '我的身份',
-      );
-      await tester.ensureVisible(find.byKey(const ValueKey('identity-save')));
-      await tester.tap(find.byKey(const ValueKey('identity-save')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(_dialogKey), findsOneWidget);
-      await _acknowledge(tester);
-      final receipt = fixture.studentLetterVaults[identityTestAccount]!.value;
-      await tester.tap(find.byKey(const ValueKey('feed-account')));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('settings-student-letter')),
-        100,
-        scrollable: find.descendant(
-          of: find.byKey(const ValueKey('settings-list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(find.byKey(const ValueKey('settings-student-letter')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(_buttonKey).hitTestable(), findsNothing);
-      await _acknowledge(tester);
-      expect(fixture.studentLetterVaults[identityTestAccount]!.value, receipt);
+      expect(await fixture.studentLetters.hasRead(), isTrue);
       await _dispose(tester);
     },
   );
-
-  testWidgets('a delayed receipt cannot release a replacement account', (
-    tester,
-  ) async {
-    final read = Completer<bool>();
-    final store = _DelayedStore(read.future);
-    var readyA = 0, readyB = 0;
-    Widget app(String account) => MaterialApp(
-      home: StudentLetterGate(
-        key: ValueKey(account),
-        accountId: account,
-        store: store,
-        onReady: () => account == 'A' ? readyA++ : readyB++,
-        child: const Scaffold(body: Text('首页')),
-      ),
-    );
-    await tester.pumpWidget(app('A'));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(app('B'));
-    await tester.pumpAndSettle();
-    read.complete(true);
-    await tester.pumpAndSettle();
-    expect(readyA, 0);
-    expect(readyB, 1);
-    await _dispose(tester);
-  });
 
   final render = Platform.environment['STUDENT_LETTER_RENDER_DIR'];
   for (final scenario in const [
@@ -283,7 +241,6 @@ void main() {
           for (final entry in {
             'Roboto': ['assets/fonts/Roboto-Regular.ttf'],
             'HhNotoSansSC': ['assets/fonts/NotoSansSC-Variable.ttf'],
-            'StudentLetterSerif': ['assets/fonts/StudentLetterSerif.ttf'],
             'MaterialIcons': ['fonts/MaterialIcons-Regular.otf'],
           }.entries) {
             final loader = FontLoader(entry.key);
@@ -302,6 +259,7 @@ void main() {
       final presentation = AuthPresentationController()
         ..setLanguage(scenario.$4);
       final boundaryKey = GlobalKey();
+      final store = StudentLetterStore(IdentityTestVault());
       await tester.pumpWidget(
         RepaintBoundary(
           key: boundaryKey,
@@ -322,18 +280,13 @@ void main() {
                 child: child!,
               ),
             ),
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: TextButton(
-                  onPressed: () => unawaited(showStudentLetter(context)),
-                  child: const Text('open'),
-                ),
-              ),
+            home: StudentLetterGate(
+              store: store,
+              child: const Scaffold(body: Text('entry')),
             ),
           ),
         ),
       );
-      await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(
         find.text(translateUi(studentLetterTitle, scenario.$4)),
@@ -343,6 +296,17 @@ void main() {
       expect(
         tester.state<ScrollableState>(_scroll).position.maxScrollExtent,
         greaterThan(0),
+      );
+      final colors = scenario.$3 == Brightness.dark
+          ? HhTelegramPalette.dark
+          : HhTelegramPalette.light;
+      expect(
+        tester
+            .widget<ColoredBox>(
+              find.byKey(const ValueKey('student-letter-progress-fill')),
+            )
+            .color,
+        colors.action,
       );
       Future<void> capture(String suffix) async {
         if (render == null) return;
@@ -375,11 +339,4 @@ void main() {
       presentation.dispose();
     });
   }
-}
-
-class _DelayedStore extends StudentLetterStore {
-  _DelayedStore(this.result) : super(vaultFor: (_) => IdentityTestVault());
-  final Future<bool> result;
-  @override
-  Future<bool> hasRead(String accountId) => result;
 }

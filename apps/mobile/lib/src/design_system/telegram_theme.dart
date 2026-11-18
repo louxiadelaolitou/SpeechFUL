@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'motion_routes.dart';
 
-/// Slate action confirmed for the student letter and blacklist surfaces.
+/// Slate action used by blacklist surfaces.
 Color hhQuietAction(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
     ? const Color(0xFF8FB3D1)
@@ -164,9 +164,6 @@ abstract final class HhTelegramTheme {
       yield LicenseEntryWithLineBreaks([
         'Noto Sans SC',
       ], await rootBundle.loadString('assets/fonts/OFL-NotoSansSC.txt'));
-      yield LicenseEntryWithLineBreaks([
-        'SpeechFUL Letter Serif (Noto Serif SC subset)',
-      ], await rootBundle.loadString('assets/fonts/OFL-NotoSerifSC.txt'));
     });
   }
 

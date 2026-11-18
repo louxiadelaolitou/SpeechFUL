@@ -1,15 +1,15 @@
 # LETTER-TO-STUDENTS-20261116 - 致同学的一封信
 
 - 模式：常规；负责人／状态维护人：当前 Session。
-- 分支／Worktree／PR：`codex/feat/letter-to-students`；`E:/code_collection/java_code/SpeechFUL.git`；统一 PR [#8](https://github.com/zewbby/SpeechFUL-Develop/pull/8)，同时交付黑名单重做。最初实现基线为开发仓库 `zewbby/SpeechFUL-Develop` 的 `main@1d829b2`；2026-11-17 交付前合并最新 `main@fed946b`，该仓库当前为公开仓库。
-- 授权依据与边界：用户要求“新建分支，制作《致同学的一封信》，进行文案编写 & 弹窗实现，完成之后进行pr，第一步是写文案”，后续确认弹窗交互。覆盖本任务开发、验证、提交、推送及向当前开发仓库 `zewbby/SpeechFUL-Develop` 创建 PR；合并、发布未执行。2026-11-16 GitHub API 核对该仓库当前为公开，名称与现有 `develop` 远端一致。
-- 需求确认：以用户随后提供的全文为当前文案，保留措辞、段落与“SpeechFUL项目组”署名。用户确认每个账号首次登录新设备进入首页时自动展示；关闭按钮为“我已阅读”，位于正文最下方，必须滑动到底部后才能看到并使用。阅读状态按账号和本机安装实例保存；设置保留重读入口。2026-11-17 用户明确“可以可以就按这样来写吧，就按这样来改动，然后PR”，确认 [信件与黑名单视觉参考](../../design/ui-drafts/letter-blacklist-reference-v1.html) 及本轮改版，不改变首次阅读、持久化、文案或接口语义。无未决取舍。
+- 分支／Worktree／PR：`codex/fix/guest-letter-entry`；`E:/code_collection/java_code/SpeechFUL.git`；基于 `develop/main@315f1513f9362013956676234cd6ef40c1d234b5`；本轮 PR [#19](https://github.com/zewbby/SpeechFUL-Develop/pull/19)。此前统一 PR [#8](https://github.com/zewbby/SpeechFUL-Develop/pull/8) 已合并，其登录首页按账号展示方案由本轮取代。
+- 授权依据与边界：用户要求调整弹窗主题、仅未登录展示、移除设置入口，并重新创建 PR。覆盖本任务开发、验证、提交、推送和 PR；合并、发布未授权。
+- 需求确认：2026-11-17 用户明确要求弹窗使用 App 现有蓝色主题，按钮、组件和字体与 App 一致；仅在未登录状态弹出；移除侧滑设置中的入口。此前确认的文案、“我已阅读”按钮及正文滚动到底后才能确认保持不变。
 - 更新日期：2026-11-17。
-- 状态：实现已完成（视觉改版 `710bc73`）；本机聚焦验证 PASS，统一 PR CI 以 #8 最新 head 为准；合并未合并；发布未发布。
+- 状态：实现与本机聚焦验证完成；PR #19 已创建，产品 CI 以 PR 当前 head 为准；原生设备及生产验收未运行。
 
 ## 目标与范围
 
-在登录后首页展示《致同学的一封信》，完成按账号和本机安装实例记录的首次弹窗、确认后的交互、验证及 PR。
+在未登录欢迎页首次展示《致同学的一封信》。已登录首页不展示；同一安装阅读一次后不再自动展示，新安装重新展示。设置中不提供重读入口。
 
 ## 文案
 
@@ -31,39 +31,38 @@ SpeechFUL项目组
 
 ## 接口与依赖
 
-现有移动端使用 Flutter，登录和目录就绪后完成身份初始化，再进入首页。信件通过同一根 Navigator 展示，分享链接及私信通知在首次阅读完成后继续导航。设置侧栏提供重读入口。
-
-阅读记录使用已有 `FlutterAuthVault`，独立命名空间按环境及账号派生，Android 排除备份，iOS 使用本机 Keychain 及安装标记。确认后写入并读回核对；退出保留本机记录，新安装／另一设备分别读取自身记录。未新增认证字段、API、数据库迁移或公共身份关联。
-
-正文使用随包宋体子集（130,532 bytes），来源、许可证及重建命令见 `apps/mobile/assets/fonts/StudentLetterSerif-SOURCE.md`。标题 20、正文 16／1.85 行高、段距 20；左对齐正文、右对齐署名，按钮位于同一滚动内容末尾。沿用现有明暗主题，8px 弹窗圆角。用户已明确实现，本轮直接使用真实 Flutter 渲染检查，不另建生成图审批流程。采用 frontend-design、hnuhole-ui-craft 及 ui-ux-pro-max 的排版／触控／大字原则；本地检索返回 Flutter 3.44 的语义及 TextScaler 通用建议，实际使用与验证版本为 3.47.5。
+- 根组件只在 `AuthStatus.signedOut` 时把 `EntryScreen` 包进 `StudentLetterGate`；`starting`、`restoring`、`authenticated`、`unavailable` 等状态不挂载信件。
+- 阅读回执使用 `FlutterAuthVault` 的独立本机命名空间，只由环境派生，不再按账号派生。确认后写入并读回核对；同一安装退出、登录或切换账号都不会改变该回执。
+- 弹窗正文与标题使用 App 现有 `TextTheme` 和字体回退；主色、阅读进度和按钮使用 `HhTelegramPalette.action`（`#229AF0`）及现有 `FilledButtonTheme`。旧宋体子集、许可证、来源文档和生成工具已移除。
+- 设置页不再引用或展示 `settings-student-letter`。分享链接与私信通知不再等待信件阅读完成。
 
 ## 验收标准
 
-- 弹窗标题、正文和署名与上述文案一致，段落清楚，全文可阅读。
-- 每个账号在新设备首次进入首页自动展示；同一设备退出重登后不重复展示；切换账号分别判断。
-- 正文必须滚动到底部后才能使用“我已阅读”；确认结果持久保存，保存失败时弹窗保持打开并允许重试。
-- 设置中可重新打开信件；重读入口不改变已保存的首次阅读状态。
-- 完成受影响模块验证及适用产品 CI 后交付 PR。
+- 未登录首次进入欢迎页时自动展示信件；已登录任何状态均不展示。
+- 会话恢复期间不展示，确认最终为未登录后才展示。
+- “我已阅读”在正文第一屏不可见、不可触达；正文滚动到底后出现并可点击。
+- 点击后保存安装级回执并关闭弹窗，欢迎页保留；保存失败时弹窗保持打开并允许重试。
+- 同一安装不再重复展示，新安装重新展示；设置中找不到信件入口。
+- 明暗主题、蓝色按钮、App 字体、小屏大字号和横屏无溢出或遮挡。
 
-## 当前进度与证据
+## 验证证据
 
 | 项目 | 被测版本／环境 | 结果与证据 |
 | --- | --- | --- |
-| 分支与现状 | 实现 `4067ae9db5635580ffbdc883d0011d368d210db4`；PR #8；Windows | PASS：任务分支已推送，PR 基于 `main@1d829b2623a6c32830ee1b74fae6c99a436ad3b3` 创建，当前 open、mergeable。 |
-| 文案 | 用户本轮消息 | 已记录用户全文。 |
-| 交互 | 用户 2026-11-16 确认 | 已确认首次展示、按钮文案、滚动门槛、账号／设备范围。 |
-| 产品实现 | `4067ae9db5635580ffbdc883d0011d368d210db4` | 已完成：首次阅读、账号＋本机安装记录、底部阅读按钮、设置重读及中／繁／英／日文；无 API／schema 变更。 |
-| Flutter 关联验证 | 同基线＋本任务差异；Windows／Flutter 3.47.5／Dart 3.13.4 | PASS：72 项（信件、登录首页、设置、本地化、外观和私信运行时），另 39 项（信件及导航、身份、通知、个人页和社区翻译）；两组有重叠，不合计为独立项。`flutter analyze --no-pub` 无问题。 |
-| 协作验证 | 同基线＋本任务差异；`python -B -X utf8 -m unittest discover -s tools/tests -p test_collaboration.py -v`、`git diff --check` | PASS：协作回归 19 项；差异空白检查通过。 |
-| 真实渲染 | `apps/mobile/build/student-letter-render/` | PASS：375×812、320×640／2 倍字深色、812×375 横屏、768×1024 繁体及日文共 10 张首末状态。实际查看中文首末、小屏大字暗色末尾及英文横屏末尾；随包宋体子集解决系统字体回退黑块。按钮首次不可触达，到底后可见且高度 ≥48；减少动画已覆盖。 |
-| 视觉改版 | `710bc7357b5635032cce518701cbbf68d86a1e44`；Flutter 3.47.5；Windows | PASS：用户确认稿已落地为 90% 高度阅读卡、标题侧标／分隔线、阅读进度轨、右下滚动提示和深灰蓝确认按钮；确认前仍不可触达。重新生成并查看 10 张首末状态截图，中文按钮与图标字体正常，2 倍字滚动提示不再压住正文。 |
-| 视觉改版回归 | 同上；Windows／Flutter 3.47.5／Dart 3.13.4 | PASS：`flutter analyze --no-pub` 无问题；信件、黑名单、Feed、设置、本地化和读屏聚焦测试共 74 项通过；协作规则 19 项通过。 |
-| 最新 main 同步 | 合并提交 `b6a1f5a`；`develop/main@fed946b` | PASS：自动合并无冲突；合入后重新执行 `flutter analyze --no-pub` 无问题，同一组 74 项 Flutter 聚焦测试及 19 项协作回归通过。 |
-| PR 产品 CI | PR #8 head `4067ae9db5635580ffbdc883d0011d368d210db4`；GitHub Actions | PASS：所有非跳过检查成功，`actual-process-acceptance` SKIPPED。包括 `flutter-and-android`、`flutter-and-real-feed`、`flutter-auth-regression`、`avatar-flutter`、`client`、`compile`、`candidate`、`rehearsal` 及服务端检查。 |
-| 黑名单合并交付 | 合并提交 `81971208d0eb7599a9d9851cd2c3ec098e038316`＋任务记录更新；Windows／Flutter 3.47.5 | PASS：`flutter analyze --no-pub` 无问题；信件、黑名单及 Feed UI 聚焦测试共 60 项通过。统一 PR #8 的最终 head CI 以 PR 实时状态为准。 |
-| Android bundle | 本机 `flutter build bundle --debug --no-pub`；PR #8 CI | BLOCKED（仅本机）：宿主缺少 Android SDK。PR 的 `flutter-and-android` 已 PASS，目标平台构建缺口已由 CI 覆盖。 |
-| 原生设备／生产 | 本轮宿主验证 | NOT_RUN；宿主存储替身不代证原生跨进程／真机／生产验收。 |
+| 分支基线 | `develop/main@315f1513f9362013956676234cd6ef40c1d234b5`；Windows | PASS：`codex/fix/guest-letter-entry` 工作区基于该提交，未改动旧 PR。 |
+| PR 创建 | 实现提交 `b97f9bd9fe7c956777e37954ce53f4fba9dd04be` | PASS：开发仓库 PR #19 已创建，open、mergeable；最终 head 与 CI 以 PR 实时状态为准。 |
+| 静态检查 | 本轮差异；Windows／Flutter 3.47.5／Dart 3.13.4 | PASS：`flutter analyze --no-pub` 输出 `No issues found!`。 |
+| 信件聚焦测试 | 同上；`test/student_letter_test.dart` | PASS：10 项，覆盖未登录首次展示、登录不展示、恢复期不展示、滚动门槛、安装级回执、新安装重展示、保存失败重试及 5 组明暗／语言／尺寸。 |
+| 关联回归 | 同上；登录、身份、导航、私信运行时及主题集成 | PASS：42 项通过。 |
+| 渲染检查 | 本轮差异；`apps/mobile/build/student-letter-render/` | PASS：5 组场景共 10 张首末截图；实际查看中文明暗主题及 2 倍字暗色末尾，蓝色强调、App 字体、按钮与滚动闸门正常。 |
+| 协作检查 | 本轮暂存差异 | PASS：`git diff --cached --check` 无问题，`python tools/check-collaboration.py --staged` 通过。 |
+| PR 产品 CI | PR #19；GitHub Actions | RUNNING：创建后首次汇总中多数检查 queued，`actual-process-acceptance` skipped；最终结论以 PR 当前 head 为准。 |
+| 原生设备／生产 | 本轮宿主验证 | NOT_RUN：宿主存储替身与组件截图不证明原生存储、真机或生产验收。 |
 
-## 阻碍与下一步
+## 历史说明
 
-仓库要求的 `grill-with-docs` 及其依赖未在本地找到，已说明并通过用户明确答复收敛交互。实现、本机验证、推送和 PR 产品 CI 已完成；PR #8 等待审查。合并与发布未获授权，原生设备／生产验收继续保持 NOT_RUN。
+旧方案曾在登录首页按账号＋安装实例展示，并允许从设置重读；对应 PR #8 已合并。本轮将其改为未登录安装级展示，旧行为不再作为当前验收依据。
+
+## 下一步
+
+等待 PR #19 的当前 head CI 完成并接受审查。合并与发布等待明确授权。

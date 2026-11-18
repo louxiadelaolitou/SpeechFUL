@@ -3,19 +3,16 @@ import 'package:flutter/material.dart';
 import 'student_letter_dialog.dart';
 import 'student_letter_store.dart';
 
-/// Mounted after initial identity setup, keyed to the root's authority window.
+/// Blocks the signed-out entry screen until this installation acknowledges the
+/// letter. Authenticated routes do not mount this gate.
 class StudentLetterGate extends StatefulWidget {
   const StudentLetterGate({
     super.key,
-    required this.accountId,
     required this.store,
-    required this.onReady,
     required this.child,
   });
 
-  final String accountId;
   final StudentLetterStore store;
-  final VoidCallback onReady;
   final Widget child;
 
   @override
@@ -35,7 +32,7 @@ class _StudentLetterGateState extends State<StudentLetterGate> {
   Future<void> _load() async {
     var read = false;
     try {
-      read = await widget.store.hasRead(widget.accountId);
+      read = await widget.store.hasRead();
     } catch (_) {
       // A missing/unreadable receipt leaves this letter unread.
     }
@@ -44,9 +41,7 @@ class _StudentLetterGateState extends State<StudentLetterGate> {
       _checked = true;
       _ready = read;
     });
-    if (read) {
-      widget.onReady();
-    } else {
+    if (!read) {
       _schedule();
     }
   }
@@ -68,14 +63,13 @@ class _StudentLetterGateState extends State<StudentLetterGate> {
           ModalRoute.isCurrentOf(context) != true) {
         return;
       }
-      final account = widget.accountId;
       var acknowledged = false;
       final route = DialogRoute<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => StudentLetterDialog(
           onRead: () async {
-            await widget.store.markRead(account);
+            await widget.store.markRead();
             acknowledged = true;
           },
         ),
@@ -89,7 +83,6 @@ class _StudentLetterGateState extends State<StudentLetterGate> {
         return;
       }
       setState(() => _ready = true);
-      widget.onReady();
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }

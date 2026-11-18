@@ -43,7 +43,6 @@ flutter:
     - assets/fonts/LICENSE-Roboto.txt
     - assets/fonts/NOTICE-Roboto.txt
     - assets/fonts/OFL-NotoSansSC.txt
-    - assets/fonts/OFL-NotoSerifSC.txt
   fonts:
     - family: Roboto
       fonts:
@@ -56,9 +55,6 @@ flutter:
     - family: HhNotoSansSC
       fonts:
         - asset: assets/fonts/NotoSansSC-Variable.ttf
-    - family: StudentLetterSerif
-      fonts:
-        - asset: assets/fonts/StudentLetterSerif.ttf
 
 # Linux 实盘测试使用现成系统库；Android/iOS 仍打包官方校验的 SQLite。
 hooks:

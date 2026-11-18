@@ -5,12 +5,6 @@ import '../design_system/telegram_theme.dart';
 import '../localization/app_localizations.dart';
 import '../localization/translations_student_letter.dart';
 
-Future<void> showStudentLetter(BuildContext context) => showDialog<void>(
-  context: context,
-  barrierDismissible: false,
-  builder: (_) => const StudentLetterDialog(),
-);
-
 class StudentLetterDialog extends StatefulWidget {
   const StudentLetterDialog({super.key, this.onRead});
 
@@ -65,21 +59,15 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
   @override
   Widget build(BuildContext context) {
     final p = HhTelegramPalette.of(context);
-    final action = hhQuietAction(context);
-    final onAction = hhOnQuietAction(context);
     final motion = HhMotion.duration(context, HhMotion.quick);
-    final buttonTextStyle =
-        (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-        );
+    final text = Theme.of(context).textTheme;
     return PopScope(
       canPop: false,
       child: Dialog(
         key: const ValueKey('student-letter-dialog'),
         insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
         constraints: const BoxConstraints(maxWidth: 560),
-        backgroundColor: p.surface,
+        backgroundColor: p.raised,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         clipBehavior: Clip.antiAlias,
@@ -91,7 +79,7 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
             children: [
               _LetterHeader(
                 title: hhText(context, studentLetterTitle),
-                accent: action,
+                accent: p.action,
                 line: p.line,
               ),
               Expanded(
@@ -122,16 +110,17 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
                                           28,
                                         ),
                                         child: DefaultTextStyle(
-                                          style: TextStyle(
-                                            color: p.ink,
-                                            fontFamily: 'StudentLetterSerif',
-                                            fontFamilyFallback: const [
-                                              'HhNotoSansSC',
-                                            ],
-                                            fontSize: 16,
-                                            height: 1.85,
-                                            letterSpacing: 0,
+                                          key: const ValueKey(
+                                            'student-letter-body',
                                           ),
+                                          style:
+                                              (text.bodyLarge ??
+                                                      const TextStyle())
+                                                  .copyWith(
+                                                    color: p.ink,
+                                                    height: 1.75,
+                                                    letterSpacing: 0,
+                                                  ),
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.stretch,
@@ -154,10 +143,11 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
                                                       studentLetterParagraphs[index],
                                                     ),
                                                     style: index == 0
-                                                        ? const TextStyle(
-                                                            fontSize: 17,
-                                                            height: 1.7,
-                                                          )
+                                                        ? (text.titleMedium ??
+                                                                  const TextStyle())
+                                                              .copyWith(
+                                                                height: 1.6,
+                                                              )
                                                         : null,
                                                   ),
                                                 ),
@@ -216,22 +206,6 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
                                                   : _acknowledge,
                                               style: FilledButton.styleFrom(
                                                 minimumSize: const Size(0, 52),
-                                                padding: const EdgeInsets.all(
-                                                  16,
-                                                ),
-                                                backgroundColor: action,
-                                                foregroundColor: onAction,
-                                                disabledBackgroundColor: action
-                                                    .withValues(alpha: .45),
-                                                disabledForegroundColor:
-                                                    onAction.withValues(
-                                                      alpha: .72,
-                                                    ),
-                                                textStyle: buttonTextStyle,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
                                               ),
                                               child: Text(
                                                 hhText(context, '我已阅读'),
@@ -266,7 +240,12 @@ class _StudentLetterDialogState extends State<StudentLetterDialog> {
                                 child: FractionallySizedBox(
                                   heightFactor: _readingProgress,
                                   widthFactor: 1,
-                                  child: ColoredBox(color: action),
+                                  child: ColoredBox(
+                                    key: const ValueKey(
+                                      'student-letter-progress-fill',
+                                    ),
+                                    color: p.action,
+                                  ),
                                 ),
                               ),
                             ],
@@ -341,6 +320,7 @@ class _LetterHeader extends StatelessWidget {
           top: 0,
           left: -24,
           child: Container(
+            key: const ValueKey('student-letter-accent'),
             width: 3,
             height: 24,
             decoration: BoxDecoration(
@@ -355,11 +335,9 @@ class _LetterHeader extends StatelessWidget {
           headingLevel: 1,
           child: Text(
             title,
-            style: TextStyle(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: HhTelegramPalette.of(context).ink,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
+              fontWeight: FontWeight.w600,
               letterSpacing: 0,
             ),
           ),

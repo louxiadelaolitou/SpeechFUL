@@ -9,7 +9,6 @@ import '../design_system/telegram_theme.dart';
 import '../design_system/motion.dart';
 import '../design_system/motion_routes.dart';
 import '../localization/app_localizations.dart';
-import '../onboarding/student_letter_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -118,12 +117,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Icons.chat_bubble_outline_rounded,
         '意见反馈',
         () => _open(const _FeedbackSettings()),
-      ),
-      _SettingEntry(
-        'student-letter',
-        Icons.mail_outline,
-        '致同学的一封信',
-        () => unawaited(showStudentLetter(context)),
       ),
       _SettingEntry(
         'support',
