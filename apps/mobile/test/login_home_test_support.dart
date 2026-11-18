@@ -7,12 +7,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_auth_passkey/hnuhole_auth_passkey.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/main.dart' as app;
+import 'package:hnuhole_mobile/src/design_system/motion.dart';
 
 import 'feed_ui_test.dart' as feed;
 import 'identity_test_support.dart';
 
 const _b = '00000000-0000-0000-0000-000000000002';
 const _channel = '00000000-0000-0000-0000-000000000001';
+
+Future<void> openSettingsFromHome(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('feed-account')));
+  await tester.pump();
+  final settings = find.byKey(const ValueKey('profile-settings')).hitTestable();
+  expect(settings, findsOneWidget);
+  await tester.tap(settings);
+  await tester.pump();
+  // My may still have an indeterminate loading animation until the route covers it.
+  await tester.pump(HhMotion.pageSlide);
+  await tester.pumpAndSettle();
+  expect(find.byType(SettingsScreen), findsOneWidget);
+}
 
 class _Sessions extends IdentityTestSessionApi {
   int logins = 0;
@@ -229,8 +243,7 @@ class HomeTestFixture {
   }) async {
     await tester.tap(find.byKey(const ValueKey('destination:home')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('feed-account')));
-    await tester.pumpAndSettle();
+    await openSettingsFromHome(tester);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('settings-logout')),
       100,
@@ -240,8 +253,10 @@ class HomeTestFixture {
       ),
     );
     expect(find.byKey(const ValueKey('settings-account')), findsNothing);
-    expect(find.text('账号与安全'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('settings-logout')));
+    final logout = find.byKey(const ValueKey('settings-logout'));
+    await tester.ensureVisible(logout);
+    await tester.pump();
+    await tester.tap(logout.hitTestable());
     await tester.pumpAndSettle();
     expect(sessions.isAuthenticated, isTrue);
     await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));

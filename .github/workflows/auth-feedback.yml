@@ -12,8 +12,13 @@ on:
       - 'services/api/internal/authprivacyhttp/**'
       - 'services/api/internal/authprivacyruntime/**'
       - 'services/api/migrations/*password_login*'
+      - 'services/api/migrations/*password_change*'
       - 'services/api/internal/authprivacy/password_login*'
       - 'services/api/internal/authprivacy/community_sessions.go'
+      - 'services/api/internal/authprivacy/community_email_reset.go'
+      - 'services/api/internal/authprivacy/community_recovery.go'
+      - 'services/api/internal/authprivacy/email_reset_test.go'
+      - 'services/api/internal/authprivacy/protocol/email_reset.go'
       - 'services/api/verifier-migrations/*captcha*'
       - 'services/api/go.*'
       - 'infra/postgres/grant-*.sql'
@@ -97,7 +102,7 @@ jobs:
       - name: Original signup results, late commit fence and email recovery in private PostgreSQL
         working-directory: services/api
         env:
-          AUTHLAB_EMAIL_TEST_PATTERN: '^Test(SignupResult|EmailResetPasswordAndPausedCredentials|EmailLogin|PasswordLogin|PrivacySchemaPartyBoundary|PrivacySeededPartyRows)'
+          AUTHLAB_EMAIL_TEST_PATTERN: '^Test(SignupResult|EmailResetPasswordAndPausedCredentials|EmailLogin|PasswordLogin|PasswordChange|PrivacySchemaPartyBoundary|PrivacySeededPartyRows)'
           AUTHLAB_EMAIL_HTTP_TEST_PATTERN: '^Test(HTTPSPostgresEligibilityAndSignup|CaptchaHTTPSPostgres)$'
           AUTHLAB_EMAIL_RUNTIME_TEST_PATTERN: '^TestPasswordLogin.*Postgres$'
         run: sh authlab/run-email-login-isolated.sh

@@ -55,45 +55,46 @@ void main() {
     },
   );
 
-  testWidgets(
-    'settings exposes identity, devices and logout without account security',
-    (tester) async {
-      var identity = 0, security = 0, logout = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: SettingsScreen(
-            onManageIdentity: () => identity++,
-            onManageSecurity: () => security++,
-            onLogout: () => logout++,
-          ),
+  testWidgets('settings exposes identity, devices and confirmed logout', (
+    tester,
+  ) async {
+    var identity = 0, security = 0, logout = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsScreen(
+          onManageIdentity: () => identity++,
+          onManageSecurity: () => security++,
+          onLogout: () => logout++,
         ),
+      ),
+    );
+    for (final key in ['identity', 'devices', 'logout']) {
+      final scrollable = find.descendant(
+        of: find.byKey(const ValueKey('settings-list')),
+        matching: find.byType(Scrollable),
       );
-      for (final key in ['identity', 'devices', 'logout']) {
-        final scrollable = find.descendant(
-          of: find.byKey(const ValueKey('settings-list')),
-          matching: find.byType(Scrollable),
-        );
-        tester.state<ScrollableState>(scrollable).position.jumpTo(0);
-        await tester.pumpAndSettle();
-        await tester.scrollUntilVisible(
-          find.byKey(ValueKey('settings-$key')),
-          100,
-          scrollable: scrollable,
-        );
-        await tester.tap(find.byKey(ValueKey('settings-$key')));
-        await tester.pumpAndSettle();
-      }
-      expect(logout, 0);
-      await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));
+      tester.state<ScrollableState>(scrollable).position.jumpTo(0);
       await tester.pumpAndSettle();
-      expect(identity, 1);
-      expect(security, 1);
-      expect(logout, 1);
-      expect(find.byKey(const ValueKey('settings-account')), findsNothing);
-      expect(find.text('账号与安全'), findsNothing);
-      expect(find.text('自己的帖子'), findsNothing);
-    },
-  );
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey('settings-$key')),
+        100,
+        scrollable: scrollable,
+      );
+      final target = find.byKey(ValueKey('settings-$key'));
+      await tester.ensureVisible(target);
+      await tester.pump();
+      await tester.tap(target.hitTestable());
+      await tester.pumpAndSettle();
+    }
+    expect(logout, 0);
+    await tester.tap(find.byKey(const ValueKey('settings-logout-confirm')));
+    await tester.pumpAndSettle();
+    expect(identity, 1);
+    expect(security, 1);
+    expect(logout, 1);
+    expect(find.byKey(const ValueKey('settings-account')), findsNothing);
+    expect(find.text('自己的帖子'), findsNothing);
+  });
 
   testWidgets(
     'zero-identity account can create default-avatar identity and preserves legal input',

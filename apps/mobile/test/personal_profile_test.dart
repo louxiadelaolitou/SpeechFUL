@@ -24,7 +24,8 @@ void expectProfileSelection(WidgetTester tester, int selected) {
   const labels = ['帖子', '回复', '转帖', '喜欢', '收藏'];
   final palette = HhTelegramPalette.of(tester.element(profileTab(selected)));
   for (var i = 0; i < labels.length; i++) {
-    expect(find.text(labels[i]), i == selected ? findsOneWidget : findsNothing);
+    // 原型 .ptab：图标与 11px 文字常显；选中态用 accent + w600。
+    expect(find.text(labels[i]), findsOneWidget);
     final node = tester.getSemantics(profileTab(i));
     final data = node.getSemanticsData();
     expect(data.label, contains(labels[i]));
@@ -45,7 +46,7 @@ void expectProfileSelection(WidgetTester tester, int selected) {
 
 void main() {
   testWidgets(
-    'rapid personal categories and reduced-motion changes keep real selection',
+    'rapid personal categories keep real selection when navigation flags change',
     (tester) async {
       final media = ValueNotifier(const MediaQueryData(size: Size(800, 600)));
       final semantics = tester.ensureSemantics();
@@ -72,11 +73,11 @@ void main() {
         }
       }
       media.value = media.value.copyWith(accessibleNavigation: true);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expectProfileSelection(tester, 0);
       for (final tab in [4, 3, 0]) {
         await tester.tap(profileTab(tab));
-        await tester.pump();
+        await tester.pumpAndSettle();
         expectProfileSelection(tester, tab);
       }
       await tester.tap(find.byTooltip('切换身份'));
@@ -84,11 +85,11 @@ void main() {
       final rotation = tester.widget<AnimatedRotation>(
         find.byType(AnimatedRotation),
       );
-      expect(rotation.duration, Duration.zero);
+      expect(rotation.duration, HhMotion.quick);
       final route = ModalRoute.of(tester.element(find.text('切换身份')))!;
-      expect(route.transitionDuration, Duration.zero);
+      expect(route.transitionDuration, greaterThan(Duration.zero));
       await tester.binding.handlePopRoute();
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('切换身份'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -180,13 +181,13 @@ void main() {
         );
         expect(
           tester
-              .widget<Text>(find.byKey(const ValueKey('profile-title')))
+              .widget<Text>(find.byKey(const ValueKey('profile-hero-name')))
               .style!
               .color,
-          palette.action,
+          palette.ink,
         );
         expect(find.byTooltip('搜索我的帖子'), findsNothing);
-        expect(find.byTooltip('设置'), findsNothing);
+        expect(find.byTooltip('打开设置'), findsOneWidget);
         expect(find.byType(TextField), findsNothing);
         final semantics = tester.ensureSemantics();
         expectProfileSelection(tester, 0);
@@ -260,7 +261,7 @@ void main() {
       tester.view.physicalSize = const Size(320, 740);
       await tester.pumpAndSettle();
       expectProfileSelection(tester, 0);
-      expect(find.byKey(const ValueKey('profile-title')), findsOneWidget);
+      expect(find.byKey(const ValueKey('profile-settings')), findsOneWidget);
       expect(find.byIcon(Icons.swap_horiz), findsNothing);
       final chip = find.byKey(const ValueKey('personal-profile'));
       expect(
@@ -291,13 +292,14 @@ void main() {
       expect(middle, greaterThan(small));
       expect(middle, lessThan(21));
       await tester.pumpAndSettle();
-      expect(tester.widget<Text>(find.text('喜欢')).style!.fontSize, 14);
+      // 原型 .ptab：标签文字常显 11px；选中态用颜色/字重表达（v8 起）。
+      expect(tester.widget<Text>(find.text('喜欢')).style!.fontSize, 11);
       expectProfileSelection(tester, 3);
       await tester.tap(find.byTooltip('切换身份'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('profile-identity-$second')));
       await tester.pumpAndSettle();
-      expect(find.text('身份二'), findsOneWidget);
+      expect(find.text('身份二'), findsNWidgets(2));
       expect(find.text('第一身份的帖子'), findsOneWidget); // account-shared likes
       await tester.tap(profileTab(4));
       await tester.pumpAndSettle();
@@ -367,7 +369,9 @@ void main() {
           .toList();
       await tester.tap(find.byKey(const ValueKey('destination:personal')));
       await tester.pumpAndSettle();
-      expect(find.byType(HhXPostItem), findsWidgets);
+      // 五页签卡片已按原型改为扁平样式（_ProfileFlatCard），不再使用 HhXPostItem。
+      expect(find.byType(HhXPostItem), findsNothing);
+      expect(find.byKey(const ValueKey('flat-post-card')), findsWidgets);
       await tester.drag(
         find.byType(CustomScrollView).last,
         const Offset(0, -550),

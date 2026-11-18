@@ -396,6 +396,11 @@ const securityIdentityTranslations = <String, UiTranslation>{
     'Change the nickname or avatar',
     'ニックネームか画像を変更してください',
   ),
+  '请修改昵称': (
+    '請修改暱稱',
+    'Change the nickname',
+    'ニックネームを変更してください',
+  ),
   '请先确认昵称草稿已保存': (
     '請先確認暱稱草稿已儲存',
     'Confirm the nickname draft was saved first',
@@ -434,6 +439,7 @@ const securityIdentityTranslations = <String, UiTranslation>{
   '设置你的初始身份': ('設定你的初始身分', 'Set up your first identity', '最初の公開プロフィールを設定'),
   '创建发言身份': ('建立發言身分', 'Create a public identity', '公開プロフィールを作成'),
   '编辑身份': ('編輯身分', 'Edit identity', '公開プロフィールを編集'),
+  '编辑昵称': ('編輯暱稱', 'Edit nickname', 'ニックネームを編集'),
   '正在保存头像…': ('正在儲存頭像…', 'Saving avatar…', '画像を保存中…'),
   '从图库选择头像': ('從圖庫選擇頭像', 'Choose avatar from photos', '写真から画像を選択'),
   '核对原头像': ('核對原頭像', 'Check original avatar', '元の画像を確認'),

@@ -7,9 +7,17 @@ import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'auth_flows_test.dart' as f;
 import 'email_login_test.dart' as login;
 
-class ResetApi extends login.EmailApi implements EmailResetApi {
+class ResetApi extends login.EmailApi
+    implements EmailResetApi, PasswordChangeApi {
   final intents = <Map<String, String>>[];
+  final changeSessions = <String>[];
   Future<PasswordResetIntent> Function()? onIntent;
+  @override
+  Future<CurrentSession> currentSession(String token) async => CurrentSession(
+    accountId: f.session.accountId,
+    expiresAt: f.session.expiresAt,
+    username: 'private_user',
+  );
   @override
   Future<OtpRequestAccepted> requestEmailResetOtp({
     required String email,
@@ -52,6 +60,37 @@ class ResetApi extends login.EmailApi implements EmailResetApi {
   }
 
   @override
+  Future<PasswordResetIntent> createPasswordChangeIntent({
+    required String sessionToken,
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
+  }) {
+    changeSessions.add(sessionToken);
+    return createEmailResetIntent(
+      proof: proof,
+      installationId: installationId,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  @override
+  Future<void> commitPasswordChange({
+    required String sessionToken,
+    required String resetIntentId,
+    required String newPassword,
+    required String idempotencyKey,
+  }) {
+    changeSessions.add(sessionToken);
+    return commitPasswordReset(
+      resetIntentId: resetIntentId,
+      newPassword: newPassword,
+      newRecoveryCodeConfirmation: '',
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  @override
   Future<RegistrationIntent> createRegistrationIntent({
     required String registrationTicket,
     required String username,
@@ -87,7 +126,103 @@ class _Channels implements ChannelRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _ChangeChannels implements ChannelRepository {
+  @override
+  Future<ChannelDirectoryResult> loadChannels({
+    required String sessionToken,
+  }) async => ChannelDirectoryResult(
+    expiresAt: f.session.expiresAt,
+    channels: [
+      for (final (index, code) in ChannelDirectory.requiredCodes.indexed)
+        Channel(
+          id: 'channel-$index',
+          code: code,
+          name: code,
+          initiallyVisible: index < 5,
+          displayOrder: index,
+        ),
+    ],
+  );
+}
+
 void main() {
+  testWidgets(
+    'signed-in password change verifies first and opens login with success',
+    (tester) async {
+      final h = ResetHarness();
+      final directory = ChannelDirectoryController(
+        repository: _ChangeChannels(),
+      );
+      final sessions = AuthSessionController(
+        api: h.api,
+        store: h.store,
+        directory: directory,
+      );
+      final flows = AuthFlows(
+        api: h.api,
+        store: h.store,
+        clearCommunityAccess: sessions.clearCommunityAccess,
+        acceptRegistrationSession: (_) async {},
+        sessionAuthorityVersion: () => sessions.authorityVersion,
+        legacyRecoveryEnabled: false,
+        clock: () => f.now,
+      );
+      await h.store.update((state) => state.copyWith(session: f.session));
+      await sessions.start();
+      expect(sessions.isAuthenticated, isTrue);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthScreen(
+            sessions: sessions,
+            flows: flows,
+            passwordChangeToken: f.session.token,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> tap(String label) async {
+        final button = find.widgetWithText(FilledButton, label);
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+      }
+
+      await tester.enterText(
+        find.byKey(const ValueKey('reset-email')),
+        'owned',
+      );
+      await tap('获取验证码');
+      await tester.enterText(find.byKey(const ValueKey('reset-otp')), '123456');
+      await tap('验证校邮');
+      expect(sessions.isAuthenticated, isTrue);
+      await tester.enterText(
+        find.byKey(const ValueKey('change-new-password')),
+        'NewPassword123!',
+      );
+      final confirmation = find.byKey(
+        const ValueKey('change-confirm-password'),
+      );
+      await tester.enterText(confirmation, 'DifferentPassword123!');
+      await tap('确定');
+      expect(find.text('两次输入的密码不一致'), findsOneWidget);
+      expect(h.api.resetCommits, isEmpty);
+      await tester.enterText(confirmation, 'NewPassword123!');
+      await tap('确定');
+      expect(find.byKey(const ValueKey('login-password')), findsOneWidget);
+      expect(find.text('密码修改成功，请重新登录'), findsOneWidget);
+      expect(sessions.isAuthenticated, isFalse);
+      expect(h.api.changeSessions, [f.session.token, f.session.token]);
+      expect(h.api.resetCommits, hasLength(1));
+      expect(h.store.current!.session, isNull);
+      expect(h.store.current!.pendingReset, isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      flows.dispose();
+      sessions.dispose();
+      directory.dispose();
+      h.store.dispose();
+    },
+  );
+
   for (final code in ['RESET_INTENT_INVALID', 'RESET_INTENT_EXPIRED']) {
     for (final terminal in [false, true]) {
       test(

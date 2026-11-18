@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base32"
 	"errors"
 	"math"
@@ -37,6 +38,7 @@ type PasswordResetRequest struct {
 	IdempotencyKey              [32]byte
 	NewPassword                 string
 	NewRecoveryCodeConfirmation string
+	Bearer                      [32]byte
 }
 
 // Recovery proofs can reset a banned account but never lift its restriction.
@@ -185,6 +187,7 @@ type resetIntentRow struct {
 	kind                                         string
 	version, generation, authorizationGeneration int64
 	digest                                       []byte
+	changeSession                                []byte
 	expires                                      time.Time
 }
 
@@ -192,12 +195,12 @@ func readResetIntent(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, id [32]byte, lock bool) (resetIntentRow, error) {
 	var row resetIntentRow
-	query := `SELECT account_id,state,credential_version,reset_generation,authorization_generation,new_recovery_digest,expires_at,COALESCE(to_jsonb(r)->>'proof_kind','RECOVERY_CODE')
+	query := `SELECT account_id,state,credential_version,reset_generation,authorization_generation,new_recovery_digest,expires_at,COALESCE(to_jsonb(r)->>'proof_kind','RECOVERY_CODE'),(to_jsonb(r)->>'change_session_digest')::bytea
 		FROM c_auth.reset_intents r WHERE intent_id=$1`
 	if lock {
 		query += " FOR UPDATE"
 	}
-	err := q.QueryRow(ctx, query, id[:]).Scan(&row.account, &row.state, &row.version, &row.generation, &row.authorizationGeneration, &row.digest, &row.expires, &row.kind)
+	err := q.QueryRow(ctx, query, id[:]).Scan(&row.account, &row.state, &row.version, &row.generation, &row.authorizationGeneration, &row.digest, &row.expires, &row.kind, &row.changeSession)
 	return row, err
 }
 
@@ -242,13 +245,18 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 		return ErrResetIntentInvalid
 	}
 	var confirmation [32]byte
+	var changeSession []byte
+	token := sha256.Sum256(request.Bearer[:])
+	if request.Bearer != ([32]byte{}) {
+		changeSession = token[:]
+	}
 	if request.NewRecoveryCodeConfirmation == "" {
 		intent, e := readResetIntent(ctx, c.pool, request.IntentID, false)
-		if e != nil || intent.kind != "EMAIL" {
+		if e != nil || intent.kind != "EMAIL" || !hmac.Equal(intent.changeSession, changeSession) {
 			return ErrResetIntentInvalid
 		}
 	} else {
-		if c.recoveryPaused {
+		if c.recoveryPaused || changeSession != nil {
 			return ErrResetIntentInvalid
 		}
 		confirmation, err = recoveryDigest(request.NewRecoveryCodeConfirmation)
@@ -258,6 +266,9 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	}
 	key := digest("HNUHOLE/C-REQUEST-TOMBSTONE/V1", request.IdempotencyKey[:])
 	mac := requestMAC(c.requestKey, []byte("PASSWORD_RESET"), request.IntentID[:], []byte(request.NewPassword), confirmation[:])
+	if changeSession != nil {
+		mac = requestMAC(c.requestKey, []byte("PASSWORD_CHANGE"), request.IntentID[:], []byte(request.NewPassword), changeSession)
+	}
 	if found, e := readResetReplay(ctx, c.pool, key, mac, request.IntentID, false); found || e != nil {
 		if !found {
 			return e
@@ -312,7 +323,8 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	if err != nil {
 		return ErrAuthorizationUnavailable
 	}
-	if _, err = lockRestriction(ctx, tx, original.account); err != nil {
+	ban, err := lockRestriction(ctx, tx, original.account)
+	if err != nil {
 		return ErrAuthorizationUnavailable
 	}
 	var closure pendingClosure
@@ -346,6 +358,14 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	if err = lockRecoveryRows(ctx, tx, original.account, true); err != nil {
 		return ErrAuthorizationUnavailable
 	}
+	caller := credentialAccount{account: original.account, state: state, generation: sessionGeneration, ban: ban}
+	var session credentialSession
+	if changeSession != nil {
+		session, err = lockCredentialSession(ctx, tx, caller, token)
+		if err != nil {
+			return err
+		}
+	}
 	var currentRecovery []byte
 	if err = tx.QueryRow(ctx, `SELECT code_digest FROM c_auth.recovery_codes WHERE account_id=$1`, original.account).Scan(&currentRecovery); err != nil || len(currentRecovery) != 32 {
 		return ErrAuthorizationUnavailable
@@ -362,6 +382,7 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 	if locked.account != original.account || locked.version != original.version || version != original.version ||
 		locked.generation != original.generation || generation != original.generation || !hmac.Equal(active, request.IntentID[:]) || locked.state != "ACTIVE" ||
 		locked.authorizationGeneration != original.authorizationGeneration || locked.kind != original.kind ||
+		!hmac.Equal(locked.changeSession, changeSession) ||
 		(locked.kind == "EMAIL" && (request.NewRecoveryCodeConfirmation != "" || len(locked.digest) != 32 || !hmac.Equal(locked.digest, original.digest))) ||
 		(locked.kind != "EMAIL" && !hmac.Equal(locked.digest, confirmation[:])) {
 		return ErrResetIntentInvalid
@@ -393,6 +414,11 @@ func (c *Community) CommitPasswordReset(ctx context.Context, request PasswordRes
 		return e
 	}
 	_, err = c.gate.CommitAuthorized(ctx, tx, decision.Generation, func(final AuthorizationDecision) error {
+		if changeSession != nil {
+			if e := session.validate(caller, final); e != nil {
+				return e
+			}
+		}
 		if !recoveryAccountAllowed(state, closure, final.TrustedAt) {
 			return ErrRecoveryProofInvalid
 		}

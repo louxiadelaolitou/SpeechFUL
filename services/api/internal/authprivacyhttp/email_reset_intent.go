@@ -18,7 +18,15 @@ func (b *boundary) emailResetIntent(w http.ResponseWriter, r *http.Request, back
 		b.fail(w, 503, "SERVICE_UNAVAILABLE", 0)
 		return
 	}
-	if hasHeader(r.Header, "Authorization") {
+	var bearer [32]byte
+	if r.URL.Path == "/api/v1/auth/password-change-intents" {
+		token, err := sessionCapability(r.Header, "Bearer")
+		if err != nil || token == ([32]byte{}) {
+			b.fail(w, 401, "SESSION_INVALID", 0)
+			return
+		}
+		bearer = token
+	} else if hasHeader(r.Header, "Authorization") {
 		b.bad(w, errMalformed)
 		return
 	}
@@ -43,13 +51,15 @@ func (b *boundary) emailResetIntent(w http.ResponseWriter, r *http.Request, back
 		b.fail(w, 422, "EMAIL_PROOF_INVALID", 0)
 		return
 	}
-	req := authprivacy.EmailResetIntentRequest{Proof: proof}
+	req := authprivacy.EmailResetIntentRequest{Proof: proof, Bearer: bearer}
 	copy(req.IdempotencyKey[:], key)
 	copy(req.InstallationID[:], raw)
 	result, err := service.CreateEmailResetIntent(r.Context(), req)
 	if err != nil {
 		if errors.Is(err, authprivacy.ErrEmailProofInvalid) || errors.Is(err, authprivacy.ErrEmailUnregistered) {
 			b.sessionFailure(w, err)
+		} else if errors.Is(err, authprivacy.ErrPasswordChangeEmailMismatch) {
+			b.fail(w, 422, "EMAIL_ACCOUNT_MISMATCH", 0)
 		} else {
 			b.recoveryClosureFailure(w, err)
 		}

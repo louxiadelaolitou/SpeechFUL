@@ -453,16 +453,12 @@ void main() {
         final motion = find.byKey(const ValueKey('feed-card-scale:$targetId'));
         expect(motion, findsOneWidget);
         final start = tester.widget<Transform>(motion).transform.entry(0, 0);
-        if (reduced) {
-          expect(start, closeTo(1, .001));
-        } else {
-          expect(start, lessThan(.99));
-          await tester.pump(const Duration(milliseconds: 120));
-          expect(
-            tester.widget<Transform>(motion).transform.entry(0, 0),
-            greaterThan(start),
-          );
-        }
+        expect(start, lessThan(.99));
+        await tester.pump(const Duration(milliseconds: 120));
+        expect(
+          tester.widget<Transform>(motion).transform.entry(0, 0),
+          greaterThan(start),
+        );
         await gesture.up();
         await tester.pumpAndSettle();
         expect(
@@ -479,7 +475,7 @@ void main() {
         await tester.pump();
         expect(
           tester.widget<Transform>(motion).transform.entry(0, 0),
-          reduced ? closeTo(1, .001) : lessThan(.99),
+          lessThan(.99),
         );
         await again.up();
         await tester.pumpAndSettle();

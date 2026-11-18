@@ -3,6 +3,7 @@ import 'dart:ui' show SemanticsAction;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/src/identity/settings_screen.dart';
+import 'package:hnuhole_mobile/src/posts/post_screens.dart';
 import 'package:hnuhole_mobile/src/navigation/community_material_labels.dart';
 import 'package:hnuhole_mobile/src/navigation/entry_screen.dart';
 import 'package:hnuhole_mobile/src/navigation/channel_directory_controller.dart';
@@ -68,7 +69,7 @@ void main() {
   });
 
   testWidgets(
-    'home avatar opens settings directly and the personal tab remains available',
+    'home avatar opens the personal tab and settings opens from the profile',
     (tester) async {
       final fixture = HomeTestFixture();
       await tester.pumpWidget(await fixture.create());
@@ -76,13 +77,16 @@ void main() {
       expect(find.byTooltip('My content'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('feed-account')));
       await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(PersonalPostsScreen), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('profile-settings')));
+      await tester.pumpAndSettle();
       expect(find.byType(SettingsScreen), findsOneWidget);
       expect(find.byKey(const ValueKey('home-menu-settings')), findsNothing);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('destination:personal')));
-      await tester.pumpAndSettle();
-      expect(find.text('账号A的身份'), findsOneWidget);
+      expect(find.byType(PersonalPostsScreen), findsOneWidget);
+      expect(find.text('账号A的身份'), findsNWidgets(2));
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     },

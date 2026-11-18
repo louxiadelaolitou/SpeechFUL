@@ -502,7 +502,7 @@ func publicMethod(service Service, path string) string {
 			"/api/v1/moderation-access/sessions", "/api/v1/moderation-access/session-revocations",
 			"/api/v1/auth/sessions", "/api/v1/auth/session-renewals",
 			"/api/v1/auth/session-revocations", "/api/v1/auth/recovery-code-reset-intents",
-			"/api/v1/auth/password-resets", "/api/v1/account-closures",
+			"/api/v1/auth/password-resets", "/api/v1/auth/password-change-intents", "/api/v1/auth/password-changes", "/api/v1/account-closures",
 			"/api/v1/auth/recovery-code-rotations", "/api/v1/auth/passkey-options",
 			"/api/v1/auth/passkeys", "/api/v1/auth/passkey-removal-intents",
 			"/api/v1/auth/passkey-reset-options", "/api/v1/auth/passkey-reset-intents":
@@ -908,11 +908,11 @@ func (b *boundary) communityPublic(w http.ResponseWriter, r *http.Request, backe
 		b.communityCredentialPublic(w, r, credentials, passwords)
 		return
 	}
-	if r.URL.Path == "/api/v1/auth/email-reset-intents" {
+	if r.URL.Path == "/api/v1/auth/email-reset-intents" || r.URL.Path == "/api/v1/auth/password-change-intents" {
 		b.emailResetIntent(w, r, recovery)
 		return
 	}
-	if r.URL.Path == "/api/v1/auth/recovery-code-reset-intents" || r.URL.Path == "/api/v1/auth/password-resets" || r.URL.Path == "/api/v1/auth/password-reset-result" {
+	if r.URL.Path == "/api/v1/auth/recovery-code-reset-intents" || r.URL.Path == "/api/v1/auth/password-resets" || r.URL.Path == "/api/v1/auth/password-changes" || r.URL.Path == "/api/v1/auth/password-reset-result" {
 		b.communityRecoveryPublic(w, r, recovery, passwords)
 		return
 	}

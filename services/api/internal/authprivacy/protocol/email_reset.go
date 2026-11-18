@@ -19,6 +19,13 @@ func EmailResetBinding(installation [16]byte, key [32]byte) [32]byte {
 	return sha256.Sum256(append(value, key[:]...))
 }
 
+// V signs the opaque binding; only C can match it to a verified session.
+func PasswordChangeBinding(installation [16]byte, key, sessionDigest [32]byte) [32]byte {
+	value := append([]byte("HNUHOLE/PASSWORD-CHANGE-BINDING/V1\x00"), installation[:]...)
+	value = append(value, key[:]...)
+	return sha256.Sum256(append(value, sessionDigest[:]...))
+}
+
 type EmailResetProof struct {
 	Epoch       uint32
 	Environment [32]byte

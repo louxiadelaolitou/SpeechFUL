@@ -170,7 +170,10 @@ void main() {
           findsOneWidget,
           reason: 'a user title equal to a UI label stays verbatim',
         );
-        expect(find.byTooltip(translateUi('我的', language)), findsOneWidget);
+        final account = tester.widget<IconButton>(
+          find.byKey(const ValueKey('feed-account')),
+        );
+        expect(account.tooltip, translateUi('我的', language));
         expect(tester.takeException(), isNull);
       }
       await tester.tap(find.byKey(const ValueKey('destination:personal')));

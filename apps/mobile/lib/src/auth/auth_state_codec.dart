@@ -277,7 +277,14 @@ class AuthWorkflowCodec {
     if (pendingReset != null) {
       _fields(
         pendingReset,
-        {'v', 'intentId', 'key', 'state', 'originalTokenDigest'},
+        {
+          'v',
+          'intentId',
+          'key',
+          'state',
+          'originalTokenDigest',
+          'passwordChange',
+        },
         {'v', 'intentId', 'key', 'state'},
       );
       _version(pendingReset);
@@ -291,6 +298,11 @@ class AuthWorkflowCodec {
       _encoded(pendingReset, 'key', 32);
       if (pendingReset.containsKey('originalTokenDigest')) {
         _encoded(pendingReset, 'originalTokenDigest', 32);
+      }
+      if (pendingReset.containsKey('passwordChange') &&
+          (pendingReset['passwordChange'] != true ||
+              !pendingReset.containsKey('originalTokenDigest'))) {
+        throw const FormatException('Invalid password change operation');
       }
     }
     if (pendingClosure != null) {

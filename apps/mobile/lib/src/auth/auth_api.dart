@@ -119,3 +119,19 @@ abstract interface class EmailResetApi {
     required String idempotencyKey,
   });
 }
+
+abstract interface class PasswordChangeApi {
+  Future<PasswordResetIntent> createPasswordChangeIntent({
+    required String sessionToken,
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
+  });
+
+  Future<void> commitPasswordChange({
+    required String sessionToken,
+    required String resetIntentId,
+    required String newPassword,
+    required String idempotencyKey,
+  });
+}

@@ -169,10 +169,10 @@ extension _ChatPhotoUi on _DmChatRouteState {
     final expected = scope;
     final limit = 9 - _draftImages.length;
     if (limit < 1) return [];
-    final files = await _picker.pick(limit);
+    final files = await AlbumPhotoPicker(context).pick(limit);
     if (!mounted || c.scope != expected || !c.available) return [];
     final selected = <DmImage>[];
-    for (final file in files.take(9)) {
+    for (final file in files.take(limit)) {
       final id = dmId();
       try {
         final inspected = await inspectPostPhoto(file, id);

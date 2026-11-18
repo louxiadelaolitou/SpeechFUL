@@ -4,6 +4,17 @@ import 'dart:ui' as ui;
 
 import '../posts/post_photo_picker.dart';
 
+/// Fresh upload id; unknown uploads are never attached or reused by a
+/// replacement account, only confirmed references enter the vault.
+String newAvatarAssetId() {
+  final random = math.Random.secure();
+  final raw = List.generate(16, (_) => random.nextInt(256));
+  raw[6] = (raw[6] & 15) | 64;
+  raw[8] = (raw[8] & 63) | 128;
+  final hex = raw.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+}
+
 /// Avatars are normalized static previews, unlike original post attachments.
 /// Decode and re-encode so gallery-added trailers and metadata are not uploaded.
 Future<Uint8List> prepareIdentityAvatar(PostPickedFile file, String id) async {

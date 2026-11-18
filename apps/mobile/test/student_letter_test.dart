@@ -138,8 +138,7 @@ void main() {
     expect(find.byType(FeedScreen), findsOneWidget);
     expect(await fixture.studentLetters.hasRead(), isFalse);
 
-    await tester.tap(find.byKey(const ValueKey('feed-account')));
-    await tester.pumpAndSettle();
+    await openSettingsFromHome(tester);
     await tester.drag(
       find.byKey(const ValueKey('settings-list')),
       const Offset(0, -1000),

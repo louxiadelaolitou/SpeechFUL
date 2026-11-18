@@ -50,7 +50,11 @@ extension PostComposerMedia on PostController {
     e.mediaError = null;
   }
 
-  Future<void> pickDraftPhotos(PostDraftEditor e, {int? replaceIndex}) async {
+  Future<void> pickDraftPhotos(
+    PostDraftEditor e, {
+    int? replaceIndex,
+    PostPhotoPicker Function(PostPhotoPicker)? pickerForView,
+  }) async {
     if (!editorCurrent(e) ||
         e.submitted ||
         e.mediaBusy ||
@@ -72,7 +76,8 @@ extension PostComposerMedia on PostController {
     try {
       // Store the text and existing originals before opening an external picker.
       if (!await saveDraft(e) || !editorCurrent(e)) return;
-      final files = await _photoPicker.pick(limit);
+      final picker = pickerForView?.call(_photoPicker) ?? _photoPicker;
+      final files = await picker.pick(limit);
       if (!editorCurrent(e)) return;
       for (final file in files.take(limit)) {
         final mediaId = newPostMediaId(), blobId = newPostMediaId();

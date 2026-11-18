@@ -9,14 +9,42 @@ abstract final class HhMotion {
   static const pressOut = Duration(milliseconds: 260);
   static const curve = Curves.easeOutCubic;
 
-  static bool reduced(BuildContext context) {
-    final media = MediaQuery.maybeOf(context);
-    return (media?.disableAnimations ?? false) ||
-        (media?.accessibleNavigation ?? false);
-  }
+  /// 页面级滑动转场（设置页进入与其子页共用）：新页从左推入、原页右移。
+  static const pageSlide = Duration(milliseconds: 340);
+  static const pageSlideCurve = Cubic(.32, .72, .24, 1);
+
+  // 按产品决策：动画不受任何门控（无障碍标记、系统减弱动画开关）影响，
+  // 始终播放；保留方法与签名以兼容既有调用点。
+  static bool reduced(BuildContext context) => false;
 
   static Duration duration(BuildContext context, Duration duration) =>
       reduced(context) ? Duration.zero : duration;
+}
+
+/// 微信式横向推入路由：新页从右缘纯位移滑入、覆盖当前页（无渐变/缩放），
+/// 时长与曲线同 HhMotion.pageSlide；下层页可各自用 secondaryAnimation 做
+/// 左移视差（见设置页的包装）。
+class HhSlidePageRoute<T> extends PageRouteBuilder<T> {
+  HhSlidePageRoute({required WidgetBuilder builder, super.settings})
+    : super(
+        transitionDuration: HhMotion.pageSlide,
+        reverseTransitionDuration: HhMotion.pageSlide,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            builder(context),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: HhMotion.pageSlideCurve,
+            reverseCurve: HhMotion.pageSlideCurve,
+          );
+          return SlideTransition(
+            position: curved.drive(
+              Tween(begin: const Offset(1, 0), end: Offset.zero),
+            ),
+            child: child,
+          );
+        },
+      );
 }
 
 /// Visual feedback driven by the button's own pointer and keyboard states.

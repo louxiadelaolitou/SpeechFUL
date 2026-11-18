@@ -34,7 +34,7 @@ double pressScale(WidgetTester tester) => tester
     .entry(0, 0);
 
 void main() {
-  testWidgets('system accessibility preferences reduce shared durations', (
+  testWidgets('shared motion keeps its duration under both system flags', (
     tester,
   ) async {
     for (final preference in [0, 1, 2]) {
@@ -53,8 +53,8 @@ void main() {
           accessibleNavigation: preference == 2,
         ),
       );
-      expect(reduced, preference != 0);
-      expect(duration, preference == 0 ? HhMotion.quick : Duration.zero);
+      expect(reduced, isFalse);
+      expect(duration, HhMotion.quick);
     }
   });
 
@@ -477,7 +477,7 @@ void main() {
 
   for (final accessibleNavigation in [false, true]) {
     testWidgets(
-      '${accessibleNavigation ? 'accessible navigation' : 'disabled animations'} snaps active and future motion',
+      '${accessibleNavigation ? 'accessible navigation' : 'disabled animations'} keeps active and future motion running',
       (tester) async {
         var reduced = false;
         var selected = false;
@@ -527,23 +527,28 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 30));
         expect(progress, inExclusiveRange(0, 1));
+        final activeProgress = progress;
+        final activeScale = pressScale(tester);
         rebuild(() => reduced = true);
         await tester.pump();
-        expect(progress, 1);
-        expect(find.text('9'), findsNothing);
-        expect(pressScale(tester), closeTo(.96, .0001));
+        expect(progress, activeProgress);
+        expect(pressScale(tester), closeTo(activeScale, .0001));
         await gesture.up();
-        await tester.pump();
+        await tester.pumpAndSettle();
+        expect(progress, 1);
         expect(pressScale(tester), 1);
+        expect(find.text('9'), findsNothing);
         rebuild(() {
           selected = false;
           count = '11';
         });
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 30));
+        expect(progress, inExclusiveRange(0, 1));
+        await tester.pumpAndSettle();
         expect(progress, 0);
         expect(find.text('10'), findsNothing);
         expect(find.text('11'), findsOneWidget);
-        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       },
     );

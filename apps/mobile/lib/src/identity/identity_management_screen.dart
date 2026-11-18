@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:typed_data';
 
 import '../posts/post_photo_picker.dart';
 import 'identity_avatar.dart';
+import 'identity_avatar_flow.dart';
 import 'identity_avatar_photo.dart';
 
 import 'package:flutter/material.dart';
@@ -432,8 +433,10 @@ class IdentityEditor extends StatefulWidget {
     this.identity,
     this.requiredInitial = false,
     this.photoPicker,
+    this.avatarEditable = true,
   });
   final bool requiredInitial;
+  final bool avatarEditable;
   final PostPhotoPicker? photoPicker;
   final IdentityManagementController controller;
   final AuthSessionController sessions;
@@ -538,8 +541,10 @@ class _IdentityEditorState extends State<IdentityEditor> {
     }
     final submitted = _name.text;
     if (submitted == widget.identity?.nickname &&
-        _avatar == widget.identity?.avatar) {
-      setState(() => _localError = '请修改昵称或头像');
+        (!widget.avatarEditable || _avatar == widget.identity?.avatar)) {
+      setState(
+        () => _localError = widget.avatarEditable ? '请修改昵称或头像' : '请修改昵称',
+      );
       return;
     }
     setState(() {
@@ -596,30 +601,25 @@ class _IdentityEditorState extends State<IdentityEditor> {
       _localError = null;
     });
     try {
-      final files = await (widget.photoPicker ?? NativePostPhotoPicker()).pick(
-        1,
-      );
-      if (!mounted ||
-          _closing ||
-          _authority != widget.sessions.authorityVersion ||
-          !widget.sessions.isAuthenticated ||
-          files.isEmpty) {
-        return;
-      }
       // New selection owns a new UUID. Unknown uploads are never attached or
       // reused by a replacement account; only confirmed references enter vault.
-      final random = Random.secure();
-      final raw = List.generate(16, (_) => random.nextInt(256));
-      raw[6] = (raw[6] & 15) | 64;
-      raw[8] = (raw[8] & 63) | 128;
-      final hex = raw.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-      final id =
-          '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
-      if (await files.single.length() > 5 * 1024 * 1024) {
-        throw const FormatException('avatar too large');
+      final id = newAvatarAssetId();
+      final picker = widget.photoPicker;
+      final Uint8List? selected;
+      if (picker == null) {
+        selected = await pickIdentityAvatarImage(context);
+      } else {
+        final files = await picker.pick(1);
+        if (files.isEmpty) return;
+        final file = files.single;
+        if (await file.length() > 5 * 1024 * 1024) {
+          await file.release?.call();
+          throw const FormatException('avatar too large');
+        }
+        selected = await prepareIdentityAvatar(file, id);
       }
-      final selected = await prepareIdentityAvatar(files.single, id);
-      if (!mounted ||
+      if (selected == null ||
+          !mounted ||
           _closing ||
           _authority != widget.sessions.authorityVersion ||
           !widget.sessions.isAuthenticated) {
@@ -748,34 +748,36 @@ class _IdentityEditorState extends State<IdentityEditor> {
                     context,
                     identity == null
                         ? (widget.requiredInitial ? '设置你的初始身份' : '创建发言身份')
-                        : '编辑身份',
+                        : (widget.avatarEditable ? '编辑身份' : '编辑昵称'),
                   ),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 24),
-                Center(child: IdentityAvatar(avatar: _avatar, radius: 36)),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  key: const ValueKey('identity-avatar-pick'),
-                  onPressed: busy ? null : _pickAvatar,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: Text(
-                    hhText(context, _picking ? '正在保存头像…' : '从图库选择头像'),
+                SizedBox(height: widget.avatarEditable ? 24 : 14),
+                if (widget.avatarEditable) ...[
+                  Center(child: IdentityAvatar(avatar: _avatar, radius: 36)),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    key: const ValueKey('identity-avatar-pick'),
+                    onPressed: busy ? null : _pickAvatar,
+                    icon: const Icon(Icons.photo_library_outlined, size: 18),
+                    label: Text(
+                      hhText(context, _picking ? '正在保存头像…' : '从图库选择头像'),
+                    ),
                   ),
-                ),
-                if (widget.controller.pendingAvatar != null &&
-                    _avatar !=
-                        'avatar-v1:${widget.controller.pendingAvatar!['assetId']}')
-                  TextButton(
-                    onPressed: busy ? null : _recoverAvatar,
-                    child: Text(hhText(context, '核对原头像')),
-                  ),
-                if (_avatar != 'default-v1' ||
-                    widget.controller.pendingAvatar != null)
-                  TextButton(
-                    onPressed: busy ? null : _defaultAvatar,
-                    child: Text(hhText(context, '使用默认头像')),
-                  ),
+                  if (widget.controller.pendingAvatar != null &&
+                      _avatar !=
+                          'avatar-v1:${widget.controller.pendingAvatar!['assetId']}')
+                    TextButton(
+                      onPressed: busy ? null : _recoverAvatar,
+                      child: Text(hhText(context, '核对原头像')),
+                    ),
+                  if (_avatar != 'default-v1' ||
+                      widget.controller.pendingAvatar != null)
+                    TextButton(
+                      onPressed: busy ? null : _defaultAvatar,
+                      child: Text(hhText(context, '使用默认头像')),
+                    ),
+                ],
                 if (_localError != null)
                   Text(
                     hhText(context, _localError!),
@@ -783,7 +785,11 @@ class _IdentityEditorState extends State<IdentityEditor> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                const SizedBox(height: 24),
+                SizedBox(
+                  height: widget.avatarEditable || _localError != null
+                      ? 24
+                      : 14,
+                ),
                 TextFormField(
                   key: const ValueKey('identity-nickname'),
                   controller: _name,

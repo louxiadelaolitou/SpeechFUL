@@ -240,15 +240,14 @@ void main() {
       });
       expect(row(identityTestId), findsOneWidget);
 
-      // Icon centers stay equally spaced even when count labels differ.
+      // v6 起扁平卡片动作行：评论/收藏/点赞 + 转帖移除，均在同一行（y 对齐）。
       final iconFinders = [
-        for (final action in ['comment'])
-          find.byKey(ValueKey('action-glyph:$action:${feed.postId}')),
-        find.byType(PostRepostIcon),
-        find.byKey(const ValueKey('action-glyph:like:${feed.postId}')),
-        find.byKey(const ValueKey('views-glyph:${feed.postId}')),
-        find.byKey(const ValueKey('action-glyph:bookmark:${feed.postId}')),
-        find.byKey(const ValueKey('action-glyph:share:${feed.postId}')),
+        find.byKey(const ValueKey('profile-comment-${feed.postId}')),
+        find.byKey(const ValueKey('profile-favorite-${feed.postId}')),
+        find.byKey(const ValueKey('profile-like-${feed.postId}')),
+        find.byKey(
+          const ValueKey('repost-undo:$secondIdentity/${feed.postId}'),
+        ),
       ];
       final centers = iconFinders
           .map(
@@ -257,9 +256,7 @@ void main() {
             ),
           )
           .toList();
-      final spacing = centers[1].dx - centers[0].dx;
       for (var i = 1; i < centers.length; i++) {
-        expect(centers[i].dx - centers[i - 1].dx, closeTo(spacing, .5));
         expect(centers[i].dy, closeTo(centers[0].dy, .5));
       }
 

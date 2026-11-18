@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../localization/app_localizations.dart';
 import '../posts/post_photo_picker.dart';
+import '../media/album_photo_picker.dart';
 import '../system_notifications/governance_controller.dart';
 import '../system_notifications/notification_models.dart';
 
@@ -214,9 +215,8 @@ class _MaterialEvidenceFormState extends State<MaterialEvidenceForm> {
       _selectionError = null;
     });
     try {
-      final files = await NativePostPhotoPicker().pick(
-        widget.imageLimit - _images.length,
-      );
+      final files = await AlbumPhotoPicker(context)
+          .pick(widget.imageLimit - _images.length);
       final additions = <EvidenceImage>[];
       for (final file in files.take(widget.imageLimit - _images.length)) {
         final inspected = await inspectPostPhoto(file, governanceId());

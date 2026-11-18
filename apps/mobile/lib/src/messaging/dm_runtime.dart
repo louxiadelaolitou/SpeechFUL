@@ -13,6 +13,7 @@ import '../identity/identity_api.dart';
 import '../identity/identity_management_controller.dart';
 import '../localization/app_localizations.dart';
 import '../posts/post_photo_picker.dart';
+import '../media/album_photo_picker.dart';
 import '../reports/report_screens.dart';
 import 'direct_message_inbox.dart';
 import 'direct_message_models.dart';
@@ -585,7 +586,6 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
   String draft = '';
   bool restored = false, loading = false, more = false;
   bool historyFailed = false, _reloadPending = false;
-  final _picker = NativePostPhotoPicker();
   List<DmImage> _draftImages = [];
   final _photoRequests = <String, Future<Uint8List>>{};
   final _photoProviders = <String, MemoryImage>{};
@@ -650,7 +650,10 @@ class _DmChatRouteState extends State<DmChatRoute> with WidgetsBindingObserver {
           updated.add(value);
         }
       }
-      if (!mounted || epoch != _loadEpoch || scope != c.scope || _reloadPending) {
+      if (!mounted ||
+          epoch != _loadEpoch ||
+          scope != c.scope ||
+          _reloadPending) {
         return;
       }
       if (rows.any(

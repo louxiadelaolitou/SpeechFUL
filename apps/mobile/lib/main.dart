@@ -12,11 +12,11 @@ import 'src/comments/comment_http.dart';
 import 'src/comments/comment_journal.dart';
 import 'src/development/app_transport.dart';
 import 'src/navigation/primary_tabs.dart';
+import 'src/design_system/motion.dart';
 import 'src/localization/app_localizations.dart';
 import 'src/auth/device_management_controller.dart';
 import 'src/auth/device_management_screen.dart';
 import 'src/auth/account_closure_screen.dart';
-import 'src/navigation/home_side_menu.dart';
 import 'src/navigation/community_material_labels.dart';
 import 'src/navigation/app_navigation.dart';
 import 'src/messaging/direct_messages_unavailable.dart';
@@ -29,6 +29,7 @@ import 'src/messaging/direct_message_models.dart';
 import 'src/design_system/telegram_theme.dart';
 import 'src/identity/identity_initial_gate.dart';
 import 'src/identity/identity_avatar.dart';
+import 'src/identity/identity_avatar_flow.dart';
 import 'src/identity/active_identity_controller.dart';
 
 Uri _communityBaseUri() => Uri.parse(
@@ -37,6 +38,28 @@ Uri _communityBaseUri() => Uri.parse(
     defaultValue: 'https://community.hnuhole.invalid',
   ),
 );
+
+class _AppTextScaler extends TextScaler {
+  const _AppTextScaler(this.platform, this.factor);
+
+  final TextScaler platform;
+  final double factor;
+
+  @override
+  double scale(double fontSize) => platform.scale(fontSize) * factor;
+
+  @override
+  double get textScaleFactor => scale(14) / 14;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AppTextScaler &&
+      other.platform == platform &&
+      other.factor == factor;
+
+  @override
+  int get hashCode => Object.hash(platform, factor);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -406,7 +429,8 @@ class HnuholeApp extends StatefulWidget {
   State<HnuholeApp> createState() => _HnuholeAppState();
 }
 
-class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
+class _HnuholeAppState extends State<HnuholeApp>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final _studentLetters =
       widget.studentLetters ??
       StudentLetterStore.native(environment: widget.store.scope);
@@ -524,6 +548,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
   bool _securityRouteOpen = false;
   bool _devicesRouteOpen = false, _closureRouteOpen = false;
   bool _identityRouteOpen = false;
+  bool _settingsRouteOpen = false;
   final _primaryTabs = GlobalKey<PrimaryTabsState>();
   late final _avatars = IdentityAvatarRepository(
     widget.api,
@@ -897,7 +922,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     _securityRouteOpen = true;
     navigator
         .push(
-          MaterialPageRoute<void>(
+          HhSlidePageRoute<void>(
             builder: (context) => SecurityManagementScreen(
               controller: widget.management,
               sessions: widget.sessions,
@@ -924,7 +949,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       store: widget.store,
       sessions: widget.sessions,
     );
-    final route = MaterialPageRoute<void>(
+    final route = HhSlidePageRoute<void>(
       builder: (context) => DeviceManagementScreen(
         controller: controller,
         sessions: widget.sessions,
@@ -951,7 +976,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     _closureRouteOpen = true;
     navigator
         .push(
-          MaterialPageRoute<void>(
+          HhSlidePageRoute<void>(
             builder: (context) => AccountClosureScreen(
               sessions: widget.sessions,
               flows: widget.flows,
@@ -965,28 +990,231 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
         .whenComplete(() => _closureRouteOpen = false);
   }
 
-  Widget _settingsScreen(BuildContext context) {
-    if (!widget.sessions.isAuthenticated) return const SizedBox.shrink();
+  Widget _settingsScreen(BuildContext context, int authority) {
     return SettingsScreen(
-      onClose: () => HomeSideMenuScope.maybeOf(context)?.close(),
+      sessions: widget.sessions,
+      sessionAuthority: authority,
       onManageIdentity: _openIdentity,
       onManageSecurity: _openDevices,
       onLogout: () => unawaited(_logoutFromSettings(context)),
       onCloseAccount: _openClosure,
+      onChangePassword: _openPasswordReset,
+      accountId: widget.store.current?.session?.accountId,
+      username: widget.sessions.username,
       onBlacklist: !widget.posts.supportsAuthorBlock
           ? null
           : () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              HhSlidePageRoute<void>(
                 builder: (_) => DmBlacklistScreen(posts: widget.posts),
               ),
             ),
     );
   }
 
+  Future<void> _openSettings() async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || _settingsRouteOpen) return;
+    if (!widget.sessions.isAuthenticated) {
+      _openAuth();
+      return;
+    }
+    final authority = widget.sessions.authorityVersion;
+    _settingsRouteOpen = true;
+    // 设置页从左向右滑入并覆盖当前页，返回时向左滑出。
+    final popped = navigator.push<void>(
+      PageRouteBuilder<void>(
+        settings: const RouteSettings(name: 'settings'),
+        transitionDuration: HhMotion.pageSlide,
+        reverseTransitionDuration: HhMotion.pageSlide,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            _settingsScreen(context, authority),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: HhMotion.pageSlideCurve,
+            reverseCurve: HhMotion.pageSlideCurve,
+          );
+          return SlideTransition(
+            position: curved.drive(
+              Tween(begin: const Offset(-1, 0), end: Offset.zero),
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
+    await popped.whenComplete(() => _settingsRouteOpen = false);
+  }
+
+  void _openPasswordReset() {
+    final navigator = _navigatorKey.currentState;
+    final token = widget.store.current?.session?.token;
+    if (navigator == null ||
+        _authRouteOpen ||
+        token == null ||
+        !widget.sessions.isCurrentToken(token)) {
+      return;
+    }
+    _authRouteOpen = true;
+    navigator
+        .push(
+          HhSlidePageRoute<void>(
+            builder: (context) => AuthScreen(
+              captchaApi: widget.api,
+              sessions: widget.sessions,
+              flows: widget.flows,
+              passwordChangeToken: token,
+              onAuthenticated: () {
+                _authCompletionPending = true;
+                _scheduleAuthCompletion();
+              },
+            ),
+          ),
+        )
+        .whenComplete(() {
+          _authCompletionPending = false;
+          _authRouteOpen = false;
+          if (mounted) _schedulePostLink();
+        });
+  }
+
   Future<void> _logoutFromSettings(BuildContext context) async {
     if (widget.sessions.busy) return;
-    HomeSideMenuScope.maybeOf(context)?.close();
+    Navigator.of(context).popUntil((route) => route.isFirst);
     await widget.sessions.logout();
+  }
+
+  String _identitySnapshot() =>
+      widget.identities.directory?.identities
+          .map(
+            (identity) =>
+                '${identity.id}:${identity.nickname}:${identity.avatar}',
+          )
+          .join('|') ??
+      '';
+
+  ManagedIdentity? _findIdentity(String id) {
+    for (final identity
+        in widget.identities.directory?.identities ??
+            const <ManagedIdentity>[]) {
+      if (identity.id == id) return identity;
+    }
+    return null;
+  }
+
+  Future<void> _refreshPersonalAfterIdentityChange(
+    String before,
+    String? account,
+    int authority,
+  ) async {
+    if (widget.posts.accountId == account &&
+        widget.posts.authorityVersion == authority &&
+        before != _identitySnapshot()) {
+      // 身份管理返回后读取当前投影；选择／创建身份仍不会自动发帖。
+      await widget.posts.refreshPersonalProjections();
+      await widget.posts.refreshKnownPosts();
+    }
+  }
+
+  Future<void> _setPersonalAvatar() async {
+    if (!widget.sessions.isAuthenticated) {
+      _openAuth();
+      return;
+    }
+    final controller = widget.identities;
+    if (widget.sessions.busy || controller.busy) return;
+    final personal = widget.posts.personalIdentity;
+    if (personal == null) return;
+    var identity = _findIdentity(personal.id);
+    if (identity == null) {
+      await controller.load();
+      identity = _findIdentity(personal.id);
+    }
+    if (identity == null) return;
+    final account = widget.posts.accountId;
+    final authority = widget.posts.authorityVersion;
+    final before = _identitySnapshot();
+    // 内嵌相册选图 + 圆形裁切编辑；取消时无返回值。
+    final context0 = _navigatorKey.currentContext;
+    if (context0 == null || !context0.mounted) return;
+    Uint8List? prepared;
+    try {
+      prepared = await pickIdentityAvatarImage(context0);
+    } on Object {
+      // 相册通道或裁切页异常（含未随完整重新构建注册的插件）时给出反馈，
+      // 避免点击后静默无反应。
+      _notifyAvatarFailure('无法完成头像选择，请重试。');
+      return;
+    }
+    if (prepared == null) return;
+    try {
+      final id = newAvatarAssetId();
+      if (widget.posts.accountId != account ||
+          widget.posts.authorityVersion != authority ||
+          !widget.sessions.isAuthenticated) {
+        return;
+      }
+      final avatar = await controller.uploadAvatar(
+        id,
+        prepared,
+        'image/png',
+        target: identity.id,
+      );
+      if (avatar == null) {
+        _notifyAvatarFailure(controller.errorMessage ?? '头像上传结果尚未确认，请重试。');
+        return;
+      }
+      await controller.changeAvatar(identity.id, avatar);
+      if (widget.identities.hasPending) {
+        _notifyAvatarFailure('头像更换结果尚未确认，稍后可在身份管理中核对。');
+      }
+    } on Object {
+      // 裁切输出恒为 ≤640px 的 PNG，不会超限；此处失败是上传/网络问题，
+      // 展示服务端错误或统一的上传失败提示。
+      _notifyAvatarFailure(controller.errorMessage ?? '头像上传失败，请稍后重试。');
+    }
+    await _refreshPersonalAfterIdentityChange(before, account, authority);
+  }
+
+  void _notifyAvatarFailure(String message) {
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    // 复用头像流程统一的 3 秒自动消失 + 手动关闭提示。
+    notifyAvatarBlocked(context, message);
+  }
+
+  Future<void> _editPersonalIdentity() async {
+    if (!widget.sessions.isAuthenticated) {
+      _openAuth();
+      return;
+    }
+    final controller = widget.identities;
+    if (widget.sessions.busy || controller.busy) return;
+    final personal = widget.posts.personalIdentity;
+    if (personal == null) return;
+    var identity = _findIdentity(personal.id);
+    if (identity == null) {
+      await controller.load();
+      identity = _findIdentity(personal.id);
+    }
+    if (identity == null) return;
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    final account = widget.posts.accountId;
+    final authority = widget.posts.authorityVersion;
+    final before = _identitySnapshot();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => IdentityEditor(
+        controller: controller,
+        sessions: widget.sessions,
+        identity: identity,
+        avatarEditable: false,
+      ),
+    );
+    await _refreshPersonalAfterIdentityChange(before, account, authority);
   }
 
   Future<void> _openIdentity({bool initialCreate = false}) async {
@@ -999,18 +1227,10 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
     _identityRouteOpen = true;
     final account = widget.posts.accountId;
     final authority = widget.posts.authorityVersion;
-    String identitySnapshot() =>
-        widget.identities.directory?.identities
-            .map(
-              (identity) =>
-                  '${identity.id}:${identity.nickname}:${identity.avatar}',
-            )
-            .join('|') ??
-        '';
-    final before = identitySnapshot();
+    final before = _identitySnapshot();
     await navigator
         .push(
-          MaterialPageRoute<void>(
+          HhSlidePageRoute<void>(
             builder: (context) => IdentityManagementScreen(
               controller: widget.identities,
               sessions: widget.sessions,
@@ -1023,13 +1243,7 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
           ),
         )
         .whenComplete(() => _identityRouteOpen = false);
-    if (widget.posts.accountId == account &&
-        widget.posts.authorityVersion == authority &&
-        before != identitySnapshot()) {
-      // 身份管理返回后读取当前投影；选择／创建身份仍不会自动发帖。
-      await widget.posts.refreshPersonalProjections();
-      await widget.posts.refreshKnownPosts();
-    }
+    await _refreshPersonalAfterIdentityChange(before, account, authority);
   }
 
   void _openPersonal() {
@@ -1054,6 +1268,9 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
       },
       onManageIdentities: _openIdentity,
       onAuthenticationRequired: _openAuth,
+      onOpenSettings: _openSettings,
+      onEditIdentity: _editPersonalIdentity,
+      onSetAvatar: _setPersonalAvatar,
       onChooseChannel: () =>
           _primaryTabs.currentState?.select(AppDestination.home),
       onPublishedToChannel: (channelId) {
@@ -1126,30 +1343,38 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
         localizationsDelegates: appLocalizationDelegates,
         navigatorKey: _navigatorKey,
         themeMode: _authPresentation.themeMode,
-        builder: (context, child) => PostSharingScope(
-          send: widget.sharePostText ?? PostSharingScope.nativeShare,
-          child: IdentityAvatarScope(
-            repository: _avatars,
-            child: DmScope(
-              runtime: widget.dm,
-              child: AuthPresentationScope(
-                controller: _authPresentation,
-                child: CommentScopeHost(
-                  runtime: widget.comments,
-                  child: Listener(
-                    behavior: HitTestBehavior.translucent,
-                    onPointerUp: (_) {
-                      // Let the requested action (including logout) start first. Activity
-                      // is a user gesture, never a background timer or a build side effect.
-                      scheduleMicrotask(widget.sessions.onActivity);
-                    },
-                    child: CommunitySpokenLocale(
-                      child: widget.governance == null
-                          ? child ?? const SizedBox.shrink()
-                          : GovernanceScope(
-                              controller: widget.governance!,
-                              child: child ?? const SizedBox.shrink(),
-                            ),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: _AppTextScaler(
+              MediaQuery.textScalerOf(context),
+              _authPresentation.fontScaleValue,
+            ),
+          ),
+          child: PostSharingScope(
+            send: widget.sharePostText ?? PostSharingScope.nativeShare,
+            child: IdentityAvatarScope(
+              repository: _avatars,
+              child: DmScope(
+                runtime: widget.dm,
+                child: AuthPresentationScope(
+                  controller: _authPresentation,
+                  child: CommentScopeHost(
+                    runtime: widget.comments,
+                    child: Listener(
+                      behavior: HitTestBehavior.translucent,
+                      onPointerUp: (_) {
+                        // Let the requested action (including logout) start first. Activity
+                        // is a user gesture, never a background timer or a build side effect.
+                        scheduleMicrotask(widget.sessions.onActivity);
+                      },
+                      child: CommunitySpokenLocale(
+                        child: widget.governance == null
+                            ? child ?? const SizedBox.shrink()
+                            : GovernanceScope(
+                                controller: widget.governance!,
+                                child: child ?? const SizedBox.shrink(),
+                              ),
+                      ),
                     ),
                   ),
                 ),
@@ -1168,17 +1393,17 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
             if (widget.governance != null) widget.governance!,
           ]),
           builder: (context, _) {
+            Widget home;
             if (widget.sessions.isAuthenticated &&
                 widget.posts.available &&
                 widget.directory.status == ChannelDirectoryStatus.ready) {
-              return IdentityInitialGate(
+              home = IdentityInitialGate(
                 controller: widget.identities,
                 sessions: widget.sessions,
                 child: PrimaryTabs(
                   key: _primaryTabs,
                   window: _postWindow.value,
                   onSelected: _selectPrimary,
-                  homeMenu: _settingsScreen,
                   builders: {
                     AppDestination.home: (_) => FeedScreen(
                       // New authorization owns fresh protected data. Its channel
@@ -1217,24 +1442,25 @@ class _HnuholeAppState extends State<HnuholeApp> with WidgetsBindingObserver {
                   },
                 ),
               );
+            } else {
+              home = EntryScreen(
+                directory: widget.directory,
+                showFailureDialog:
+                    !_logoutRoutePending &&
+                    widget.sessions.status != AuthStatus.signedOut,
+                restoringSession:
+                    widget.sessions.status == AuthStatus.starting ||
+                    widget.sessions.status == AuthStatus.restoring,
+                onLoginRequested: () => _openAuth(allowAfterLogout: true),
+                onMessagesPressed: widget.governance == null
+                    ? null
+                    : _openMessages,
+                messagesUnread: widget.governance?.hasUnread == true,
+              );
             }
-            final entry = EntryScreen(
-              directory: widget.directory,
-              showFailureDialog:
-                  !_logoutRoutePending &&
-                  widget.sessions.status != AuthStatus.signedOut,
-              restoringSession:
-                  widget.sessions.status == AuthStatus.starting ||
-                  widget.sessions.status == AuthStatus.restoring,
-              onLoginRequested: () => _openAuth(allowAfterLogout: true),
-              onMessagesPressed: widget.governance == null
-                  ? null
-                  : _openMessages,
-              messagesUnread: widget.governance?.hasUnread == true,
-            );
             return widget.sessions.status == AuthStatus.signedOut
-                ? StudentLetterGate(store: _studentLetters, child: entry)
-                : entry;
+                ? StudentLetterGate(store: _studentLetters, child: home)
+                : home;
           },
         ),
       ),

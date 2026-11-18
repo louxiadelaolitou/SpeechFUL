@@ -28,6 +28,7 @@ dependencies:
     path: ../../packages/auth_passkey
   hnuhole_image_viewer:
     path: ../../packages/image_viewer
+  photo_manager: ^3.12.0
 
 dev_dependencies:
   flutter_test:

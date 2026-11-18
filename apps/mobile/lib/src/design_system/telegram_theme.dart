@@ -24,7 +24,7 @@ class HhTelegramPalette extends ThemeExtension<HhTelegramPalette> {
   static const lightAccent = Color(0xFF168BDA);
   static const lightAction = Color(0xFF229AF0);
   static const lightLine = Color(0xFFEAEAEA);
-  static const lightCard = Color(0xFFF1F1F3);
+  static const lightCard = Color(0xFFF7F8FA);
   const HhTelegramPalette({
     required this.background,
     required this.surface,
@@ -44,7 +44,7 @@ class HhTelegramPalette extends ThemeExtension<HhTelegramPalette> {
   });
 
   static const light = HhTelegramPalette(
-    background: Color(0xFFF1F1F3),
+    background: Color(0xFFF7F8FA),
     surface: Color(0xFFFFFFFF),
     header: Color(0xFFFFFFFF),
     raised: Color(0xFFFFFFFF),

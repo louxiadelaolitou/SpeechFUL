@@ -84,6 +84,77 @@ func TestEmailResetOTPIsolationPostgres(t *testing.T) {
 	}
 }
 
+func TestPasswordChangeViaCampusEmailPostgres(t *testing.T) {
+	l, e, capture := newOTPTestEligibility(t, MailSent)
+	ctx := context.Background()
+	ticket, priv := l.ticket(t)
+	_, signup := l.intent(t, ticket, priv, "password_change_user")
+	created, err := l.c.CommitSignup(ctx, signup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := "password-change@hainanu.edu.cn"
+	if _, err = l.v.ReserveAfterQualification(ctx, []byte(address), ticket.BootstrapKey); err != nil {
+		t.Fatal(err)
+	}
+	request := otpFixtureRequest(t, address)
+	request.Purpose = "RESET"
+	accepted, err := e.RequestOTP(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, code := capture.captured()
+	intentRequest := EmailResetIntentRequest{
+		InstallationID: [16]byte{67},
+		IdempotencyKey: [32]byte{68},
+		Bearer:         created.SessionToken,
+	}
+	verified, err := e.ConfirmEmailReset(ctx, EmailResetConfirmation{
+		Key: [32]byte{69}, FlowID: accepted.FlowID, InstallationID: request.InstallationID, OTP: code,
+		Binding: protocol.PasswordChangeBinding(intentRequest.InstallationID, intentRequest.IdempotencyKey, sha256.Sum256(created.SessionToken[:])),
+	})
+	if err != nil || verified.State != "PROOF_AVAILABLE" {
+		t.Fatal(verified.State, err)
+	}
+	intentRequest.Proof = verified.Proof
+	unsigned := intentRequest
+	unsigned.Bearer = [32]byte{}
+	if _, err = l.c.CreateEmailResetIntent(ctx, unsigned); !errors.Is(err, ErrEmailProofInvalid) {
+		t.Fatal("change proof accepted by recovery", err)
+	}
+	intent, err := l.c.CreateEmailResetIntent(ctx, intentRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = l.c.GetCurrentSession(ctx, created.SessionToken); err != nil {
+		t.Fatal("verification ended the current session", err)
+	}
+	change := recoveryTestRequest(t, intent)
+	worker := sessionTestPasswordWorker(t, 2)
+	if err = l.c.CommitPasswordReset(ctx, change, worker); !errors.Is(err, ErrResetIntentInvalid) {
+		t.Fatal("change intent accepted without its session", err)
+	}
+	change.Bearer = created.SessionToken
+	if err = l.c.CommitPasswordReset(ctx, change, worker); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = l.c.GetCurrentSession(ctx, created.SessionToken); !errors.Is(err, ErrSessionInvalid) {
+		t.Fatal("old session survived", err)
+	}
+	if state, err := l.c.GetPasswordResetResult(ctx, change.IdempotencyKey, change.IntentID); err != nil || state != "COMMITTED" {
+		t.Fatal(state, err)
+	}
+	login := sessionTestRequest(t, "password_change_user")
+	if _, err = l.c.CreateSession(ctx, login, worker); !errors.Is(err, ErrAuthenticationFailed) {
+		t.Fatal("old password survived", err)
+	}
+	login.Password = labResetPassword
+	login.IdempotencyKey = [32]byte{70}
+	if _, err = l.c.CreateSession(ctx, login, worker); err != nil {
+		t.Fatal("new password cannot login", err)
+	}
+}
+
 func TestEmailResetPasswordAndPausedCredentialsPostgres(t *testing.T) {
 	l := newLab(t)
 	ctx := context.Background()

@@ -14,6 +14,7 @@ export 'src/auth/credential_management_api.dart';
 export 'src/auth/security_management_controller.dart';
 export 'src/auth/security_management_screen.dart';
 export 'src/identity/identity_api.dart';
+export 'src/identity/identity_avatar_photo.dart';
 export 'src/identity/identity_management_controller.dart';
 export 'src/identity/identity_management_screen.dart';
 export 'src/identity/identity_name_formatter.dart';

@@ -70,7 +70,16 @@ func (b *boundary) communityRecoveryPublic(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	if hasHeader(r.Header, "Authorization") {
+	var bearer [32]byte
+	changing := r.URL.Path == "/api/v1/auth/password-changes"
+	if changing {
+		token, err := sessionCapability(r.Header, "Bearer")
+		if err != nil || token == ([32]byte{}) {
+			b.fail(w, 401, "SESSION_INVALID", 0)
+			return
+		}
+		bearer = token
+	} else if hasHeader(r.Header, "Authorization") {
 		b.bad(w, errMalformed)
 		return
 	}
@@ -117,6 +126,10 @@ func (b *boundary) communityRecoveryPublic(w http.ResponseWriter, r *http.Reques
 	var code string
 	var e3 error
 	if _, supplied := object["newRecoveryCodeConfirmation"]; supplied {
+		if changing {
+			b.bad(w, errMalformed)
+			return
+		}
 		code, e3 = stringField(object, "newRecoveryCodeConfirmation")
 		if e3 == nil && !validRecoveryCode(code, false) {
 			e3 = errMalformed
@@ -126,7 +139,7 @@ func (b *boundary) communityRecoveryPublic(w http.ResponseWriter, r *http.Reques
 		b.bad(w, errMalformed)
 		return
 	}
-	request := authprivacy.PasswordResetRequest{IntentID: intent, NewPassword: password, NewRecoveryCodeConfirmation: code}
+	request := authprivacy.PasswordResetRequest{IntentID: intent, NewPassword: password, NewRecoveryCodeConfirmation: code, Bearer: bearer}
 	copy(request.IdempotencyKey[:], keyRaw)
 	if err := backend.CommitPasswordReset(r.Context(), request, passwords); err != nil {
 		b.recoveryClosureFailure(w, err)

@@ -9,7 +9,6 @@ import 'package:hnuhole_mobile/src/design_system/motion_routes.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 import 'package:hnuhole_mobile/src/navigation/app_navigation.dart';
 import 'package:hnuhole_mobile/src/navigation/feed_chrome.dart';
-import 'package:hnuhole_mobile/src/navigation/home_side_menu.dart';
 import 'package:hnuhole_mobile/src/navigation/primary_tabs.dart';
 
 class _RetainedPage extends StatefulWidget {
@@ -459,10 +458,7 @@ void main() {
               .map((paint) => paint.painter)
               .whereType<HhNavigationGlyph>()
               .single;
-          expect(
-            glyph.fillProgress,
-            reduced ? 1.0 : inExclusiveRange(0.0, 1.0),
-          );
+          expect(glyph.fillProgress, inExclusiveRange(0.0, 1.0));
           final selectedSemantics = find.ancestor(
             of: find.byKey(ValueKey('destination:${destination.name}')),
             matching: find.byWidgetPredicate(
@@ -498,59 +494,6 @@ void main() {
       },
     );
   }
-
-  testWidgets(
-    'side menu settles immediately when reduced motion changes mid-flight',
-    (tester) async {
-      final menu = GlobalKey<HomeSideMenuState>();
-      final media = ValueNotifier(const MediaQueryData(size: Size(800, 600)));
-      final focus = FocusNode();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: ValueListenableBuilder(
-            valueListenable: media,
-            builder: (context, value, _) => MediaQuery(
-              data: value,
-              child: HomeSideMenu(
-                key: menu,
-                enabled: true,
-                menuBuilder: (_) =>
-                    const Material(child: Text('settings surface')),
-                child: Scaffold(body: TextField(focusNode: focus)),
-              ),
-            ),
-          ),
-        ),
-      );
-      focus.requestFocus();
-      await tester.pump();
-      menu.currentState!.open();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 60));
-      expect(focus.hasFocus, isFalse);
-      final surface = find.byKey(const ValueKey('home-menu-home-surface'));
-      final moving = tester.widget<Transform>(surface).transform.storage[12];
-      expect(moving, greaterThan(0));
-      expect(moving, lessThan(768));
-      media.value = media.value.copyWith(accessibleNavigation: true);
-      await tester.pump();
-      expect(tester.widget<Transform>(surface).transform.storage[12], 768);
-      await tester.binding.handlePopRoute();
-      await tester.pump();
-      expect(tester.widget<Transform>(surface).transform.storage[12], 0);
-      expect(find.text('settings surface'), findsNothing);
-      media.value = media.value.copyWith(disableAnimations: true);
-      menu.currentState!.open();
-      await tester.pump();
-      expect(tester.widget<Transform>(surface).transform.storage[12], 768);
-      menu.currentState!.close();
-      await tester.pump();
-      expect(tester.widget<Transform>(surface).transform.storage[12], 0);
-      await tester.pumpWidget(const SizedBox());
-      media.dispose();
-      focus.dispose();
-    },
-  );
 
   for (final reduced in [false, true]) {
     testWidgets('platform routes preserve Cupertino swipe back ($reduced)', (
@@ -589,7 +532,7 @@ void main() {
 
   for (final accessible in [false, true]) {
     testWidgets(
-      'reduced pop shows its destination immediately (accessible=$accessible)',
+      'platform pop keeps the slide under system flags (accessible=$accessible)',
       (tester) async {
         final navigator = GlobalKey<NavigatorState>();
         await tester.pumpWidget(
@@ -621,7 +564,8 @@ void main() {
         await tester.pump(const Duration(milliseconds: 20));
         expect(
           tester.getTopLeft(find.byKey(detail)).dx,
-          greaterThanOrEqualTo(
+          inExclusiveRange(
+            0.0,
             tester.view.physicalSize.width / tester.view.devicePixelRatio,
           ),
         );
@@ -633,7 +577,7 @@ void main() {
   }
 
   testWidgets(
-    'reduced route transitions use settled frames and keep platform durations',
+    'route transitions keep intermediate frames and platform durations',
     (tester) async {
       final navigator = GlobalKey<NavigatorState>();
       final base = ThemeData(platform: TargetPlatform.iOS);
@@ -672,12 +616,17 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1));
-      expect(tester.getTopLeft(find.byKey(detailKey)), Offset.zero);
+      final initialOffset = tester.getTopLeft(find.byKey(detailKey)).dx;
       await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        tester.getTopLeft(find.byKey(detailKey)).dx,
+        inExclusiveRange(0, initialOffset),
+      );
+      await tester.pumpAndSettle();
       expect(tester.getTopLeft(find.byKey(detailKey)), Offset.zero);
       final context = tester.element(find.byKey(detailKey));
-      expect(HhMotionRoutes.popup(context).duration, Duration.zero);
-      expect(HhMotionRoutes.sheet(context).reverseDuration, Duration.zero);
+      expect(HhMotionRoutes.popup(context).duration, HhMotion.quick);
+      expect(HhMotionRoutes.sheet(context).reverseDuration, HhMotion.quick);
       media.value = const MediaQueryData();
       await tester.pumpAndSettle();
       expect(HhMotionRoutes.popup(context).duration, HhMotion.quick);

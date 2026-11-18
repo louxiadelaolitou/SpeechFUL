@@ -60,6 +60,7 @@ void main() {
           'version': 1,
           'theme': 'dark',
           'language': language.code,
+          'fontScale': 'standard',
         });
         final restarted = AuthPresentationController(preferences: preferences);
         await restarted.load();
@@ -92,6 +93,7 @@ void main() {
         controller.language.code,
       );
       expect(controller.themeMode, ThemeMode.light);
+      expect(controller.fontScale, 'standard');
       controller.dispose();
     });
   }
@@ -148,22 +150,33 @@ void main() {
     restarted.dispose();
   });
 
-  test('appearance persists only version, theme and language and restores the latest selection', () async {
-    final preferences = _Preferences();
-    final first = AuthPresentationController(preferences: preferences);
-    first.toggleTheme(Brightness.light);
-    first.toggleLanguage();
-    await pumpEventQueue();
-    final record = jsonDecode(preferences.value!) as Map<String, dynamic>;
-    expect(record.keys.toSet(), {'version', 'theme', 'language'});
-    expect(record, {'version': 1, 'theme': 'dark', 'language': 'en'});
-    final restored = AuthPresentationController(preferences: preferences);
-    await restored.load();
-    expect(restored.themeMode, ThemeMode.dark);
-    expect(restored.english, isTrue);
-    first.dispose();
-    restored.dispose();
-  });
+  test(
+    'appearance persists and restores theme, language and font scale',
+    () async {
+      final preferences = _Preferences();
+      final first = AuthPresentationController(preferences: preferences);
+      first.toggleTheme(Brightness.light);
+      first.toggleLanguage();
+      first.setFontScale('large');
+      first.setFontScale('xlarge');
+      await first.preferencesSaved;
+      final record = jsonDecode(preferences.value!) as Map<String, dynamic>;
+      expect(record, {
+        'version': 1,
+        'theme': 'dark',
+        'language': 'en',
+        'fontScale': 'xlarge',
+      });
+      final restored = AuthPresentationController(preferences: preferences);
+      await restored.load();
+      expect(restored.themeMode, ThemeMode.dark);
+      expect(restored.english, isTrue);
+      expect(restored.fontScale, 'xlarge');
+      expect(restored.fontScaleValue, 1.25);
+      first.dispose();
+      restored.dispose();
+    },
+  );
 
   test('a late preference read cannot overwrite a user choice', () async {
     final preferences = _Preferences()..pendingRead = Completer<String?>();

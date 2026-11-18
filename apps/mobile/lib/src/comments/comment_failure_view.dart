@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../posts/post_photo_picker.dart';
+import '../media/album_photo_picker.dart';
 import 'comment_http.dart';
 import 'comment_models.dart';
 import 'comment_runtime.dart';
@@ -129,7 +130,7 @@ class _CommentFailureViewState extends State<CommentFailureView> {
 
   Future<void> _pick() async {
     try {
-      final files = await NativePostPhotoPicker().pick(1);
+      final files = await AlbumPhotoPicker(context).pick(1);
       if (files.isEmpty) return;
       final result = await inspectPostPhoto(files.single, commentUUID());
       if (!current) return;

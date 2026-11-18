@@ -60,7 +60,7 @@ void main() {
         expect(tester.getTopLeft(find.text('帖子')), heading);
         expect(tester.getTopLeft(find.byType(CustomScrollView).last), empty);
         expect(find.text('还没有自己的帖子'), findsOneWidget);
-        expect(find.text(fail ? '个人资料暂不可用' : '账号A的身份'), findsOneWidget);
+        expect(find.text(fail ? '个人资料暂不可用' : '账号A的身份'), findsNWidgets(2));
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
       },
@@ -84,7 +84,7 @@ void main() {
           await tester.tap(find.byKey(const ValueKey('destination:personal')));
         }
         await tester.pumpAndSettle();
-        expect(find.text('账号A的身份'), findsOneWidget);
+        expect(find.text('账号A的身份'), findsNWidgets(2));
         final oldPersonal = tester.widget<PersonalPostsScreen>(
           find.byType(PersonalPostsScreen),
         );
@@ -100,7 +100,7 @@ void main() {
           isTrue,
         );
         await f.loginB(tester);
-        expect(find.text('账号B的身份'), findsOneWidget);
+        expect(find.text('账号B的身份'), findsNWidgets(2));
         expect(find.text('账号A的身份'), findsNothing);
         expect(find.text('请重新核对登录状态'), findsNothing);
         expect(f.postApi.personalTokens, contains(identityTestOtherToken));
@@ -148,7 +148,7 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         await f.loginB(tester);
-        expect(find.text('账号B的身份'), findsOneWidget);
+        expect(find.text('账号B的身份'), findsNWidgets(2));
         final token = f.store.current!.session!.token;
         final expiry = f.store.current!.session!.expiresAt;
         if (status == null) {
@@ -166,7 +166,7 @@ void main() {
           );
         }
         await tester.pumpAndSettle();
-        expect(find.text('账号B的身份'), findsOneWidget);
+        expect(find.text('账号B的身份'), findsNWidgets(2));
         expect(find.text('请重新核对登录状态'), findsNothing);
         expect(f.sessions.isAuthenticated, isTrue);
         expect(f.store.current!.session!.token, token);
@@ -187,7 +187,13 @@ void main() {
     await tester.pumpAndSettle();
     final old = tester.state(find.byType(PersonalPostsScreen));
     await f.loginB(tester, account: identityTestAccount, name: '同账号的新窗口');
-    expect(find.text('同账号的新窗口'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('personal-profile')),
+        matching: find.text('同账号的新窗口'),
+      ),
+      findsOneWidget,
+    );
     expect(
       identical(tester.state(find.byType(PersonalPostsScreen)), old),
       isFalse,

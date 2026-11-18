@@ -215,13 +215,21 @@ class AuthState {
       'waitUntil',
       'sendState',
       'unregistered',
-      if (reset) ...['intentId', 'intentExpiresAt', 'username'],
+      if (reset) ...[
+        'intentId',
+        'intentExpiresAt',
+        'username',
+        'changeTokenDigest',
+      ],
     });
     for (final key in ['sendKey', 'cKey']) {
       AuthCrypto.decode(_string(m, key), bytes: 32);
     }
     for (final key in ['confirmKey', 'flowId']) {
       if (m[key] != null) AuthCrypto.decode(_string(m, key), bytes: 32);
+    }
+    if (reset && m['changeTokenDigest'] != null) {
+      AuthCrypto.decode(_string(m, 'changeTokenDigest'), bytes: 32);
     }
     if (!RegExp(r'^[^\s@]+@hainanu\.edu\.cn$').hasMatch(_string(m, 'email')) ||
         !{'UNKNOWN', 'ACCEPTED'}.contains(m['sendState'])) {

@@ -277,7 +277,11 @@ class _PublishedPostEditScreenState extends State<_PublishedPostEditScreen> {
       _error = null;
     });
     try {
-      final files = await _session.pickImages(remaining);
+      final files = await _session.pickImages(
+        remaining,
+        pickerForView: (configured) =>
+            AlbumPhotoPicker.forView(context, configured),
+      );
       for (final file in files.take(remaining)) {
         final id = newPostMediaId(), blobId = newPostMediaId();
         DraftPostImage local;

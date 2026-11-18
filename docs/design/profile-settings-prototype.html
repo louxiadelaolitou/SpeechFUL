@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SpeechFUL · 我的与设置 · 交互原型</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #EEF1F4; color: #1B232C; display: grid; place-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  button:focus-visible, a:focus-visible, input:focus-visible {
+    outline: 2px solid #2B8CCB; outline-offset: 3px; border-radius: 8px;
+  }
+  .stage { display: flex; align-items: center; gap: 56px; padding: 28px; }
+  .notes { width: 300px; line-height: 1.8; color: #4A5765; }
+  .notes h1 { font-size: 24px; font-weight: 600; color: #16202A; margin-bottom: 6px; }
+  .notes .sub { font-size: 13px; color: #7A8896; margin-bottom: 26px; }
+  .notes h2 { font-size: 13px; font-weight: 600; color: #16202A; margin: 22px 0 6px; }
+  .notes p, .notes li { font-size: 13px; }
+  .notes ul { padding-left: 18px; }
+  .notes .kbd { display: inline-block; padding: 0 6px; border: 1px solid #CBD4DC; border-radius: 5px; font-size: 12px; background: #fff; }
+
+  .device {
+    width: 414px; height: min(880px, calc(100vh - 56px)); min-height: 640px;
+    border-radius: 34px; overflow: hidden; position: relative; flex: none;
+    box-shadow: 0 24px 70px rgba(24, 42, 60, .16), 0 0 0 1px rgba(24, 42, 60, .08);
+    background: #fff;
+  }
+  .app {
+    --bg: #F6F8FA; --surface: #FFFFFF; --text: #182430; --muted: #75828F;
+    --line: #E6EBEF; --accent: #1F87C4; --accent-soft: #E9F3FA;
+    --danger: #C84B54; --danger-soft: #FBEEEF; --chip: #F1F5F8;
+    position: absolute; inset: 0; background: var(--bg); color: var(--text);
+    transition: background .25s, color .25s;
+  }
+  .app[data-theme="dark"] {
+    --bg: #11171D; --surface: #182028; --text: #EDF2F7; --muted: #93A2B0;
+    --line: #28333E; --accent: #5FB2E4; --accent-soft: #1D3444;
+    --danger: #E88A92; --danger-soft: #352329; --chip: #202A34;
+  }
+  .statusbar {
+    height: 34px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 26px; font-size: 12px; font-weight: 600; letter-spacing: .2px;
+    background: var(--surface); position: relative; z-index: 6;
+  }
+  .statusbar .sicons { display: flex; gap: 6px; align-items: center; opacity: .8; }
+  .viewport { position: absolute; inset: 34px 0 0; overflow: hidden; }
+  .screen {
+    position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--bg); scrollbar-width: none; touch-action: pan-y;
+    transition: transform .34s cubic-bezier(.32, .72, .24, 1), opacity .34s;
+  }
+  .screen::-webkit-scrollbar { display: none; }
+  .screen.under { transform: translateX(-100%); z-index: 1; }
+  .screen:not(.under) { z-index: 2; }
+  .screen.dragging { transition: none; }
+  .screen.from-right { transform: translateX(100%); }
+  .screen.from-left { transform: translateX(-100%); }
+  .screen.to-left { transform: translateX(-24%); opacity: .55; }
+  .screen.to-right { transform: translateX(100%); }
+  .screen.idle-left { transform: translateX(-24%); opacity: .55; }
+  .screen.center { transform: translateX(0); opacity: 1; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px 10px; background: var(--surface);
+  }
+  .iconbtn {
+    width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+    color: var(--text); border: 1px solid var(--line); background: var(--surface);
+    transition: background .15s, transform .15s;
+  }
+  .iconbtn:hover { background: var(--chip); }
+  .iconbtn:active { transform: scale(.93); }
+  .identity-chip {
+    display: flex; align-items: center; gap: 8px; max-width: 220px;
+    padding: 5px 10px 5px 6px; border-radius: 22px; border: 1px solid var(--line);
+    background: var(--surface); font-size: 13px; font-weight: 500;
+  }
+  .identity-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .identity-chip svg { color: var(--muted); flex: none; }
+
+  .avatar { border-radius: 50%; flex: none; display: block; }
+  .hero { background: var(--surface); text-align: center; padding: 10px 20px 26px; }
+  .hero .avatar { margin: 0 auto 14px; }
+  .hero h1 { font-size: 23px; font-weight: 600; letter-spacing: .2px; }
+  .hero-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+  .pillbtn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px;
+    border-radius: 20px; background: var(--chip); color: var(--text);
+    font-size: 13px; font-weight: 500; transition: background .15s, transform .15s;
+  }
+  .pillbtn:hover { background: var(--accent-soft); color: var(--accent); }
+  .pillbtn:active { transform: scale(.96); }
+
+  .ptabs {
+    display: flex; background: var(--surface); border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 3;
+  }
+  .ptab-ind {
+    position: absolute; bottom: -1px; width: 20%; display: flex; justify-content: center;
+    transition: left .28s cubic-bezier(.32, .72, .24, 1); pointer-events: none;
+  }
+  .ptab-ind::after {
+    content: ""; width: 26px; height: 2px; border-radius: 2px; background: var(--accent);
+  }
+  .ptab {
+    flex: 1; padding: 13px 0 11px; display: flex; flex-direction: column; gap: 5px;
+    align-items: center; color: var(--muted); font-size: 11px; position: relative;
+    transition: color .2s;
+  }
+  .ptab[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+
+  .post {
+    background: var(--surface); padding: 18px 20px 14px; border-bottom: 1px solid var(--line);
+  }
+  .post:last-child { border-bottom: 0; }
+  .post-head { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+  .post-head .who { font-weight: 500; }
+  .post-head time { color: var(--muted); font-size: 12px; }
+  .post-head .more { margin-left: auto; color: var(--muted); padding: 4px; border-radius: 6px; }
+  .post h2 { font-size: 16px; font-weight: 600; margin: 12px 0 7px; line-height: 1.5; }
+  .post p { font-size: 14px; line-height: 1.75; color: var(--text); opacity: .88; }
+  .post-acts { display: flex; gap: 22px; margin-top: 14px; justify-content: flex-end; }
+  .post-acts button {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--muted);
+    font-size: 12px; padding: 4px 0; transition: color .15s;
+  }
+  .post-acts button:hover { color: var(--accent); }
+  .post-acts button.on { color: var(--accent); }
+  .post-acts button.on svg { fill: var(--accent); }
+  .quote {
+    margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--chip);
+    font-size: 13px; line-height: 1.6; color: var(--muted);
+  }
+  .quote b { color: var(--text); font-weight: 500; display: block; margin-bottom: 3px; }
+  .repost-tag { font-size: 12px; color: var(--accent); display: flex; gap: 5px; align-items: center; margin-bottom: 6px; }
+  .empty { text-align: center; color: var(--muted); font-size: 14px; padding: 70px 30px; line-height: 1.9; }
+
+  .tabbar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 62px; z-index: 5;
+    display: flex; background: var(--surface); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabbar button {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; font-size: 10px; color: var(--muted);
+  }
+  .tabbar button[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+  .pagehead {
+    display: flex; align-items: center; gap: 12px; padding: 12px 18px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .pagehead h1 { font-size: 19px; font-weight: 600; }
+  .pagehead .back { border: 0; background: none; }
+  .group { margin-top: 22px; }
+  .group-label { font-size: 12px; color: var(--muted); padding: 0 22px 8px; letter-spacing: .4px; }
+  .rows { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .row {
+    width: 100%; display: flex; align-items: center; gap: 13px; text-align: left;
+    padding: 15px 20px; border-bottom: 1px solid var(--line); min-height: 54px;
+    transition: background .15s;
+  }
+  .row:last-child { border-bottom: 0; }
+  button.row:hover { background: var(--chip); }
+  .row .ricon { color: var(--muted); flex: none; display: grid; place-items: center; width: 24px; }
+  .row .rtext { flex: 1; min-width: 0; }
+  .row .rtitle { font-size: 15px; }
+  .row .rsub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+  .row .rvalue { font-size: 13px; color: var(--muted); flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .chev { color: var(--muted); flex: none; }
+  .row.danger .rtitle, .row.danger .ricon { color: var(--danger); }
+  .logout {
+    width: calc(100% - 40px); margin: 30px 20px 40px; padding: 14px; border-radius: 12px;
+    background: var(--danger-soft); color: var(--danger); font-size: 15px; font-weight: 500;
+  }
+  .body-pad { padding: 20px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.8; padding: 14px 22px; }
+
+  .choice {
+    width: 100%; display: flex; align-items: center; gap: 14px; text-align: left;
+    padding: 16px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .choice:last-child { border-bottom: 0; }
+  .choice .cbody { flex: 1; }
+  .choice .ctitle { font-size: 15px; }
+  .choice .csub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+  .radio {
+    width: 20px; height: 20px; border-radius: 50%; border: 1.6px solid var(--line); flex: none;
+    display: grid; place-items: center; transition: border-color .15s;
+  }
+  .choice[aria-checked="true"] .radio { border-color: var(--accent); }
+  .choice[aria-checked="true"] .radio::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .choice[aria-checked="true"] .ctitle { color: var(--accent); font-weight: 600; }
+  .swatch { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--line); flex: none; position: relative; overflow: hidden; }
+  .swatch::after { content: ""; position: absolute; left: 8px; right: 8px; top: 10px; height: 5px; border-radius: 3px; background: currentColor; opacity: .35; }
+  .swatch.light { background: #fff; color: #1F87C4; }
+  .swatch.dark { background: #182028; color: #5FB2E4; }
+  .swatch.auto { background: linear-gradient(105deg, #fff 50%, #182028 50%); color: #1F87C4; }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 7px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); font-size: 15px;
+  }
+  .primary {
+    width: 100%; padding: 13px; border-radius: 12px; background: var(--accent);
+    color: #fff; font-size: 15px; font-weight: 500; margin-top: 8px;
+  }
+  .primary:active { transform: scale(.985); }
+  .secondary {
+    width: 100%; padding: 12px; border-radius: 12px; background: var(--chip);
+    font-size: 14px; margin-top: 10px;
+  }
+  .kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: 14px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { color: var(--muted); flex: none; }
+  .kv .v { text-align: right; word-break: break-all; }
+  .kv .vwrap { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; position: relative; }
+  .id-row .v { font-variant-numeric: tabular-nums; letter-spacing: .5px; font-weight: 500; }
+  .copy { color: var(--accent); font-size: 12px; padding: 4px 10px; border-radius: 14px; background: var(--accent-soft); flex: none; }
+  .copy-pop {
+    position: absolute; right: 0; bottom: calc(100% + 10px); z-index: 8;
+    padding: 7px 12px; border-radius: 8px; background: var(--text); color: var(--surface);
+    font-size: 12px; line-height: 1; white-space: nowrap; pointer-events: none;
+    opacity: 0; transform: translateY(5px); transition: opacity .18s, transform .18s;
+  }
+  .copy-pop::after {
+    content: ""; position: absolute; right: 20px; top: 100%; border: 5px solid transparent;
+    border-top-color: var(--text);
+  }
+  .copy-pop.show { opacity: 1; transform: translateY(0); }
+  .album-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;
+    margin: 2px -20px 0;
+  }
+  .album-grid button {
+    aspect-ratio: 1; border-radius: 10px; display: grid; place-items: center;
+    color: var(--muted); background: var(--chip); transition: transform .15s;
+  }
+  .album-grid button:hover { transform: scale(.96); }
+  .crop-stage {
+    position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden;
+    margin: 4px 0 14px; background: var(--chip);
+  }
+  .crop-photo {
+    position: absolute; inset: -12%;
+    background: linear-gradient(135deg, #B9C4CE 0%, #9AA9B6 48%, #7E8C99 100%);
+    opacity: .8;
+  }
+  .crop-mask {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 0 35%, rgba(10, 20, 30, .52) 36%);
+  }
+  .crop-ring {
+    position: absolute; left: 50%; top: 50%; width: 70%; aspect-ratio: 1;
+    transform: translate(-50%, -50%); border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, .95);
+  }
+  .crop-hint {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    font-size: 11px; color: #fff; opacity: .85; white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); line-height: 1.8; }
+
+  .scrim {
+    position: absolute; inset: 0; background: rgba(10, 20, 30, .38); z-index: 20;
+    display: flex; align-items: flex-end; opacity: 0; transition: opacity .22s;
+  }
+  .scrim.show { opacity: 1; }
+  .sheet {
+    width: 100%; background: var(--surface); border-radius: 22px 22px 0 0; padding: 10px 20px 26px;
+    transform: translateY(30px); transition: transform .26s cubic-bezier(.32,.72,.24,1);
+    max-height: 82%; overflow-y: auto;
+  }
+  .scrim.show .sheet { transform: translateY(0); }
+  .grabber { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 4px auto 16px; }
+  .sheet h2 { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+  .sheet .row { padding: 14px 4px; }
+  .toast {
+    position: absolute; left: 50%; bottom: 92px; transform: translate(-50%, 12px);
+    background: rgba(20, 30, 40, .92); color: #fff; font-size: 13px; padding: 10px 18px;
+    border-radius: 22px; opacity: 0; pointer-events: none; transition: all .22s; z-index: 40;
+    max-width: 82%; text-align: center; line-height: 1.5;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 900px) { .notes { display: none; } .stage { padding: 0; } }
+  @media (max-width: 460px) {
+    body { display: block; background: #fff; }
+    .device { width: 100%; height: 100svh; min-height: 0; border-radius: 0; box-shadow: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="notes">
+    <h1>我的 / 设置</h1>
+    <div class="sub">SpeechFUL · 交互原型 v1 · 纯前端假数据</div>
+    <h2>可以点什么</h2>
+    <ul>
+      <li>左上角齿轮 → 设置（从左往右滑入）</li>
+      <li>在“我的”上半部分右滑 → 进入设置</li>
+      <li>内容区左右滑 → 切换五个页签；帖子栏再右滑 → 设置</li>
+      <li>点击页签切换同样有滑动动画</li>
+      <li>右上身份胶囊 → 切换身份</li>
+      <li>设置头像 / 编辑信息 → 底部弹层</li>
+      <li>五个内容页签、点赞、收藏</li>
+      <li>设置 → 主题：浅色 / 深色 / 跟随系统</li>
+      <li>账号资料里的编号可复制</li>
+    </ul>
+    <h2>这一版的改动</h2>
+    <p>取消“我的”标题与首页左滑设置入口；个人区参考所给图片但去掉右上按钮，操作缩小为两枚胶囊；内容卡片改为扁平分隔样式。</p>
+    <h2>本轮更新</h2>
+    <p>「设置图片」改为「设置头像」：弹层内直接展示系统相册网格，选择照片后进入头像编辑界面（圆形裁切、确认，不合规提示在界面内显示）；此为目标样式，当前版本先直达系统照片选择器，内嵌相册后期实现。「编辑信息」只保留昵称编辑，不再显示账号信息与相关入口。设置新增「字体大小」：小／标准／大／特大四档，切换后全局立即生效。</p>
+    <h2>说明</h2>
+    <p>所有数据为本地假数据，不联网。深浅色切换立即生效，可用来评审两种观感。</p>
+  </aside>
+
+  <div class="device">
+    <div class="app" id="app" data-theme="light">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="sicons" aria-hidden="true">
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.3" y="5.5" width="3" height="6.5" rx="1"/><rect x="8.6" y="3" width="3" height="9" rx="1"/><rect x="12.9" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="22" height="12" viewBox="0 0 24 12" fill="none" stroke="currentColor"><rect x="1" y="1" width="19" height="10" rx="3"/><rect x="3" y="3" width="13" height="6" rx="1.5" fill="currentColor" stroke="none"/><path d="M22 4v4" stroke-linecap="round"/></svg>
+        </span>
+      </div>
+      <div class="viewport" id="viewport"></div>
+      <nav class="tabbar" id="tabbar" aria-label="主导航"></nav>
+      <div id="sheet-root"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const app = document.getElementById('app');
+const viewport = document.getElementById('viewport');
+const tabbar = document.getElementById('tabbar');
+
+const state = {
+  page: 'profile', stack: [], tab: 'posts', theme: 'system', language: '简体中文', fontSize: 'standard',
+  identity: 0,
+  identities: [
+    { name: '夜航船', tone: 'pink', original: true },
+    { name: '北岛', tone: 'blue', original: false }
+  ],
+  likes: {}, favorites: {}
+};
+
+const paths = {
+  gear: 'M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Zm8.1 4.7.9-1.3-1.9-3.3-1.5.6a7.6 7.6 0 0 0-1.6-.9L15.7 6h-3.8l-.3 2.4a7.6 7.6 0 0 0-1.6.9l-1.5-.6-1.9 3.3.9 1.3v1.4l-.9 1.3 1.9 3.3 1.5-.6c.5.4 1 .7 1.6.9l.3 2.4h3.8l.3-2.4c.6-.2 1.1-.5 1.6-.9l1.5.6 1.9-3.3-.9-1.3v-1.4Z',
+  chevR: 'm9 5 7 7-7 7', back: 'm14 5-7 7 7 7',
+  camera: 'M4 8h3l1.5-2.5h7L17 8h3v11H4V8Zm8 3a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z',
+  edit: 'M4 20h4L20 8l-4-4L4 16v4Zm13-15 3 3',
+  article: 'M6 3h9l4 4v14H6V3Zm9 0v5h4M9 12h7M9 16h7',
+  reply: 'M4 5h16v11H9l-5 4V5Z',
+  repost: 'M4 8h13l-3-3m3 3-3 3M20 16H7l3 3m-3-3 3-3',
+  heart: 'M12 20s-7.5-4.6-9.3-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.3 11c-1.8 4.4-9.3 9-9.3 9Z',
+  bookmark: 'M6 3h12v18l-6-4-6 4V3Z',
+  comment: 'M4 5h16v11H9l-5 4V5Z',
+  more: 'M6 12h.01M12 12h.01M18 12h.01',
+  home: 'm3 11 9-8 9 8v10h-6v-6H9v6H3V11Z',
+  bell: 'M6 17h12l-1.5-3V9a4.5 4.5 0 0 0-9 0v5L6 17Zm4 3h4',
+  dm: 'M4 4h16v12H8l-4 4V4Z',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 9a8 8 0 0 1 16 0',
+  theme: 'M12 3a9 9 0 1 0 9 9c0-1-5 2-8-1s-1-8-1-8Z',
+  type: 'M3 19 9.2 5h1.6L16 19M4.9 14.2h9.2',
+  lang: 'M3 5h10M8 3v2m-3 3c1 5 4 8 8 10m-2-5 3-8 3 8m-5-3h4M3 21h9',
+  idcard: 'M3 5h18v14H3V5Zm4 4h5M7 13h5m2-4h4m-4 4h4M7 16h10',
+  lock: 'M6 11h12v10H6V11Zm3 0V7a3 3 0 0 1 6 0v4',
+  devices: 'M3 5h14v10H3V5Zm7 10v4m-4 0h8m4-11h3v12h-6',
+  shield: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z',
+  block: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM5.6 5.6l12.8 12.8',
+  users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0m1-13a3.5 3.5 0 0 1 0 7m1 4a6 6 0 0 1 4 5',
+  feedback: 'M4 4h16v12H8l-4 4V4Zm4 4h8M8 12h5',
+  support: 'M12 20s-7.5-4.6-9.3-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.3 11c-1.8 4.4-9.3 9-9.3 9Z',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10v6m0-10v.01',
+  logout: 'M14 4H5v16h9m-1-11 5 3-5 3m5-3H9',
+  trash: 'M4 7h16M9 7V4h6v3m-8 0 1 14h8l1-14',
+  check: 'm5 12 5 5L20 7',
+  key: 'M14 10a4 4 0 1 0-4 4l-6 6v-4l2-2',
+  refresh: 'M20 8a8 8 0 1 0 1 7M20 3v5h-5'
+};
+function icon(name, size = 20, sw = 1.6) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name] || paths.info}"/></svg>`;
+}
+const tones = {
+  pink: ['#F7B7C4', '#E58AA4'], blue: ['#A9CFF0', '#6FA6D6'], green: ['#B4DECD', '#6FBFA2']
+};
+function avatar(name, size = 44, tone = 'pink') {
+  const [a, b] = tones[tone] || tones.pink;
+  return `<svg class="avatar" width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${name}的头像">
+    <defs><linearGradient id="g-${tone}-${size}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>
+    <circle cx="50" cy="50" r="50" fill="url(#g-${tone}-${size})"/>
+    <path d="M22 76c4-19 15-27 28-27s24 8 28 27" fill="#ffffff" opacity=".82"/>
+    <circle cx="50" cy="39" r="19" fill="#ffffff" opacity=".9"/>
+    <circle cx="43" cy="38" r="2.4" fill="#5A4A52"/><circle cx="57" cy="38" r="2.4" fill="#5A4A52"/>
+    <path d="M43 46c4 4 10 4 14 0" stroke="#5A4A52" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+
+const me = () => state.identities[state.identity];
+const posts = [
+  { id: 'p1', title: '期末周的图书馆', body: '三点以后几乎没有空位，走廊上也都是背书的人。找了很久才在靠窗的位置坐下，夕阳正好落在桌面上。', time: '2 小时前', c: 12, l: 48, f: 9 },
+  { id: 'p2', title: '食堂新开的窗口', body: '十四块吃饱，汤可以续。中午人不多，建议十一点半之前去。', time: '昨天', c: 6, l: 31, f: 4 },
+  { id: 'p3', title: '关于选课的一点经验', body: '先把专业课排满，通识留到后面会轻松很多。另外记得提前看一下老师的给分习惯。', time: '11 月 3 日', c: 23, l: 87, f: 26 }
+];
+const liked = [{ id: 'p4', title: '雨天的操场', body: '跑步的人少了一半，空气里都是青草的味道。', time: '昨天', c: 3, l: 19, f: 2 }];
+const favorites = [
+  { id: 'p5', title: '写论文的几个工具', body: '文献管理、引用格式和图表绘制都整理在这里了，按需取用。', time: '10 月 28 日', c: 41, l: 156, f: 73 },
+  { id: 'p6', title: '北门修路绕行提示', body: '本周四之前都走东门，骑车的同学注意减速。', time: '10 月 21 日', c: 8, l: 64, f: 21 }
+];
+const reposts = [{ id: 'p7', title: '校园摄影展开始报名', body: '作品提交截止到月底，主题不限，单幅或组图均可。', time: '3 天前', c: 17, l: 52, f: 11 }];
+const replies = [
+  { id: 'r1', title: '回复「写论文的几个工具」', body: '补充一个：图表如果不多，直接用矢量编辑器导出 PDF 也很方便。', time: '昨天', c: 4, l: 12, f: 0, quote: '文献管理、引用格式和图表绘制都整理在这里了。' },
+  { id: 'r2', title: '回复「北门修路绕行提示」', body: '东门早上八点会比较堵，最好提前十分钟出门。', time: '10 月 22 日', c: 2, l: 8, f: 0, quote: '本周四之前都走东门，骑车的同学注意减速。' }
+];
+
+function postCard(p, opts = {}) {
+  const likedOn = !!state.likes[p.id], favOn = !!state.favorites[p.id];
+  return `<article class="post">
+    ${opts.repost ? `<div class="repost-tag">${icon('repost', 14)} ${me().name} 转帖</div>` : ''}
+    <div class="post-head">
+      ${avatar(me().name, 30, me().tone)}
+      <span class="who">${opts.repost ? '校园活动' : me().name}</span>
+      <time>${p.time}</time>
+      <button class="more" data-action="more" aria-label="更多操作">${icon('more', 20, 3)}</button>
+    </div>
+    <h2>${p.title}</h2>
+    <p>${p.body}</p>
+    ${p.quote ? `<div class="quote"><b>原帖</b>${p.quote}</div>` : ''}
+    <div class="post-acts">
+      <button data-action="comment" aria-label="评论">${icon('comment', 17)} ${p.c}</button>
+      <button data-action="favorite" data-id="${p.id}" data-base="${p.f}" class="${favOn ? 'on' : ''}" aria-pressed="${favOn}" aria-label="收藏">${icon('bookmark', 17)} ${p.f + (favOn ? 1 : 0)}</button>
+      <button data-action="like" data-id="${p.id}" data-base="${p.l}" class="${likedOn ? 'on' : ''}" aria-pressed="${likedOn}" aria-label="点赞">${icon('heart', 17)} ${p.l + (likedOn ? 1 : 0)}</button>
+    </div>
+  </article>`;
+}
+
+const tabDefs = [
+  ['posts', '帖子', 'article'], ['replies', '回复', 'reply'], ['reposts', '转帖', 'repost'],
+  ['likes', '喜欢', 'heart'], ['favorites', '收藏', 'bookmark']
+];
+function profileBody() {
+  const map = { posts, replies, reposts, likes: liked, favorites };
+  const list = map[state.tab];
+  return list.map(p => postCard(p, { repost: state.tab === 'reposts' })).join('');
+}
+function renderProfile() {
+  return `<div class="topbar">
+      <button class="iconbtn" data-action="go-settings" aria-label="打开设置">${icon('gear', 21)}</button>
+      <button class="identity-chip" data-action="identity" aria-label="切换身份，当前${me().name}">
+        ${avatar(me().name, 26, me().tone)}<span>${me().name}</span>${icon('chevR', 14)}
+      </button>
+    </div>
+    <section class="hero">
+      ${avatar(me().name, 104, me().tone)}
+      <h1>${me().name}</h1>
+      <div class="hero-actions">
+        <button class="pillbtn" data-action="photo">${icon('camera', 15)} 设置头像</button>
+        <button class="pillbtn" data-action="edit">${icon('edit', 15)} 编辑信息</button>
+      </div>
+    </section>
+    <nav class="ptabs" role="tablist" aria-label="我的内容">
+      ${tabDefs.map(([id, label, ic]) => `<button class="ptab" role="tab" data-action="tab" data-tab="${id}" aria-selected="${state.tab === id}">${icon(ic, 19)}<span>${label}</span></button>`).join('')}
+      <span class="ptab-ind" id="ptab-ind" style="left:${tabDefs.findIndex(t => t[0] === state.tab) * 20}%"></span>
+    </nav>
+    <div id="profile-content" role="tabpanel" style="padding-bottom:78px">${profileBody()}</div>`;
+}
+
+function row(ic, title, sub, action, value = '', danger = false) {
+  return `<button class="row ${danger ? 'danger' : ''}" data-action="${action}">
+    <span class="ricon">${icon(ic, 20)}</span>
+    <span class="rtext"><span class="rtitle">${title}</span>${sub ? `<div class="rsub">${sub}</div>` : ''}</span>
+    ${value ? `<span class="rvalue">${value}</span>` : ''}<span class="chev">${icon('chevR', 16)}</span>
+  </button>`;
+}
+function group(label, inner) {
+  return `<section class="group"><h2 class="group-label">${label}</h2><div class="rows">${inner}</div></section>`;
+}
+function head(title, parent = 'settings') {
+  return `<header class="pagehead"><button class="iconbtn back" data-action="back" data-to="${parent}" aria-label="返回">${icon('back', 21)}</button><h1>${title}</h1></header>`;
+}
+function renderSettings() {
+  return `<header class="pagehead"><button class="iconbtn back" data-action="back" data-to="profile" aria-label="返回我的">${icon('back', 21)}</button><h1>设置</h1></header>
+  ${group('偏好', row('theme', '主题', '', 'theme', { light: '浅色', dark: '深色', system: '跟随系统' }[state.theme]) + row('lang', '语言', '', 'language', state.language) + row('type', '字体大小', '', 'fontsize', { small: '小', standard: '标准', large: '大', xlarge: '特大' }[state.fontSize]))}
+  ${group('账号与安全', row('idcard', '账号资料', '平台编号、用户名与绑定校邮', 'account') + row('lock', '修改密码', '修改后其他设备需重新登录', 'password') + row('devices', '设备管理', '', 'devices', '1 台设备') + row('shield', '账号注销', '七天缓冲期内可撤销', 'closure', '', true))}
+  ${group('社区与隐私', row('users', '身份管理', '昵称、头像与发言身份', 'identities', `${state.identities.length} 个身份`) + row('block', '黑名单', '', 'blacklist'))}
+  ${group('支持与关于', row('feedback', '意见反馈', '', 'feedback') + row('support', '支持我们', '', 'support') + row('info', '关于 SpeechFUL', '', 'about', 'v1.0'))}
+  <button class="logout" data-action="logout">${'退出登录'}</button>`;
+}
+function renderTheme() {
+  const options = [
+    ['light', '浅色', '始终使用明亮的浅色界面', 'light'],
+    ['dark', '深色', '始终使用低亮度的深色界面', 'dark'],
+    ['system', '跟随系统', '随手机系统的深浅色设置自动切换', 'auto']
+  ];
+  return head('主题') + `<div class="rows" role="radiogroup" aria-label="主题模式" style="margin-top:20px">
+    ${options.map(([id, t, s, sw]) => `<button class="choice" role="radio" aria-checked="${state.theme === id}" data-action="set-theme" data-value="${id}">
+      <span class="swatch ${sw}"></span><span class="cbody"><span class="ctitle">${t}</span><div class="csub">${s}</div></span><span class="radio"></span>
+    </button>`).join('')}</div>
+    <p class="hint">主题只影响本机显示，不改变账号数据。本原型中切换后立即生效，可返回查看“我的”页。</p>`;
+}
+function renderLanguage() {
+  return head('语言') + `<div class="rows" role="radiogroup" style="margin-top:20px">
+    ${['简体中文', '繁體中文', 'English', '日本語'].map(l => `<button class="choice" role="radio" aria-checked="${state.language === l}" data-action="set-language" data-value="${l}"><span class="cbody"><span class="ctitle">${l}</span></span><span class="radio"></span></button>`).join('')}</div>
+    <p class="hint">原型仅演示选择状态，不切换实际文案。</p>`;
+}
+function renderFontSize() {
+  const options = [['small', '小'], ['standard', '标准'], ['large', '大'], ['xlarge', '特大']];
+  return head('字体大小') + `<div class="rows" role="radiogroup" aria-label="字体大小" style="margin-top:20px">
+    ${options.map(([k, t]) => `<button class="choice" role="radio" aria-checked="${state.fontSize === k}" data-action="set-fontsize" data-value="${k}"><span class="cbody"><span class="ctitle">${t}</span></span><span class="radio"></span></button>`).join('')}</div>
+    <div class="body-pad"><div class="card"><h3>预览标题</h3><p>这是正文的预览效果。调整字号后，整个应用的界面文字会随之变大或变小，可返回设置与“我的”页查看。</p></div>
+    <p class="hint" style="padding:14px 0 0">字体大小只影响本机显示。原型中切换后立即全局生效，正式实现为全局缩放。</p></div>`;
+}
+function renderAccount() {
+  return head('账号资料') + `<p class="hint">账号信息属于本人私有资料，与公开发言身份相互独立。</p>
+  <div class="rows">
+    <div class="kv id-row"><span class="k">平台编号</span><span class="vwrap"><span class="v">018204</span><button class="copy" data-action="copy-id">复制</button><span class="copy-pop" id="id-copy-pop" role="status" aria-live="polite">已复制</span></span></div>
+    <div class="kv"><span class="k">用户名</span><span class="v">private_user</span></div>
+    <div class="kv"><span class="k">绑定校邮</span><span class="v">pri***@hnu.edu.cn</span></div>
+    <div class="kv"><span class="k">注册时间</span><span class="v">2026-09-18</span></div>
+  </div>
+  <div class="body-pad"><button class="secondary" data-action="password">${icon('lock', 15)} 修改密码</button>
+  <p class="hint" style="padding:16px 0 0">平台编号仅用于本人核对与意见反馈，不会在公开内容或私信中展示。</p></div>`;
+}
+function renderPassword() {
+  return head('修改密码') + `<form class="body-pad" id="password-form">
+    <div class="card"><h3>密码要求</h3><p>至少 12 位，建议同时包含字母、数字和符号。修改成功后，其他设备的会话将失效。</p></div>
+    <div class="field"><label for="old-pw">当前密码</label><input id="old-pw" type="password" autocomplete="current-password" placeholder="输入当前密码"></div>
+    <div class="field"><label for="new-pw">新密码</label><input id="new-pw" type="password" autocomplete="new-password" placeholder="至少 12 位"></div>
+    <div class="field"><label for="confirm-pw">确认新密码</label><input id="confirm-pw" type="password" autocomplete="new-password" placeholder="再次输入新密码"></div>
+    <button class="primary" type="submit">确认修改</button></form>`;
+}
+function renderDevices() {
+  return head('设备管理') + `<div class="body-pad">
+    <div class="card"><h3>V2307A · 本机</h3><p>Android 16 · 当前会话<br>最近活跃：刚刚</p><span class="pillbtn" style="margin-top:12px;cursor:default">当前设备</span></div>
+    <button class="secondary" data-action="refresh-devices">${icon('refresh', 15)} 刷新会话</button>
+    <p class="hint" style="padding:16px 0">同一时间仅允许一台设备登录。新设备登录后，旧设备会话自动失效。</p></div>`;
+}
+function renderIdentities() {
+  return head('身份管理') + `<p class="hint">最多保留 3 个身份，至少保留 1 个。身份列表仅本人可见。</p>
+  <div class="rows">${state.identities.map((i, idx) => `<button class="row" data-action="identity"><span class="ricon">${avatar(i.name, 34, i.tone)}</span><span class="rtext"><span class="rtitle">${i.name}</span><div class="rsub">${i.original ? '原始身份' : '发言身份'}</div></span>${idx === state.identity ? `<span class="rvalue" style="color:var(--accent)">使用中</span>` : ''}<span class="chev">${icon('chevR', 16)}</span></button>`).join('')}</div>
+  <div class="body-pad"><button class="secondary" data-action="add-identity">添加身份</button></div>`;
+}
+function renderSimplePage(page) {
+  const content = {
+    blacklist: ['黑名单', '<div class="empty">暂无拉黑记录<br>拉黑后，对方的公开内容将不会出现在你的信息流中。</div>'],
+    feedback: ['意见反馈', '<div class="body-pad"><div class="card"><h3>联系方式</h3><p>请附上平台编号与问题发生时间，便于定位。<br><br>邮箱：support@speechful.example</p></div><button class="secondary" data-action="copy-mail">复制邮箱</button></div>'],
+    support: ['支持我们', '<div class="body-pad"><div class="card"><h3>感谢你的支持</h3><p>支持将全数用于 SpeechFUL 的开发与维护。正式页面在此展示收款码，并支持保存到相册。</p></div></div>'],
+    about: ['关于 SpeechFUL', '<div class="body-pad"><div class="card"><h3>SpeechFUL</h3><p>版本 1.0（原型演示）<br>一个以发言身份为核心的校园社区。</p></div></div>'],
+    closure: ['账号注销', '<div class="body-pad"><div class="card"><h3>注销前请确认</h3><p>申请受理后退出登录。七天缓冲期内主动登录可撤销；超过缓冲期后，账号与身份资料将不可恢复。</p></div><button class="primary" style="background:var(--danger)" data-action="closure-confirm">申请注销</button></div>']
+  }[page];
+  return head(content[0]) + content[1];
+}
+
+function renderPage(name) {
+  if (name === 'profile') return renderProfile();
+  if (name === 'settings') return renderSettings();
+  return ({
+    theme: renderTheme, language: renderLanguage, fontsize: renderFontSize, account: renderAccount,
+    password: renderPassword, devices: renderDevices, identities: renderIdentities
+  }[name] || (() => renderSimplePage(name)))();
+}
+function renderTabbar() {
+  const tabs = [['home', '首页', 'home'], ['messages', '消息', 'bell'], ['dm', '私信', 'dm'], ['profile', '我的', 'user']];
+  tabbar.innerHTML = tabs.map(([id, label, ic]) => `<button data-action="nav" data-to="${id}" ${id === 'profile' ? 'aria-current="page"' : ''}>${icon(ic, 22)}<span>${label}</span></button>`).join('');
+  tabbar.style.display = state.page === 'profile' ? 'flex' : 'none';
+}
+function navigate(name, back = false, fromLeft = false) {
+  viewport.querySelectorAll('.screen.under').forEach(s => s.remove());
+  const old = viewport.querySelector('.screen');
+  if (old) { old.style.transform = ''; old.style.opacity = ''; old.classList.remove('dragging'); }
+  const next = document.createElement('section');
+  next.className = 'screen ' + (back ? 'idle-left' : (fromLeft ? 'from-left' : 'from-right'));
+  next.setAttribute('aria-label', name === 'profile' ? '我的' : '设置');
+  next.innerHTML = renderPage(name);
+  viewport.appendChild(next);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    next.classList.remove('idle-left', 'from-right', 'from-left'); next.classList.add('center');
+    if (old) { old.classList.remove('center'); old.classList.add(back || fromLeft ? 'to-right' : 'to-left'); }
+  }));
+  setTimeout(() => { if (old) old.remove(); }, 380);
+  state.page = name;
+  renderTabbar();
+  viewport.querySelector('.screen:last-child').scrollTop = 0;
+}
+function go(name) { if (name !== state.page) { state.stack.push(state.page); navigate(name, false, name === 'settings'); } }
+function back(to) {
+  state.stack = state.stack.filter(p => p !== to);
+  const leavingSettings = state.page === 'settings' && to === 'profile';
+  navigate(to, !leavingSettings);
+}
+
+let toastTimer, copyPopTimer;
+function showCopyPop() {
+  const pop = document.getElementById('id-copy-pop');
+  if (!pop) return;
+  pop.classList.add('show');
+  clearTimeout(copyPopTimer);
+  copyPopTimer = setTimeout(() => pop.classList.remove('show'), 1600);
+}
+function toast(text) {
+  const el = document.getElementById('toast');
+  el.textContent = text; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+function applyTheme() {
+  const dark = state.theme === 'dark' || (state.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  app.dataset.theme = dark ? 'dark' : 'light';
+}
+function applyFontScale() {
+  const scale = { small: .875, standard: 1, large: 1.125, xlarge: 1.25 }[state.fontSize];
+  viewport.style.zoom = scale;
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.theme === 'system') applyTheme(); });
+
+function closeSheet() {
+  const scrim = document.querySelector('.scrim');
+  if (!scrim) return;
+  scrim.classList.remove('show');
+  setTimeout(() => scrim.remove(), 240);
+}
+function openSheet(html) {
+  closeSheet();
+  const root = document.getElementById('sheet-root');
+  root.innerHTML = `<div class="scrim" data-action="close-sheet"><section class="sheet" role="dialog" aria-modal="true" onclick="event.stopPropagation()"><div class="grabber"></div>${html}</section></div>`;
+  requestAnimationFrame(() => root.querySelector('.scrim').classList.add('show'));
+  const focusable = root.querySelector('input, button');
+  if (focusable) setTimeout(() => focusable.focus(), 260);
+}
+function identitySheet() {
+  openSheet(`<h2>切换身份</h2>${state.identities.map((i, idx) => `<button class="row" data-action="choose-identity" data-index="${idx}"><span class="ricon">${avatar(i.name, 36, i.tone)}</span><span class="rtext"><span class="rtitle">${i.name}</span><div class="rsub">${i.original ? '原始身份' : '发言身份'}</div></span>${idx === state.identity ? `<span style="color:var(--accent)">${icon('check', 20)}</span>` : ''}</button>`).join('')}`);
+}
+function photoSheet() {
+  const cells = Array.from({ length: 24 }, (_, i) => `<button data-action="edit-photo" aria-label="选择相册照片 ${i + 1}" style="opacity:${(.5 + ((i * 29) % 50) / 100).toFixed(2)}">${icon('camera', 18)}</button>`).join('');
+  openSheet(`<h2>设置头像</h2><p class="hint" style="padding:0 0 12px">从系统相册选择一张照片作为头像。</p>
+  <div class="album-grid">${cells}</div>
+  <p class="hint" style="text-align:center;padding:12px 0 0">↑ 上滑浏览完整相册</p>
+  <p class="hint" style="text-align:center;padding:0 0 4px;font-size:11px">内嵌相册为目标样式（后期版本）；当前版本点按「设置头像」直达系统照片选择器。</p>`);
+}
+function avatarEditSheet() {
+  openSheet(`<h2>设置头像</h2>
+  <div class="crop-stage"><div class="crop-photo"></div><div class="crop-mask"></div><div class="crop-ring"></div><span class="crop-hint">拖动调整位置 · 双指缩放（原型示意）</span></div>
+  <div class="card" style="margin:0 0 6px"><h3>图片要求</h3><p>仅支持静态 JPEG、PNG、WebP 或 GIF，不超过 5 MB。超出大小限制、动图或无法解码等不合规提示，都会显示在这个界面内，不会中途弹出其他窗口。</p></div>
+  <button class="primary" data-action="confirm-avatar">确认</button>
+  <button class="secondary" data-action="photo">重新选择</button>`);
+}
+function editSheet() {
+  openSheet(`<h2>编辑信息</h2><form id="edit-form"><div class="field"><label for="nickname">昵称</label><input id="nickname" name="nickname" value="${me().name}" maxlength="12" required></div><p class="hint" style="padding:0 0 16px">2–12 个字，成功改名后需满 30 天才能再次修改。</p><button class="primary" type="submit">保存</button></form>`);
+}
+function confirmSheet(title, body, action) {
+  openSheet(`<h2>${title}</h2><p class="hint" style="padding:0 0 18px">${body}</p><button class="primary" style="background:var(--danger)" data-action="${action}">确认</button><button class="secondary" data-action="close-sheet">取消</button>`);
+}
+
+app.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'edit-form') {
+    const name = new FormData(e.target).get('nickname').trim();
+    if (name) { me().name = name; closeSheet(); navigate('profile'); toast('昵称已更新（原型）'); }
+  }
+  if (e.target.id === 'password-form') toast('原型演示：未提交真实密码');
+});
+app.addEventListener('click', e => {
+  if (suppressClick) return;
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const a = btn.dataset.action;
+  if (a === 'go-settings') go('settings');
+  else if (a === 'back') back(btn.dataset.to || state.stack.pop() || 'profile');
+  else if (['theme', 'language', 'fontsize', 'account', 'password', 'devices', 'identities', 'blacklist', 'feedback', 'support', 'about', 'closure'].includes(a)) { closeSheet(); go(a); }
+  else if (a === 'identity') identitySheet();
+  else if (a === 'photo') photoSheet();
+  else if (a === 'edit') editSheet();
+  else if (a === 'close-sheet') closeSheet();
+  else if (a === 'choose-identity') { state.identity = +btn.dataset.index; closeSheet(); if (state.page === 'profile') navigate('profile'); else navigate(state.page); toast(`已切换到 ${me().name}`); }
+  else if (a === 'choose-tone') { me().tone = btn.dataset.tone; closeSheet(); navigate(state.page); toast('头像配色已更新（原型）'); }
+  else if (a === 'edit-photo') { avatarEditSheet(); }
+  else if (a === 'confirm-avatar') { closeSheet(); if (state.page === 'profile') navigate('profile'); toast('头像已更新（原型）'); }
+  else if (a === 'tab') switchTab(btn.dataset.tab);
+  else if (['like', 'favorite'].includes(a)) {
+    const store = a === 'like' ? state.likes : state.favorites;
+    const id = btn.dataset.id; store[id] = !store[id];
+    btn.classList.toggle('on', store[id]); btn.setAttribute('aria-pressed', store[id]);
+    btn.innerHTML = `${icon(a === 'like' ? 'heart' : 'bookmark', 17)} ${+btn.dataset.base + (store[id] ? 1 : 0)}`;
+  }
+  else if (a === 'set-theme') {
+    state.theme = btn.dataset.value; applyTheme();
+    viewport.querySelectorAll('.choice').forEach(c => c.setAttribute('aria-checked', c === btn));
+  }
+  else if (a === 'set-language') {
+    state.language = btn.dataset.value;
+    viewport.querySelectorAll('.choice').forEach(c => c.setAttribute('aria-checked', c === btn));
+    toast('语言选择已更新（原型）');
+  }
+  else if (a === 'set-fontsize') {
+    state.fontSize = btn.dataset.value;
+    viewport.querySelectorAll('.choice').forEach(c => c.setAttribute('aria-checked', c === btn));
+    applyFontScale();
+  }
+  else if (a === 'copy-id') { navigator.clipboard?.writeText('018204'); showCopyPop(); }
+  else if (a === 'copy-mail') { navigator.clipboard?.writeText('support@speechful.example'); toast('邮箱已复制'); }
+  else if (a === 'logout') confirmSheet('退出登录', '退出后需要重新验证用户名与密码。', 'do-logout');
+  else if (a === 'closure-confirm') confirmSheet('确认申请注销？', '正式流程还需要输入当前密码与确认短语。', 'do-closure');
+  else if (a === 'do-logout') { closeSheet(); toast('原型演示：未真正退出'); }
+  else if (a === 'do-closure') { closeSheet(); toast('原型演示：未提交注销'); }
+  else if (a === 'refresh-devices') toast('会话已是最新');
+  else if (a === 'add-identity') toast('原型演示：进入创建身份流程');
+  else if (a === 'nav' && btn.dataset.to !== 'profile') toast('本原型聚焦「我的」与「设置」');
+  else if (a === 'more') toast('更多操作菜单');
+  else if (a === 'comment') toast('进入评论');
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
+let dragGesture = null, suppressClick = false;
+function ensureUnderlay() {
+  let under = viewport.querySelector('.screen.under');
+  if (!under) {
+    under = document.createElement('section');
+    under.className = 'screen under';
+    under.setAttribute('aria-hidden', 'true');
+    under.innerHTML = renderPage('settings');
+    viewport.prepend(under);
+  }
+  return under;
+}
+function settleToSettings() {
+  const under = viewport.querySelector('.screen.under');
+  const profile = viewport.querySelector('.screen:not(.under)');
+  if (!under || !profile) return;
+  under.classList.remove('dragging', 'under');
+  under.classList.add('center');
+  under.setAttribute('aria-hidden', 'false');
+  profile.classList.remove('dragging', 'center');
+  profile.classList.add('to-left');
+  requestAnimationFrame(() => { under.style.transform = ''; profile.style.transform = ''; });
+  state.page = 'settings';
+  renderTabbar();
+  setTimeout(() => profile.remove(), 380);
+}
+function cancelDragGesture() {
+  const under = viewport.querySelector('.screen.under');
+  const profile = viewport.querySelector('.screen:not(.under)');
+  if (profile) {
+    profile.classList.remove('dragging');
+    requestAnimationFrame(() => { profile.style.transform = ''; });
+  }
+  if (under) setTimeout(() => under.remove(), 360);
+}
+const tabOrder = ['posts', 'replies', 'reposts', 'likes', 'favorites'];
+let switching = false;
+function moveIndicator() {
+  const ind = document.getElementById('ptab-ind');
+  if (ind) ind.style.left = (tabOrder.indexOf(state.tab) * 20) + '%';
+}
+function switchTab(next) {
+  if (switching || next === state.tab || !tabOrder.includes(next)) return;
+  const dir = tabOrder.indexOf(next) > tabOrder.indexOf(state.tab) ? 1 : -1;
+  const content = document.getElementById('profile-content');
+  if (!content) { state.tab = next; return; }
+  switching = true;
+  content.style.transition = 'transform .2s ease, opacity .2s ease';
+  content.style.transform = `translateX(${-22 * dir}%)`;
+  content.style.opacity = '0';
+  setTimeout(() => {
+    state.tab = next;
+    viewport.querySelectorAll('.ptab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === state.tab));
+    moveIndicator();
+    content.innerHTML = profileBody();
+    content.scrollTop = 0;
+    content.style.transition = 'none';
+    content.style.transform = `translateX(${22 * dir}%)`;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      content.style.transition = 'transform .22s cubic-bezier(.32,.72,.24,1), opacity .22s';
+      content.style.transform = '';
+      content.style.opacity = '';
+      setTimeout(() => { switching = false; content.style.transition = ''; }, 260);
+    }));
+  }, 200);
+}
+app.addEventListener('pointerdown', e => {
+  if (state.page !== 'profile' || document.querySelector('.scrim')) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const zone = e.target.closest('#profile-content') ? 'content' : 'top';
+  dragGesture = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false, d: 0, dx: 0, w: app.clientWidth, zone };
+});
+app.addEventListener('pointermove', e => {
+  if (!dragGesture || e.pointerId !== dragGesture.id) return;
+  const dx = e.clientX - dragGesture.x, dy = e.clientY - dragGesture.y;
+  if (!dragGesture.active) {
+    if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (dragGesture.zone === 'top' && dx < 0) return;
+    dragGesture.active = true;
+    dragGesture.dx = dx;
+    suppressClick = true;
+    if (dragGesture.zone !== 'top') return;
+    try { app.setPointerCapture(dragGesture.id); } catch (_) {}
+    const under = ensureUnderlay();
+    const profile = viewport.querySelector('.screen:not(.under)');
+    under.classList.add('dragging');
+    profile.classList.add('dragging');
+  }
+  dragGesture.dx = dx;
+  if (dragGesture.zone !== 'top') return;
+  const d = Math.max(0, Math.min(dx, dragGesture.w * .92));
+  dragGesture.d = d;
+  const profile = viewport.querySelector('.screen:not(.under)');
+  const under = viewport.querySelector('.screen.under');
+  if (profile) profile.style.transform = `translateX(${d}px)`;
+  if (under) under.style.transform = `translateX(${-100 + (d / dragGesture.w) * 88}%)`;
+});
+function endDragGesture() {
+  if (!dragGesture) return;
+  const g = dragGesture;
+  dragGesture = null;
+  setTimeout(() => { suppressClick = false; }, 60);
+  if (!g.active) return;
+  if (g.zone === 'top') {
+    if (g.d > 72) settleToSettings();
+    else cancelDragGesture();
+    return;
+  }
+  const idx = tabOrder.indexOf(state.tab);
+  if (g.dx < -60 && idx < tabOrder.length - 1) switchTab(tabOrder[idx + 1]);
+  else if (g.dx > 60) {
+    if (idx > 0) switchTab(tabOrder[idx - 1]);
+    else go('settings');
+  }
+}
+app.addEventListener('pointerup', endDragGesture);
+app.addEventListener('pointercancel', endDragGesture);
+
+renderTabbar();
+applyTheme();
+const first = document.createElement('section');
+first.className = 'screen center';
+first.setAttribute('aria-label', '我的');
+first.innerHTML = renderProfile();
+viewport.appendChild(first);
+</script>
+</body>
+</html>

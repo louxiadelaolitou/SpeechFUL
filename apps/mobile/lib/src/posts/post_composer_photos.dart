@@ -185,6 +185,11 @@ class _ComposerPhotos extends StatelessWidget {
                                           : () => controller.pickDraftPhotos(
                                               editor,
                                               replaceIndex: index,
+                                              pickerForView: (configured) =>
+                                                  AlbumPhotoPicker.forView(
+                                                    context,
+                                                    configured,
+                                                  ),
                                             ),
                                       icon: const Icon(
                                         Icons.broken_image_outlined,
@@ -247,7 +252,14 @@ class _ComposerPhotos extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                         onTap: editor.mediaBusy
                             ? null
-                            : () => controller.pickDraftPhotos(editor),
+                            : () => controller.pickDraftPhotos(
+                                editor,
+                                pickerForView: (configured) =>
+                                    AlbumPhotoPicker.forView(
+                                      context,
+                                      configured,
+                                    ),
+                              ),
                         child: Center(
                           child: Tooltip(
                             message: hhText(context, '添加图片'),

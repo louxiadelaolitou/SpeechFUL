@@ -8,7 +8,6 @@ import '../design_system/motion.dart';
 import '../design_system/telegram_theme.dart';
 import '../navigation/app_navigation.dart';
 import '../navigation/feed_chrome.dart';
-import '../navigation/home_side_menu.dart';
 import 'feed_refresh.dart';
 import 'feed_card_motion.dart';
 import 'feed_header_glyphs.dart';
@@ -204,12 +203,9 @@ class HhXPostFeed extends StatelessWidget {
                         left: 12,
                         child: IconButton(
                           key: const ValueKey('feed-account'),
-                          tooltip: HomeSideMenuScope.maybeOf(context) == null
-                              ? hhText(context, '我的')
-                              : hhText(context, '打开设置'),
-                          onPressed:
-                              HomeSideMenuScope.maybeOf(context)?.open ??
-                              () => onDestination(FeedDestination.personal),
+                          tooltip: hhText(context, '我的'),
+                          onPressed: () =>
+                              onDestination(FeedDestination.personal),
                           icon: FeedHeaderTile(
                             child: accountAvatar == null
                                 ? const FeedHeaderAvatarGlyph()

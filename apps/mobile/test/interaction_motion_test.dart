@@ -80,46 +80,49 @@ void main() {
     },
   );
 
-  testWidgets(
-    'reduced-motion detail changes are immediate at large text in RTL and dark mode',
-    (tester) async {
-      var selected = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: HhTelegramTheme.create(Brightness.dark),
-          home: MediaQuery(
-            data: const MediaQueryData(
-              disableAnimations: true,
-              textScaler: TextScaler.linear(2),
-            ),
-            child: Directionality(
-              textDirection: TextDirection.rtl,
-              child: Scaffold(
-                body: Center(
-                  child: StatefulBuilder(
-                    builder: (context, update) => DetailAction(
-                      buttonKey: const ValueKey('reduced-action'),
-                      action: FeedAction.bookmark,
-                      label: '收藏',
-                      count: selected ? '١٠٠٠' : '٩٩٩',
-                      selected: selected,
-                      onPressed: () => update(() => selected = !selected),
-                    ),
+  testWidgets('detail feedback animates with large RTL text in dark mode', (
+    tester,
+  ) async {
+    var selected = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: HhTelegramTheme.create(Brightness.dark),
+        home: MediaQuery(
+          data: const MediaQueryData(
+            disableAnimations: true,
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(
+              body: Center(
+                child: StatefulBuilder(
+                  builder: (context, update) => DetailAction(
+                    buttonKey: const ValueKey('reduced-action'),
+                    action: FeedAction.bookmark,
+                    label: '收藏',
+                    count: selected ? '١٠٠٠' : '٩٩٩',
+                    selected: selected,
+                    onPressed: () => update(() => selected = !selected),
                   ),
                 ),
               ),
             ),
           ),
         ),
-      );
-      await tester.tap(find.byKey(const ValueKey('reduced-action')));
-      await tester.pump();
-      expect(find.text('١٠٠٠'), findsOneWidget);
-      expect(find.text('٩٩٩'), findsNothing);
-      expect(tester.hasRunningAnimations, isFalse);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('reduced-action')));
+    await tester.pump();
+    expect(find.text('١٠٠٠'), findsOneWidget);
+    expect(find.text('٩٩٩'), findsOneWidget);
+    expect(tester.hasRunningAnimations, isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('٩٩٩'), findsNothing);
+    expect(find.text('١٠٠٠'), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'feed action motion keeps its hit target and never opens its parent post',

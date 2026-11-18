@@ -152,9 +152,14 @@ class PostEditSession {
 
   bool get canPickImages => _controller._photoPicker != null;
 
-  Future<List<PostPickedFile>> pickImages(int remaining) async {
+  Future<List<PostPickedFile>> pickImages(
+    int remaining, {
+    PostPhotoPicker Function(PostPhotoPicker)? pickerForView,
+  }) async {
     if (!current || !canPickImages) return [];
-    final files = await _controller._photoPicker!.pick(remaining);
+    final configured = _controller._photoPicker!;
+    final picker = pickerForView?.call(configured) ?? configured;
+    final files = await picker.pick(remaining);
     if (!current) throw _StalePostAuthority();
     return files;
   }

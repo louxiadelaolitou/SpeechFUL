@@ -32,6 +32,9 @@ Future<void> _open(WidgetTester tester, String key) async {
   await tester.pump();
   final target = find.byKey(ValueKey('settings-$key'));
   await tester.scrollUntilVisible(target, 120, scrollable: scroll);
+  // v6 分组行带副标题，行可能部分可见但中心在屏外；确保完整可见再点。
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
   await tester.tap(target);
   await tester.pumpAndSettle();
 }
@@ -135,7 +138,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       await _open(tester, 'support');
-      await tester.tap(find.byKey(const ValueKey('settings-support-code')));
+      final code = find.byKey(const ValueKey('settings-support-code'));
+      await tester.ensureVisible(code);
+      await tester.pumpAndSettle();
+      await tester.tap(code);
       await tester.pumpAndSettle();
       expect(find.byType(InteractiveViewer), findsOneWidget);
       expect(
@@ -202,16 +208,12 @@ void main() {
     await tester.pumpAndSettle();
     expect([devices, logout, closure, identities, blacklist], [1, 1, 1, 1, 1]);
     expect(find.byKey(const ValueKey('settings-account')), findsNothing);
-    expect(find.text('账号与安全'), findsNothing);
+    // 分组结构（原型）：分组标签「账号与安全」常驻，但条目行不因 onLogout 缺省出现。
+    expect(find.text('账号与安全'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
-    final tiles = tester.widgetList<ListTile>(find.byType(ListTile)).toList();
-    expect(tiles.last.key, const ValueKey('settings-logout'));
+    expect(find.byKey(const ValueKey('settings-logout')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-notifications')), findsNothing);
     expect(find.byType(TextField), findsNothing);
-    for (final tile in tester.widgetList<ListTile>(find.byType(ListTile))) {
-      expect(tile.leading, isNotNull);
-      expect(tile.subtitle, isNull);
-    }
     await tester.pumpWidget(const SizedBox());
     c.dispose();
   });

@@ -2,6 +2,44 @@ import 'app_language.dart';
 
 // Application-owned authentication text; interpolated values are never translated.
 const authTranslations = <String, UiTranslation>{
+  '验证校邮': ('驗證校郵', 'Verify campus email', '大学メールを確認'),
+  '请使用当前账号绑定的海南大学校邮。': (
+    '請使用目前帳號綁定的海南大學校郵。',
+    'Use the Hainan University email linked to this account.',
+    'このアカウントに登録した海南大学のメールアドレスを使用してください。',
+  ),
+  '请使用当前账号绑定的校邮。': (
+    '請使用目前帳號綁定的校郵。',
+    'Use the campus email linked to this account.',
+    'このアカウントに登録した大学メールアドレスを使用してください。',
+  ),
+  '设置新密码': ('設定新密碼', 'Set a new password', '新しいパスワードを設定'),
+  '确认新密码': ('確認新密碼', 'Confirm new password', '新しいパスワードを確認'),
+  '校邮验证已通过。修改成功后，请重新登录。': (
+    '校郵驗證已通過。修改成功後，請重新登入。',
+    'Campus email verified. Sign in again after changing your password.',
+    '大学メールを確認しました。変更後、再度ログインしてください。',
+  ),
+  '正在修改…': ('正在修改…', 'Changing password…', 'パスワードを変更中…'),
+  '密码修改成功': ('密碼修改成功', 'Password changed', 'パスワードを変更しました'),
+  '密码修改成功，请重新登录': (
+    '密碼修改成功，請重新登入',
+    'Password changed. Please sign in again.',
+    'パスワードを変更しました。再度ログインしてください。',
+  ),
+  '正在核对改密结果': ('正在核對改密結果', 'Checking password change', 'パスワード変更の結果を確認中'),
+  '核对改密结果': ('核對改密結果', 'Check password change', '変更結果を確認'),
+  '本次修改未完成': ('本次修改未完成', 'Password change incomplete', 'パスワード変更が完了しませんでした'),
+  '请重新输入新密码或返回设置。': (
+    '請重新輸入新密碼或返回設定。',
+    'Enter a new password again or return to settings.',
+    '新しいパスワードを再入力するか、設定に戻ってください。',
+  ),
+  '登录状态已变化，请重新打开修改密码。': (
+    '登入狀態已變更，請重新開啟修改密碼。',
+    'Your sign-in status changed. Open Change password again.',
+    'ログイン状態が変わりました。パスワード変更を開き直してください。',
+  ),
   '账号或密码错误，请重试': (
     '帳號或密碼錯誤，請重試',
     'Incorrect account or password. Please try again.',

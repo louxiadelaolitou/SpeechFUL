@@ -16,6 +16,7 @@ import '../identity/identity_management_screen.dart';
 import '../posts/post_images.dart';
 import '../posts/post_models.dart';
 import '../posts/post_photo_picker.dart';
+import '../media/album_photo_picker.dart';
 import '../reports/report_screens.dart';
 import 'comment_editor.dart';
 import 'comment_http.dart';
@@ -2467,9 +2468,8 @@ class _CommentComposerState extends State<CommentComposer>
     setState(() => busy = true);
     inputFocus.unfocus();
     try {
-      final files = await (widget.photoPicker ?? NativePostPhotoPicker()).pick(
-        1,
-      );
+      final files = await (widget.photoPicker ?? AlbumPhotoPicker(context))
+          .pick(1);
       if (files.isEmpty) {
         cancelled = true;
         return;

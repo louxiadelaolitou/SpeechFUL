@@ -19,7 +19,16 @@ class AuthPresentationController extends ChangeNotifier {
 
   final AuthVault? preferences;
   ThemeMode themeMode = ThemeMode.system;
+  static const fontScaleKeys = ['small', 'standard', 'large', 'xlarge'];
+  String _fontScale = 'standard';
   AppLanguage _language = AppLanguage.simplifiedChinese;
+  String get fontScale => _fontScale;
+  double get fontScaleValue => switch (_fontScale) {
+    'small' => .875,
+    'large' => 1.125,
+    'xlarge' => 1.25,
+    _ => 1.0,
+  };
   AppLanguage get language => _language;
   bool get english => _language == AppLanguage.english;
   set english(bool value) =>
@@ -38,11 +47,15 @@ class AuthPresentationController extends ChangeNotifier {
       if (record is! Map || record['version'] != 1) return;
       final theme = record['theme'];
       final language = AppLanguage.tryParse(record['language']);
-      if (!['system', 'light', 'dark'].contains(theme) || language == null) {
+      final fontScale = record['fontScale'] ?? 'standard';
+      if (!['system', 'light', 'dark'].contains(theme) ||
+          language == null ||
+          !fontScaleKeys.contains(fontScale)) {
         return;
       }
       themeMode = ThemeMode.values.byName(theme as String);
       _language = language;
+      _fontScale = fontScale as String;
       notifyListeners();
     } catch (_) {
       // Optional non-secret preferences must never block authentication.
@@ -54,6 +67,20 @@ class AuthPresentationController extends ChangeNotifier {
     themeMode = brightness == Brightness.dark
         ? ThemeMode.light
         : ThemeMode.dark;
+    _changed();
+  }
+
+  void setThemeMode(ThemeMode value) {
+    if (_disposed || themeMode == value) return;
+    themeMode = value;
+    _changed();
+  }
+
+  void setFontScale(String value) {
+    if (_disposed || !fontScaleKeys.contains(value) || _fontScale == value) {
+      return;
+    }
+    _fontScale = value;
     _changed();
   }
 
@@ -82,6 +109,7 @@ class AuthPresentationController extends ChangeNotifier {
       'version': 1,
       'theme': themeMode.name,
       'language': language.code,
+      'fontScale': _fontScale,
     });
     _writes = _writes.then((_) async {
       try {

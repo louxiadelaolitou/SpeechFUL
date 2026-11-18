@@ -402,7 +402,23 @@ class AuthFlows extends ChangeNotifier {
   });
 
   bool get supportsEmailReset => _api is EmailResetApi;
-  Map<String, dynamic>? get emailReset => _store.current?.emailReset;
+  bool get supportsPasswordChange =>
+      supportsEmailReset && _api is PasswordChangeApi;
+  bool get hasPasswordChangeResult =>
+      _store.current?.pendingReset?['passwordChange'] == true;
+  Map<String, dynamic>? _scopedEmailReset(
+    AuthState? state,
+    String? changeToken,
+  ) {
+    final reset = state?.emailReset;
+    final owner = changeToken == null ? null : _tokenDigest(changeToken);
+    return reset?['changeTokenDigest'] == owner ? reset : null;
+  }
+
+  Map<String, dynamic>? get emailReset =>
+      _scopedEmailReset(_store.current, null);
+  Map<String, dynamic>? passwordChangeEmail(String token) =>
+      _scopedEmailReset(_store.current, token);
   DateTime? get emailResetWaitUntil => emailReset == null
       ? null
       : DateTime.parse(emailReset!['waitUntil'] as String);
@@ -421,7 +437,9 @@ class AuthFlows extends ChangeNotifier {
     _username = null;
     _status = AuthFlowStatus.idle;
   });
-  Future<void> requestEmailReset(String email) => _run((epoch) async {
+  Future<void> requestEmailReset(String email, {String? changeToken}) => _run((
+    epoch,
+  ) async {
     if (_api is! EmailResetApi) {
       throw const AuthFailure(kind: AuthFailureKind.unavailable);
     }
@@ -432,8 +450,8 @@ class AuthFlows extends ChangeNotifier {
       );
     }
     var state = await _store.read();
-    _requireEmailResetAllowed(state);
-    var m = state.emailReset;
+    _requireResetOperationAllowed(state, changeToken);
+    var m = _scopedEmailReset(state, changeToken);
     final changingEmail = m != null && m['email'] != email;
     // An unconfirmed mail request cannot create a community session. It can be
     // replaced after its cooldown, but an unresolved C submission must survive.
@@ -458,6 +476,7 @@ class AuthFlows extends ChangeNotifier {
         'email': email,
         'sendKey': AuthCrypto.randomEncoded(32),
         'cKey': AuthCrypto.randomEncoded(32),
+        if (changeToken != null) 'changeTokenDigest': _tokenDigest(changeToken),
         'sendState': 'UNKNOWN',
         'waitUntil': _clock()
             .toUtc()
@@ -523,14 +542,16 @@ class AuthFlows extends ChangeNotifier {
           : s,
     );
   });
-  Future<void> completeEmailReset(String otp) => _run((epoch) async {
+  Future<void> completeEmailReset(String otp, {String? changeToken}) => _run((
+    epoch,
+  ) async {
     if (_api is! EmailResetApi) {
       throw const AuthFailure(kind: AuthFailureKind.unavailable);
     }
     final authority = _sessionAuthorityVersion();
     var state = await _store.read();
-    _requireEmailResetAllowed(state);
-    var m = state.emailReset;
+    _requireResetOperationAllowed(state, changeToken);
+    var m = _scopedEmailReset(state, changeToken);
     if (m == null || m['flowId'] == null) {
       throw const AuthFailure(
         kind: AuthFailureKind.rejected,
@@ -569,9 +590,15 @@ class AuthFlows extends ChangeNotifier {
       }
       final binding = AuthCrypto.encode(
         hashes.sha256.convert([
-          ...utf8.encode('HNUHOLE/EMAIL-RESET-BINDING/V1\x00'),
+          ...utf8.encode(
+            changeToken == null
+                ? 'HNUHOLE/EMAIL-RESET-BINDING/V1\x00'
+                : 'HNUHOLE/PASSWORD-CHANGE-BINDING/V1\x00',
+          ),
           ...AuthCrypto.decode(state.cInstallationId!, bytes: 16),
           ...AuthCrypto.decode(m['cKey'] as String, bytes: 32),
+          if (changeToken != null)
+            ...AuthCrypto.decode(_tokenDigest(changeToken), bytes: 32),
         ]).bytes,
       );
       String? proof;
@@ -618,18 +645,29 @@ class AuthFlows extends ChangeNotifier {
       return;
     }
     try {
-      final intent = await (_api as EmailResetApi).createEmailResetIntent(
-        proof: m['proof'] as String,
-        installationId: state.cInstallationId!,
-        idempotencyKey: m['cKey'] as String,
-      );
+      final proof = m['proof'] as String;
+      final installation = state.cInstallationId!;
+      final key = m['cKey'] as String;
+      final intent = changeToken == null
+          ? await (_api as EmailResetApi).createEmailResetIntent(
+              proof: proof,
+              installationId: installation,
+              idempotencyKey: key,
+            )
+          : await (_api as PasswordChangeApi).createPasswordChangeIntent(
+              sessionToken: changeToken,
+              proof: proof,
+              installationId: installation,
+              idempotencyKey: key,
+            );
       if (!_current(epoch) || authority != _sessionAuthorityVersion()) return;
       await _store.update(
         (s) => s.copyWith(
-          clearRegistration: _registrationUsesEmail(s, m!['email']),
+          clearRegistration:
+              changeToken == null && _registrationUsesEmail(s, m!['email']),
           emailReset:
               {
-                  ...m,
+                  ...m!,
                   'intentId': intent.resetIntentId,
                   'intentExpiresAt': intent.expiresAt.toUtc().toIso8601String(),
                   'username': intent.username,
@@ -646,6 +684,7 @@ class AuthFlows extends ChangeNotifier {
     } on AuthFailure catch (e) {
       if (e.code == 'EMAIL_PROOF_INVALID' ||
           e.code == 'EMAIL_UNREGISTERED' ||
+          (changeToken != null && e.code == 'EMAIL_ACCOUNT_MISMATCH') ||
           e.code == 'RESET_INTENT_EXPIRED' ||
           e.code == 'RESET_INTENT_INVALID') {
         await _store.update((s) => s.copyWith(clearEmailReset: true));
@@ -733,7 +772,7 @@ class AuthFlows extends ChangeNotifier {
       _status = _resetStatus(reset['state'] as String);
       return;
     }
-    final emailReset = state.emailReset;
+    final emailReset = _scopedEmailReset(state, null);
     if (emailReset?['intentId'] != null) {
       if (_clock().isBefore(
         DateTime.parse(emailReset!['intentExpiresAt'] as String),
@@ -1508,97 +1547,114 @@ class AuthFlows extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> commitReset(String newPassword, String confirmation) =>
-      _run((epoch) async {
-        if (_status != AuthFlowStatus.resetCodeConfirmation ||
-            _resetIntent == null) {
-          throw const AuthFailure(
-            kind: AuthFailureKind.rejected,
-            code: 'HIDE_CODE_FIRST',
-          );
-        }
-        final intent = _resetIntent!;
-        if (!legacyRecoveryEnabled) {
-          _requireEmailResetAllowed(await _store.read());
-          if (_emailResetAuthorityVersion != _sessionAuthorityVersion()) {
-            throw const AuthFailure(
-              kind: AuthFailureKind.rejected,
-              code: 'CREDENTIAL_STATE_CHANGED',
-            );
-          }
-          if (_store.current?.emailReset?['intentId'] != intent.resetIntentId) {
-            throw const AuthFailure(
-              kind: AuthFailureKind.rejected,
-              code: 'CREDENTIAL_STATE_CHANGED',
-            );
-          }
-        }
-        final key = AuthCrypto.randomEncoded(32);
-        await _store.update((latest) {
-          if (!legacyRecoveryEnabled) {
-            _requireEmailResetAllowed(latest);
-          }
-          if (latest.pendingReset != null) {
-            throw const AuthFailure(
-              kind: AuthFailureKind.rejected,
-              code: 'PENDING_CHECK_REQUIRED',
-            );
-          }
-          return latest.copyWith(
-            pendingReset: <String, dynamic>{
-              'v': 1,
-              'intentId': intent.resetIntentId,
-              'key': key,
-              'state': 'UNKNOWN',
-              if (latest.session != null)
-                'originalTokenDigest': _tokenDigest(latest.session!.token),
-            },
-          );
-        });
-        if (!_current(epoch)) {
-          return;
-        }
-        _clearCommunityAccess();
-        _status = AuthFlowStatus.resetUnknown;
-        _notify();
-        try {
-          await _api.commitPasswordReset(
-            resetIntentId: intent.resetIntentId,
-            newPassword: newPassword,
-            newRecoveryCodeConfirmation: confirmation,
-            idempotencyKey: key,
-          );
-        } on AuthFailure catch (failure) {
-          final invalidIntent =
-              failure.code == 'RESET_INTENT_INVALID' ||
-              failure.code == 'RESET_INTENT_EXPIRED';
-          if ((failure.code == 'PASSWORD_POLICY_FAILED' || invalidIntent) &&
-              _current(epoch)) {
-            final result = await _api.passwordResetResult(
-              resetIntentId: intent.resetIntentId,
-              idempotencyKey: key,
-            );
-            if (!_current(epoch)) return;
-            // A rejected intent is not reusable merely because its local
-            // expiry lies in the future. Keep all material until the exact
-            // request has a durable authoritative non-commit conclusion.
-            await _recordResetResult(key, result, invalidIntent: invalidIntent);
-            if (!_current(epoch)) return;
-            _status = result == PasswordResetResult.notCommitted
-                ? AuthFlowStatus.resetNotCommitted
-                : result == PasswordResetResult.committed
-                ? AuthFlowStatus.resetCommitted
-                : AuthFlowStatus.resetUnknown;
-          }
-          rethrow;
-        }
-        if (!_current(epoch)) {
-          return;
-        }
-        await _recordResetResult(key, PasswordResetResult.committed);
-        _resetIntent = null;
-        _status = AuthFlowStatus.resetCommitted;
-      });
+  Future<void> commitReset(
+    String newPassword,
+    String confirmation, {
+    String? changeToken,
+  }) => _run((epoch) async {
+    if (_status != AuthFlowStatus.resetCodeConfirmation ||
+        _resetIntent == null) {
+      throw const AuthFailure(
+        kind: AuthFailureKind.rejected,
+        code: 'HIDE_CODE_FIRST',
+      );
+    }
+    final intent = _resetIntent!;
+    if (!legacyRecoveryEnabled || changeToken != null) {
+      _requireResetOperationAllowed(await _store.read(), changeToken);
+      if (_emailResetAuthorityVersion != _sessionAuthorityVersion()) {
+        throw const AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: 'CREDENTIAL_STATE_CHANGED',
+        );
+      }
+      if (_scopedEmailReset(_store.current, changeToken)?['intentId'] !=
+          intent.resetIntentId) {
+        throw const AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: 'CREDENTIAL_STATE_CHANGED',
+        );
+      }
+    }
+    final key = AuthCrypto.randomEncoded(32);
+    await _store.update((latest) {
+      if (!legacyRecoveryEnabled || changeToken != null) {
+        _requireResetOperationAllowed(latest, changeToken);
+      }
+      if (latest.pendingReset != null) {
+        throw const AuthFailure(
+          kind: AuthFailureKind.rejected,
+          code: 'PENDING_CHECK_REQUIRED',
+        );
+      }
+      return latest.copyWith(
+        pendingReset: <String, dynamic>{
+          'v': 1,
+          'intentId': intent.resetIntentId,
+          'key': key,
+          'state': 'UNKNOWN',
+          if (changeToken != null) 'passwordChange': true,
+          if (latest.session != null)
+            'originalTokenDigest': _tokenDigest(latest.session!.token),
+        },
+      );
+    });
+    if (!_current(epoch)) {
+      return;
+    }
+    _clearCommunityAccess();
+    _status = AuthFlowStatus.resetUnknown;
+    _notify();
+    try {
+      if (changeToken == null) {
+        await _api.commitPasswordReset(
+          resetIntentId: intent.resetIntentId,
+          newPassword: newPassword,
+          newRecoveryCodeConfirmation: confirmation,
+          idempotencyKey: key,
+        );
+      } else {
+        await (_api as PasswordChangeApi).commitPasswordChange(
+          sessionToken: changeToken,
+          resetIntentId: intent.resetIntentId,
+          newPassword: newPassword,
+          idempotencyKey: key,
+        );
+      }
+    } on AuthFailure catch (failure) {
+      final invalidIntent =
+          failure.code == 'RESET_INTENT_INVALID' ||
+          failure.code == 'RESET_INTENT_EXPIRED' ||
+          (changeToken != null &&
+              (failure.code == 'INTENT_INVALID' ||
+                  failure.code == 'INTENT_EXPIRED'));
+      if ((failure.code == 'PASSWORD_POLICY_FAILED' || invalidIntent) &&
+          _current(epoch)) {
+        final result = await _api.passwordResetResult(
+          resetIntentId: intent.resetIntentId,
+          idempotencyKey: key,
+        );
+        if (!_current(epoch)) return;
+        // A rejected intent is not reusable merely because its local
+        // expiry lies in the future. Keep all material until the exact
+        // request has a durable authoritative non-commit conclusion.
+        await _recordResetResult(key, result, invalidIntent: invalidIntent);
+        if (!_current(epoch)) return;
+        _status = result == PasswordResetResult.notCommitted
+            ? AuthFlowStatus.resetNotCommitted
+            : result == PasswordResetResult.committed
+            ? AuthFlowStatus.resetCommitted
+            : AuthFlowStatus.resetUnknown;
+      }
+      rethrow;
+    }
+    if (!_current(epoch)) {
+      return;
+    }
+    await _recordResetResult(key, PasswordResetResult.committed);
+    _resetIntent = null;
+    _status = AuthFlowStatus.resetCommitted;
+  });
 
   Future<void> reconcileReset() => _run((epoch) async {
     final state = await _store.read();
@@ -2071,6 +2127,8 @@ class AuthFlows extends ChangeNotifier {
           ? '结果未知，请保留原请求并核对。'
           : failure.code == 'SESSION_CREATED_RETRY_LOGIN'
           ? '上次登录已建立会话，请重新发送验证码登录。'
+          : failure.code == 'EMAIL_ACCOUNT_MISMATCH'
+          ? '请使用当前账号绑定的校邮。'
           : failure.code == 'EMAIL_UNREGISTERED'
           ? '该邮箱未找到账户信息，请先注册'
           : failure.code == 'EMAIL_PROOF_INVALID'
@@ -2097,9 +2155,13 @@ class AuthFlows extends ChangeNotifier {
     }
   }
 
-  void _requireEmailResetAllowed(AuthState state) {
+  void _requireResetOperationAllowed(AuthState state, String? changeToken) {
     if (state.pendingReset != null ||
-        state.session != null ||
+        (changeToken == null
+            ? state.session != null
+            : !supportsPasswordChange ||
+                  state.session?.token != changeToken ||
+                  state.pendingCredentialChange != null) ||
         state.pendingClosure?['state'] == 'UNKNOWN' ||
         state.emailLogin?['proof'] != null) {
       throw const AuthFailure(

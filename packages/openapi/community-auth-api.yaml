@@ -1099,6 +1099,85 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
       x-retry-semantics: same-key-no-token-replay-new-key-explicit-login
+  /api/v1/auth/password-change-intents:
+    post:
+      operationId: createPasswordChangeIntent
+      summary: 验证当前账号的校邮改密授权
+      description: V 对不透明绑定签发 EMAIL-RESET/V1 证明。改密使用独立绑定域，绑定 C 安装标识、操作键和当前 Bearer 的 SHA-256。C 验证当前会话及校邮槽位归属；有效期内同键重试使用同一未消费意图。
+      tags: [Session]
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        x-max-bytes: 2048
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailResetCreate'
+      responses:
+        '201':
+          description: 本会话可用的改密意图。
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailResetIntentResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  /api/v1/auth/password-changes:
+    post:
+      operationId: commitPasswordChange
+      summary: 提交已验证校邮的登录态改密
+      description: 只接受创建意图的原会话。C 在最终 Safety Gate 事务中检查会话、凭据版本和意图期限，原子更新密码、撤销旧会话并记录原键结果。结果未知时通过 password-reset-result 核对。
+      tags: [Session]
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        x-max-bytes: 8192
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [resetIntentId, newPassword]
+              properties:
+                resetIntentId:
+                  $ref: '#/components/schemas/Base64url32'
+                newPassword:
+                  $ref: '#/components/schemas/PasswordInput'
+      responses:
+        '204':
+          description: 改密已提交，旧会话已撤销。
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   /api/v1/auth/email-reset-intents:
     post:
       operationId: createEmailPasswordResetIntent

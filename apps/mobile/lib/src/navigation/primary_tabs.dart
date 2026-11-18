@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'app_navigation.dart';
 import 'feed_chrome.dart';
-import 'home_side_menu.dart';
 
 /// Owns the four peer destinations. Detail routes remain on the outer Navigator.
 /// A changed authority window discards every visited tab, including empty data.
@@ -13,12 +12,10 @@ class PrimaryTabs extends StatefulWidget {
     required this.window,
     required this.builders,
     required this.onSelected,
-    this.homeMenu,
   });
   final (String?, int) window;
   final Map<AppDestination, WidgetBuilder> builders;
   final ValueChanged<AppDestination> onSelected;
-  final WidgetBuilder? homeMenu;
 
   @override
   State<PrimaryTabs> createState() => PrimaryTabsState();
@@ -79,41 +76,36 @@ class PrimaryTabsState extends State<PrimaryTabs> {
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) select(AppDestination.home);
     },
-    child: HomeSideMenu(
-      key: ValueKey(widget.window),
-      enabled: _selected == AppDestination.home && widget.homeMenu != null,
-      menuBuilder: widget.homeMenu ?? (_) => const SizedBox.shrink(),
-      child: Scaffold(
-        extendBody: _selected == AppDestination.home,
-        body: _PrimaryTabsBodyInsets(
-          padding: MediaQuery.paddingOf(context).copyWith(
-            bottom: _selected == AppDestination.home
-                ? MediaQuery.paddingOf(context).bottom
-                : 0,
-          ),
-          child: FeedChromeScope(
-            controller: _chrome,
-            child: IndexedStack(
-              index: _selected.index,
-              children: [
-                for (final destination in AppDestination.values)
-                  TickerMode(
-                    key: ValueKey((widget.window, destination)),
-                    enabled: destination == _selected,
-                    child: _visited.contains(destination)
-                        ? Builder(builder: widget.builders[destination]!)
-                        : const SizedBox.shrink(),
-                  ),
-              ],
-            ),
-          ),
+    child: Scaffold(
+      extendBody: _selected == AppDestination.home,
+      body: _PrimaryTabsBodyInsets(
+        padding: MediaQuery.paddingOf(context).copyWith(
+          bottom: _selected == AppDestination.home
+              ? MediaQuery.paddingOf(context).bottom
+              : 0,
         ),
-        bottomNavigationBar: FeedNavigation(
+        child: FeedChromeScope(
           controller: _chrome,
-          selected: _selected,
-          onSelected: widget.onSelected,
-          collapseSpace: true,
+          child: IndexedStack(
+            index: _selected.index,
+            children: [
+              for (final destination in AppDestination.values)
+                TickerMode(
+                  key: ValueKey((widget.window, destination)),
+                  enabled: destination == _selected,
+                  child: _visited.contains(destination)
+                      ? Builder(builder: widget.builders[destination]!)
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
         ),
+      ),
+      bottomNavigationBar: FeedNavigation(
+        controller: _chrome,
+        selected: _selected,
+        onSelected: widget.onSelected,
+        collapseSpace: true,
       ),
     ),
   );

@@ -21,6 +21,7 @@ class HttpAuthApi
         RegistrationResultApi,
         EmailLoginApi,
         EmailResetApi,
+        PasswordChangeApi,
         CredentialManagementApi,
         PasskeyRecoveryApi,
         IdentityApi,
@@ -664,16 +665,45 @@ class HttpAuthApi
     required String proof,
     required String installationId,
     required String idempotencyKey,
+  }) => _createEmailResetIntent(
+    proof: proof,
+    installationId: installationId,
+    idempotencyKey: idempotencyKey,
+  );
+
+  @override
+  Future<PasswordResetIntent> createPasswordChangeIntent({
+    required String sessionToken,
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
+  }) => _createEmailResetIntent(
+    sessionToken: sessionToken,
+    proof: proof,
+    installationId: installationId,
+    idempotencyKey: idempotencyKey,
+  );
+
+  Future<PasswordResetIntent> _createEmailResetIntent({
+    String? sessionToken,
+    required String proof,
+    required String installationId,
+    required String idempotencyKey,
   }) async {
     final r = await _send(
       false,
       'POST',
-      '/api/v1/auth/email-reset-intents',
+      sessionToken == null
+          ? '/api/v1/auth/email-reset-intents'
+          : '/api/v1/auth/password-change-intents',
       body: {
         'proof': _bytes(proof, 227),
         'installationId': _bytes(installationId, 16),
       },
-      headers: _keyHeader(idempotencyKey),
+      headers: {
+        ..._keyHeader(idempotencyKey),
+        if (sessionToken != null) ..._capability('Bearer', sessionToken),
+      },
       expected: {201},
     );
     return _model(() {
@@ -1028,6 +1058,32 @@ class HttpAuthApi
     required String newPassword,
     required String newRecoveryCodeConfirmation,
     required String idempotencyKey,
+  }) => _commitPasswordReset(
+    resetIntentId: resetIntentId,
+    newPassword: newPassword,
+    newRecoveryCodeConfirmation: newRecoveryCodeConfirmation,
+    idempotencyKey: idempotencyKey,
+  );
+
+  @override
+  Future<void> commitPasswordChange({
+    required String sessionToken,
+    required String resetIntentId,
+    required String newPassword,
+    required String idempotencyKey,
+  }) => _commitPasswordReset(
+    sessionToken: sessionToken,
+    resetIntentId: resetIntentId,
+    newPassword: newPassword,
+    idempotencyKey: idempotencyKey,
+  );
+
+  Future<void> _commitPasswordReset({
+    String? sessionToken,
+    required String resetIntentId,
+    required String newPassword,
+    String newRecoveryCodeConfirmation = '',
+    required String idempotencyKey,
   }) async {
     _passwordInput(newPassword);
     if (newRecoveryCodeConfirmation.isNotEmpty) {
@@ -1036,14 +1092,19 @@ class HttpAuthApi
     await _send(
       false,
       'POST',
-      '/api/v1/auth/password-resets',
+      sessionToken == null
+          ? '/api/v1/auth/password-resets'
+          : '/api/v1/auth/password-changes',
       body: {
         'resetIntentId': _bytes(resetIntentId, 32),
         'newPassword': newPassword,
         if (newRecoveryCodeConfirmation.isNotEmpty)
           'newRecoveryCodeConfirmation': newRecoveryCodeConfirmation,
       },
-      headers: _keyHeader(idempotencyKey),
+      headers: {
+        ..._keyHeader(idempotencyKey),
+        if (sessionToken != null) ..._capability('Bearer', sessionToken),
+      },
       expected: {204},
     );
   }
@@ -1751,6 +1812,7 @@ class HttpAuthApi
     'EMAIL_INVALID',
     'EMAIL_UNREGISTERED',
     'EMAIL_PROOF_INVALID',
+    'EMAIL_ACCOUNT_MISMATCH',
     'AUTHENTICATION_FAILED',
     'PASSWORD_LOGIN_LOCKED',
     'IDEMPOTENCY_KEY_REUSED',

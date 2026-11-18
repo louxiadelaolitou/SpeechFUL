@@ -24,6 +24,7 @@ class AuthScreen extends StatefulWidget {
     this.onAuthenticated,
     this.onManageSecurity,
     this.onModerationAccess,
+    this.passwordChangeToken,
   });
 
   final AuthSessionController sessions;
@@ -32,6 +33,8 @@ class AuthScreen extends StatefulWidget {
   final VoidCallback? onAuthenticated;
   final VoidCallback? onManageSecurity;
   final VoidCallback? onModerationAccess;
+
+  final String? passwordChangeToken;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -47,6 +50,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _recoveryCode = TextEditingController();
   final _confirmation = TextEditingController();
   final _newPassword = TextEditingController();
+  final _newPasswordConfirmation = TextEditingController();
   final _closurePassword = TextEditingController();
   final _loginEmail = TextEditingController();
   final _loginOtp = TextEditingController();
@@ -67,9 +71,16 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _lastFlowError;
   String? _lastSessionError;
   bool _errorDialogOpen = false;
+  bool _finishingPasswordChange = false;
+  bool get _changingPassword =>
+      widget.passwordChangeToken != null && _mode == _AuthMode.recover;
+  Map<String, dynamic>? get _resetEmailOperation => _changingPassword
+      ? widget.flows.passwordChangeEmail(widget.passwordChangeToken!)
+      : widget.flows.emailReset;
 
   bool get _awaitingHome =>
       widget.onAuthenticated != null &&
+      !_changingPassword &&
       widget.sessions.isAuthenticated &&
       !_registrationFinishing;
   bool get _busy => widget.sessions.busy || widget.flows.busy || _awaitingHome;
@@ -79,6 +90,24 @@ class _AuthScreenState extends State<AuthScreen> {
     super.initState();
     widget.captchaApi?.captchaPresenter = _presentCaptcha;
     _authenticated = widget.sessions.status == AuthStatus.authenticated;
+    if (widget.passwordChangeToken != null) {
+      _mode = _AuthMode.recover;
+      final operation = _resetEmailOperation;
+      if (operation != null) _email.text = operation['email'] as String;
+      if (operation?['intentId'] != null &&
+          !widget.flows.hasPasswordChangeResult) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _changingPassword) {
+            unawaited(
+              widget.flows.completeEmailReset(
+                '',
+                changeToken: widget.passwordChangeToken,
+              ),
+            );
+          }
+        });
+      }
+    }
     _lastFlowError = widget.flows.errorMessage;
     _lastFlowStatus = widget.flows.status;
     _lastSessionError = widget.sessions.errorMessage;
@@ -99,10 +128,11 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted &&
           (widget.flows.otpWaitUntil != null ||
               widget.flows.emailLoginWaitUntil != null ||
-              widget.flows.emailResetWaitUntil != null)) {
+              _resetEmailOperation != null)) {
         setState(() {});
       }
     });
+    _finishPasswordChangeIfCommitted();
   }
 
   @override
@@ -122,6 +152,7 @@ class _AuthScreenState extends State<AuthScreen> {
       _recoveryCode,
       _confirmation,
       _newPassword,
+      _newPasswordConfirmation,
       _closurePassword,
       _loginEmail,
       _loginOtp,
@@ -156,7 +187,10 @@ class _AuthScreenState extends State<AuthScreen> {
       _queueErrorDialog(
         completed ? '注册成功，请重新登陆' : '注册结果暂未确认，请尝试登录，也可以使用校邮登录或找回账号。',
       );
-    } else if (flowError != null && flowError != _lastFlowError) {
+    } else if (flowError != null &&
+        flowError != _lastFlowError &&
+        !(widget.flows.hasPasswordChangeResult &&
+            flowStatus == AuthFlowStatus.resetUnknown)) {
       _queueErrorDialog(flowError);
     } else if (sessionError != null &&
         sessionError != _lastSessionError &&
@@ -192,13 +226,33 @@ class _AuthScreenState extends State<AuthScreen> {
         _otp.clear();
         _email.clear();
       }
-      if (!_registrationFinishing &&
+      if (!_changingPassword &&
+          !_registrationFinishing &&
           (ModalRoute.of(context)?.isCurrent ?? false)) {
         widget.onAuthenticated?.call();
       }
     }
     _authenticated = authenticated;
     setState(() {});
+    _finishPasswordChangeIfCommitted();
+  }
+
+  void _finishPasswordChangeIfCommitted() {
+    if (_finishingPasswordChange ||
+        widget.flows.busy ||
+        !widget.flows.hasPasswordChangeResult ||
+        widget.flows.status != AuthFlowStatus.resetCommitted) {
+      return;
+    }
+    _finishingPasswordChange = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await widget.flows.acknowledgeResetResult();
+      if (!mounted || widget.flows.hasPasswordChangeResult) return;
+      _selectMode(_AuthMode.login);
+      await widget.sessions.retry();
+      if (mounted) _queueErrorDialog('密码修改成功，请重新登录');
+    });
   }
 
   void _selectMode(_AuthMode mode) {
@@ -207,6 +261,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _password.clear();
     _registrationPasswordConfirmation.clear();
     _newPassword.clear();
+    _newPasswordConfirmation.clear();
     _recoveryCode.clear();
     _confirmation.clear();
     _closurePassword.clear();
@@ -400,18 +455,21 @@ class _AuthScreenState extends State<AuthScreen> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 64,
-        title:
-            sessionStatus == AuthStatus.authenticated &&
-                !_registrationFinishing &&
-                !_awaitingHome
+        title: _changingPassword
+            ? Text(_text('修改密码'))
+            : sessionStatus == AuthStatus.authenticated &&
+                  !_registrationFinishing &&
+                  !_awaitingHome
             ? Text(_text('账号与安全'))
             : null,
         leading: IconButton(
-          tooltip: _text('返回登录'),
+          tooltip: _text(_changingPassword ? '返回' : '返回登录'),
           onPressed: _busy
               ? null
               : () {
-                  if (_registrationFinishing &&
+                  if (_changingPassword) {
+                    Navigator.of(context).maybePop();
+                  } else if (_registrationFinishing &&
                       widget.sessions.isAuthenticated) {
                     _finishRegistration();
                   } else if (_mode == _AuthMode.register &&
@@ -480,9 +538,53 @@ class _AuthScreenState extends State<AuthScreen> {
         _button('重试', widget.sessions.retry),
       ];
     }
-    if (session == AuthStatus.authenticated) {
+    if (_changingPassword && !widget.flows.hasPasswordChangeResult) {
+      if (!widget.sessions.isCurrentToken(widget.passwordChangeToken!)) {
+        return [
+          const _Title('请重新登录', '登录状态已变化，请重新打开修改密码。'),
+          _button('前往登录', () async => _selectMode(_AuthMode.login)),
+        ];
+      }
+      return flow == AuthFlowStatus.resetCodeConfirmation &&
+              _resetEmailOperation?['intentId'] != null
+          ? _passwordChangeNewPassword()
+          : _emailRecovery();
+    }
+    if (session == AuthStatus.authenticated &&
+        !widget.flows.hasPasswordChangeResult) {
       if (_awaitingHome) return _login();
       return _registrationFinishing ? _registrationComplete() : _account();
+    }
+    if (widget.flows.hasPasswordChangeResult) {
+      if (flow == AuthFlowStatus.resetCommitted) {
+        return const [_Title('密码修改成功', '请重新登录')];
+      }
+      if (flow == AuthFlowStatus.resetNotCommitted) {
+        return [
+          const _Title('本次修改未完成', '请重新输入新密码或返回设置。'),
+          if (_changingPassword && widget.flows.canCorrectResetPassword)
+            _button('重新输入密码', () async {
+              await widget.sessions.retry();
+              if (mounted &&
+                  widget.sessions.isCurrentToken(widget.passwordChangeToken!)) {
+                await widget.flows.correctResetPassword();
+              }
+            }),
+          _secondary('确定', () async {
+            await widget.flows.acknowledgeResetResult();
+            if (!mounted || widget.flows.hasPasswordChangeResult) return;
+            if (_changingPassword) {
+              _email.clear();
+              _otp.clear();
+            }
+            await widget.sessions.retry();
+          }),
+        ];
+      }
+      return [
+        const _Title('正在核对改密结果', '请求结果尚未确定，请先核对原请求。'),
+        _button('核对改密结果', widget.flows.reconcileReset),
+      ];
     }
     if (_isClosureStatus(flow) &&
         !_explicitClosureLogin &&
@@ -1397,30 +1499,40 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   List<Widget> _emailRecovery() {
-    final operation = widget.flows.emailReset;
+    final operation = _resetEmailOperation;
+    final waitUntil = operation?['waitUntil'] as String?;
+    final changeToken = _changingPassword ? widget.passwordChangeToken : null;
     final wait =
-        widget.flows.emailResetWaitUntil
+        (waitUntil == null ? null : DateTime.parse(waitUntil))
             ?.difference(DateTime.now())
             .inSeconds
             .clamp(0, 3600) ??
         0;
     final address = _campusEmail(_email.text);
     return [
-      const _Title('通过校邮重置密码', '使用原账号绑定的海南大学校邮验证，不会创建新账号。'),
+      if (_changingPassword)
+        const _Title('验证校邮', '请使用当前账号绑定的海南大学校邮。')
+      else
+        const _Title('通过校邮重置密码', '使用原账号绑定的海南大学校邮验证，不会创建新账号。'),
       _field('校邮', _email, key: 'reset-email', email: true),
       _button(
         operation?['sendState'] == 'UNKNOWN'
             ? '核对原取码请求'
             : wait > 0
             ? '$wait 秒后可重新发送'
+            : _changingPassword
+            ? '获取验证码'
             : '发送重置验证码',
         wait > 0 && operation?['sendState'] != 'UNKNOWN'
             ? null
             : () => _submit(
-                () => widget.flows.requestEmailReset(_campusEmail(_email.text)),
+                () => widget.flows.requestEmailReset(
+                  _campusEmail(_email.text),
+                  changeToken: changeToken,
+                ),
               ),
       ),
-      if (operation?['intentId'] != null)
+      if (!_changingPassword && operation?['intentId'] != null)
         _secondary('继续设置新密码', widget.flows.restorePending),
       if (operation?['flowId'] != null &&
           operation?['email'] == address &&
@@ -1428,13 +1540,20 @@ class _AuthScreenState extends State<AuthScreen> {
         _field('校邮验证码', _otp, key: 'reset-otp', otp: true),
         _button(
           '验证校邮',
-          () => _submit(() => widget.flows.completeEmailReset(_otp.text)),
+          () => _submit(
+            () => widget.flows.completeEmailReset(
+              _otp.text,
+              changeToken: changeToken,
+            ),
+          ),
         ),
       ],
-      if (operation?['unregistered'] == true) const _Notice('该邮箱未找到账户信息，请先注册'),
+      if (operation?['unregistered'] == true)
+        _Notice(_changingPassword ? '请使用当前账号绑定的校邮。' : '该邮箱未找到账户信息，请先注册'),
       if (operation != null && operation['email'] != address)
         _Notice('当前验证码发送至：${operation['email']}。请确认邮箱后继续。'),
-      const _Notice('验证码仅用于本次密码重置。完成后返回登录页；密码重置不会自动登录或撤销注销申请。'),
+      if (!_changingPassword)
+        const _Notice('验证码仅用于本次密码重置。完成后返回登录页；密码重置不会自动登录或撤销注销申请。'),
     ];
   }
 
@@ -1454,6 +1573,40 @@ class _AuthScreenState extends State<AuthScreen> {
       () => _submit(() => widget.flows.commitReset(_newPassword.text, '')),
     ),
     _secondary('重新验证校邮', widget.flows.clearEmailReset),
+  ];
+
+  List<Widget> _passwordChangeNewPassword() => [
+    const _Title('设置新密码', '校邮验证已通过。修改成功后，请重新登录。'),
+    _field(
+      '新密码',
+      _newPassword,
+      key: 'change-new-password',
+      password: true,
+      newPassword: true,
+    ),
+    _field(
+      '确认新密码',
+      _newPasswordConfirmation,
+      key: 'change-confirm-password',
+      password: true,
+      matchingPassword: _newPassword,
+    ),
+    _button(
+      widget.flows.busy ? '正在修改…' : '确定',
+      () => _submit(() async {
+        final password = _newPassword.text;
+        _newPassword.clear();
+        _newPasswordConfirmation.clear();
+        await widget.flows.commitReset(
+          password,
+          '',
+          changeToken: widget.passwordChangeToken,
+        );
+        if (mounted && widget.flows.status == AuthFlowStatus.resetUnknown) {
+          await widget.flows.reconcileReset();
+        }
+      }),
+    ),
   ];
 
   List<Widget> _recovery() => !widget.flows.legacyRecoveryEnabled
@@ -1662,6 +1815,7 @@ class _AuthScreenState extends State<AuthScreen> {
     bool newUsername = false,
     bool newPassword = false,
     bool confirmPassword = false,
+    TextEditingController? matchingPassword,
     bool email = false,
     bool otp = false,
     bool pending = false,
@@ -1747,7 +1901,8 @@ class _AuthScreenState extends State<AuthScreen> {
         if (input.isEmpty) {
           return hhText(context, '请输入{field}', args: {'field': _text(label)});
         }
-        if (confirmPassword && input != _password.text) {
+        if ((confirmPassword || matchingPassword != null) &&
+            input != (matchingPassword ?? _password).text) {
           return _text('两次输入的密码不一致');
         }
         if (email &&
