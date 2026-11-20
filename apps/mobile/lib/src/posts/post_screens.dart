@@ -3062,6 +3062,46 @@ class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
     );
   }
 
+  Future<void> _showMore() async {
+    if (!_authority.current || !widget.controller.supportsAuthorBlock) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: PostTheme.of(context).colorScheme.surface,
+      showDragHandle: true,
+      builder: (context) => Theme(
+        data: PostTheme.of(context),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                key: const ValueKey('author-profile-block'),
+                leading: Icon(
+                  Icons.block,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  hhText(context, '拉黑这个身份'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () => Navigator.pop(context, 'block'),
+              ),
+              ListTile(
+                title: Text(hhText(context, '取消')),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == 'block' && mounted && _authority.current) {
+      await _blockAuthor();
+    }
+  }
+
   /// Account-level block: a second confirmation explains the symmetric hide
   /// and the DM pause before any write is sent.
   Future<void> _blockAuthor() async {
@@ -3136,16 +3176,27 @@ class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
             style: detailType(context, 20, weight: FontWeight.w500),
           ),
           leading: BackButton(onPressed: () => Navigator.maybePop(context)),
+          actions: [
+            if (widget.controller.supportsAuthorBlock)
+              IconButton(
+                key: const ValueKey('author-profile-more'),
+                tooltip: hhText(context, '更多操作'),
+                onPressed: _blocking ? null : () => unawaited(_showMore()),
+                icon: const Icon(Icons.more_horiz_rounded),
+              ),
+          ],
+          bottom: _blocking
+              ? const PreferredSize(
+                  preferredSize: Size.fromHeight(2),
+                  child: LinearProgressIndicator(),
+                )
+              : null,
         ),
         body: !_authority.current
             ? _AccessClosed(onAuthenticate: widget.onAuthenticationRequired)
             : _profile == null
             ? (_loading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        semanticsLabel: hhText(context, '正在加载作者主页'),
-                      ),
-                    )
+                  ? const _AuthorProfileSkeleton()
                   : _PageState(
                       title: _error ?? '暂时无法加载作者主页',
                       action: '重新加载',
@@ -3160,38 +3211,30 @@ class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
                     SliverToBoxAdapter(
                       child: _authorHeader(context, _profile!),
                     ),
+                    SliverToBoxAdapter(
+                      child: ColoredBox(
+                        color: HhTelegramPalette.of(context).background,
+                        child: const SizedBox(height: 8),
+                      ),
+                    ),
+                    SliverToBoxAdapter(child: _sectionHeader(context)),
                     if (_loading)
                       const SliverToBoxAdapter(
                         child: LinearProgressIndicator(),
                       ),
                     if (_items.isEmpty && !_loading)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-                          child: Text(
-                            hhText(context, '这个身份还没有发布的帖子'),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: PostTheme.muted,
-                            ),
-                          ),
-                        ),
-                      )
+                      SliverToBoxAdapter(child: _emptyState(context))
                     else
                       SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (context, index) => Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                            child: _AuthorPostCard(
-                              key: ValueKey(
-                                'author-post:${_items[index].postId}',
-                              ),
-                              post: _items[index],
-                              channelName:
-                                  widget.channelNames[_items[index].channelId],
-                              onOpen: () => unawaited(_openPost(_items[index])),
+                          (context, index) => _AuthorPostCard(
+                            key: ValueKey(
+                              'author-post:${_items[index].postId}',
                             ),
+                            post: _items[index],
+                            channelName:
+                                widget.channelNames[_items[index].channelId],
+                            onOpen: () => unawaited(_openPost(_items[index])),
                           ),
                           childCount: _items.length,
                         ),
@@ -3207,72 +3250,146 @@ class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
   Widget _authorHeader(BuildContext context, AuthorProfile profile) {
     final author = profile.author;
     final inactive = author.inactiveMessage;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-      child: Column(
+    final palette = HhTelegramPalette.of(context);
+    final name = localizedPostAuthor(context, author);
+    return Container(
+      color: palette.surface,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DetailAvatar(
             key: const ValueKey('author-profile-avatar'),
-            name: localizedPostAuthor(context, author),
+            name: name,
             avatar: author.avatar,
-            radius: 40,
+            radius: 34,
           ),
-          const SizedBox(height: 12),
-          Text(
-            localizedPostAuthor(context, author),
-            textAlign: TextAlign.center,
-            style: detailType(context, 20, weight: FontWeight.w600),
-          ),
-          if (inactive != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              hhText(context, inactive),
-              textAlign: TextAlign.center,
-              style: detailType(context, 14, color: PostTheme.muted),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              FilledButton.icon(
-                key: const ValueKey('author-profile-dm'),
-                onPressed: inactive != null
-                    ? null
-                    : () => unawaited(DmScope.contact(context, widget.postId)),
-                icon: const Icon(Icons.chat_bubble_outline, size: 20),
-                label: Text(hhText(context, inactive ?? '私信')),
-              ),
-              if (widget.controller.supportsAuthorBlock)
-                OutlinedButton.icon(
-                  key: const ValueKey('author-profile-block'),
-                  onPressed: _blocking ? null : () => unawaited(_blockAuthor()),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.error,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 5,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      name,
+                      style: detailType(
+                        context,
+                        22,
+                        weight: FontWeight.w600,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                  icon: _blocking
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.block, size: 20),
-                  label: Text(hhText(context, '拉黑')),
+                    _identityStateChip(
+                      context,
+                      inactive == null
+                          ? hhText(context, '公开身份')
+                          : hhText(context, inactive),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              hhText(context, '发布的帖子'),
-              style: detailType(context, 17, weight: FontWeight.w600),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  key: const ValueKey('author-profile-dm'),
+                  onPressed: inactive != null
+                      ? null
+                      : () =>
+                            unawaited(DmScope.contact(context, widget.postId)),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 19),
+                  label: Text(hhText(context, '私信')),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(112, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                  ),
+                ),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _identityStateChip(BuildContext context, String label) {
+    final palette = HhTelegramPalette.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: palette.line),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        key: const ValueKey('author-profile-state'),
+        style: detailType(context, 11, color: palette.secondary, height: 1.2),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context) {
+    final palette = HhTelegramPalette.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 52),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(bottom: BorderSide(color: palette.line)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              hhText(context, '公开帖子'),
+              style: detailType(context, 16, weight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Text(
+            hhText(context, '按发布时间排序'),
+            style: detailType(context, 12, color: palette.secondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState(BuildContext context) {
+    final palette = HhTelegramPalette.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 328),
+      color: palette.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: palette.background,
+              border: Border.all(color: palette.line),
+            ),
+            child: Icon(
+              Icons.article_outlined,
+              size: 25,
+              color: palette.secondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            hhText(context, '这个身份还没有发布的帖子'),
+            textAlign: TextAlign.center,
+            style: detailType(context, 16, weight: FontWeight.w600),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            hhText(context, '发布过的内容会按时间显示在这里'),
+            textAlign: TextAlign.center,
+            style: detailType(context, 13, color: palette.secondary),
           ),
         ],
       ),
@@ -3328,43 +3445,194 @@ class _AuthorPostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = HhTelegramPalette.of(context);
-    final meta = [
+    final source = [
       if (channelName != null) channelName!,
       _postDate(context, post.publishedAt),
-      if (post.imageCount > 0) '${post.imageCount} 张图片',
-      '${post.viewCount} 次浏览',
     ].join(' · ');
     return Material(
       color: palette.surface,
-      borderRadius: BorderRadius.circular(8),
-      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 17, 20, 16),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: palette.line)),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      source,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: detailType(
+                        context,
+                        12,
+                        weight: FontWeight.w500,
+                        color: palette.secondary,
+                      ),
+                    ),
+                  ),
+                  if (post.imageCount > 0) ...[
+                    const SizedBox(width: 12),
+                    _ImageCountLabel(count: post.imageCount),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 7),
               Text(
                 post.title,
-                style: detailType(context, 18, weight: FontWeight.w600),
+                style: detailType(
+                  context,
+                  18,
+                  weight: FontWeight.w600,
+                  height: 1.4,
+                ),
               ),
               if (post.body.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
                   post.body,
-                  maxLines: 4,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: detailType(context, 15, height: 1.5),
                 ),
               ],
-              const SizedBox(height: 10),
-              Text(
-                meta,
-                style: detailType(context, 13, color: PostTheme.muted),
+              const SizedBox(height: 11),
+              Row(
+                children: [
+                  Icon(
+                    Icons.visibility_outlined,
+                    size: 15,
+                    color: palette.secondary,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    hhText(context, '{v0} 次浏览', args: {'v0': post.viewCount}),
+                    style: detailType(context, 12, color: palette.secondary),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageCountLabel extends StatelessWidget {
+  const _ImageCountLabel({required this.count});
+  final int count;
+  @override
+  Widget build(BuildContext context) {
+    final palette = HhTelegramPalette.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.photo_library_outlined, size: 15, color: palette.secondary),
+        const SizedBox(width: 5),
+        Text(
+          hhText(context, '{v0} 张', args: {'v0': count}),
+          style: detailType(context, 12, color: palette.secondary),
+        ),
+      ],
+    );
+  }
+}
+
+class _AuthorProfileSkeleton extends StatelessWidget {
+  const _AuthorProfileSkeleton();
+
+  Widget _block(BuildContext context, double width, double height) {
+    final palette = HhTelegramPalette.of(context);
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: palette.line.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(height / 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = HhTelegramPalette.of(context);
+    return Semantics(
+      label: hhText(context, '正在加载作者主页'),
+      child: ExcludeSemantics(
+        child: CustomScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                color: palette.surface,
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: palette.line,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _block(context, 144, 22),
+                          const SizedBox(height: 18),
+                          _block(context, 112, 44),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Container(height: 8, color: palette.background),
+            ),
+            SliverToBoxAdapter(
+              child: Container(
+                height: 52,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                alignment: Alignment.centerLeft,
+                color: palette.surface,
+                child: _block(context, 88, 16),
+              ),
+            ),
+            for (var index = 0; index < 3; index++)
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    border: Border(bottom: BorderSide(color: palette.line)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _block(context, 126, 12),
+                      const SizedBox(height: 12),
+                      _block(context, 220, 18),
+                      const SizedBox(height: 12),
+                      _block(context, double.infinity, 13),
+                      const SizedBox(height: 8),
+                      _block(context, 248, 13),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

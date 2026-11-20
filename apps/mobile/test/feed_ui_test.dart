@@ -389,9 +389,17 @@ Widget screen(
   ),
 );
 
-Widget profileScreen(FeedFixture f) => MaterialApp(
+Widget profileScreen(
+  FeedFixture f, {
+  Brightness brightness = Brightness.light,
+  double scale = 1,
+}) => MaterialApp(
   debugShowCheckedModeBanner: false,
-  theme: HhTelegramTheme.create(Brightness.light),
+  theme: HhTelegramTheme.create(brightness),
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+    child: child!,
+  ),
   home: AuthorProfileScreen(
     controller: f.controller,
     postId: postId,
@@ -1304,7 +1312,7 @@ void main() {
     expect(find.text('作者主页'), findsOneWidget);
     expect(find.text('林间来信'), findsWidgets);
     expect(find.byKey(const ValueKey('author-profile-dm')), findsOneWidget);
-    expect(find.byKey(const ValueKey('author-profile-block')), findsOneWidget);
+    expect(find.byKey(const ValueKey('author-profile-more')), findsOneWidget);
     expect(find.text('今天的校园'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('author-post:$postId')));
     await tester.pumpAndSettle();
@@ -1375,6 +1383,10 @@ void main() {
     expect(find.text('今天的校园'), findsOneWidget);
   });
   testWidgets('inactive author keeps the profile read-only', (tester) async {
+    tester.view.physicalSize = const Size(320, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final f = await FeedFixture.create();
     addTearDown(f.dispose);
     const inactive = PostAuthor(
@@ -1384,13 +1396,74 @@ void main() {
     );
     f.api.authorProfileFor = (id, cursor) =>
         AuthorProfile(author: inactive, items: const [], nextCursor: null);
-    await tester.pumpWidget(profileScreen(f));
+    await tester.pumpWidget(profileScreen(f, scale: 1.8));
     await tester.pumpAndSettle();
     final dm = tester.widget<FilledButton>(
       find.byKey(const ValueKey('author-profile-dm')),
     );
     expect(dm.onPressed, isNull);
+    expect(
+      find.text('身份已删除'),
+      findsOneWidget,
+      reason: 'inactive status remains visible without enabling DM',
+    );
     expect(find.text('这个身份还没有发布的帖子'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+    'author profile keeps its identity actions readable on a narrow large-text screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = await FeedFixture.create();
+      addTearDown(f.dispose);
+      const longAuthor = PostAuthor(
+        state: PostAuthorState.active,
+        avatar: 'default-v1',
+        nickname: '在图书馆窗边写信的晚间散步观察员',
+      );
+      f.api.authorProfileFor = (id, cursor) => AuthorProfile(
+        author: longAuthor,
+        items: [
+          FeedPost(
+            postId: postId,
+            channelId: channelId,
+            title: '一条标题较长的公开帖子仍然应该完整换行',
+            body: '正文在窄屏和大字号下继续自然换行，不覆盖浏览数和图片数量。',
+            author: longAuthor,
+            publishedAt: at,
+            viewCount: 1260,
+            imageCount: 2,
+          ),
+        ],
+        nextCursor: null,
+      );
+      await tester.pumpWidget(profileScreen(f, scale: 1.8));
+      await tester.pumpAndSettle();
+      expect(find.text(longAuthor.nickname!), findsOneWidget);
+      expect(find.byKey(const ValueKey('author-profile-dm')), findsOneWidget);
+      expect(find.byKey(const ValueKey('author-profile-more')), findsOneWidget);
+      expect(find.text('2 张'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('author profile follows dark appearance without losing actions', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(profileScreen(f, brightness: Brightness.dark));
+    await tester.pumpAndSettle();
+    expect(find.text('作者主页'), findsOneWidget);
+    expect(find.byKey(const ValueKey('author-profile-dm')), findsOneWidget);
+    expect(find.byKey(const ValueKey('author-profile-more')), findsOneWidget);
+    expect(
+      Theme.of(tester.element(find.byType(AuthorProfileScreen))).brightness,
+      Brightness.dark,
+    );
+    expect(tester.takeException(), isNull);
   });
   testWidgets('author profile blocks the account and clears the timeline', (
     tester,
@@ -1400,6 +1473,8 @@ void main() {
     await tester.pumpWidget(screen(f));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DetailAvatar));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('author-profile-more')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('author-profile-block')));
     await tester.pumpAndSettle();
@@ -1429,6 +1504,8 @@ void main() {
       statusCode: 409,
     );
     await tester.pumpWidget(profileScreen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('author-profile-more')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('author-profile-block')));
     await tester.pumpAndSettle();
