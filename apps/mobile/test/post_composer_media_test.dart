@@ -52,6 +52,34 @@ void main() {
     expect(utf8.decode(raw, allowMalformed: true).contains('图片标题'), isFalse);
   });
 
+  test(
+    'composer type survives restart and legacy drafts remain image-text',
+    () async {
+      final editor = f.editor()
+        ..type = PostComposerType.text
+        ..title = '纯文字草稿'
+        ..body = '正文保留';
+      expect(await f.posts.saveDraft(editor), isTrue);
+      await f.restart();
+      expect(
+        (await f.posts.restoreDraft(editor.id))!.type,
+        PostComposerType.text,
+      );
+
+      await f.current!.createDraft('legacy-composer-type', {
+        'channelId': composerChannel,
+        'identityId': editor.identityId,
+        'title': '旧草稿',
+        'body': '旧正文',
+        'editedAt': composerAt.toIso8601String(),
+      });
+      expect(
+        (await f.posts.restoreDraft('legacy-composer-type'))!.type,
+        PostComposerType.imageText,
+      );
+    },
+  );
+
   test('failed selection preserves other photos and text; replacement and remove are durable', () async {
     final editor = f.editor()..body = '保留正文';
     f.picker.next = [

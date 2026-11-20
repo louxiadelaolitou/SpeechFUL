@@ -1,4 +1,4 @@
-export 'post_draft_controller.dart' show PostDraftEditor;
+export 'post_draft_controller.dart' show PostComposerType, PostDraftEditor;
 export 'personal_post_controller.dart' show PersonalPostItem;
 import 'personal_post_controller.dart';
 import 'post_task_maintenance_controller.dart';

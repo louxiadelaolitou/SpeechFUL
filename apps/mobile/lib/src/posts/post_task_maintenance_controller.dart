@@ -123,6 +123,7 @@ class PostTaskMaintenanceController extends ChangeNotifier {
         attemptVersion: task.attemptVersion,
         bufferId: bufferId,
         bufferRevision: buffer?.revision ?? 0,
+        type: PostComposerType.fromStorage(buffer?.data['composerType']),
         images: images,
         tags: PostTags.parse(buffer?.data['tags'] ?? task.content!.tags),
       )..saved = buffer != null;
@@ -339,6 +340,7 @@ class PostTaskMaintenanceController extends ChangeNotifier {
             )
             ..title = entry.data['title'] as String? ?? ''
             ..body = entry.data['body'] as String? ?? ''
+            ..type = PostComposerType.fromStorage(entry.data['composerType'])
             ..tags = PostTags.parse(entry.data['tags'])
             ..identityId = entry.data['identityId'] as String?;
       editor.images.addAll(DraftPostImage.list(entry.data['images']));

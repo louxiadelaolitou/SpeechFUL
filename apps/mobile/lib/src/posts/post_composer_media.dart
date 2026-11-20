@@ -168,6 +168,7 @@ extension PostComposerMedia on PostController {
       'identityId': entry.data['identityId'],
       'title': entry.data['title'] ?? '',
       'body': entry.data['body'] ?? '',
+      'composerType': entry.data['composerType'],
       'images': entry.data['images'],
       'editedAt': _clock().toUtc().toIso8601String(),
     });

@@ -8,6 +8,21 @@ import 'post_publication_context.dart';
 import 'post_tags.dart';
 import 'post_upload_models.dart';
 
+/// 编辑形态只影响发帖页面与草稿，不进入服务端发布载荷。
+enum PostComposerType {
+  imageText('IMAGE_TEXT'),
+  text('TEXT');
+
+  const PostComposerType(this.storage);
+
+  final String storage;
+
+  static PostComposerType fromStorage(Object? value) => switch (value) {
+    'TEXT' => PostComposerType.text,
+    _ => PostComposerType.imageText,
+  };
+}
+
 /// 编辑输入只属于创建它的授权窗口；已受理重试永远保留原身份和分类。
 class PostDraftEditor {
   PostDraftEditor({
@@ -25,6 +40,7 @@ class PostDraftEditor {
     this.attemptVersion,
     this.bufferId,
     this.bufferRevision = 0,
+    this.type = PostComposerType.imageText,
     List<DraftPostImage>? images,
     List<String> tags = const [],
   }) : tags = PostTags.normalizeAll(tags),
@@ -37,6 +53,7 @@ class PostDraftEditor {
   final String? bufferId;
   int bufferRevision;
   String? identityId;
+  PostComposerType type;
   String title, body;
   int revision;
   bool persisted, saved = false, saving = false, submitted = false;
@@ -110,6 +127,7 @@ class PostDraftController extends ChangeNotifier {
           body: entry.data['body'] as String,
           revision: entry.revision,
           persisted: true,
+          type: PostComposerType.fromStorage(entry.data['composerType']),
           images: DraftPostImage.list(entry.data['images']),
           tags: PostTags.parse(entry.data['tags']),
         )
@@ -128,6 +146,7 @@ class PostDraftController extends ChangeNotifier {
     'identityId': e.identityId,
     'title': e.title,
     'body': e.body,
+    'composerType': e.type.storage,
     'tags': e.tags,
     'editedAt': _clock().toUtc().toIso8601String(),
     if (e.taskId != null) 'taskId': e.taskId,
@@ -191,6 +210,7 @@ class PostDraftController extends ChangeNotifier {
       e.saved =
           e.title == data['title'] &&
           e.body == data['body'] &&
+          e.type == PostComposerType.fromStorage(data['composerType']) &&
           listEquals(e.tags, PostTags.parse(data['tags'])) &&
           e.identityId == data['identityId'] &&
           jsonEncode(e.images.map((e) => e.toJson()).toList()) ==

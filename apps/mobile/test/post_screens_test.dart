@@ -14,6 +14,7 @@ import 'package:hnuhole_mobile/src/identity/identity_api.dart';
 import 'package:hnuhole_mobile/src/posts/post_controller.dart';
 import 'package:hnuhole_mobile/src/posts/post_models.dart';
 import 'package:hnuhole_mobile/src/posts/post_images.dart';
+import 'package:hnuhole_mobile/src/posts/post_upload_models.dart';
 import 'package:hnuhole_image_viewer/image_viewer.dart';
 import 'package:hnuhole_mobile/src/posts/post_screens.dart';
 import 'package:hnuhole_mobile/src/storage/post_store.dart';
@@ -199,17 +200,25 @@ class _WidgetPosts extends ChangeNotifier implements PostController {
       throw StateError('Unexpected widget test operation');
 }
 
-Widget _app(Widget child, {double scale = 1, String? fontFamily}) =>
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: fontFamily == null ? null : ThemeData(fontFamily: fontFamily),
-      home: child,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(scale)),
-        child: child!,
-      ),
-    );
+Widget _app(
+  Widget child, {
+  double scale = 1,
+  String? fontFamily,
+  List<String> fontFamilyFallback = const [],
+}) => MaterialApp(
+  debugShowCheckedModeBanner: false,
+  theme: fontFamily == null
+      ? null
+      : ThemeData(
+          fontFamily: fontFamily,
+          fontFamilyFallback: fontFamilyFallback,
+        ),
+  home: child,
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+    child: child!,
+  ),
+);
 
 void main() {
   Future<void> waitForViewerImage(WidgetTester tester) async {
@@ -983,6 +992,104 @@ void main() {
     c.dispose();
   });
 
+  testWidgets('帖子类型切换保留文字，并在移除图片后进入纯文字模式', (tester) async {
+    final c = _WidgetPosts(),
+        e = editor()
+          ..title = '保留标题'
+          ..body = '保留正文'
+          ..images.add(
+            DraftPostImage(
+              blobId: '44444444-4444-4444-8444-444444444444',
+              mediaId: '55555555-5555-4555-8555-555555555555',
+            ),
+          );
+    await tester.pumpWidget(_app(composer(c, e)));
+    expect(find.byKey(const ValueKey('post-add-images')), findsOneWidget);
+    expect(find.text('图文'), findsOneWidget);
+    expect(find.text('文字'), findsOneWidget);
+
+    await tester.tap(find.text('文字'));
+    await tester.pumpAndSettle();
+    expect(find.text('切换为文字帖子？'), findsOneWidget);
+    expect(find.textContaining('会移除已添加的1张图片'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(e.type, PostComposerType.imageText);
+    expect(e.images, hasLength(1));
+    expect(find.byKey(const ValueKey('post-add-images')), findsOneWidget);
+
+    await tester.tap(find.text('文字'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移除图片并切换'));
+    await tester.pumpAndSettle();
+    expect(e.type, PostComposerType.text);
+    expect(e.images, isEmpty);
+    expect(e.title, '保留标题');
+    expect(e.body, '保留正文');
+    expect(find.byKey(const ValueKey('post-add-images')), findsNothing);
+    expect(c.saves, greaterThan(0));
+
+    await tester.tap(find.text('图文'));
+    await tester.pumpAndSettle();
+    expect(e.type, PostComposerType.imageText);
+    expect(find.byKey(const ValueKey('post-add-images')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+
+  testWidgets('表情面板按最近光标插入标题或正文并可切回键盘', (tester) async {
+    final c = _WidgetPosts(), e = editor();
+    await tester.pumpWidget(_app(composer(c, e)));
+    final body = find.byKey(const ValueKey('post-body-input'));
+    await tester.enterText(body, '开头结尾');
+    tester.widget<TextField>(body).controller!.selection =
+        const TextSelection.collapsed(offset: 2);
+    await tester.tap(find.byTooltip('表情'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('键盘'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('post-composer-emoji-😀')));
+    await tester.pump();
+    expect(tester.widget<TextField>(body).controller!.text, '开头😀结尾');
+    expect(find.byTooltip('键盘'), findsOneWidget);
+
+    await tester.tap(find.text('校园'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('post-composer-emoji-🎓')));
+    await tester.pump();
+    expect(tester.widget<TextField>(body).controller!.text, '开头😀🎓结尾');
+
+    final title = find.byKey(const ValueKey('post-title-input'));
+    await tester.tap(title);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsNothing,
+    );
+    await tester.enterText(title, '标题');
+    tester.widget<TextField>(title).controller!.selection =
+        const TextSelection.collapsed(offset: 1);
+    await tester.tap(find.byTooltip('表情'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('post-composer-emoji-😂')));
+    await tester.pump();
+    expect(tester.widget<TextField>(title).controller!.text, '标😂题');
+
+    await tester.tap(find.byTooltip('键盘'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsNothing,
+    );
+    expect(tester.widget<TextField>(title).focusNode!.hasFocus, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+
   testWidgets('从我的恢复草稿发布成功后交还原分类，返回不重置分页', (tester) async {
     final c = _WidgetPosts()
       ..personal = [localItem('draft')]
@@ -1180,6 +1287,9 @@ void main() {
       await tester.pumpWidget(_app(composer(c, e), scale: 2));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await tester.tap(find.text('文字'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
       await tester.tap(find.text('下一步'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -1188,6 +1298,56 @@ void main() {
       c.dispose();
     });
   }
+
+  testWidgets('表情面板在小屏横屏大字下保持可滚动且不溢出', (tester) async {
+    tester.view.physicalSize = const Size(667, 375);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final c = _WidgetPosts(), e = editor()..body = '正文';
+    await tester.pumpWidget(_app(composer(c, e), scale: 2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('表情'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsOneWidget,
+    );
+    expect(find.text('常用'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+
+  testWidgets('键盘收起过渡期间打开表情面板不产生布局溢出', (tester) async {
+    tester.view.physicalSize = const Size(667, 375);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 160);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    final c = _WidgetPosts(), e = editor()..body = '正文';
+    await tester.pumpWidget(_app(composer(c, e), scale: 2));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('表情'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsNothing,
+    );
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.tap(find.byTooltip('表情'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('post-composer-emoji-panel')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
 
   testWidgets('成功浮层仅消费当前分类新权威事件，旧事件和其他分类不弹', (tester) async {
     final c = _WidgetPosts()
@@ -1315,6 +1475,96 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     c.dispose();
   });
+
+  final composerRenderDirectory =
+      Platform.environment['HNUHOLE_COMPOSER_UI_RENDER_DIR'];
+  if (composerRenderDirectory != null) {
+    testWidgets('输出发帖编辑页图、文字与表情状态渲染', (tester) async {
+      for (final entry in {
+        'Roboto': [
+          'HNUHOLE_UI_RENDER_LATIN_FONT',
+          'HNUHOLE_UI_RENDER_LATIN_MEDIUM_FONT',
+          'HNUHOLE_UI_RENDER_LATIN_BOLD_FONT',
+        ],
+        'HhNotoSansSC': ['HNUHOLE_UI_RENDER_FONT'],
+        'Segoe UI Emoji': ['HNUHOLE_UI_RENDER_EMOJI_FONT'],
+        'MaterialIcons': ['HNUHOLE_UI_RENDER_ICON_FONT'],
+      }.entries) {
+        final paths = [
+          for (final name in entry.value)
+            if (Platform.environment[name] case final path?) path,
+        ];
+        if (paths.isEmpty) continue;
+        await tester.runAsync(() async {
+          final loader = FontLoader(entry.key);
+          for (final path in paths) {
+            loader.addFont(File(path).readAsBytes().then(ByteData.sublistView));
+          }
+          await loader.load();
+        });
+      }
+      tester.view.physicalSize = const Size(402, 874);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final c = _WidgetPosts();
+      Future<void> capture(
+        String name,
+        PostDraftEditor draft, {
+        Future<void> Function()? prepare,
+      }) async {
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          RepaintBoundary(key: key, child: _app(composer(c, draft))),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        if (prepare != null) {
+          await prepare();
+          await tester.pump(const Duration(milliseconds: 300));
+        }
+        expect(tester.takeException(), isNull);
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        await tester.runAsync(() async {
+          final rendered = await boundary.toImage(pixelRatio: 2);
+          final bytes = await rendered.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          final directory = await Directory(composerRenderDirectory)
+              .create(recursive: true);
+          await File('${directory.path}/$name.png')
+              .writeAsBytes(bytes!.buffer.asUint8List());
+          rendered.dispose();
+        });
+      }
+
+      await capture(
+        'post-composer-image-text',
+        editor()
+          ..title = '周末一起去图书馆'
+          ..body = '周六下午想去图书馆坐一会儿，看看书，也把拖了很久的作业写完。\n\n不用一直聊天，各做各的就好。',
+      );
+      await capture(
+        'post-composer-text',
+        editor()
+          ..type = PostComposerType.text
+          ..title = '今天只想写几句话'
+          ..body = '不配图片，记录一下此刻的心情。',
+      );
+      await capture(
+        'post-composer-emoji',
+        editor()
+          ..title = '周末一起去图书馆'
+          ..body = '周六下午想去图书馆坐一会儿，看看书。',
+        prepare: () async {
+          await tester.tap(find.byTooltip('表情'));
+          await tester.pump(const Duration(milliseconds: 250));
+        },
+      );
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    });
+  }
 
   final renderDirectory = Platform.environment['HNUHOLE_UI_RENDER_DIR'];
   if (renderDirectory != null) {

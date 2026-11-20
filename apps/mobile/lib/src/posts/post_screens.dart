@@ -45,6 +45,7 @@ import 'post_upload_models.dart';
 import 'package:hnuhole_image_viewer/image_viewer.dart';
 
 part 'post_composer_photos.dart';
+part 'post_composer_controls.dart';
 part 'personal_profile.dart';
 part 'post_edit_screen.dart';
 
@@ -449,8 +450,11 @@ class PostComposerScreen extends StatefulWidget {
 
 class _PostComposerScreenState extends State<PostComposerScreen> {
   late final TextEditingController _title, _body;
+  final _titleFocus = FocusNode(), _bodyFocus = FocusNode();
   Timer? _autoSave;
   bool _leaving = false, _allowPop = false, _retryPreparing = false;
+  bool _emojiOpen = false, _emojiOpening = false;
+  _ComposerInputTarget _inputTarget = _ComposerInputTarget.body;
   ManagedIdentity? _retryIdentity;
   String? _validation;
   bool get _current => widget.controller.editorCurrent(widget.editor);
@@ -461,6 +465,8 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
     _body = TextEditingController(text: widget.editor.body);
     _title.addListener(_edit);
     _body.addListener(_edit);
+    _titleFocus.addListener(_focusChanged);
+    _bodyFocus.addListener(_focusChanged);
     widget.controller.addListener(_changed);
     if (widget.editor.isRetry) unawaited(_prepareRetry());
   }
@@ -492,12 +498,122 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
     if (mounted) setState(() => _validation = null);
   }
 
+  void _focusChanged() {
+    if (!mounted) return;
+    if (_titleFocus.hasFocus) {
+      _inputTarget = _ComposerInputTarget.title;
+    } else if (_bodyFocus.hasFocus) {
+      _inputTarget = _ComposerInputTarget.body;
+    }
+    if ((_titleFocus.hasFocus || _bodyFocus.hasFocus) && _emojiOpen) {
+      setState(() => _emojiOpen = false);
+    }
+  }
+
+  void _focusTarget() {
+    switch (_inputTarget) {
+      case _ComposerInputTarget.title:
+        _titleFocus.requestFocus();
+      case _ComposerInputTarget.body:
+        _bodyFocus.requestFocus();
+    }
+  }
+
+  void _toggleEmojiPanel() {
+    if (_leaving || widget.editor.mediaBusy) return;
+    if (_emojiOpen) {
+      setState(() => _emojiOpen = false);
+      _focusTarget();
+      return;
+    }
+    if (_emojiOpening) return;
+    _emojiOpening = true;
+    FocusScope.of(context).unfocus();
+    unawaited(_openEmojiPanel());
+  }
+
+  Future<void> _openEmojiPanel() async {
+    for (var frame = 0; frame < 8; frame++) {
+      if (!mounted || !_current) {
+        _emojiOpening = false;
+        return;
+      }
+      if (MediaQuery.viewInsetsOf(context).bottom == 0) break;
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+    if (!mounted || !_current) {
+      _emojiOpening = false;
+      return;
+    }
+    _emojiOpening = false;
+    if (MediaQuery.viewInsetsOf(context).bottom > 0) return;
+    setState(() => _emojiOpen = true);
+  }
+
+  void _insertEmoji(String emoji) {
+    final target = _inputTarget == _ComposerInputTarget.title ? _title : _body;
+    final value = target.value;
+    final current = value.selection;
+    final start = current.isValid ? current.start : value.text.length;
+    final end = current.isValid ? current.end : value.text.length;
+    target.value = TextEditingValue(
+      text: value.text.replaceRange(start, end, emoji),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+    );
+  }
+
+  Future<void> _selectComposerType(PostComposerType type) async {
+    if (_leaving || widget.editor.mediaBusy || widget.editor.type == type) {
+      return;
+    }
+    if (_emojiOpen) setState(() => _emojiOpen = false);
+    if (type == PostComposerType.text && widget.editor.images.isNotEmpty) {
+      final count = widget.editor.images.length;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => Theme(
+          data: PostTheme.of(context),
+          child: AlertDialog(
+            title: Text(hhText(context, '切换为文字帖子？')),
+            content: Text(
+              hhText(
+                context,
+                '切换到文字模式会移除已添加的{v0}张图片。标题和正文会保留。',
+                args: {'v0': count},
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(hhText(context, '取消')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(hhText(context, '移除图片并切换')),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (confirmed != true || !mounted || !_current) return;
+      widget.editor.images.clear();
+      widget.editor.clearOriginals();
+      widget.editor.mediaTouched = true;
+    }
+    widget.editor.type = type;
+    _edit();
+    _autoSave?.cancel();
+    unawaited(widget.controller.saveDraft(widget.editor));
+  }
+
   void _changed() {
     if (!_current) {
       _autoSave?.cancel();
       // 会话变更当场清 UI 缓冲；普通退出不删除原账号持久草稿。
       _title.removeListener(_edit);
       _body.removeListener(_edit);
+      _titleFocus.removeListener(_focusChanged);
+      _bodyFocus.removeListener(_focusChanged);
       _title.clear();
       _body.clear();
       widget.controller.clearEditorMedia(widget.editor);
@@ -678,6 +794,10 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
     widget.controller.removeListener(_changed);
     _title.removeListener(_edit);
     _body.removeListener(_edit);
+    _titleFocus.removeListener(_focusChanged);
+    _bodyFocus.removeListener(_focusChanged);
+    _titleFocus.dispose();
+    _bodyFocus.dispose();
     _title.dispose();
     _body.dispose();
     super.dispose();
@@ -784,6 +904,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                               TextField(
                                 key: const ValueKey('post-title-input'),
                                 controller: _title,
+                                focusNode: _titleFocus,
                                 minLines: 1,
                                 maxLines: null,
                                 textInputAction: TextInputAction.newline,
@@ -823,6 +944,7 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                               TextField(
                                 key: const ValueKey('post-body-input'),
                                 controller: _body,
+                                focusNode: _bodyFocus,
                                 minLines: widget.editor.isRetry ? 4 : 8,
                                 maxLines: null,
                                 enabled: !_leaving,
@@ -847,11 +969,13 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                                               .secondary,
                                   ),
                                 ),
-                              _ComposerPhotos(
-                                controller: widget.controller,
-                                editor: widget.editor,
-                                onChanged: _edit,
-                              ),
+                              if (widget.editor.type ==
+                                  PostComposerType.imageText)
+                                _ComposerPhotos(
+                                  controller: widget.controller,
+                                  editor: widget.editor,
+                                  onChanged: _edit,
+                                ),
                               if (widget.editor.isRetry) ...[
                                 const Divider(),
                                 const SizedBox(height: 20),
@@ -933,32 +1057,32 @@ class _PostComposerScreenState extends State<PostComposerScreen> {
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            widget.editor.saving
-                                ? hhText(context, '正在保存草稿')
-                                : widget.editor.saved
-                                ? hhText(context, '草稿已保存')
-                                : hhText(context, '尚有未保存修改'),
-                            style: TextStyle(
-                              color: HhTelegramPalette.of(context).secondary,
-                            ),
-                          ),
+                      _ComposerDock(
+                        type: widget.editor.type,
+                        emojiOpen: _emojiOpen,
+                        enabled: !_leaving && !widget.editor.mediaBusy,
+                        canAddImages:
+                            widget.editor.type == PostComposerType.imageText &&
+                            widget.editor.images.length <
+                                PostContentRules.maxImages &&
+                            !widget.editor.mediaBusy,
+                        saving: widget.editor.saving,
+                        saved: widget.editor.saved,
+                        status: widget.editor.saving
+                            ? hhText(context, '正在保存草稿')
+                            : widget.editor.saved
+                            ? hhText(context, '草稿已保存')
+                            : hhText(context, '尚有未保存修改'),
+                        error: widget.editor.error,
+                        onTypeChanged: _selectComposerType,
+                        onToggleEmoji: _toggleEmojiPanel,
+                        onEmojiSelected: _insertEmoji,
+                        onAddImages: () => widget.controller.pickDraftPhotos(
+                          widget.editor,
+                          pickerForView: (configured) =>
+                              AlbumPhotoPicker.forView(context, configured),
                         ),
                       ),
-                      if (widget.editor.error != null)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                          child: Text(
-                            widget.editor.error!,
-                            style: TextStyle(
-                              color: HhTelegramPalette.of(context).error,
-                            ),
-                          ),
-                        ),
                       if (widget.editor.isRetry)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
