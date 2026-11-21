@@ -178,6 +178,17 @@ func (c *Community) withDMSession(ctx context.Context, b [32]byte, f func(pgx.Tx
 	}
 	return c.withPostSession(ctx, b, f)
 }
+
+// withDMSessionPrepared runs prepare in the final transaction after the
+// account row is locked but before the global Gate row is acquired. Sends for
+// the same account stay serialized by that account lock, so a count taken in
+// prepare is still exact without holding the Gate during the scan.
+func (c *Community) withDMSessionPrepared(ctx context.Context, b [32]byte, prepare postSessionPrepare, f postSessionAction) (PostResponse, error) {
+	if !c.DirectMessagesEnabled() {
+		return PostResponse{}, ErrAuthorizationUnavailable
+	}
+	return c.withPostSessionPrepared(ctx, b, prepare, f)
+}
 func dmReceipt(ctx context.Context, tx pgx.Tx, a uuid.UUID, id string) (DMReceipt, []byte, error) {
 	var r DMReceipt
 	var fp []byte
@@ -202,6 +213,12 @@ func (c *Community) GetDMCommand(ctx context.Context, b [32]byte, id string) (Po
 		return r, e
 	})
 }
+
+// dmSenderPendingSQL counts a sender account's unacknowledged messages. The
+// dm_sender_pending partial index (0054) serves this query; dm_pending starts
+// with recipient and cannot.
+const dmSenderPendingSQL = `SELECT count(*) FROM c_dm.messages m JOIN public.community_identities i ON i.identity_id=m.sender WHERE i.account_id=$1 AND NOT m.acknowledged`
+
 func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, in DMTextIntent) (PostResponse, error) {
 	if !dmUUID(id) {
 		return PostResponse{}, postError("MALFORMED_REQUEST", 400)
@@ -216,7 +233,14 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 	mac.Write([]byte("HNUHOLE/DM-INTENT/V1\x00"))
 	mac.Write(encoded)
 	fp := mac.Sum(nil)
-	return c.withDMSession(ctx, b, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, m restriction) (any, error) {
+	// Count outside the Gate hold. The account row is already locked by the
+	// final transaction, so concurrent sends from this account cannot both
+	// pass the limit before one commits.
+	var outstanding int
+	prepare := func(ctx context.Context, tx pgx.Tx, account uuid.UUID) error {
+		return tx.QueryRow(ctx, dmSenderPendingSQL, account).Scan(&outstanding)
+	}
+	return c.withDMSessionPrepared(ctx, b, prepare, func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, m restriction) (any, error) {
 		old, prior, e := dmReceipt(ctx, tx, a, id)
 		if e == nil {
 			if old.ErrorCode == "COMMAND_CLOSED" {
@@ -280,10 +304,6 @@ func (c *Community) sendDMTextOnce(ctx context.Context, b [32]byte, id string, i
 		}
 		if blocked {
 			return reject("CONTACT_UNAVAILABLE")
-		}
-		var outstanding int
-		if e = tx.QueryRow(ctx, `SELECT count(*) FROM c_dm.messages m JOIN public.community_identities i ON i.identity_id=m.sender WHERE i.account_id=$1 AND NOT m.acknowledged`, a).Scan(&outstanding); e != nil {
-			return nil, e
 		}
 		if outstanding >= 4096 {
 			return reject("PENDING_LIMIT")

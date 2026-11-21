@@ -94,7 +94,7 @@ INSERT INTO c_inbox.like_events VALUES('33333333-3333-4333-8333-333333333333','d
 			if e = run("down-to", "49"); e == nil {
 				t.Fatal("recipient facts rolled back")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 53 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 54 {
 				t.Fatal("failed down changed ledger")
 			}
 		})

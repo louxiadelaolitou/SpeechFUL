@@ -53,6 +53,10 @@ class DmController extends ChangeNotifier {
   bool Function()? _authorized;
   List<String> _identities = [];
   Future<void>? _syncing;
+  Future<void> _sendTail = Future.value();
+  int _sendTailEpoch = -1;
+  bool _sendKickQueued = false;
+  Future<void> _refreshTail = Future.value();
   Timer? _timer;
   Timer? _retryTimer;
   final _waitClocks = <String, (String, Stopwatch)>{};
@@ -63,6 +67,10 @@ class DmController extends ChangeNotifier {
   String? get error => _failedDrafts.isNotEmpty ? '草稿保存失败，请保留当前页面' : _error;
   set error(String? value) => _error = value;
   String? _operationError;
+  // The send lane can publish a pending operation notice while a sync is
+  // still running. Count those publications so a later successful sync does
+  // not clear that newer error.
+  int _immediateErrorRevision = 0;
   bool get available =>
       _store != null && _authorized?.call() == true && !_disposed;
   String get scope => '${_account ?? ''}:$_epoch';
@@ -128,7 +136,7 @@ class DmController extends ChangeNotifier {
         return;
       }
       _store = store;
-      await _refreshDirectory(epoch, store);
+      await _queueRefresh(epoch, store);
       if (!_current(epoch)) return;
       _notify();
       _timer = Timer.periodic(
@@ -434,6 +442,8 @@ class DmController extends ChangeNotifier {
           }
         }
         if (chatEnabled) await store.eraseHiddenResolved(id);
+        // Publish the new preview and any server-assigned conversation ID.
+        if (_current(epoch)) unawaited(_queueRefresh(epoch, store));
       } else {
         final read = state == 'read_pending';
         await _request(
@@ -489,11 +499,39 @@ class DmController extends ChangeNotifier {
     }
   }
 
+  Future<void> _kickSend(int epoch, DmStore store, String token) {
+    if (_sendTailEpoch != epoch) {
+      _sendTailEpoch = epoch;
+      _sendTail = Future.value();
+      _sendKickQueued = false;
+    }
+    if (_sendKickQueued) return _sendTail;
+    _sendKickQueued = true;
+    final task = _sendTail.then((_) async {
+      _sendKickQueued = false;
+      if (!_current(epoch)) return;
+      await _drainSends(epoch, store, token);
+      if (!_current(epoch)) return;
+      // send() only awaits the durable enqueue, so this lane owns the visible
+      // receipt. Publish it here instead of waiting for the next 4s sync.
+      final pendingError = _operationError;
+      if (pendingError != null) {
+        error = pendingError;
+        _operationError = null;
+        ++_immediateErrorRevision;
+      }
+      _notify();
+    });
+    _sendTail = task.catchError((Object _) {});
+    return task;
+  }
+
   Future<void> _synchronize(int epoch, DmStore store, String token) async {
     final incoming = <Map<String, dynamic>>[];
     final account = _account!;
+    final immediateErrorRevision = _immediateErrorRevision;
     // Independent lanes: a slow/unknown PUT cannot stop durable receive + ACK.
-    final outgoing = _drainSends(epoch, store, token);
+    final outgoing = _kickSend(epoch, store, token);
     try {
       if (chatEnabled) {
         try {
@@ -647,8 +685,15 @@ class DmController extends ChangeNotifier {
       }
       if (chatEnabled) await _chatControls(epoch, store, token);
       if (!_current(epoch)) return;
-      error = _operationError;
-      _operationError = null;
+      final pendingError = _operationError;
+      if (pendingError != null) {
+        error = pendingError;
+        _operationError = null;
+      } else if (_immediateErrorRevision == immediateErrorRevision) {
+        // No send lane published a newer notice during this sync, so a fully
+        // successful pass can clear an error left by the previous one.
+        error = null;
+      }
     } on PostFailure catch (e) {
       if (!_current(epoch)) return;
       _stopForFailure(e, token);
@@ -661,7 +706,8 @@ class DmController extends ChangeNotifier {
     } finally {
       if (_current(epoch)) {
         try {
-          await _refreshDirectory(epoch, store);
+          // Notifications use this directory to resolve the peer and mute state.
+          await _queueRefresh(epoch, store);
           if (_current(epoch) && incoming.isNotEmpty) {
             await onIncoming?.call(incoming, account);
           }
@@ -679,10 +725,10 @@ class DmController extends ChangeNotifier {
         if (_operationError != null) {
           error = _operationError;
           _operationError = null;
+          _notify();
         }
         await _wakeAfterCooldown(epoch, store);
-        await _refreshDirectory(epoch, store);
-        _notify();
+        if (_current(epoch)) await _refreshTail;
       }
     }
   }
@@ -712,6 +758,31 @@ class DmController extends ChangeNotifier {
     conversations = [];
     error = '当前会话暂不可用，请恢复授权后查看私信';
     _notify();
+  }
+
+  Future<void>? _queuedRefresh;
+  int _refreshTailEpoch = -1;
+
+  Future<void> _queueRefresh(int epoch, DmStore store) {
+    if (_refreshTailEpoch != epoch) {
+      _refreshTailEpoch = epoch;
+      _refreshTail = Future.value();
+      _queuedRefresh = null;
+    }
+    final queued = _queuedRefresh;
+    if (queued != null) return queued;
+    final task = _refreshTail.then((_) async {
+      if (_refreshTailEpoch != epoch) return;
+      _queuedRefresh = null;
+      if (!_current(epoch)) return;
+      await _refreshDirectory(epoch, store);
+      if (_current(epoch)) _notify();
+    });
+    _queuedRefresh = task;
+    // Keep the queue usable after a read failure. Callers awaiting this
+    // refresh must still see that failure before using the directory.
+    _refreshTail = task.catchError((Object _) {});
+    return task;
   }
 
   Future<void> _refreshDirectory(int epoch, DmStore store) async {
@@ -765,14 +836,12 @@ class DmController extends ChangeNotifier {
     try {
       await store.enqueue(intent, peerName: peerName);
       if (!_current(epoch)) return false;
-      // The enqueue commit is authoritative. A later projection/read failure
+      // The enqueue commit is authoritative. Show the local message now and
+      // refresh the directory in the background; a projection/read failure
       // must not report enqueue failure and invite a duplicate user send.
-      try {
-        await _refreshDirectory(epoch, store);
-      } catch (_) {}
-      if (!_current(epoch)) return false;
       _notify();
-      unawaited(sync());
+      unawaited(_kickSend(epoch, store, _token!));
+      unawaited(_queueRefresh(epoch, store));
       return true;
     } on DmQueueFull {
       if (_current(epoch)) {

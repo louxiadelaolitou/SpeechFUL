@@ -240,6 +240,9 @@ class HttpPostApi
       maxResponseBytes: resource.startsWith('chat/media/')
           ? 15 * 1024 * 1024
           : 8 * 1024 * 1024,
+      // DM commands are idempotent by command id and never replayed by the
+      // transport, so the next request can safely reuse this TLS connection.
+      keepAlive: true,
       decode: (raw) => decodeDm(raw, resource),
     );
   });
@@ -1022,6 +1025,7 @@ class HttpPostApi
     Uint8List? uploadBytes,
     String? uploadMime,
     Duration? requestTimeout,
+    bool keepAlive = false,
     int maxJsonItems = PostStrictJson.defaultMaxItems,
   }) => _transport.send(
     token,
@@ -1040,6 +1044,7 @@ class HttpPostApi
     uploadBytes: uploadBytes,
     uploadMime: uploadMime,
     requestTimeout: requestTimeout,
+    keepAlive: keepAlive,
     maxJsonItems: maxJsonItems,
   );
 

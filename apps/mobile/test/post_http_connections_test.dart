@@ -167,6 +167,28 @@ void main() {
     },
   );
 
+  for (final method in ['POST', 'PUT']) {
+    test('$method with keepAlive reuses the verified TLS connection', () async {
+      respond = (r) => json(r, 200, {'sequence': requests.length});
+      expect((await get(_token)).value, 1);
+      await transport.send(
+        _token,
+        method,
+        '/api/v1/chat/commands/fixed-command',
+        body: {'operation': 'send'},
+        keepAlive: true,
+        decode: (raw) => raw,
+      );
+      expect(requests, hasLength(2));
+      expect(requests.last.method, method);
+      expect(requests.last.persistent, isTrue);
+      expect(requests.last.port, requests.first.port);
+      // The opt-in write leaves the connection usable for the next read.
+      expect((await get(_replacement)).value, 3);
+      expect(requests.last.port, requests.first.port);
+    });
+  }
+
   for (final method in ['POST', 'PUT', 'DELETE']) {
     test('$method received then disconnected is sent once after a reusable GET', () async {
       respond = (r) async {

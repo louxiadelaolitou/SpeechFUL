@@ -54,6 +54,7 @@ class PostHttpTransport {
     Uint8List? uploadBytes,
     String? uploadMime,
     Duration? requestTimeout,
+    bool keepAlive = false,
     int maxJsonItems = PostStrictJson.defaultMaxItems,
   }) async {
     AuthCrypto.decode(token, bytes: 32);
@@ -86,8 +87,9 @@ class PostHttpTransport {
         request.followRedirects = false;
         request.maxRedirects = 0;
         // Reuse only the TLS connection, never a response or authorization.
-        // Commands still close their connection and are never replayed here.
-        request.persistentConnection = method == 'GET';
+        // Callers opt in when a write is safe to send on a reused connection;
+        // the transport still never replays a command.
+        request.persistentConnection = method == 'GET' || keepAlive;
         request.headers.set(HttpHeaders.acceptHeader, 'application/json');
         request.headers.set('X-Post-Tags', 'v1');
         request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
