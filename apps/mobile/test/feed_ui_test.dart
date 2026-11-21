@@ -418,9 +418,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(HhFeedPostCard), findsOneWidget);
         expect(find.text('今天的校园'), findsOneWidget);
-        final item = tester.widget<HhXPostItem>(find.byType(HhXPostItem));
-        expect(item.showTimestamp, isFalse);
-        expect(find.text('· ${item.post.elapsed}'), findsNothing);
+        // 首页与我的页统一后，卡片显示相对时间。
+        final item = tester.widget<PostFlatCard>(find.byType(PostFlatCard));
+        expect(item.elapsed, isNotEmpty);
+        expect(find.text(item.elapsed), findsOneWidget);
         await tester.tap(find.text('今天的校园'));
         await tester.pumpAndSettle();
         expect(f.api.calls, contains('detail:$postId'));
@@ -442,6 +443,7 @@ void main() {
         f.api.items = [
           post(),
           post(id: '44444444-4444-4444-8444-444444444444'),
+          post(id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
           post(id: targetId, title: '刚进入视野的帖子'),
           post(id: '66666666-6666-4666-8666-666666666666'),
           post(id: '77777777-7777-4777-8777-777777777777'),
@@ -577,8 +579,6 @@ void main() {
     expect(find.text('不感兴趣'), findsOneWidget);
     expect(find.text('举报'), findsOneWidget);
     expect(find.text('分享'), findsOneWidget);
-    expect(find.byKey(const ValueKey('views:$postId')), findsNothing);
-    expect(find.byKey(const ValueKey('share:$postId')), findsNothing);
     await tester.tap(find.text('不感兴趣'));
     await tester.pumpAndSettle();
     expect(f.api.hiddenPosts, contains(postId));

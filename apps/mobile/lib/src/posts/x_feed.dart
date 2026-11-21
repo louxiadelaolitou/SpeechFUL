@@ -830,15 +830,13 @@ class HhXPostItem extends StatelessWidget {
                   )!;
                   return LayoutBuilder(
                     builder: (context, box) {
-                      final glyph = CustomPaint(
+                      final glyph = FeedActionIcon(
                         key: ValueKey('action-glyph:${action.name}:${post.id}'),
-                        size: Size.square(browseActions ? 18 : 20),
-                        painter: _FeedActionGlyph(
-                          action,
-                          color,
-                          selected,
-                          selectionProgress: selection,
-                        ),
+                        action: action,
+                        color: color,
+                        selected: selected,
+                        selectionProgress: selection,
+                        size: browseActions ? 18 : 20,
                       );
                       if (stacked) {
                         return Column(
@@ -966,6 +964,34 @@ class _ViewsGlyph extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ViewsGlyph oldDelegate) =>
       oldDelegate.color != color;
+}
+
+/// One stroke system for the compact feed actions; hit boxes remain 48dp.
+/// 首页与「我的」页共用同一图标实现，避免两处样式漂移。
+class FeedActionIcon extends StatelessWidget {
+  const FeedActionIcon({
+    super.key,
+    required this.action,
+    required this.color,
+    this.selected = false,
+    this.selectionProgress,
+    this.size = 20,
+  });
+  final FeedAction action;
+  final Color color;
+  final bool selected;
+  final double? selectionProgress;
+  final double size;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size.square(size),
+    painter: _FeedActionGlyph(
+      action,
+      color,
+      selected,
+      selectionProgress: selectionProgress,
+    ),
+  );
 }
 
 /// One stroke system for the compact feed actions; hit boxes remain 48dp.

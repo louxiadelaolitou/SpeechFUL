@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 import 'package:hnuhole_mobile/src/posts/post_interactions_api.dart';
-import 'package:hnuhole_mobile/src/posts/x_feed.dart';
 
 import 'feed_ui_test.dart' as feed;
 import 'identity_test_support.dart';
@@ -258,10 +257,10 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextButton>(
+            .widget<PostFlatAction>(
               find.byKey(const ValueKey('like:${feed.postId}')),
             )
-            .onPressed,
+            .onTap,
         isNotNull,
       );
       for (var i = 0; i < 10; i++) {
@@ -308,13 +307,20 @@ void main() {
       await tester.pumpWidget(feed.screen(f));
       await tester.pumpAndSettle();
       final oldAction = tester
-          .widget<HhXPostItem>(find.byType(HhXPostItem))
-          .onAction;
+          .widget<PostFlatAction>(
+            find.byKey(const ValueKey('like:${feed.postId}')),
+          )
+          .onTap!;
+      final oldBookmark = tester
+          .widget<PostFlatAction>(
+            find.byKey(const ValueKey('bookmark:${feed.postId}')),
+          )
+          .onTap!;
       api(f).failure = const PostFailure(
         kind: PostFailureKind.rejected,
         statusCode: 429,
       );
-      oldAction(FeedAction.like);
+      oldAction();
       await tester.pumpAndSettle();
       api(f).summaryReadFails = true;
       await f.controller.loadInteractions([feed.postId], single: true);
@@ -341,8 +347,8 @@ void main() {
       api(f).failure = null;
       await f.controller.loadTimeline();
       final reads = api(f).reads, writes = api(f).changes.length;
-      oldAction(FeedAction.like);
-      oldAction(FeedAction.bookmark);
+      oldAction();
+      oldBookmark();
       oldWriteRetry();
       oldReadRetry();
       await tester.pumpAndSettle();
@@ -573,27 +579,16 @@ void main() {
       await tester.pumpWidget(feed.screen(f));
       await tester.pumpAndSettle();
       final tops = [
-        for (final key in ['like', 'comment', 'bookmark'])
+        for (final key in ['like', 'bookmark', 'comment'])
           tester.getTopLeft(find.byKey(ValueKey('$key:${feed.postId}'))).dy,
       ];
       expect(tops.toSet().length, 1);
       final positions = [
-        for (final key in ['like', 'comment', 'bookmark'])
+        for (final key in ['like', 'bookmark', 'comment'])
           tester.getCenter(find.byKey(ValueKey('$key:${feed.postId}'))).dx,
       ];
       expect(positions[0], lessThan(positions[1]));
       expect(positions[1], lessThan(positions[2]));
-      expect(positions[1] - positions[0], closeTo(60, .1));
-      expect(positions[2] - positions[1], closeTo(60, .1));
-      expect(
-        tester.getRect(find.byType(HhXPostItem)).right -
-            tester
-                .getRect(find.byKey(const ValueKey('bookmark:${feed.postId}')))
-                .right,
-        closeTo(8, .1),
-      );
-      expect(find.byKey(const ValueKey('views:${feed.postId}')), findsNothing);
-      expect(find.byKey(const ValueKey('share:${feed.postId}')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(feed.screen(f, scale: 2));
       await tester.pumpAndSettle();
@@ -716,9 +711,9 @@ void main() {
       final button = find.byKey(const ValueKey('like:${feed.postId}'));
       await tester.tap(button);
       await tester.pump();
-      var item = tester.widget<HhXPostItem>(find.byType(HhXPostItem));
-      expect(item.post.liked, true);
-      expect(item.post.likes, 13);
+      var like = tester.widget<PostFlatAction>(button);
+      expect(like.on, true);
+      expect(like.label, '13');
       expect(
         find.descendant(
           of: button,
@@ -728,9 +723,9 @@ void main() {
       );
       await tester.tap(button);
       await tester.pump();
-      item = tester.widget<HhXPostItem>(find.byType(HhXPostItem));
-      expect(item.post.liked, false);
-      expect(item.post.likes, 12);
+      like = tester.widget<PostFlatAction>(button);
+      expect(like.on, false);
+      expect(like.label, '12');
       expect(api(f).changes.length, 1);
       expect(find.byType(PostDetailScreen), findsNothing);
       api(f).actual = summary(liked: true);

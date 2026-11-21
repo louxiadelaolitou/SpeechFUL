@@ -25,22 +25,37 @@ bool _reducedMotion(BuildContext context) =>
 /// Keeps the calling page painted beneath the viewer's interactive dismissal.
 /// The viewer completes its exit animation before notifying the route owner.
 class HnuImageViewerRoute extends PageRouteBuilder<void> {
-  HnuImageViewerRoute({required WidgetBuilder builder, super.settings})
-    : super(
-        opaque: false,
-        barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 180),
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            builder(context),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            _ViewerRouteTransition(animation: animation, child: child),
-      );
+  HnuImageViewerRoute({
+    required WidgetBuilder builder,
+    this.origin,
+    super.settings,
+  }) : super(
+         opaque: false,
+         barrierColor: Colors.transparent,
+         transitionDuration: const Duration(milliseconds: 220),
+         reverseTransitionDuration: Duration.zero,
+         pageBuilder: (context, animation, secondaryAnimation) =>
+             builder(context),
+         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+             _ViewerRouteTransition(
+               animation: animation,
+               origin: origin,
+               child: child,
+             ),
+       );
+
+  /// 打开前的缩略图屏幕矩形；非空时从该位置放大到整屏。
+  final Rect? origin;
 }
 
 class _ViewerRouteTransition extends StatefulWidget {
-  const _ViewerRouteTransition({required this.animation, required this.child});
+  const _ViewerRouteTransition({
+    required this.animation,
+    required this.child,
+    this.origin,
+  });
   final Animation<double> animation;
+  final Rect? origin;
   final Widget child;
 
   @override
@@ -54,17 +69,62 @@ class _ViewerRouteTransitionState extends State<_ViewerRouteTransition> {
   Widget build(BuildContext context) {
     // Once entry has been skipped, changing the preference back must not
     // partially hide the already visible image and replay its entrance.
-    _skipMotion = _reducedMotion(context) || _skipMotion;
-    return _skipMotion
-        ? widget.child
-        : FadeTransition(
-            key: const ValueKey('viewer-route-fade'),
-            opacity: widget.animation.drive(
-              CurveTween(curve: Curves.easeOutCubic),
-            ),
-            child: widget.child,
-          );
+    final origin = widget.origin;
+    // 从缩略图放大的过渡是“定位”而不是多余动画，用户明确要求不因无障碍
+    // 设置被屏蔽；没有 origin 时仍按原规则尊重“减少动效”。
+    _skipMotion = origin == null && (_reducedMotion(context) || _skipMotion);
+    if (_skipMotion) return widget.child;
+    if (origin == null) return _fade();
+    final screen = Offset.zero & MediaQuery.sizeOf(context);
+    if (origin.isEmpty || screen.isEmpty) return _fade();
+    final curve = CurvedAnimation(
+      parent: widget.animation,
+      curve: Curves.easeOutCubic,
+    );
+    return AnimatedBuilder(
+      animation: curve,
+      child: widget.child,
+      builder: (context, child) {
+        final t = curve.value;
+        // 缩放后的整屏正好覆盖缩略图矩形，并随动画扩到整屏；裁剪框同步
+        // 从缩略图长到全屏，看上去就是从原图位置放大。
+        final scale = ui.lerpDouble(
+          math.max(
+            origin.width / screen.width,
+            origin.height / screen.height,
+          ),
+          1,
+          t,
+        )!;
+        final center = Offset.lerp(origin.center, screen.center, t)!;
+        final translate = center - screen.center * scale;
+        final matrix = Matrix4.identity()
+          ..storage[0] = scale
+          ..storage[5] = scale
+          ..storage[12] = translate.dx
+          ..storage[13] = translate.dy;
+        return ClipRect(
+          clipper: _RisingClip(Rect.lerp(origin, screen, t)!),
+          child: Transform(transform: matrix, child: child),
+        );
+      },
+    );
   }
+
+  Widget _fade() => FadeTransition(
+    key: const ValueKey('viewer-route-fade'),
+    opacity: widget.animation.drive(CurveTween(curve: Curves.easeOutCubic)),
+    child: widget.child,
+  );
+}
+
+class _RisingClip extends CustomClipper<Rect> {
+  const _RisingClip(this.rect);
+  final Rect rect;
+  @override
+  Rect getClip(Size size) => rect;
+  @override
+  bool shouldReclip(_RisingClip oldClipper) => oldClipper.rect != rect;
 }
 
 /// A complete viewing surface. The caller owns navigation and controllers.

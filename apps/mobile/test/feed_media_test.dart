@@ -48,25 +48,29 @@ void main() {
     accessGranted: access,
     onRelease: release,
   );
-  Widget section(ValueNotifier<bool> authority, PostImages value) =>
-      MaterialApp(
-        home: Scaffold(
-          body: Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: 317,
-              child: PostImagesSection(
-                postId: fixture.postId,
-                expectedCount: value.images.length,
-                feedPreview: true,
-                loadImages: (_) async => value,
-                authority: authority,
-                isCurrent: () => authority.value,
-              ),
-            ),
+  Widget section(
+    ValueNotifier<bool> authority,
+    PostImages value, {
+    double inset = 0,
+  }) => MaterialApp(
+    home: Scaffold(
+      body: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 317,
+          child: PostImagesSection(
+            postId: fixture.postId,
+            expectedCount: value.images.length,
+            feedPreview: true,
+            feedPreviewInset: inset,
+            loadImages: (_) async => value,
+            authority: authority,
+            isCurrent: () => authority.value,
           ),
         ),
-      );
+      ),
+    ),
+  );
   Future<void> frames(WidgetTester tester) async {
     for (var i = 0; i < 6; i++) {
       await tester.runAsync(
@@ -143,7 +147,7 @@ void main() {
         ),
       );
       final before = tester.getSize(find.byType(PostImagesSection));
-      expect(before.height, closeTo(317 * 900 / 1600 + 8, .1));
+      expect(before.height, closeTo(317 * 900 / 1600 + 2, .1));
       pending.complete(group([media('sized', const Size(1600, 900))], access));
       await frames(tester);
       expect(tester.getSize(find.byType(PostImagesSection)), before);
@@ -178,7 +182,49 @@ void main() {
   });
 
   testWidgets(
-    'single landscape and portrait preserve metadata ratio; extreme preview is bounded',
+    'profile inset keeps the first image aligned to text and bleeds right',
+    (tester) async {
+      final authority = ValueNotifier(true), access = ValueNotifier(true);
+      // 单图：两侧各留 20，与标题正文对齐（与首页一致，只是内缩）。
+      await tester.pumpWidget(
+        section(
+          authority,
+          group([media('single', const Size(900, 1200))], access),
+          inset: 20,
+        ),
+      );
+      await frames(tester);
+      final single = find.byKey(const ValueKey(('feed-image', 'single')));
+      expect(tester.getTopLeft(single).dx, 20);
+      expect(tester.getSize(single).width, 277);
+      await tester.pumpWidget(const SizedBox());
+
+      // 多图：未滑动时第一张左缘与文字对齐，滑动后可越过 20 到屏幕左缘。
+      await tester.pumpWidget(
+        section(
+          authority,
+          group([
+            media('one', const Size(900, 1200)),
+            media('two', const Size(1600, 900)),
+          ], access),
+          inset: 20,
+        ),
+      );
+      await frames(tester);
+      final first = find.byKey(const ValueKey(('feed-image', 'one')));
+      expect(tester.getTopLeft(first).dx, 20);
+      final rail = find.byKey(const ValueKey('feed-media:${fixture.postId}'));
+      await tester.drag(rail, const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(first).dx, lessThan(0));
+      await tester.pumpWidget(const SizedBox());
+      authority.dispose();
+      access.dispose();
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'single image keeps its own ratio without bars; extreme tall becomes square',
     (tester) async {
       final authority = ValueNotifier(true), access = ValueNotifier(true);
       for (final size in [
@@ -194,13 +240,10 @@ void main() {
         final actual = tester.getSize(
           find.byKey(const ValueKey(('feed-image', 'single'))),
         );
+        final ratio = size.width / size.height;
         expect(actual.width, 317);
-        expect(
-          actual.height,
-          closeTo(317 / (size.width / size.height).clamp(.75, 2), .1),
-        );
-        expect(actual.height, lessThan(424));
-        if (size.height == 3000) expect(find.text('点击查看完整图片'), findsOneWidget);
+        // 宽度铺满、高度按原比例；窄于 1:2 的超高图取中段方形。
+        expect(actual.height, closeTo(ratio < .5 ? 317 : 317 / ratio, .1));
         await tester.pumpWidget(const SizedBox());
       }
       authority.dispose();
@@ -495,7 +538,8 @@ void main() {
       await tester.drag(rail, const Offset(-170, 0));
       await tester.pumpAndSettle();
       expect(tester.getTopLeft(second).dx, lessThan(before));
-      await tester.tap(second);
+      // 等高于容器、宽度随原比例，第二张可能比可视宽度更宽：点可视区内。
+      await tester.tapAt(tester.getTopLeft(second) + const Offset(20, 40));
       await frames(tester);
       final viewer = tester.widget<HnuImageViewer>(find.byType(HnuImageViewer));
       expect(viewer.controller.index, 1);

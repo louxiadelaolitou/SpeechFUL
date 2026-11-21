@@ -1775,7 +1775,7 @@ class _PersonalCard extends StatelessWidget {
                 ),
               const SizedBox(height: 12),
               Text(
-                '$channelName · ${_postDate(context, item.sortAt)}',
+                '$channelName · ${postDateLabel(context, item.sortAt)}',
                 style: TextStyle(
                   color: HhTelegramPalette.of(context).secondary,
                   fontSize: 12,
@@ -2065,6 +2065,106 @@ class _PostTaskScreenState extends State<_PostTaskScreen> {
   }
 }
 
+/// 帖子操作菜单（分享／编辑／举报／删除）。详情页与「我的」页卡片共用同一
+/// 实现，避免两处入口的项目与可用性判断漂移。
+class PostActionMenu extends StatelessWidget {
+  const PostActionMenu({
+    super.key,
+    required this.controller,
+    required this.postId,
+    required this.reportTitle,
+    required this.canEdit,
+    required this.canDelete,
+    required this.onEdit,
+    required this.onDelete,
+    this.enabled = true,
+    this.visible = true,
+    this.color,
+    this.size = 22,
+  });
+  final PostController controller;
+  final String postId;
+
+  /// 非空表示这篇帖子可用于分享／举报（内容已读到）。
+  final String? reportTitle;
+  final bool canEdit, canDelete, enabled, visible;
+  final Future<void> Function() onEdit, onDelete;
+  final Color? color;
+  final double size;
+  @override
+  Widget build(BuildContext context) {
+    final governance = GovernanceScope.maybeOf(context);
+    return PostShareAction(
+      controller: controller,
+      postId: postId,
+      builder: (share, sharing) =>
+          !visible ||
+              !(canEdit ||
+                  canDelete ||
+                  controller.supportsPostSharing ||
+                  governance != null)
+          ? const SizedBox(width: 48)
+          : PopupMenuButton<String>(
+              tooltip: hhText(context, '帖子操作'),
+              enabled: enabled,
+              icon: Icon(
+                Icons.more_horiz_rounded,
+                color: color ?? detailIconInk,
+                size: size,
+              ),
+              itemBuilder: (context) => [
+                if (reportTitle != null && controller.supportsPostSharing)
+                  PopupMenuItem(
+                    value: 'share',
+                    enabled: share != null,
+                    child: Text(hhText(context, sharing ? '正在准备分享…' : '分享')),
+                  ),
+                if (canEdit)
+                  const PopupMenuItem(value: 'edit', child: Text('编辑帖子')),
+                if (reportTitle != null && governance?.available == true)
+                  PopupMenuItem(
+                    value: 'report',
+                    child: Builder(
+                      builder: (context) => Text(hhText(context, '举报帖子')),
+                    ),
+                  ),
+                if (canDelete)
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Builder(
+                      builder: (context) => Text(hhText(context, '删除帖子')),
+                    ),
+                  ),
+              ],
+              onSelected: (action) {
+                if (action == 'share') {
+                  share?.call();
+                  return;
+                }
+                if (action == 'edit') {
+                  unawaited(onEdit());
+                  return;
+                }
+                if (action == 'delete') {
+                  unawaited(onDelete());
+                  return;
+                }
+                if (governance == null || reportTitle == null) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReportScreen(
+                      controller: governance,
+                      postId: postId,
+                      title: reportTitle!,
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
 class PostDetailScreen extends StatefulWidget {
   const PostDetailScreen({
     super.key,
@@ -2325,78 +2425,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
     ),
   );
-  Widget _postMenu() => PostShareAction(
+  Widget _postMenu() => PostActionMenu(
     controller: widget.controller,
     postId: widget.postId,
-    builder: (share, sharing) =>
-        !_authority.current ||
-            _deleted ||
-            !(_canEdit ||
-                _canDelete ||
-                widget.controller.supportsPostSharing ||
-                GovernanceScope.maybeOf(context) != null)
-        ? const SizedBox(width: 48)
-        : PopupMenuButton<String>(
-            tooltip: hhText(context, '帖子操作'),
-            enabled: !_deleting,
-            icon: const DetailChromeIcon(
-              DetailChrome.more,
-              color: detailIconInk,
-              size: 22,
-            ),
-            itemBuilder: (context) => [
-              if (_post != null && widget.controller.supportsPostSharing)
-                PopupMenuItem(
-                  value: 'share',
-                  enabled: share != null,
-                  child: Text(hhText(context, sharing ? '正在准备分享…' : '分享')),
-                ),
-              if (_canEdit)
-                const PopupMenuItem(value: 'edit', child: Text('编辑帖子')),
-              if (_post != null &&
-                  GovernanceScope.maybeOf(context)?.available == true)
-                PopupMenuItem(
-                  value: 'report',
-                  child: Builder(
-                    builder: (context) => Text(hhText(context, '举报帖子')),
-                  ),
-                ),
-              if (_canDelete)
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Builder(
-                    builder: (context) => Text(hhText(context, '删除帖子')),
-                  ),
-                ),
-            ],
-            onSelected: (action) {
-              if (action == 'share') {
-                share?.call();
-                return;
-              }
-              if (action == 'edit') {
-                unawaited(_edit());
-                return;
-              }
-              if (action == 'delete') {
-                unawaited(_delete());
-                return;
-              }
-              final governance = GovernanceScope.maybeOf(context);
-              if (governance == null || _post == null || !_authority.current) {
-                return;
-              }
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ReportScreen(
-                    controller: governance,
-                    postId: widget.postId,
-                    title: _post!.title,
-                  ),
-                ),
-              );
-            },
-          ),
+    reportTitle: _post?.title,
+    canEdit: _canEdit,
+    canDelete: _canDelete,
+    enabled: !_deleting,
+    visible: _authority.current && !_deleted,
+    onEdit: _edit,
+    onDelete: _delete,
   );
 
   void _openAuthorProfile(PostDetail post) {
@@ -2426,15 +2464,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     bool embedded = false,
   }) {
     _scheduleView();
-    final content = Padding(
-      padding: const EdgeInsets.fromLTRB(8, 17, 8, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 17, 8, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GestureDetector(
-                onTap: () => _openAuthorProfile(post),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => _openAuthorProfile(post),
                 child: DetailAvatar(
                   name: localizedPostAuthor(context, post.author),
                   avatar: post.author.avatar,
@@ -2530,7 +2571,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '${_postDate(context, post.publishedAt)} · ',
+                    text: '${postDateLabel(context, post.publishedAt)} · ',
                     style: detailType(
                       context,
                       13.5,
@@ -2586,12 +2627,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
           ),
-          if (_deleteError != null) Text(hhText(context, _deleteError!)),
-          if (widget.controller.supportsInteractions ||
-              widget.controller.supportsPostSharing)
-            _interactionBar(),
-        ],
-      ),
+              if (_deleteError != null) Text(hhText(context, _deleteError!)),
+            ],
+          ),
+        ),
+        if (widget.controller.supportsInteractions ||
+            widget.controller.supportsPostSharing)
+          _interactionBar(),
+      ],
     );
     if (embedded) return content;
     return NotificationListener<ScrollNotification>(
@@ -2627,17 +2670,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
+            // 统一顺序：点赞、收藏、评论、（转帖）、分享。
             final actions = [
-              Builder(
-                builder: (context) => DetailAction(
-                  action: FeedAction.comment,
-                  label: hhText(context, '评论'),
-                  count: '${_commentCount ?? state.value?.commentCount ?? '—'}',
-                  onPressed: CommentScope.maybeOf(context) == null
-                      ? null
-                      : () => CommentPostPane.composeFrom(context),
-                ),
-              ),
               DetailAction(
                 buttonKey: ValueKey('detail-like:${widget.postId}'),
                 action: FeedAction.like,
@@ -2662,7 +2696,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ? () => _changeInteraction(PostInteractionAction.favorite)
                     : null,
               ),
-              PostRepostButton(controller: c, postId: widget.postId),
+              Builder(
+                builder: (context) => DetailAction(
+                  action: FeedAction.comment,
+                  label: hhText(context, '评论'),
+                  count: '${_commentCount ?? state.value?.commentCount ?? '—'}',
+                  onPressed: CommentScope.maybeOf(context) == null
+                      ? null
+                      : () => CommentPostPane.composeFrom(context),
+                ),
+              ),
+              if (c.supportsReposts)
+                PostRepostButton(controller: c, postId: widget.postId),
               PostShareAction(
                 controller: c,
                 postId: widget.postId,
@@ -2674,6 +2719,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 ),
               ),
             ];
+            // 等距占满一整行（交互栏在详情内边距之外，已铺到屏幕边缘）。
             if (MediaQuery.textScalerOf(context).scale(14) > 21 ||
                 constraints.maxWidth < 300) {
               return Wrap(
@@ -2684,8 +2730,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               );
             }
             return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: actions,
+              children: [
+                for (final action in actions) Expanded(child: action),
+              ],
             );
           },
         ),
@@ -2759,7 +2806,7 @@ class _PostCardWidget extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 40),
                   child: Text(
-                    _postDate(context, post.publishedAt),
+                    postDateLabel(context, post.publishedAt),
                     style: TextStyle(
                       fontSize: 12,
                       color: HhTelegramPalette.of(context).secondary,
@@ -3447,7 +3494,7 @@ class _AuthorPostCard extends StatelessWidget {
     final palette = HhTelegramPalette.of(context);
     final source = [
       if (channelName != null) channelName!,
-      _postDate(context, post.publishedAt),
+      postDateLabel(context, post.publishedAt),
     ].join(' · ');
     return Material(
       color: palette.surface,
@@ -3780,7 +3827,7 @@ Future<bool?> _confirmScoped(
   );
 }
 
-String _postDate(BuildContext context, DateTime date) {
+String postDateLabel(BuildContext context, DateTime date) {
   final local = date.toLocal();
   final labels = MaterialLocalizations.of(context);
   return '${labels.formatMediumDate(local)} ${labels.formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: true)}';

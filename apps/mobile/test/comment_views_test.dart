@@ -1294,77 +1294,22 @@ void quickReplyTests() {
     },
   );
 
-  testWidgets(
-    'feed comment opens direct composer without detail or view registration; cancel retains draft',
-    (tester) async {
-      final f = await interactions.fixture();
-      addTearDown(f.dispose);
-      final r = await runtime(tester);
-      await tester.pumpWidget(CommentScope(runtime: r, child: feed.screen(f)));
-      await tester.pumpAndSettle();
-      final before = List<String>.of(f.api.calls);
-      await tester.tap(find.byKey(const ValueKey('comment:${feed.postId}')));
-      await tester.pumpAndSettle();
-      expect(find.byType(QuickReplyDialog), findsOneWidget);
-      expect(find.byType(PostDetailScreen), findsNothing);
-      expect(
-        tester
-            .widget<QuickReplyDialog>(find.byType(QuickReplyDialog))
-            .targetName,
-        feed.author.nickname,
-      );
-      expect(f.api.calls, before);
-      await tester.enterText(
-        find.byKey(const ValueKey('reply-input')),
-        '列表中的未发送文字',
-      );
-      await tester.pump();
-      await tester.tap(find.byTooltip('收起回复'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('comment:${feed.postId}')));
-      await tester.pumpAndSettle();
-      expect(find.text('列表中的未发送文字'), findsOneWidget);
-      expect(r.transportFake.sent, isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-
-  testWidgets(
-    'quick reply journals exact root target, returns to feed and refreshes published count',
-    (tester) async {
-      final f = await interactions.fixture();
-      addTearDown(f.dispose);
-      final r = await runtime(tester);
-      r.transportFake.publishedId = root;
-      r.transportFake.onExecute = () =>
-          interactions.api(f).actual = interactions.summary(comments: 9);
-      await tester.pumpWidget(CommentScope(runtime: r, child: feed.screen(f)));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('comment:${feed.postId}')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('reply-input')),
-        '直接从列表真实提交',
-      );
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('reply-send')));
-      await tester.pumpAndSettle();
-      expect(find.byType(QuickReplyDialog), findsNothing);
-      final sent = r.transportFake.sent!;
-      expect(sent.binding.postId, feed.postId);
-      expect(sent.binding.identityId, identity);
-      expect(sent.binding.rootCommentId, isNull);
-      expect(sent.binding.targetCommentId, isNull);
-      expect(
-        (r.journal as _MemoryJournal).writes.first.content!.body,
-        '直接从列表真实提交',
-      );
-      expect((await r.journal.read(account)), isEmpty);
-      expect(f.controller.interaction(feed.postId).value!.commentCount, 9);
-      expect(find.byType(PostDetailScreen), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  testWidgets('feed comment opens the post instead of a quick reply', (
+    tester,
+  ) async {
+    final f = await interactions.fixture();
+    addTearDown(f.dispose);
+    final r = await runtime(tester);
+    await tester.pumpWidget(CommentScope(runtime: r, child: feed.screen(f)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('comment:${feed.postId}')));
+    await tester.pumpAndSettle();
+    // 与「我的」页一致：卡片评论入口只打开帖子，不再弹快速回复层。
+    expect(find.byType(PostDetailScreen), findsOneWidget);
+    expect(find.byType(QuickReplyDialog), findsNothing);
+    expect(r.transportFake.sent, isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets(
     'first quick reply selects identity without publishing on selection',

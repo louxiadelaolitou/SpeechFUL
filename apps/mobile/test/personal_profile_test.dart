@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show SemanticsAction;
-
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 import 'package:hnuhole_mobile/src/design_system/motion.dart';
 import 'package:hnuhole_mobile/src/identity/identity_avatar.dart';
@@ -10,11 +8,13 @@ import 'identity_test_support.dart';
 import 'package:hnuhole_mobile/src/posts/x_feed.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:hnuhole_mobile/src/posts/feed_header_glyphs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'login_home_test_support.dart';
 import 'feed_ui_test.dart' as feed;
+import 'personal_reposts_integration_test.dart';
 
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
 
@@ -367,6 +367,8 @@ void main() {
       f.postApi.ownItems = posts
           .map((p) => OwnPostCard(post: p, serverSortAt: p.publishedAt))
           .toList();
+      // 目标页签也要有足够内容，才能验证切页后的落点。
+      f.postApi.likedItems = posts;
       await tester.tap(find.byKey(const ValueKey('destination:personal')));
       await tester.pumpAndSettle();
       // 五页签卡片已按原型改为扁平样式（_ProfileFlatCard），不再使用 HhXPostItem。
@@ -431,4 +433,225 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  testWidgets(
+    'profile card menu keeps the post detail actions, not a silent detail jump',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = _OwnPostApi();
+      final f = HomeTestFixture(api: api);
+      final root = await f.create();
+      final post = feed.post();
+      api.items = [post];
+      api.ownItems = [OwnPostCard(post: post, serverSortAt: post.publishedAt)];
+      await tester.pumpWidget(root);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('帖子操作').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(PostDetailScreen), findsNothing);
+      expect(find.text('编辑帖子'), findsOneWidget);
+      expect(find.text('删除帖子'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets('like never reports uncertainty only because it is in flight', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final api = _OwnPostApi();
+    final f = HomeTestFixture(api: api);
+    final root = await f.create();
+    final post = feed.post();
+    api.items = [post];
+    api.ownItems = [OwnPostCard(post: post, serverSortAt: post.publishedAt)];
+    await tester.pumpWidget(root);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('destination:personal')));
+    await tester.pumpAndSettle();
+    final gate = Completer<void>();
+    api.interactionApi.beforeCas = gate;
+    await tester.tap(find.byKey(ValueKey('profile-like-${post.postId}')));
+    await tester.pump();
+    expect(find.text('结果尚未确认，请重试核对。'), findsNothing);
+    gate.complete();
+    api.interactionApi.beforeCas = null;
+    await tester.pumpAndSettle();
+    expect(find.text('结果尚未确认，请重试核对。'), findsNothing);
+    expect(api.interactionApi.changes, isNotEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+  testWidgets(
+    'profile comment opens the post and a like turns the heart red',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = _OwnPostApi();
+      final f = HomeTestFixture(api: api);
+      final root = await f.create();
+      final post = feed.post();
+      api.items = [post];
+      api.ownItems = [OwnPostCard(post: post, serverSortAt: post.publishedAt)];
+      await tester.pumpWidget(root);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+
+      // 评论入口与首页同款图标，点击只打开帖子。
+      expect(find.byType(FeedActionIcon), findsWidgets);
+      await tester.tap(
+        find.byKey(ValueKey('profile-comment-${post.postId}')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PostDetailScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      final like = find.byKey(ValueKey('profile-like-${post.postId}'));
+      await tester.tap(like);
+      await tester.pumpAndSettle();
+      final heart = tester.widget<Icon>(
+        find.descendant(of: like, matching: find.byType(Icon)),
+      );
+      expect(heart.icon, Icons.favorite_rounded);
+      expect(heart.color, HhTelegramPalette.of(tester.element(like)).error);
+      expect(api.interactionApi.actual.likedByMe, isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'switching to an empty tab shows only that tab and settles without a late jump',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = HomeTestFixture();
+      await tester.pumpWidget(await f.create());
+      await tester.pumpAndSettle();
+      final posts = List.generate(
+        16,
+        (i) => feed.post(
+          id: '33333333-3333-4333-8333-${i.toString().padLeft(12, '0')}',
+          title: '帖子$i',
+        ),
+      );
+      f.postApi.items = posts;
+      f.postApi.ownItems = posts
+          .map((p) => OwnPostCard(post: p, serverSortAt: p.publishedAt))
+          .toList();
+      // 喜欢页签没有任何内容。
+      f.postApi.likedItems = [];
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView).last)
+          .controller!;
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -550),
+      );
+      await tester.pumpAndSettle();
+      expect(scroll.offset, greaterThan(300));
+
+      await tester.tap(profileTab(3));
+      await tester.pumpAndSettle();
+      // 空页签只显示自己的空状态，不残留上一页签的卡片。
+      expect(find.text('还没有喜欢的帖子'), findsOneWidget);
+      expect(find.text('帖子0'), findsNothing);
+      // 空白区覆盖页签栏以下的可用高度：停在“头像收起”的位置，不回弹到顶部。
+      final resting = scroll.offset;
+      expect(resting, greaterThan(100));
+      expect(resting, lessThan(530));
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(resting, 0.5));
+      expect(find.text('还没有喜欢的帖子'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'switching tabs keeps the same deep scroll position (no jump to the top)',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final f = HomeTestFixture();
+      await tester.pumpWidget(await f.create());
+      await tester.pumpAndSettle();
+      final posts = List.generate(
+        16,
+        (i) => feed.post(
+          id: '33333333-3333-4333-8333-${i.toString().padLeft(12, '0')}',
+          title: '帖子$i',
+        ),
+      );
+      f.postApi.items = posts;
+      f.postApi.ownItems = posts
+          .map((p) => OwnPostCard(post: p, serverSortAt: p.publishedAt))
+          .toList();
+      f.postApi.likedItems = posts;
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+      final scroll = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView).last)
+          .controller!;
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -550),
+      );
+      await tester.pumpAndSettle();
+      final deep = scroll.offset;
+      expect(deep, greaterThan(300));
+      expect(tester.getTopLeft(find.byTooltip('帖子排序')).dy, lessThan(12));
+
+      // Threads 式：左右切页签只换内容，不改变整体滚动位置。
+      await tester.tap(profileTab(3));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(deep, 1));
+
+      // 切回原页签也不会跳回旧深度或跳到顶部（位置一直没动）。
+      await tester.tap(profileTab(0));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(deep, 1));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+}
+
+/// 自己的帖子：编辑与删除均可用。
+class _OwnPostApi extends PersonalRepostsApi {
+  @override
+  Future<PostResponse<PostCapabilities>> capabilities({
+    required String sessionToken,
+    required String postId,
+  }) async => response(
+    PostCapabilities(postId: postId, canDelete: true, canEdit: true),
+  );
 }

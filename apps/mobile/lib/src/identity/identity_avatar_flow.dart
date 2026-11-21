@@ -110,18 +110,30 @@ class _AvatarCropEditorState extends State<_AvatarCropEditor> {
     _decode();
   }
 
-  Rect _imageRect(ui.Image image) {
+  Rect _imageRect(ui.Image image) => _imageRectAt(_stage, image);
+
+  Rect _imageRectAt(double stage, ui.Image image) {
     final longest = math.max(image.width, image.height);
     final shortest = math.min(image.width, image.height);
     final fit = math.max(
-      _stage / longest,
-      _stage * 2 * _cropRadiusFraction / shortest,
+      stage / longest,
+      stage * 2 * _cropRadiusFraction / shortest,
     );
     return Rect.fromCenter(
-      center: Offset(_stage / 2, _stage / 2),
+      center: Offset(stage / 2, stage / 2),
       width: image.width * fit,
       height: image.height * fit,
     );
+  }
+
+  /// 缩放下限：裁切圆最大内切于图片时，图片短边恰好等于圆的直径。
+  /// 再缩小就会在圆内留出空白，因此以“圆与图片边缘相切”为最小缩放。
+  double _minZoom(double stage, ui.Image image) {
+    final longest = math.max(image.width, image.height).toDouble();
+    final shortest = math.min(image.width, image.height).toDouble();
+    final cover = stage * 2 * _cropRadiusFraction / shortest;
+    final fit = math.max(stage / longest, cover);
+    return (cover / fit).clamp(.05, 1.0);
   }
 
   void _constrainTransform() {
@@ -336,7 +348,7 @@ class _AvatarCropEditorState extends State<_AvatarCropEditor> {
                             InteractiveViewer(
                               transformationController: _transform,
                               maxScale: 4,
-                              minScale: 1,
+                              minScale: _minZoom(stage, image),
                               boundaryMargin: const EdgeInsets.all(1e6),
                               child: SizedBox(
                                 width: stage,

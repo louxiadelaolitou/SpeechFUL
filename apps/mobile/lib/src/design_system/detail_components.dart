@@ -70,7 +70,7 @@ class DetailAvatar extends StatelessWidget {
   }
 }
 
-class DetailAction extends StatelessWidget {
+class DetailAction extends StatefulWidget {
   const DetailAction({
     super.key,
     this.buttonKey,
@@ -89,7 +89,53 @@ class DetailAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final double size;
   @override
+  State<DetailAction> createState() => _DetailActionState();
+}
+
+class _DetailActionState extends State<DetailAction>
+    with SingleTickerProviderStateMixin {
+  late final _pop = AnimationController(
+    vsync: this,
+    duration: HhMotion.quick,
+  );
+  late final _pulse = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.16,
+      ).chain(CurveTween(curve: Curves.easeOut)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.16,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeIn)),
+      weight: 60,
+    ),
+  ]).animate(_pop);
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _handlePress() {
+    final onPressed = widget.onPressed;
+    if (onPressed == null) return;
+    // 与帖子卡片一致：点击时图标快速脉一下，数量变化由 HhAnimatedCount 滚动。
+    if (!HhMotion.reduced(context)) _pop.forward(from: 0);
+    onPressed();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final action = widget.action;
+    final label = widget.label;
+    final count = widget.count;
+    final selected = widget.selected;
+    final size = widget.size;
     final selectedColor = action == FeedAction.like
         ? const Color(0xFFCC2929)
         : Theme.of(context).colorScheme.primary;
@@ -104,9 +150,9 @@ class DetailAction extends StatelessWidget {
           ? selected
           : null,
       child: HhPressFeedback(
-        enabled: onPressed != null,
+        enabled: widget.onPressed != null,
         builder: (context, states) => TextButton(
-          key: buttonKey,
+          key: widget.buttonKey,
           statesController: states,
           style:
               TextButton.styleFrom(
@@ -119,7 +165,7 @@ class DetailAction extends StatelessWidget {
                 overlayColor: const WidgetStatePropertyAll(Colors.transparent),
                 splashFactory: NoSplash.splashFactory,
               ),
-          onPressed: onPressed,
+          onPressed: widget.onPressed == null ? null : _handlePress,
           child: ExcludeSemantics(
             child: HhAnimatedSelection(
               selected: selected,
@@ -131,19 +177,22 @@ class DetailAction extends StatelessWidget {
                     SizedBox(
                       width: size,
                       height: size,
-                      child: CustomPaint(
-                        painter: DetailGlyph(
-                          action,
-                          color,
-                          selected,
-                          selectionProgress: selection,
+                      child: ScaleTransition(
+                        scale: _pulse,
+                        child: CustomPaint(
+                          painter: DetailGlyph(
+                            action,
+                            color,
+                            selected,
+                            selectionProgress: selection,
+                          ),
                         ),
                       ),
                     ),
                     if (count != null) ...[
                       const SizedBox(width: 7),
                       HhAnimatedCount(
-                        text: count!,
+                        text: count,
                         style: detailType(
                           context,
                           size < 24 ? 12 : 14,

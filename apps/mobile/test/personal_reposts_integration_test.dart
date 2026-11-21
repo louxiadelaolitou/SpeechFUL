@@ -327,7 +327,10 @@ void main() {
           imageCount: 0,
         ),
       );
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, 350));
+      // 尾部空白补足滚动长度后，先回到顶部再下拉才会触发刷新。
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 3000));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
       await tester.pumpAndSettle();
       expect(api.pages.last, isNull);
       expect(f.posts.repostItems, hasLength(1));

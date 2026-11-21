@@ -70,10 +70,18 @@ class _FeedCardSeen extends InheritedWidget {
 
 /// Flat feed surface that animates when a card scrolls into view.
 class HhFeedPostCard extends StatefulWidget {
-  const HhFeedPostCard({super.key, required this.postId, required this.child});
+  const HhFeedPostCard({
+    super.key,
+    required this.postId,
+    required this.child,
+    this.flat = false,
+  });
 
   final String postId;
   final Widget child;
+
+  /// 扁平卡片（通栏 + 分割线）不要圆角边框与外层 Material，只保留入场动效。
+  final bool flat;
 
   @override
   State<HhFeedPostCard> createState() => _HhFeedPostCardState();
@@ -172,15 +180,17 @@ class _HhFeedPostCardState extends State<HhFeedPostCard>
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _entrance,
-        child: Material(
-          color: p.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: BorderSide(color: p.line),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: widget.child,
-        ),
+        child: widget.flat
+            ? widget.child
+            : Material(
+                color: p.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(color: p.line),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: widget.child,
+              ),
         builder: (context, child) {
           final progress = Curves.easeOutCubic.transform(_entrance.value);
           final bubble = Curves.easeOutBack.transform(_entrance.value);

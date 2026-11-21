@@ -84,52 +84,94 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
   }
 
   void _applyTab(int index) {
+    // Threads 式：切页签只换内容，不记忆各页签旧位置，也不改动整体滚动
+    // 位置；内容不足时会由布局收正，随后由下面的收口逻辑落到可达位置。
+    // 注意：必须立即换内容——之前的“等数据到位再换”会把上一页签的内容
+    // 残留在空页签下，并在数据到达时把滚动位置夹回顶部。
     final previous = _scroll.hasClients ? _scroll.offset : 0.0;
-    _offsets[_tab] = previous;
-    final target = _offsets[index] ?? previous.clamp(0.0, 212.0);
     setState(() {
       _tab = index;
       _tabSelected = index;
     });
-    // 内容切换的同一帧直接渲染在目标滚动位置：同步 jumpTo（不按旧内容
-    // 范围钳制——forcePixels 无范围断言，新内容布局时范围不足会自动收
-    // 正）。否则会“先渲染到别处、下一帧再跳”，右滑回深滚动页签时的
-    // 跳变卡顿即源于此。
-    if (_scroll.hasClients) {
-      _scroll.jumpTo(target);
-    }
-    // 未访问页签数据未到、范围不足时，逐帧补偿到目标位置。
-    _restoreTabScrollOffset(target);
-    if (index == 2 && !_repostsOpened) {
-      unawaited(_refreshReposts());
-    }
+    _restoreTabScrollOffset(previous);
+    _startTabLoad(index);
+  }
+
+  /// 空页签占位：高度覆盖“页签栏以下的完整可用区域”，文字在空白区内居中。
+  /// 高度不足会让空白页在滚动时被弹回顶部；高度变化时文字位置随之调整。
+  Widget _emptySliver(BuildContext context, Widget child) => SliverLayoutBuilder(
+    builder: (context, constraints) => SliverToBoxAdapter(
+      child: SizedBox(
+        height: (constraints.viewportMainAxisExtent - 56).clamp(
+          0.0,
+          double.infinity,
+        ),
+        child: Center(child: child),
+      ),
+    ),
+  );
+
+  /// 页签内容较少时补一段尾部空白，使可滚动范围至少达到“头像区收起、标签栏
+  /// 固定”的位置；否则从深滚动位置切到内容少的页签会被夹回页面顶部。
+  /// 采用 `precedingScrollExtent` 计算补多少，内容足够时不产生任何空白。
+  Widget _tailFiller() => SliverLayoutBuilder(
+    builder: (context, constraints) {
+      final heroBox = _heroKey.currentContext?.findRenderObject();
+      final hero = heroBox is RenderBox && heroBox.hasSize
+          ? heroBox.size.height
+          : 301.0;
+      final needed =
+          constraints.viewportMainAxisExtent +
+          hero -
+          constraints.precedingScrollExtent;
+      if (needed <= 0) {
+        return const SliverToBoxAdapter(child: SizedBox.shrink());
+      }
+      return SliverToBoxAdapter(child: SizedBox(height: needed));
+    },
+  );
+
+  /// 页签内容是否已到位（含失败终态，避免无休止等待）。
+  bool _tabReady(int index) {
+    if (index == 0) return true;
+    if (index == 1) return _replyLoaded;
+    if (index == 2) return _repostsOpened;
+    return _collections.containsKey(index) ||
+        _collectionErrors.containsKey(index);
+  }
+
+  void _startTabLoad(int index) {
+    if (index == 2 && !_repostsOpened) unawaited(_refreshReposts());
     if (index == 1 && !_replyLoaded) unawaited(_loadReplies());
-    if (index >= 3 && !_collections.containsKey(index)) {
+    if (index >= 3 &&
+        !_collections.containsKey(index) &&
+        !_collectionErrors.containsKey(index)) {
       unawaited(_loadCollection(index));
     }
   }
 
-  /// 等新页签内容实际布局完成后再恢复滚动位置：切换那一帧数据往往尚未
-  /// 加载（可滚动范围过小），过早 jumpTo 会被夹到很小的值——这就是
+  /// 等新页签内容实际布局完成后再补回原滚动位置：切换那一帧数据往往
+  /// 尚未加载（可滚动范围过小），过早 jumpTo 会被夹到很小的值——这就是
   /// 「横滑切页签立刻跳回顶部」的根因。每帧重试直到范围足够或重试用尽
   /// （约 0.5 秒）；期间用户已开始手动滚动则放弃恢复，尊重用户操作。
   void _restoreTabScrollOffset(double target) {
     var retries = 30;
     void attempt() {
-      if (!mounted || !_scroll.hasClients || retries <= 0) return;
+      if (!mounted || !_scroll.hasClients) return;
       final extent = _scroll.position.maxScrollExtent;
-      if (extent >= target) {
-        if (!_scroll.position.isScrollingNotifier.value) {
-          _scroll.jumpTo(target.clamp(0.0, extent));
-        }
+      // 目标页签还没就绪：等内容落定再一次性收口，避免先停在顶部再跳回。
+      if (!_tabReady(_tab) && extent < target && retries > 0) {
+        retries--;
+        WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
         return;
       }
-      retries--;
-      WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
+      if (_scroll.position.isScrollingNotifier.value) return;
+      _scroll.jumpTo(target.clamp(0.0, extent));
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => attempt());
   }
+
 
   void _onProfileDragStart(DragStartDetails details) {
     // 以 hero 区（顶栏 + 头像资料块）底边为界区分横滑区域：
@@ -370,10 +412,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     final c = widget.controller;
     if (!c.supportsReposts) {
       return [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: Text(hhText(context, '转帖服务暂不可用'))),
-        ),
+        _emptySliver(context, Text(hhText(context, '转帖服务暂不可用'))),
       ];
     }
     final items = c.repostItems;
@@ -415,10 +454,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
           c.repostListError == null &&
           c.unresolvedRepostIds.isEmpty &&
           items.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: Text(hhText(context, '暂无转帖'))),
-        ),
+        _emptySliver(context, Text(hhText(context, '暂无转帖'))),
       SliverList.builder(
         itemCount: items.length,
         findChildIndexCallback: (key) {
@@ -442,7 +478,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                   subtitle: Text(hhText(context, '无法查看原帖内容')),
                   trailing: IconButton(
                     tooltip: hhText(context, '帖子更多操作'),
-                    icon: const Icon(Icons.more_vert),
+                    icon: const Icon(Icons.more_horiz_rounded),
                     onPressed: () =>
                         _showRepostMenu(item.postId, item.identityId),
                   ),
@@ -534,8 +570,6 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     _replyLoaded = _replyLoading = false;
     _replyCursor = null;
     _replyError = null;
-    _offsets.remove(0);
-    _offsets.remove(1);
     if (_tab == 1 && id != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _authority.current) unawaited(_loadReplies());
@@ -848,7 +882,6 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
   }
 
   bool _hot = false, _sorting = false;
-  final _offsets = <int, double>{};
   final _replies = <CommentRow>[];
   bool _replyLoading = false, _replyLoaded = false;
   String? _replyCursor;
@@ -1196,9 +1229,9 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                           ),
                         )
                       else if (items.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _PageState(
+                        _emptySliver(
+                          context,
+                          _PageState(
                             title: c.personalError != null
                                 ? hhText(context, '暂时无法加载自己的帖子')
                                 : hhText(context, '还没有自己的帖子'),
@@ -1262,7 +1295,26 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                         const SliverToBoxAdapter(
                           child: LinearProgressIndicator(),
                         ),
-                      if (_replyError != null)
+                      if (_replyError case final error?
+                          when _replies.isEmpty && !_replyLoading)
+                        _emptySliver(
+                          context,
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                hhText(context, error),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              TextButton(
+                                onPressed: () => _loadReplies(),
+                                child: Text(hhText(context, '重试')),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (_replyError != null)
                         SliverToBoxAdapter(
                           child: TextButton(
                             onPressed: () => _loadReplies(
@@ -1274,9 +1326,9 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                       if (!_replyLoading &&
                           _replies.isEmpty &&
                           _replyError == null)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(child: Text(hhText(context, '还没有回复'))),
+                        _emptySliver(
+                          context,
+                          Text(hhText(context, '还没有回复')),
                         ),
                       SliverList.builder(
                         itemCount: _replies.length,
@@ -1296,12 +1348,12 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                               ),
                             ),
                           );
-                          return _ProfileFlatCard(
+                          return PostFlatCard(
                             key: ValueKey('reply-${row.id}'),
                             onOpen: openReply,
                             onMenu: openReply,
                             author: row.nickname,
-                            elapsed: _postDate(
+                            elapsed: postDateLabel(
                               context,
                               DateTime.parse(row.data['publishedAt'] as String),
                             ),
@@ -1320,12 +1372,12 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                                   )
                                 : null,
                             actions: [
-                              _FlatCardAction(
+                              PostFlatAction(
                                 icon: Icons.chat_bubble_outline_rounded,
                                 label: row.replyCount.toString(),
                                 onTap: openReply,
                               ),
-                              _FlatCardAction(
+                              PostFlatAction(
                                 icon: row.liked
                                     ? Icons.favorite_rounded
                                     : Icons.favorite_border_rounded,
@@ -1355,14 +1407,12 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                       if (!_collectionLoading.contains(_tab) &&
                           !_collectionErrors.containsKey(_tab) &&
                           _collectionItems(_tab).isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Text(
-                              _tab == 3
-                                  ? hhText(context, '还没有喜欢的帖子')
-                                  : hhText(context, '还没有收藏的帖子'),
-                            ),
+                        _emptySliver(
+                          context,
+                          Text(
+                            _tab == 3
+                                ? hhText(context, '还没有喜欢的帖子')
+                                : hhText(context, '还没有收藏的帖子'),
                           ),
                         ),
                       SliverList.builder(
@@ -1395,6 +1445,8 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                           ),
                         ),
                     ],
+                    // 内容较少时补尾部空白，保证可滚动范围到“头像收起”的位置。
+                    _tailFiller(),
                   ],
                 ),
               ),
@@ -1617,7 +1669,7 @@ class _ProfilePost extends StatefulWidget {
 class _ProfilePostState extends State<_ProfilePost> {
   late final _authority = _PostAuthority(widget.controller);
   PostDetail? _detail;
-  bool _failed = false;
+  bool _failed = false, _canEdit = false, _canDelete = false;
   @override
   void initState() {
     super.initState();
@@ -1638,6 +1690,63 @@ class _ProfilePostState extends State<_ProfilePost> {
     await widget.controller.loadInteractions([
       widget.post.postId,
     ], single: true);
+    // 编辑／删除能力只在自己的帖子入口查询，避免列表页为每张卡片多发一次请求。
+    if (!widget.own) return;
+    final caps = await widget.controller.postCapabilities(widget.post.postId);
+    if (!mounted || !_authority.current) return;
+    setState(() {
+      _canEdit = caps?.canEdit ?? false;
+      _canDelete = caps?.canDelete ?? false;
+    });
+  }
+
+  Future<void> _editPost() async {
+    if (!_authority.current || !_canEdit) return;
+    final session = widget.controller.openPostEdit(widget.post.postId);
+    if (session == null) return;
+    final outcome = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => _PublishedPostEditScreen(
+          session: session,
+          controller: widget.controller,
+          loadImages: widget.loadImages,
+        ),
+      ),
+    );
+    if (!mounted || !_authority.current || outcome == null) return;
+    await _load();
+    if (!mounted || !_authority.current) return;
+    final edited = widget.controller.confirmedEdit(widget.post.postId);
+    if (edited != null) widget.controller.refreshEditedPost(edited);
+    if (outcome.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text(outcome)));
+    }
+  }
+
+  Future<void> _deletePost() async {
+    if (!_authority.current || !_canDelete) return;
+    final confirmed = await _confirmScoped(
+      context,
+      widget.controller,
+      title: '确认删除这篇帖子？',
+      message: '',
+      action: '删除帖子',
+    );
+    if (!mounted || !_authority.current || confirmed != true) return;
+    final deleted = await widget.controller.deletePost(widget.post.postId);
+    if (!mounted || !_authority.current || deleted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          hhText(
+            context,
+            widget.controller.errorMessage ?? '删除结果待核对',
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1651,14 +1760,32 @@ class _ProfilePostState extends State<_ProfilePost> {
     final canChange =
         widget.controller.supportsInteractions && interaction.canChange;
     final author = localizedPostAuthor(context, post.author);
+    final palette = HhTelegramPalette.of(context);
     String count(int? value) => value == null ? '—' : value.toString();
     final failed = _failed && detail == null;
-    return _ProfileFlatCard(
+    return PostFlatCard(
       onOpen: widget.onOpen,
-      onMenu: widget.onMenu ?? widget.onOpen,
+      onMenu: widget.onMenu,
+      menuWidget: widget.onMenu == null
+          ? SizedBox(
+              width: 40,
+              height: 40,
+              child: PostActionMenu(
+                controller: widget.controller,
+                postId: post.postId,
+                reportTitle: post.title,
+                canEdit: _canEdit,
+                canDelete: _canDelete,
+                color: palette.secondary,
+                size: 20,
+                onEdit: _editPost,
+                onDelete: _deletePost,
+              ),
+            )
+          : null,
       author: author,
       repostTag: widget.repostTag,
-      elapsed: _postDate(context, post.publishedAt),
+      elapsed: postDateLabel(context, post.publishedAt),
       avatar: DetailAvatar(
         name: author,
         avatar: post.author.avatar,
@@ -1678,18 +1805,31 @@ class _ProfilePostState extends State<_ProfilePost> {
                   !widget.controller.isPostDeleted(post.postId),
               expectedCount: detail.imageCount,
               feedPreview: true,
+              feedPreviewInset: 20,
             )
           : null,
       failed: failed,
       onRetry: _load,
+      bleedMedia: true,
       actions: [
-        _FlatCardAction(
-          key: ValueKey('profile-comment-${post.postId}'),
-          icon: Icons.chat_bubble_outline_rounded,
-          label: count(interaction.value?.commentCount),
-          onTap: widget.onOpen,
+        PostFlatAction(
+          key: ValueKey('profile-like-${post.postId}'),
+          icon: interaction.liked
+              ? Icons.favorite_rounded
+              : Icons.favorite_border_rounded,
+          on: interaction.liked,
+          selectedColor: palette.error,
+          label: count(interaction.likes),
+          onTap: canChange
+              ? () => unawaited(
+                  widget.controller.changeInteraction(
+                    post.postId,
+                    PostInteractionAction.like,
+                  ),
+                )
+              : null,
         ),
-        _FlatCardAction(
+        PostFlatAction(
           key: ValueKey('profile-favorite-${post.postId}'),
           icon: interaction.favorited
               ? Icons.bookmark_rounded
@@ -1705,26 +1845,20 @@ class _ProfilePostState extends State<_ProfilePost> {
                 )
               : null,
         ),
-        _FlatCardAction(
-          key: ValueKey('profile-like-${post.postId}'),
-          icon: interaction.liked
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          on: interaction.liked,
-          label: count(interaction.likes),
-          onTap: canChange
-              ? () => unawaited(
-                  widget.controller.changeInteraction(
-                    post.postId,
-                    PostInteractionAction.like,
-                  ),
-                )
-              : null,
+        PostFlatAction(
+          key: ValueKey('profile-comment-${post.postId}'),
+          glyph: FeedActionIcon(
+            action: FeedAction.comment,
+            color: palette.secondary,
+            size: 17,
+          ),
+          label: count(interaction.value?.commentCount),
+          onTap: widget.onOpen,
         ),
         if (widget.repostAction != null) widget.repostAction!,
       ],
-      notice: interaction.writeError != null || interaction.unresolved
-          ? hhText(context, interaction.writeError ?? '结果尚未确认，请重试核对。')
+      notice: interaction.writeError != null
+          ? hhText(context, interaction.writeError!)
           : null,
       onNoticeRetry: interaction.sending
           ? null
@@ -1734,32 +1868,56 @@ class _ProfilePostState extends State<_ProfilePost> {
 }
 
 /// 「我的」页五页签的扁平帖子卡片（原型 .post：通栏白底、底部分割线）。
-class _ProfileFlatCard extends StatelessWidget {
-  const _ProfileFlatCard({
+/// 「我的」页与首页共用的扁平帖子卡片（通栏白底 + 底部分割线）。
+/// 首页独有内容（标签、浏览数、作者跳转）通过可选插槽复用同一版式。
+class PostFlatCard extends StatelessWidget {
+  const PostFlatCard({
     super.key,
     required this.onOpen,
-    required this.onMenu,
+    this.onMenu,
+    this.menuWidget,
     required this.author,
     required this.elapsed,
     required this.avatar,
     required this.actions,
+    this.onAvatar,
+    this.onAuthor,
+    this.tags,
+    this.views,
     this.repostTag,
     this.title,
     this.body,
     this.media,
+    this.bleedMedia = false,
     this.failed = false,
     this.onRetry,
     this.notice,
     this.onNoticeRetry,
   });
-  final VoidCallback onOpen, onMenu;
+  final VoidCallback onOpen;
+  final VoidCallback? onMenu;
+  final Widget? menuWidget;
   final Widget avatar;
   final String author, elapsed;
   final String? title, body, repostTag, notice;
   final Widget? media;
+
+  /// 头像／作者名点击（首页用于作者页与私信入口）。
+  final VoidCallback? onAvatar, onAuthor;
+
+  /// 标签行（首页）：一行可滚动的 #话题。
+  final Widget? tags;
+
+  /// 操作行左侧的浏览数等补充信息（首页）。
+  final Widget? views;
+
+  /// 图片区移出左右内边距，由媒体组件自己控制左右边界（多图出血）。
+  final bool bleedMedia;
   final bool failed;
   final VoidCallback? onRetry, onNoticeRetry;
   final List<Widget> actions;
+  Widget _tappable(VoidCallback? onTap, Widget child) =>
+      onTap == null ? child : GestureDetector(onTap: onTap, child: child);
   @override
   Widget build(BuildContext context) {
     final p = HhTelegramPalette.of(context);
@@ -1775,7 +1933,7 @@ class _ProfileFlatCard extends StatelessWidget {
             InkWell(
               onTap: onOpen,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 15, 20, 13),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1804,10 +1962,12 @@ class _ProfileFlatCard extends StatelessWidget {
                       ),
                     Row(
                       children: [
-                        avatar,
+                        _tappable(onAvatar, avatar),
                         const SizedBox(width: 9),
                         Expanded(
-                          child: Wrap(
+                          child: _tappable(
+                            onAuthor,
+                            Wrap(
                             spacing: 6,
                             runSpacing: 2,
                             crossAxisAlignment: WrapCrossAlignment.center,
@@ -1832,28 +1992,30 @@ class _ProfileFlatCard extends StatelessWidget {
                                 ),
                               ),
                             ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        SizedBox(
-                          width: 30,
-                          height: 30,
-                          child: IconButton(
-                            tooltip: hhText(context, '帖子更多操作'),
-                            padding: EdgeInsets.zero,
-                            visualDensity: VisualDensity.compact,
-                            icon: Icon(
-                              Icons.more_horiz_rounded,
-                              size: 18,
-                              color: p.secondary,
+                        menuWidget ??
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: IconButton(
+                                tooltip: hhText(context, '帖子更多操作'),
+                                padding: EdgeInsets.zero,
+                                visualDensity: VisualDensity.compact,
+                                icon: Icon(
+                                  Icons.more_horiz_rounded,
+                                  size: 18,
+                                  color: p.secondary,
+                                ),
+                                onPressed: onMenu,
+                              ),
                             ),
-                            onPressed: onMenu,
-                          ),
-                        ),
                       ],
                     ),
                     if (title != null && title.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 2),
                       Text(
                         title,
                         style: TextStyle(
@@ -1864,7 +2026,7 @@ class _ProfileFlatCard extends StatelessWidget {
                         ),
                       ),
                       if (body != null && body.isNotEmpty)
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 4),
                     ],
                     if (body != null && body.isNotEmpty)
                       Text(
@@ -1873,11 +2035,12 @@ class _ProfileFlatCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 14,
-                          height: 1.75,
+                          height: 1.6,
                           color: p.ink.withValues(alpha: .88),
                         ),
                       ),
-                    if (media != null) ...[const SizedBox(height: 10), media!],
+                    if (tags case final tags?) tags,
+                    if (!bleedMedia && media != null) media!,
                     if (failed)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -1893,11 +2056,17 @@ class _ProfileFlatCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (bleedMedia && media != null) media!,
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              // 图片与操作行的间距和操作行到卡片底边的间距一致（各 6）。
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (views case final views?) ...[
+                    Flexible(child: views),
+                    const Spacer(),
+                  ],
                   for (var i = 0; i < actions.length; i++) ...[
                     if (i > 0) const SizedBox(width: 22),
                     actions[i],
@@ -1907,7 +2076,7 @@ class _ProfileFlatCard extends StatelessWidget {
             ),
             if (notice case final notice?)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -1937,40 +2106,113 @@ class _ProfileFlatCard extends StatelessWidget {
 }
 
 /// 卡片底部的轻量操作（评论、收藏、点赞）。
-class _FlatCardAction extends StatelessWidget {
-  const _FlatCardAction({
+class PostFlatAction extends StatefulWidget {
+  const PostFlatAction({
     super.key,
-    required this.icon,
+    this.icon,
+    this.glyph,
     required this.label,
     this.on = false,
+    this.selectedColor,
+    this.semanticsLabel,
     this.onTap,
   });
-  final IconData icon;
+  final IconData? icon;
+
+  /// 与首页共用的自绘图标；优先于 [icon]。
+  final Widget? glyph;
   final String label;
   final bool on;
+  final Color? selectedColor;
+
+  /// 读屏用完整描述（含数量）；为空时只读图标与数字。
+  final String? semanticsLabel;
   final VoidCallback? onTap;
+  @override
+  State<PostFlatAction> createState() => PostFlatActionState();
+}
+
+class PostFlatActionState extends State<PostFlatAction>
+    with SingleTickerProviderStateMixin {
+  late final _pop = AnimationController(
+    vsync: this,
+    duration: HhMotion.quick,
+  );
+  late final _pulse = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.16,
+      ).chain(CurveTween(curve: Curves.easeOut)),
+      weight: 40,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.16,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeIn)),
+      weight: 60,
+    ),
+  ]).animate(_pop);
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    final onTap = widget.onTap;
+    if (onTap == null) return;
+    // 轻量点击反馈：图标快速脉一下，数量变化由 HhAnimatedCount 滚动。
+    if (!HhMotion.reduced(context)) _pop.forward(from: 0);
+    onTap();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = HhTelegramPalette.of(context);
-    final color = on ? p.accent : p.secondary;
-    return HhPressFeedback(
-      enabled: onTap != null,
+    final on = widget.on;
+    final color = on ? widget.selectedColor ?? p.accent : p.secondary;
+    final content = HhPressFeedback(
+      enabled: widget.onTap != null,
       pressedScale: .92,
       builder: (context, states) => InkWell(
         statesController: states,
-        onTap: onTap,
+        onTap: widget.onTap == null ? null : _handleTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 17, color: color),
-              const SizedBox(width: 6),
-              Text(label, style: TextStyle(fontSize: 12, color: color)),
+              ScaleTransition(
+                scale: _pulse,
+                child:
+                    widget.glyph ??
+                    Icon(widget.icon!, size: 17, color: color),
+              ),
+              if (widget.label.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                HhAnimatedCount(
+                  text: widget.label,
+                  style: TextStyle(fontSize: 12, color: color),
+                ),
+              ],
             ],
           ),
         ),
       ),
+    );
+    final label = widget.semanticsLabel;
+    if (label == null) return content;
+    return Semantics(
+      button: true,
+      enabled: widget.onTap != null,
+      selected: on,
+      label: label,
+      excludeSemantics: true,
+      onTap: widget.onTap == null ? null : _handleTap,
+      child: content,
     );
   }
 }

@@ -4,8 +4,6 @@ import 'dart:async';
 
 import '../design_system/detail_components.dart';
 
-import 'dart:typed_data';
-
 import '../messaging/dm_runtime.dart';
 
 import 'package:flutter/material.dart';
@@ -15,10 +13,8 @@ import '../design_system/telegram_theme.dart';
 import '../identity/active_identity_controller.dart';
 import '../identity/identity_avatar.dart';
 import '../navigation/app_navigation.dart';
-import '../comments/comment_editor.dart';
 import '../comments/comment_models.dart';
 import '../comments/comment_runtime.dart';
-import '../comments/comment_views.dart';
 import 'feed_api.dart';
 import 'feed_controller.dart';
 import 'post_controller.dart' hide FeedController;
@@ -28,6 +24,7 @@ import 'post_images.dart';
 import 'post_screens.dart';
 import 'post_search_screen.dart';
 import 'post_tag_screen.dart';
+import 'post_tag_widgets.dart';
 import 'x_feed.dart';
 import 'feed_card_menu.dart';
 import 'feed_header_glyphs.dart';
@@ -69,10 +66,8 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _latestSelected = false;
   Timer? _notice;
   final _scroll = ScrollController();
-  final _replyEditors = <String, CommentEditor>{};
   final _seenReplies = <String>{};
   CommentRuntime? _comments;
-  bool _replyOpen = false;
   final _hiddenHere = <String, String>{};
   int _timelineGeneration = 0;
   bool _composeOpen = false;
@@ -113,12 +108,6 @@ class _FeedScreenState extends State<FeedScreen> {
 
   void _changed() {
     if (!mounted) return;
-    if (!current) {
-      for (final editor in _replyEditors.values) {
-        editor.leave();
-      }
-      _replyEditors.clear();
-    }
     if (feed.timelineGeneration != _timelineGeneration) {
       _timelineGeneration = feed.timelineGeneration;
       _hiddenHere.clear();
@@ -145,9 +134,6 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void dispose() {
     _comments?.removeListener(_commentsChanged);
-    for (final editor in _replyEditors.values) {
-      editor.leave();
-    }
     c.removeListener(_changed);
     _notice?.cancel();
     _scroll.dispose();
@@ -173,57 +159,6 @@ class _FeedScreenState extends State<FeedScreen> {
           _seenReplies.add(task.taskId)) {
         unawaited(c.loadInteractions([task.binding.postId], single: true));
       }
-    }
-  }
-
-  Future<void> _reply(BuildContext context, FeedPost post) async {
-    if (!current || _replyOpen || c.isPostDeleted(post.postId)) return;
-    final runtime = _comments;
-    if (runtime == null || !runtime.available) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(hhText(context, '评论暂时不可用，请稍后重试。'))),
-      );
-      return;
-    }
-    if (_replyEditors[post.postId]?.active == false) {
-      _replyEditors.remove(post.postId);
-    }
-    final editor = _replyEditors.putIfAbsent(
-      post.postId,
-      () => CommentEditor(CommentTarget(postId: post.postId)),
-    );
-    _replyOpen = true;
-    editor.expand();
-    final originals = <String, Uint8List>{};
-    try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: .30),
-        builder: (_) => CommentComposer(
-          runtime: runtime,
-          editor: editor,
-          originals: originals,
-          contextText: post.body,
-          quickReplyTo: post.author.nickname,
-          onOpenRejected: () {
-            if (!current) return;
-            Navigator.of(context).pop();
-            _open(context, post.postId, post.channelId);
-          },
-          onSubmitted: () {
-            if (!current) return;
-            _replyEditors.remove(post.postId);
-            editor.leave();
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(hhText(context, '正在发送回复'))));
-          },
-        ),
-      );
-    } finally {
-      _replyOpen = false;
-      if (editor.active) editor.collapse();
     }
   }
 
@@ -492,11 +427,8 @@ class _FeedScreenState extends State<FeedScreen> {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: ClampingScrollPhysics(),
                 ),
-                padding: EdgeInsets.fromLTRB(
-                  12,
-                  12,
-                  12,
-                  96 + MediaQuery.paddingOf(context).bottom,
+                padding: EdgeInsets.only(
+                  bottom: 96 + MediaQuery.paddingOf(context).bottom,
                 ),
                 children: [
                   if ((_starting || feed.timelineLoading) && posts.isEmpty)
@@ -550,6 +482,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       HhFeedPostCard(
                         key: ValueKey('post:${post.postId}'),
                         postId: post.postId,
+                        flat: true,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -560,10 +493,18 @@ class _FeedScreenState extends State<FeedScreen> {
                                 controller: c,
                                 postId: post.postId,
                                 builder: (repost, reposted, unresolved) =>
-                                    HhXPostItem(
-                                      showTimestamp: false,
-                                      horizontalMenu: true,
-                                      browseActions: true,
+                                    PostFlatCard(
+                                      key: ValueKey('flat-post:${post.postId}'),
+                                      onOpen: () => _open(
+                                        context,
+                                        post.postId,
+                                        post.channelId,
+                                      ),
+                                      onMenu: () => _open(
+                                        context,
+                                        post.postId,
+                                        post.channelId,
+                                      ),
                                       menuWidget: FeedCardMenu(
                                         postId: post.postId,
                                         tooltip: hhText(context, '帖子更多操作'),
@@ -608,74 +549,48 @@ class _FeedScreenState extends State<FeedScreen> {
                                           }
                                         },
                                       ),
-                                      post: FeedPostView(
-                                        id: post.postId,
-                                        authorId: '',
-                                        authorName: localizedPostAuthor(
-                                          context,
-                                          post.author,
-                                        ),
-                                        elapsed:
-                                            MaterialLocalizations.of(context)
-                                                .formatShortDate(
-                                                  post.publishedAt.toLocal(),
-                                                ),
-                                        title: post.title,
-                                        body: post.body,
-                                        tags: post.tags,
-                                        views: feed.postViewCount(post.postId),
-                                        comments: c
-                                            .interaction(post.postId)
-                                            .value
-                                            ?.commentCount,
-                                        likes: c.interaction(post.postId).likes,
-                                        favorites: c
-                                            .interaction(post.postId)
-                                            .value
-                                            ?.favoriteCount,
-                                        liked: c.interaction(post.postId).liked,
-                                        bookmarked: c
-                                            .interaction(post.postId)
-                                            .favorited,
-                                        availableActions: {
-                                          FeedAction.comment,
-                                          if (share != null) FeedAction.share,
-                                          if (c
-                                              .interaction(post.postId)
-                                              .canChange) ...{
-                                            FeedAction.like,
-                                            FeedAction.bookmark,
-                                          },
-                                        },
-                                        busyActions: {
-                                          if (sharing) FeedAction.share,
-                                          if (c
-                                                  .interaction(post.postId)
-                                                  .unresolved &&
-                                              !c
-                                                  .interaction(post.postId)
-                                                  .canChange)
-                                            c
-                                                        .interaction(
-                                                          post.postId,
-                                                        )
-                                                        .pendingAction ==
-                                                    PostInteractionAction.like
-                                                ? FeedAction.like
-                                                : FeedAction.bookmark,
-                                        },
+                                      author: localizedPostAuthor(
+                                        context,
+                                        post.author,
                                       ),
-                                      avatarBuilder: (_, _) => DetailAvatar(
+                                      elapsed: postDateLabel(
+                                        context,
+                                        post.publishedAt,
+                                      ),
+                                      avatar: DetailAvatar(
                                         name: localizedPostAuthor(
                                           context,
                                           post.author,
                                         ),
                                         avatar: post.author.avatar,
-                                        radius: 20,
+                                        radius: 15,
                                       ),
-                                      mediaBuilder: (_, _) =>
-                                          const SizedBox.shrink(),
-                                      mediaSection:
+                                      onAuthor: () => unawaited(
+                                        DmScope.contact(context, post.postId),
+                                      ),
+                                      onAvatar: () => unawaited(
+                                        _openAuthor(context, post),
+                                      ),
+                                      tags: post.tags.isEmpty
+                                          ? null
+                                          : PostTagChips(
+                                              tags: post.tags,
+                                              onTap: (tag) => unawaited(
+                                                openPostTag(
+                                                  context,
+                                                  controller: c,
+                                                  tag: tag,
+                                                  channels: widget.channels,
+                                                  onAuthenticationRequired: widget
+                                                      .onAuthenticationRequired,
+                                                  loadImages: widget.loadImages,
+                                                ),
+                                              ),
+                                            ),
+                                      title: post.title,
+                                      body: post.body,
+                                      bleedMedia: true,
+                                      media:
                                           post.imageCount > 0 &&
                                               widget.loadImages != null
                                           ? PostImagesSection(
@@ -695,6 +610,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                                     )),
                                               postId: post.postId,
                                               feedPreview: true,
+                                              feedPreviewInset: 20,
                                               initialSizes:
                                                   post.imageSizes
                                                       ?.map(
@@ -717,56 +633,120 @@ class _FeedScreenState extends State<FeedScreen> {
                                                   !c.isPostDeleted(post.postId),
                                             )
                                           : null,
-                                      onTag: (tag) => unawaited(
-                                        openPostTag(
-                                          context,
-                                          controller: c,
-                                          tag: tag,
-                                          channels: widget.channels,
-                                          onAuthenticationRequired:
-                                              widget.onAuthenticationRequired,
-                                          loadImages: widget.loadImages,
+                                      actions: [
+                                        PostFlatAction(
+                                          key: ValueKey('like:${post.postId}'),
+                                          icon:
+                                              c
+                                                      .interaction(post.postId)
+                                                      .liked
+                                                  ? Icons.favorite_rounded
+                                                  : Icons.favorite_border_rounded,
+                                          on: c.interaction(post.postId).liked,
+                                          selectedColor: HhTelegramPalette.of(
+                                            context,
+                                          ).error,
+                                          label:
+                                              '${c.interaction(post.postId).likes ?? '—'}',
+                                          semanticsLabel: hhText(
+                                            context,
+                                            '点赞',
+                                          ),
+                                          onTap:
+                                              c
+                                                      .interaction(post.postId)
+                                                      .canChange &&
+                                                  !sharing
+                                              ? () {
+                                                  if (!current) return;
+                                                  unawaited(
+                                                    c.changeInteraction(
+                                                      post.postId,
+                                                      PostInteractionAction
+                                                          .like,
+                                                    ),
+                                                  );
+                                                }
+                                              : null,
                                         ),
-                                      ),
-                                      onPost: () => _open(
-                                        context,
-                                        post.postId,
-                                        post.channelId,
-                                      ),
-                                      onAuthor: () => unawaited(
-                                        DmScope.contact(context, post.postId),
-                                      ),
-                                      onAvatar: () =>
-                                          unawaited(_openAuthor(context, post)),
-                                      onMenu: () => _open(
-                                        context,
-                                        post.postId,
-                                        post.channelId,
-                                      ),
-                                      onAction: (action) {
-                                        if (!current) return;
-                                        switch (action) {
-                                          case FeedAction.comment:
-                                            unawaited(_reply(context, post));
-                                          case FeedAction.like:
-                                            unawaited(
-                                              c.changeInteraction(
-                                                post.postId,
-                                                PostInteractionAction.like,
-                                              ),
-                                            );
-                                          case FeedAction.bookmark:
-                                            unawaited(
-                                              c.changeInteraction(
-                                                post.postId,
-                                                PostInteractionAction.favorite,
-                                              ),
-                                            );
-                                          case FeedAction.share:
-                                            share?.call();
-                                        }
-                                      },
-                                      onMedia: (_) {},
+                                        PostFlatAction(
+                                          key: ValueKey(
+                                            'bookmark:${post.postId}',
+                                          ),
+                                          icon:
+                                              c
+                                                      .interaction(post.postId)
+                                                      .favorited
+                                                  ? Icons.bookmark_rounded
+                                                  : Icons.bookmark_border_rounded,
+                                          on:
+                                              c
+                                                  .interaction(post.postId)
+                                                  .favorited,
+                                          label:
+                                              '${c.interaction(post.postId).value?.favoriteCount ?? '—'}',
+                                          semanticsLabel: hhText(
+                                            context,
+                                            '收藏',
+                                          ),
+                                          onTap:
+                                              c
+                                                      .interaction(post.postId)
+                                                      .canChange
+                                              ? () {
+                                                  if (!current) return;
+                                                  unawaited(
+                                                    c.changeInteraction(
+                                                      post.postId,
+                                                      PostInteractionAction
+                                                          .favorite,
+                                                    ),
+                                                  );
+                                                }
+                                              : null,
+                                        ),
+                                        PostFlatAction(
+                                          key: ValueKey(
+                                            'comment:${post.postId}',
+                                          ),
+                                          glyph: FeedActionIcon(
+                                            action: FeedAction.comment,
+                                            color: HhTelegramPalette.of(
+                                              context,
+                                            ).secondary,
+                                            size: 17,
+                                          ),
+                                          label:
+                                              c
+                                                      .interaction(post.postId)
+                                                      .value
+                                                      ?.commentCount
+                                                      .toString() ??
+                                                  '—',
+                                          semanticsLabel: hhText(
+                                            context,
+                                            '评论',
+                                          ),
+                                          onTap: () => _open(
+                                            context,
+                                            post.postId,
+                                            post.channelId,
+                                          ),
+                                        ),
+                                        if (share != null)
+                                          PostFlatAction(
+                                            key: ValueKey(
+                                              'share:${post.postId}',
+                                            ),
+                                            icon: Icons.ios_share_rounded,
+                                            label: '',
+                                            semanticsLabel: hhText(
+                                              context,
+                                              sharing ? '正在准备分享…' : '分享',
+                                            ),
+                                            onTap: sharing ? null : share,
+                                          ),
+                                      ],
                                     ),
                               ),
                             ),
@@ -820,7 +800,6 @@ class _FeedScreenState extends State<FeedScreen> {
                           ],
                         ),
                       ),
-                    const SizedBox(height: 12),
                   ],
                   if (feed.timelineCursor != null && !feed.timelineLoading)
                     TextButton(

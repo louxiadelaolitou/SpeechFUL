@@ -94,6 +94,7 @@ class PostImagesSection extends StatefulWidget {
     required this.isCurrent,
     this.expectedCount,
     this.feedPreview = false,
+    this.feedPreviewInset = 0,
     this.compactSingle = false,
     this.initialSizes,
     super.key,
@@ -104,6 +105,10 @@ class PostImagesSection extends StatefulWidget {
   final bool Function() isCurrent;
   final int? expectedCount;
   final bool feedPreview;
+
+  /// 预览区左右内边距：单图两侧留白；多图只留左侧（竖向列表），右侧与
+  /// 屏幕边对齐，滑动后可移到屏幕左缘。首页为 0。
+  final double feedPreviewInset;
   final bool compactSingle;
   final List<Size>? initialSizes;
   @override
@@ -297,7 +302,16 @@ class _PostImagesSectionState extends State<PostImagesSection>
     _authorityChanged();
   }
 
-  Future<void> _open(int index) async {
+  /// 点击位置的屏幕矩形：查看器据此从缩略图位置放大到全屏。
+  Rect? _originOf(BuildContext imageContext) {
+    final box = imageContext.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return null;
+    final screen = Offset.zero & MediaQuery.sizeOf(context);
+    final rect = (box.localToGlobal(Offset.zero) & box.size).intersect(screen);
+    return rect.isEmpty ? null : rect;
+  }
+
+  Future<void> _open(int index, {Rect? origin}) async {
     final group = _group;
     if (!_current ||
         group == null ||
@@ -319,6 +333,7 @@ class _PostImagesSectionState extends State<PostImagesSection>
     final navigator = Navigator.of(context);
     late final HnuImageViewerRoute route;
     route = HnuImageViewerRoute(
+      origin: origin,
       builder: (_) => HnuImageViewer(
         controller: viewer,
         onClosed: (_) {
@@ -455,7 +470,7 @@ class _PostImagesSectionState extends State<PostImagesSection>
               builder: (context, states) => InkWell(
                 key: ValueKey(('post-image', group.images[index].item.id)),
                 statesController: states,
-                onTap: () => _open(index),
+                onTap: () => _open(index, origin: _originOf(context)),
                 child: ExcludeSemantics(
                   child: _PostThumbnail(
                     key: ValueKey(group.images[index]),
@@ -517,6 +532,7 @@ class _PostImagesSectionState extends State<PostImagesSection>
   }) => LayoutBuilder(
     builder: (context, constraints) {
       final width = constraints.maxWidth;
+      final inset = widget.feedPreviewInset;
       final sizes = _feedSizes!;
       double ratio(Size? size) {
         return size == null ? 1 : size.width / size.height;
@@ -553,11 +569,11 @@ class _PostImagesSectionState extends State<PostImagesSection>
                         group!.images[index].item.id,
                       )),
                       statesController: states,
-                      onTap: () => _open(index),
+                      onTap: () => _open(index, origin: _originOf(context)),
                       child: _PostThumbnail(
                         key: ValueKey(group.images[index]),
                         image: group.images[index],
-                        fit: sizes.length == 1 ? BoxFit.cover : BoxFit.contain,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
@@ -567,41 +583,34 @@ class _PostImagesSectionState extends State<PostImagesSection>
       );
       if (sizes.length == 1) {
         final r = ratio(sizes.first);
-        final previewRatio = r.clamp(.75, 2.0);
+        // 单图：宽度铺满、高度按原比例，不裁切也不留边；窄于 1:2 的超高图
+        // 取垂直中段方形，与多图一致地保持卡片观感。
+        final inner = width - inset * 2;
         return Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              card(0, width, width / previewRatio),
-              if (r != previewRatio)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    hhText(context, '点击查看完整图片'),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-            ],
-          ),
+          padding: EdgeInsets.fromLTRB(inset, 2, inset, 0),
+          child: card(0, inner, r < .5 ? inner : inner / r),
         );
       }
       final height = (width * .8).clamp(160.0, 260.0);
+      // 多图：容器高度固定，每张高度等于容器高、宽度按原宽高比缩放，只缩放
+      // 不裁切；长截图与全景改为中心方形，避免过高过窄或超宽的单张。
+      double tileWidth(int index) {
+        final r = ratio(sizes[index]);
+        return r < .5 || r > 2 ? height : height * r;
+      }
+
       return Padding(
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: 2),
         child: SizedBox(
           height: height,
           child: ListView.separated(
             key: ValueKey('feed-media:${widget.postId}'),
             scrollDirection: Axis.horizontal,
             primary: false,
+            padding: EdgeInsets.only(left: inset),
             itemCount: sizes.length,
             separatorBuilder: (_, _) => const SizedBox(width: 5),
-            itemBuilder: (_, i) => card(
-              i,
-              (height * ratio(sizes[i])).clamp(width * .45, width * .78),
-              height,
-            ),
+            itemBuilder: (_, i) => card(i, tileWidth(i), height),
           ),
         ),
       );

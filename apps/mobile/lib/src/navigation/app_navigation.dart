@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../localization/app_localizations.dart';
 
 import 'package:flutter/material.dart';
@@ -52,45 +54,132 @@ class HhAppNavigation extends StatelessWidget {
                     ),
                   ),
                 Expanded(
-                  child: Semantics(
+                  child: _NavButton(
+                    destination: destination,
                     selected: selected == destination,
-                    child: HhPressFeedback(
-                      builder: (context, states) => IconButton(
-                        statesController: states,
-                        key: ValueKey('destination:${destination.name}'),
-                        tooltip: switch (destination) {
-                          AppDestination.home => hhText(context, '首页'),
-                          AppDestination.messages => hhText(context, '消息'),
-                          AppDestination.directMessages => hhText(
-                            context,
-                            '私信',
-                          ),
-                          AppDestination.personal => hhText(context, '我的'),
-                        },
-                        onPressed: () {
-                          if (selected != destination) onSelected(destination);
-                        },
-                        icon: HhAnimatedSelection(
-                          selected: selected == destination,
-                          builder: (context, progress) => Transform.scale(
-                            scale: 1 + .06 * progress,
-                            child: CustomPaint(
-                              size: const Size(27, 27),
-                              painter: HhNavigationGlyph(
-                                destination,
-                                Color.lerp(p.ink, p.action, progress)!,
-                                selected == destination,
-                                fillProgress: progress,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    onPressed: () {
+                      if (selected != destination) onSelected(destination);
+                    },
                   ),
                 ),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 底部导航按钮：选中色／填充过渡之外，点击时做一次与帖子卡片一致的
+/// 160ms 图标脉冲（减少动效偏好下只变状态）。
+class _NavButton extends StatefulWidget {
+  const _NavButton({
+    required this.destination,
+    required this.selected,
+    required this.onPressed,
+  });
+  final AppDestination destination;
+  final bool selected;
+  final VoidCallback onPressed;
+  @override
+  State<_NavButton> createState() => _NavButtonState();
+}
+
+class _NavButtonState extends State<_NavButton>
+    with SingleTickerProviderStateMixin {
+  /// 0→1 的点击动画进度；t=1 时所有位移/旋转归零，保持静止外观。
+  late final _tap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+    value: 1,
+  );
+
+  @override
+  void dispose() {
+    _tap.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    if (!HhMotion.reduced(context)) _tap.forward(from: 0);
+    widget.onPressed();
+  }
+
+  /// 每个导航项的动作不同：首页上跳、铃铛左右摇、气泡弹一下、人像轻晃。
+  ({double dy, double rotation, double scale}) _motion(double t) {
+    final swing = math.sin(t * math.pi);
+    final decayed = (1 - t) * math.sin(t * math.pi * 3);
+    return switch (widget.destination) {
+      AppDestination.home => (
+        dy: -4 * swing,
+        rotation: 0.0,
+        scale: 1 + .10 * swing,
+      ),
+      AppDestination.messages => (
+        dy: 0.0,
+        rotation: .28 * decayed,
+        scale: 1 + .04 * swing,
+      ),
+      AppDestination.directMessages => (
+        dy: -2.5 * swing,
+        rotation: 0.0,
+        scale: 1 + .18 * swing,
+      ),
+      AppDestination.personal => (
+        dy: 0.0,
+        rotation: .10 * (1 - t) * math.sin(t * math.pi * 2),
+        scale: 1 + .08 * swing,
+      ),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    final destination = widget.destination;
+    final selected = widget.selected;
+    return Semantics(
+      selected: selected,
+      child: HhPressFeedback(
+        builder: (context, states) => IconButton(
+          statesController: states,
+          key: ValueKey('destination:${destination.name}'),
+          tooltip: switch (destination) {
+            AppDestination.home => hhText(context, '首页'),
+            AppDestination.messages => hhText(context, '消息'),
+            AppDestination.directMessages => hhText(context, '私信'),
+            AppDestination.personal => hhText(context, '我的'),
+          },
+          onPressed: _handleTap,
+          icon: AnimatedBuilder(
+            animation: _tap,
+            builder: (context, child) {
+              final motion = _motion(_tap.value);
+              return Transform.translate(
+                offset: Offset(0, motion.dy),
+                child: Transform.rotate(
+                  angle: motion.rotation,
+                  alignment: Alignment.center,
+                  child: Transform.scale(scale: motion.scale, child: child),
+                ),
+              );
+            },
+            child: HhAnimatedSelection(
+              selected: selected,
+              builder: (context, progress) => Transform.scale(
+                scale: 1 + .06 * progress,
+                child: CustomPaint(
+                  size: const Size(27, 27),
+                  painter: HhNavigationGlyph(
+                    destination,
+                    Color.lerp(p.ink, p.action, progress)!,
+                    selected,
+                    fillProgress: progress,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
