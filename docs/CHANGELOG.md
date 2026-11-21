@@ -2,6 +2,27 @@
 
 记录本仓库的写入型改动，最新条目在最上面；格式与门禁见 `.agents/skills/minimal-change/SKILL.md`。
 
+## 2026-11-20 · 投影刷新修正：页面位移与本地浏览量
+
+- 状态：已完成（实现提交 `01adb68`；自动化 PASS；真机复测 `NOT_RUN`；新 head `fab02f7` 已推送，CI PASS（24 success、1 skip）；未合并）
+- 改动：`FeedController.refreshDisplayedProjections()` 不再用“已显示帖子数 / 20 + 2”的固定页数终止翻页；公共时间线按 `publishedAt` 倒序，改为翻到严格早于最早已显示帖子的页即停止，头部新增 41 条以上帖子导致页面整体位移时仍能刷新最旧可见行，并保留游标循环检测与空页退出。`_applyProjection()` 把服务端值、列表旧值与本地 `_postViews` 三者取最大，避免投影刷新用较小值覆盖详情页或上一次读取得到的较大浏览量。新增两项回归测试：本地 5000 浏览量不被服务端 1 覆盖；41 条新帖位移后 20 条已显示帖子全部刷新且不请求额外页。
+- 文件：`apps/mobile/lib/src/posts/feed_controller.dart`、`apps/mobile/test/feed_incremental_test.dart`、`docs/tasks/AVATAR-FEED-PROJECTION-01.md`、`docs/CHANGELOG.md`
+- 验证：环境 Windows 11 25H2 x64 / Flutter 3.47.5 / Dart 3.13.4，基线 `develop/main@dbbc249`，实现提交 `01adb68`。`flutter test --no-pub test/avatar_feed_projection_test.dart test/feed_incremental_test.dart test/feed_ui_test.dart -r compact` → 52 项 PASS；`flutter test --no-pub test/post_controller_test.dart test/personal_profile_test.dart test/login_home_navigation_test.dart test/active_identity_test.dart -r compact` → 77 项 PASS；完整 `flutter test --no-pub --concurrency=2 -r compact` → 1372 项通过、4 项跳过 PASS。两项新增用例在临时回退 `feed_controller.dart` 时按预期失败（浏览量 5000→1260、最旧可见帖子头像未更新）；`flutter analyze --no-pub` → `No issues found!`；`dart format --output=none --set-exit-if-changed` → 0 项变化；`git diff --check` → PASS。真机复测为 `NOT_RUN`。`01adb68` 及后续文档提交已推送至 PR head `fab02f7`；首次 CI 因 `plugins.gradle.org` 瞬时无法解析 Kotlin 2.2.21 失败，重跑失败 job 后 24 success、1 skip、0 failure PASS。
+- 回滚：`git revert 01adb68`；无迁移、服务端或发布步骤。
+- 任务：`docs/tasks/AVATAR-FEED-PROJECTION-01.md`
+- 授权：用户 2026-11-20 指令“修复这鞋问题”，授权修复 PR #24/#25 的审查问题；2026-11-21 指令“推送最新pr”“修复ci”，授权推送最新提交并重跑失败的 CI；未授权合并、发布或部署。
+
+## 2026-11-19 12:48 · 更换头像后刷新首页帖子投影
+
+- 状态：已完成（实现提交 `c16b8e6`，rebase 前 `ed90104`；真机验证 PASS；已推送并创建 PR [#25](https://github.com/zewbby/SpeechFUL-Develop/pull/25)，CI 全部通过；未合并）
+- 改动：身份头像变更返回后，`PostController.refreshKnownPosts()` 先调用新增的 `FeedController.refreshDisplayedProjections()`，按当前已显示帖子 ID 重新读取公共时间线页并原位替换标题、正文、作者、标签与图片投影，保留列表顺序、分页游标、频道条件、删除过滤和本地较大的浏览量，不把刷新期间的新帖插入当前列表；随后继续执行原有旧列表刷新。首页头像因 `FeedScreen` 读取 `homeFeed.timelineItems` 而未随身份变更更新；个人页投影原已由 `refreshPersonalProjections()` 更新，本次补回归测试。新增首页与个人页头像刷新测试，并覆盖跨页匹配、不插入新帖与浏览量保留。
+- 文件：`apps/mobile/lib/src/posts/feed_controller.dart`、`apps/mobile/lib/src/posts/post_controller.dart`、`apps/mobile/test/feed_incremental_test.dart`、`apps/mobile/test/avatar_feed_projection_test.dart`（新增）、`docs/tasks/AVATAR-FEED-PROJECTION-01.md`（新增）
+- 验证：环境 Windows 11 25H2 x64 / Flutter 3.47.5 / Dart 3.13.4，基线 `main@213b8b0`，实现提交 `ed90104`；rebase 到 `develop/main@dbbc249` 后实现提交为 `c16b8e6`。定向 `flutter test test/feed_incremental_test.dart test/avatar_feed_projection_test.dart --no-pub -r expanded` 7 项 PASS（新增首页用例修复前失败、修复后通过）；受影响套件 `flutter test test/post_controller_test.dart test/feed_ui_test.dart test/personal_profile_test.dart test/login_home_navigation_test.dart test/active_identity_test.dart --no-pub -r compact` 118 项 PASS（rebase 后复跑为 120 项 PASS）；`flutter analyze --no-pub` PASS（rebase 后复跑 PASS）；完整 `flutter test --no-pub --concurrency=2 -r compact` 1362 项通过／4 项跳过 PASS（rebase 前）；4 个 Dart 文件 `dart format --output=none --set-exit-if-changed` 无变化；`git diff --check` PASS。完整套件运行时的代码与测试内容与该提交一致；rebase 后定向与受影响套件已复跑，完整套件由 PR CI 覆盖。
+- 真机验证（2026-11-20，PASS）：Xiaomi `24129PN74C`／Android 17／API 37／arm64-v8a，`org.hnuhole.hnuhole_mobile` 1.2.0（`2026111701`）debug APK，构建于 rebase 前 HEAD `ea62171`（实现提交 `ed90104`，之后仅文档差异）；rebase 到 `dbbc249` 后修复提交为 `c16b8e6`，修复 diff 相同，但设备 APK 不含 #21 的无关改动；一次性本地开发 C/V 服务经 `adb reverse` 提供 `127.0.0.1:8443/8444`，一次性合成账号发布“Avatar check”合成帖。首页已显示该帖默认字母头像后，在“我的”页更换为橙蓝测试图，返回首页未打开详情、未重启即原位更新为橙蓝图；详情与“我的”页同步。第二次在首页滚动到“作者主页验收帖 6/5/4/3”后更换为绿星图，返回首页后四张卡片的屏幕位置逐项一致，列表顺序未变，滚回顶部后本人帖子与页头均为绿星图；“我的”页亦为绿星图。服务端开发库记录头像由 `default-v1` 更新为 `avatar-v1:…`。截图留存于本地未提交的 `.zcode/device-avatar-{17,24,25,26,27,28}-*.png`。强制身份目录读取失败/重试注入与分页游标直接观测 `NOT_RUN`；产品 CI：PR [#25](https://github.com/zewbby/SpeechFUL-Develop/pull/25) head `0e5a6f3` 的 24 项检查 success、1 项 skip（`actual-process-acceptance` 按设计跳过），无 failure，`mergeable_state: clean`。
+- 回滚：`git revert c16b8e6`（rebase 前 `ed90104`）；无迁移、服务端或发布步骤。
+- 任务：`docs/tasks/AVATAR-FEED-PROJECTION-01.md`
+- 授权：用户 2026-11-19 报告“修改头像后主页我发过帖子的头像不会改变，点进帖子页又更新，别人改头像我能看到更新”；本次授权范围为该展示同步修复。用户 2026-11-20 指令“提交pr”，已推送 `fix/avatar-feed-projection` 并创建 PR [#25](https://github.com/zewbby/SpeechFUL-Develop/pull/25)；未授权合并、发布或部署。
+
 ## 2026-11-17 17:02 · 点击图片复用已加载预览
 
 - 状态：已完成（已推送并创建 PR [#18](https://github.com/zewbby/SpeechFUL-Develop/pull/18)，未合并）

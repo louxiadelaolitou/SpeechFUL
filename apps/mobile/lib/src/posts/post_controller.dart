@@ -786,6 +786,7 @@ class PostController extends ChangeNotifier {
 
   /// 身份管理返回时刷新已显示的公共投影，保留当前列表顺序与分页游标。
   Future<void> refreshKnownPosts() async {
+    await _homeFeed.refreshDisplayedProjections();
     _PostAuthority? a;
     try {
       a = await _authority();
