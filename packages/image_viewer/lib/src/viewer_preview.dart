@@ -202,16 +202,14 @@ class _ViewerPreviewPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final image = this.image;
     if (image == null) return;
+    // 预览与完整来源首帧使用同一 contain 基准，避免加载完成时比例跳变。
     final contain = math.min(
       size.width / image.width,
       size.height / image.height,
     );
-    final baseline = math.max(contain, size.width / image.width);
-    final scale = baseline * (reading?.zoomFactor ?? 1);
+    final scale = contain * (reading?.zoomFactor ?? 1);
     final width = image.width * scale, height = image.height * scale;
-    final anchor =
-        reading?.normalizedAnchor ??
-        Offset(.5, height > size.height ? size.height / (2 * height) : .5);
+    final anchor = reading?.normalizedAnchor ?? const Offset(.5, .5);
     final left = width <= size.width
         ? (size.width - width) / 2
         : (size.width / 2 - width * anchor.dx)

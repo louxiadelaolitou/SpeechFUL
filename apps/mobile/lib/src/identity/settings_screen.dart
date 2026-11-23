@@ -8,7 +8,6 @@ import '../auth/auth_presentation.dart';
 import '../auth/auth_session_controller.dart';
 import '../design_system/telegram_theme.dart';
 import '../design_system/motion.dart';
-import '../design_system/motion_routes.dart';
 import '../localization/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -1312,25 +1311,57 @@ class _SupportSettingsState extends State<_SupportSettings>
     });
   }
 
-  Future<void> _expand() => showDialog<void>(
+  Future<void> _showCode() => showModalBottomSheet<void>(
     context: context,
-    animationStyle: HhMotionRoutes.popup(context),
-    builder: (dialog) => Dialog.fullscreen(
-      child: Scaffold(
-        appBar: AppBar(title: Text(hhText(dialog, '支付宝收款码'))),
-        body: Center(
-          child: InteractiveViewer(
-            minScale: 1,
-            maxScale: 5,
-            child: Image.asset(
-              asset,
-              fit: BoxFit.contain,
-              semanticLabel: hhText(dialog, '支付宝收款码'),
+    showDragHandle: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: HhTelegramPalette.of(context).surface,
+    builder: (sheet) {
+      final p = HhTelegramPalette.of(sheet);
+      final maxCodeHeight = MediaQuery.sizeOf(sheet).height * .52;
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              hhText(sheet, '支付宝收款码'),
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: p.ink,
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 300,
+                maxHeight: maxCodeHeight,
+              ),
+              child: AspectRatio(
+                aspectRatio: 2 / 3,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    asset,
+                    key: const ValueKey('settings-support-code'),
+                    fit: BoxFit.contain,
+                    semanticLabel: hhText(sheet, '支付宝收款码'),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              hhText(sheet, '使用支付宝扫一扫，或保存收款码后从相册识别。'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 1.6, color: p.secondary),
+            ),
+          ],
         ),
-      ),
-    ),
+      );
+    },
   );
   @override
   void dispose() {
@@ -1340,60 +1371,239 @@ class _SupportSettingsState extends State<_SupportSettings>
   }
 
   @override
-  Widget build(BuildContext context) => _SettingsPage(
-    title: '支持我们',
-    child: ListView(
-      key: const ValueKey('settings-support-page'),
-      padding: const EdgeInsets.all(22),
-      children: [
-        HhPressFeedback(
-          pressedScale: .99,
-          builder: (context, states) => InkWell(
-            statesController: states,
-            key: const ValueKey('settings-support-code'),
-            onTap: _expand,
-            child: AspectRatio(
-              aspectRatio: 2 / 3,
-              child: Image.asset(
-                asset,
-                fit: BoxFit.contain,
-                semanticLabel: hhText(context, '支付宝收款码'),
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    return _SettingsPage(
+      title: '支持我们',
+      child: ColoredBox(
+        color: p.background,
+        child: ListView(
+          key: const ValueKey('settings-support-page'),
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          children: [
+            Row(
+              key: const ValueKey('settings-support-intro'),
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: p.accent.withValues(alpha: .12),
+                  ),
+                  child: ExcludeSemantics(
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      size: 22,
+                      color: p.accent,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    hhText(context, '感谢你支持 SpeechFUL'),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                      color: p.ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _SupportCard(
+              key: const ValueKey('settings-support-code-card'),
+              padding: EdgeInsets.zero,
+              child: HhPressFeedback(
+                pressedScale: .99,
+                builder: (context, states) => Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: const ValueKey('settings-support-code-entry'),
+                    statesController: states,
+                    onTap: _showCode,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: p.accent.withValues(alpha: .12),
+                            ),
+                            child: ExcludeSemantics(
+                              child: Icon(
+                                Icons.qr_code_2_rounded,
+                                size: 21,
+                                color: p.accent,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hhText(context, '支付宝收款码'),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.35,
+                                    color: p.ink,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  hhText(context, '点击查看收款码'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: p.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ExcludeSemantics(
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              size: 22,
+                              color: p.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          hhText(context, '您的支持将全数用于开发与维护SpeechFUL项目'),
-          key: const ValueKey('settings-support-purpose'),
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, height: 1.5),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          hhText(context, '使用支付宝扫一扫，或保存收款码后从相册识别。'),
-          style: const TextStyle(height: 1.5),
-        ),
-        const SizedBox(height: 16),
-        HhPressFeedback(
-          enabled: !_busy,
-          builder: (context, states) => OutlinedButton.icon(
-            statesController: states,
-            key: const ValueKey('settings-support-save'),
-            onPressed: _busy ? null : _save,
-            icon: const Icon(Icons.save_alt_rounded),
-            label: Text(hhText(context, _busy ? '保存中…' : '保存收款码')),
-          ),
-        ),
-        if (_message != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(hhText(context, _message!)),
+            const SizedBox(height: 14),
+            _SupportCard(
+              key: const ValueKey('settings-support-purpose-card'),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: p.accent.withValues(alpha: .12),
+                    ),
+                    child: ExcludeSemantics(
+                      child: Icon(
+                        Icons.volunteer_activism_outlined,
+                        size: 18,
+                        color: p.accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      hhText(context, '您的支持将全数用于开发与维护SpeechFUL项目'),
+                      key: const ValueKey('settings-support-purpose'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.65,
+                        color: p.ink.withValues(alpha: .88),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-      ],
-    ),
-  );
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ExcludeSemantics(
+                    child: Icon(
+                      Icons.qr_code_scanner_rounded,
+                      size: 18,
+                      color: p.secondary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      hhText(context, '使用支付宝扫一扫，或保存收款码后从相册识别。'),
+                      key: const ValueKey('settings-support-instructions'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.6,
+                        color: p.secondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            HhPressFeedback(
+              enabled: !_busy,
+              builder: (context, states) => FilledButton.icon(
+                statesController: states,
+                key: const ValueKey('settings-support-save'),
+                onPressed: _busy ? null : _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                icon: const Icon(Icons.save_alt_rounded, size: 20),
+                label: Text(hhText(context, _busy ? '保存中…' : '保存收款码')),
+              ),
+            ),
+            if (_message != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Semantics(
+                  key: const ValueKey('settings-support-status'),
+                  liveRegion: true,
+                  child: Text(
+                    hhText(context, _message!),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, height: 1.5, color: p.ink),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded surface used by the support page's card sections.
+class _SupportCard extends StatelessWidget {
+  const _SupportCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.line),
+      ),
+      child: Padding(padding: padding, child: child),
+    );
+  }
 }

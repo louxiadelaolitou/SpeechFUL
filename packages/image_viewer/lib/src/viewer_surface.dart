@@ -41,7 +41,9 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
   Size? _lastSize;
   ViewerSource? _displaySource;
   String? _displayId;
-  double _baseline = 1;
+
+  /// 首帧始终完整 contain，阅读缩放相对该基准；长图不再先铺满宽度。
+  static const double _baseline = 1;
   bool _restorePending = false;
   bool _restoreScheduled = false;
   Object? _reportedFailure;
@@ -433,17 +435,6 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
             _rejected = true;
           }
           _lastSize = size;
-          if (source != null) {
-            final contain = math.min(
-              size.width / source.pixelSize.width,
-              size.height / source.pixelSize.height,
-            );
-            _baseline = math.max(
-              1,
-              size.width / source.pixelSize.width / contain,
-            );
-          }
-          final baseline = _baseline;
           return Transform.translate(
             key: const ValueKey('viewer-dismiss-transform'),
             offset: _dismissOffset,
@@ -543,14 +534,12 @@ class _ViewerSurfaceState extends State<_ViewerSurface>
                           );
                         },
                         initGestureConfigHandler: (_) => GestureConfig(
-                          initialScale: baseline,
-                          minScale: baseline,
-                          maxScale: baseline * 4,
-                          animationMinScale: baseline,
-                          animationMaxScale: baseline * 4,
-                          initialAlignment: baseline > 1
-                              ? InitialAlignment.topCenter
-                              : InitialAlignment.center,
+                          initialScale: _baseline,
+                          minScale: _baseline,
+                          maxScale: _baseline * 4,
+                          animationMinScale: _baseline,
+                          animationMaxScale: _baseline * 4,
+                          initialAlignment: InitialAlignment.center,
                           inPageView: false,
                           cacheGesture: false,
                           inertialSpeed: 100,

@@ -441,6 +441,80 @@ void main() {
       expect(preview.evictions, 0);
     },
   );
+  testWidgets(
+    'caller preview first frame is fully contained at the original ratio',
+    (tester) async {
+      final pending = Completer<ViewerSource>();
+      final tall = (await tester.runAsync(() async {
+        const width = 60, height = 300;
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        canvas.drawRect(
+          Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+          Paint()..color = const Color(0xFFFF0000),
+        );
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(width, height);
+        picture.dispose();
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        return MemoryImage(data!.buffer.asUint8List());
+      }))!;
+      final controller = ViewerController(
+        items: [
+          ViewerItem(
+            id: 'tall-preview',
+            loadSource: () => pending.future,
+            previewProvider: tall,
+          ),
+        ],
+      );
+      await mount(tester, controller);
+      await frames(tester);
+      final preview = find.byKey(const ValueKey('viewer-item-preview'));
+      expect(preview, findsOneWidget);
+      final paintFinder = find.descendant(
+        of: preview,
+        matching: find.byType(CustomPaint),
+      );
+      final size = tester.getSize(paintFinder.first);
+      final painter = tester.widget<CustomPaint>(paintFinder.first).painter!;
+      final recorder = ui.PictureRecorder();
+      painter.paint(Canvas(recorder), size);
+      final picture = recorder.endRecording();
+      final w = size.width.ceil(), h = size.height.ceil();
+      final rendered = (await tester.runAsync(() => picture.toImage(w, h)))!;
+      picture.dispose();
+      final data = (await tester.runAsync(
+        () => rendered.toByteData(format: ui.ImageByteFormat.rawRgba),
+      ))!;
+      rendered.dispose();
+      final pixels = data.buffer.asUint8List();
+      int? top, bottom, left, right;
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          if (pixels[(y * w + x) * 4 + 3] == 0) continue;
+          top ??= y;
+          bottom = y;
+          left = left == null || x < left ? x : left;
+          right = right == null || x > right ? x : right;
+        }
+      }
+      expect(top, isNotNull);
+      // 完整高度绘制、宽度按原比例居中：首帧 contain，而不是铺满宽度。
+      expect(top!, lessThanOrEqualTo(1));
+      expect(bottom!, greaterThanOrEqualTo(h - 2));
+      final expectedWidth = h * 60 / 300;
+      expect((right! - left! + 1).toDouble(), closeTo(expectedWidth, 2));
+      expect(left.toDouble(), closeTo((w - expectedWidth) / 2, 2));
+      expect((right - left + 1) / (bottom - top + 1), closeTo(60 / 300, .01));
+      // 预览不改变来源加载与就绪状态。
+      expect(controller.status, ViewerLoadStatus.loading);
+      pending.complete(source());
+      await frames(tester);
+      expect(controller.status, ViewerLoadStatus.ready);
+    },
+  );
   testWidgets('preview decode failure falls back to a loading indicator', (
     tester,
   ) async {
@@ -804,21 +878,40 @@ void main() {
       expect(controller.status, ViewerLoadStatus.ready);
     },
   );
-  testWidgets('ordinary image is centered; long image fits width from top', (
-    tester,
-  ) async {
-    final controller = ViewerController(
-      items: [item('short'), item('long', 'long.png')],
-    );
-    await mount(tester, controller);
-    var details = gesture(tester).gestureDetails!;
-    expect(details.destinationRect!.center, details.layoutRect!.center);
-    controller.select(1);
-    await frames(tester);
-    details = gesture(tester).gestureDetails!;
-    expect(details.destinationRect!.width, closeTo(400, 0.1));
-    expect(details.destinationRect!.top, closeTo(details.layoutRect!.top, 0.1));
-  });
+  testWidgets(
+    'ordinary and long images first render fully contained at their own ratio',
+    (tester) async {
+      final controller = ViewerController(
+        items: [item('short'), item('long', 'long.png')],
+      );
+      await mount(tester, controller);
+      var details = gesture(tester).gestureDetails!;
+      expect(gesture(tester).imageGestureConfig!.initialScale, 1);
+      expect(details.totalScale, 1);
+      expect(details.destinationRect!.center, details.layoutRect!.center);
+      expect(
+        details.destinationRect!.width / details.destinationRect!.height,
+        closeTo(640 / 480, 0.001),
+      );
+      controller.select(1);
+      await frames(tester);
+      details = gesture(tester).gestureDetails!;
+      expect(details.totalScale, 1);
+      expect(
+        details.destinationRect!.width / details.destinationRect!.height,
+        closeTo(480 / 2400, 0.001),
+      );
+      expect(
+        details.destinationRect!.height,
+        lessThanOrEqualTo(details.layoutRect!.height + .5),
+      );
+      expect(
+        details.destinationRect!.width,
+        lessThanOrEqualTo(details.layoutRect!.width + .5),
+      );
+      expect(details.destinationRect!.center, details.layoutRect!.center);
+    },
+  );
   testWidgets('reading position follows stable ID across paging', (
     tester,
   ) async {
@@ -826,6 +919,12 @@ void main() {
       items: [item('long', 'long.png'), item('b')],
     );
     await mount(tester, controller);
+    final state = gesture(tester);
+    state.handleDoubleTap(
+      scale: state.imageGestureConfig!.initialScale * 2,
+      doubleTapPosition: const Offset(200, 300),
+    );
+    await frames(tester);
     await drag(tester, const Offset(0, -220));
     final before = gesture(tester).gestureDetails!.destinationRect!.top;
     controller.select(1);
@@ -920,7 +1019,12 @@ void main() {
     final reasons = <ViewerCloseReason>[];
     final controller = ViewerController(items: [item('long', 'long.png')]);
     await mount(tester, controller, onClosed: reasons.add);
-    await drag(tester, const Offset(0, -220));
+    final state = gesture(tester);
+    state.handleDoubleTap(
+      scale: state.imageGestureConfig!.initialScale * 2,
+      doubleTapPosition: const Offset(200, 300),
+    );
+    await frames(tester);
     final rect = tester.getRect(find.byKey(const ValueKey('viewer-pages')));
     final pointer = await tester.startGesture(rect.center);
     for (var i = 0; i < 12; i++) {
@@ -934,6 +1038,8 @@ void main() {
     }
     await pointer.up();
     await frames(tester, 4);
+    gesture(tester).reset();
+    await frames(tester, 3);
     await drag(tester, const Offset(0, 160));
     expect(reasons, [ViewerCloseReason.gesture]);
     expect(find.byType(HnuImageViewer), findsOneWidget);

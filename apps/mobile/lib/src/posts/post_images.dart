@@ -9,6 +9,13 @@ import 'package:hnuhole_image_viewer/image_viewer.dart';
 
 import '../design_system/motion.dart';
 
+/// 预览卡片的宽高比范围；范围内的图片严格按原比例展示。
+const _minFeedRatio = .5;
+const _maxFeedRatio = 3.0;
+
+/// 极端竖图（窄于 1:2）的最大高度；比例范围内的竖图不受此限制。
+const _maxFeedSingleHeight = 480.0;
+
 /// The host authorizes both providers and the complete original resolver.
 /// A thumbnail is only a preview; [item] must load the full viewing resource.
 class PostImage {
@@ -538,7 +545,13 @@ class _PostImagesSectionState extends State<PostImagesSection>
         return size == null ? 1 : size.width / size.height;
       }
 
-      Widget card(int index, double w, double h) => SizedBox(
+      Widget card(
+        int index,
+        double w,
+        double h, {
+        bool previewCropped = false,
+        bool showFullHint = false,
+      }) => SizedBox(
         width: w,
         height: h,
         child: Semantics(
@@ -569,11 +582,53 @@ class _PostImagesSectionState extends State<PostImagesSection>
                         group!.images[index].item.id,
                       )),
                       statesController: states,
-                      onTap: () => _open(index, origin: _originOf(context)),
-                      child: _PostThumbnail(
-                        key: ValueKey(group.images[index]),
-                        image: group.images[index],
-                        fit: BoxFit.cover,
+                      // 裁切过的卡片不能作为查看器的首帧几何：直接渐显，
+                      // 避免先按裁切框缩放再跳成完整的原始比例。
+                      onTap: () => _open(
+                        index,
+                        origin: previewCropped ? null : _originOf(context),
+                      ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _PostThumbnail(
+                            key: ValueKey(group.images[index]),
+                            image: group.images[index],
+                            fit: BoxFit.cover,
+                          ),
+                          if (showFullHint)
+                            Positioned(
+                              left: 8,
+                              right: 8,
+                              bottom: 8,
+                              child: IgnorePointer(
+                                child: Align(
+                                  alignment: Alignment.bottomCenter,
+                                  child: DecoratedBox(
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.all(
+                                        Radius.circular(4),
+                                      ),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      child: Text(
+                                        hhText(context, '点击查看完整图片'),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -583,20 +638,39 @@ class _PostImagesSectionState extends State<PostImagesSection>
       );
       if (sizes.length == 1) {
         final r = ratio(sizes.first);
-        // 单图：宽度铺满、高度按原比例，不裁切也不留边；窄于 1:2 的超高图
-        // 取垂直中段方形，与多图一致地保持卡片观感。
+        // 单图：0.5–3.0 范围内严格按原宽高比、宽度铺满，不裁切；只有超出
+        // 范围的极端长图/宽图才限幅，极端竖图同时限制最大高度。
+        final extreme = r < _minFeedRatio || r > _maxFeedRatio;
+        final displayRatio = r.clamp(_minFeedRatio, _maxFeedRatio).toDouble();
         final inner = width - inset * 2;
+        var height = inner / displayRatio;
+        if (r < _minFeedRatio && height > _maxFeedSingleHeight) {
+          height = _maxFeedSingleHeight;
+        }
         return Padding(
           padding: EdgeInsets.fromLTRB(inset, 2, inset, 0),
-          child: card(0, inner, r < .5 ? inner : inner / r),
+          child: card(
+            0,
+            inner,
+            height,
+            previewCropped: extreme,
+            showFullHint: extreme,
+          ),
         );
       }
       final height = (width * .8).clamp(160.0, 260.0);
-      // 多图：容器高度固定，每张高度等于容器高、宽度按原宽高比缩放，只缩放
-      // 不裁切；长截图与全景改为中心方形，避免过高过窄或超宽的单张。
+      // 多图：容器等高，每张宽度按原宽高比计算，cover 恰好填满卡片，同一行
+      // 无信箱留白或拉伸；极端比例限幅到 1:2–3:1，只做有界裁切。
       double tileWidth(int index) {
+        final r = ratio(sizes[index])
+            .clamp(_minFeedRatio, _maxFeedRatio)
+            .toDouble();
+        return height * r;
+      }
+
+      bool tileCropped(int index) {
         final r = ratio(sizes[index]);
-        return r < .5 || r > 2 ? height : height * r;
+        return r < _minFeedRatio || r > _maxFeedRatio;
       }
 
       return Padding(
@@ -610,7 +684,8 @@ class _PostImagesSectionState extends State<PostImagesSection>
             padding: EdgeInsets.only(left: inset),
             itemCount: sizes.length,
             separatorBuilder: (_, _) => const SizedBox(width: 5),
-            itemBuilder: (_, i) => card(i, tileWidth(i), height),
+            itemBuilder: (_, i) =>
+                card(i, tileWidth(i), height, previewCropped: tileCropped(i)),
           ),
         ),
       );

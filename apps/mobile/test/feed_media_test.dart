@@ -224,14 +224,14 @@ void main() {
     },
   );
   testWidgets(
-    'single image keeps its own ratio without bars; extreme tall becomes square',
+    'single image keeps its original ratio; only bounded extremes crop with a hint',
     (tester) async {
       final authority = ValueNotifier(true), access = ValueNotifier(true);
       for (final size in [
         const Size(1600, 900),
         const Size(900, 1200),
+        const Size(900, 1600),
         const Size(900, 900),
-        const Size(100, 3000),
       ]) {
         await tester.pumpWidget(
           section(authority, group([media('single', size)], access)),
@@ -242,10 +242,85 @@ void main() {
         );
         final ratio = size.width / size.height;
         expect(actual.width, 317);
-        // 宽度铺满、高度按原比例；窄于 1:2 的超高图取中段方形。
-        expect(actual.height, closeTo(ratio < .5 ? 317 : 317 / ratio, .1));
+        // 正常比例：宽度铺满、高度严格按原比例，不裁切也不提示。
+        expect(actual.height, closeTo(317 / ratio, .1));
+        expect(find.text('点击查看完整图片'), findsNothing);
+        expect(tester.widget<Image>(find.byType(Image)).fit, BoxFit.cover);
         await tester.pumpWidget(const SizedBox());
       }
+      for (final (size, height) in [
+        // 超出 1:2 的极端竖图：限幅后高度封顶 480，裁切并提示查看完整图片。
+        (const Size(100, 3000), 480.0),
+        // 超宽图：宽高比限幅到 3:1，高度由限幅比例决定，同样裁切并提示。
+        (const Size(3000, 100), 317 / 3),
+      ]) {
+        await tester.pumpWidget(
+          section(authority, group([media('single', size)], access)),
+        );
+        await frames(tester);
+        final card = find.byKey(const ValueKey(('feed-image', 'single')));
+        final actual = tester.getSize(card);
+        expect(actual.width, 317);
+        expect(actual.height, closeTo(height, .1));
+        expect(find.text('点击查看完整图片'), findsOneWidget);
+        // 裁切由 cover 在固定卡片内完成，不会变形或留边。
+        expect(
+          tester
+              .widget<Image>(
+                find.descendant(of: card, matching: find.byType(Image)),
+              )
+              .fit,
+          BoxFit.cover,
+        );
+        await tester.pumpWidget(const SizedBox());
+      }
+      authority.dispose();
+      access.dispose();
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'multi image row keeps one height and each original ratio without bars',
+    (tester) async {
+      final authority = ValueNotifier(true), access = ValueNotifier(true);
+      final height = (317 * .8).clamp(160.0, 260.0);
+      Future<void> expectRow(List<Size> sizes, List<double> ratios) async {
+        await tester.pumpWidget(
+          section(
+            authority,
+            group([
+              for (var i = 0; i < sizes.length; i++)
+                media('multi-$i', sizes[i]),
+            ], access),
+          ),
+        );
+        await frames(tester);
+        for (var i = 0; i < sizes.length; i++) {
+          final card = find.byKey(ValueKey(('feed-image', 'multi-$i')));
+          final actual = tester.getSize(card);
+          expect(actual.height, closeTo(height, .1));
+          expect(actual.width, closeTo(height * ratios[i], .1));
+          // 卡片宽高比与期望的（限幅后）原图一致，cover 时没有信箱留白或拉伸。
+          expect(actual.width / actual.height, closeTo(ratios[i], .001));
+          expect(
+            tester
+                .widget<Image>(
+                  find.descendant(of: card, matching: find.byType(Image)),
+                )
+                .fit,
+            BoxFit.cover,
+          );
+        }
+        await tester.pumpWidget(const SizedBox());
+      }
+
+      // 正常比例：逐张按原宽高比计算宽度，等高且无留白。
+      await expectRow(
+        const [Size(900, 1200), Size(1600, 900)],
+        const [900 / 1200, 1600 / 900],
+      );
+      // 极端比例：限幅到 1:2 与 3:1，只做有界裁切，仍保持同一行等高。
+      await expectRow(const [Size(100, 3000), Size(3000, 100)], const [.5, 3]);
       authority.dispose();
       access.dispose();
       expect(tester.takeException(), isNull);

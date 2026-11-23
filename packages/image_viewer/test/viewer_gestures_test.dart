@@ -413,19 +413,43 @@ void main() {
     await frames(tester);
     expect(find.text('原页面'), findsOneWidget);
   });
-  testWidgets('long image upward movement reads the image without dismissing', (
-    tester,
-  ) async {
-    final c = ViewerController(items: [item('long', tall: true)]);
-    await open(tester, c);
-    final g = await tester.startGesture(viewport(tester).center);
-    await g.moveBy(const Offset(0, -180));
-    await tester.pump();
-    expect(alpha(tester), 1);
-    await g.up();
-    await frames(tester);
-    expect(c.active, isTrue);
-  });
+  testWidgets(
+    'long image first fits fully and a zoomed upward drag reads without dismissing',
+    (tester) async {
+      final c = ViewerController(items: [item('long', tall: true)]);
+      await open(tester, c);
+      final state = tester.state<ExtendedImageGestureState>(
+        find.byType(ExtendedImageGesture),
+      );
+      final details = state.gestureDetails!;
+      expect(state.imageGestureConfig!.initialScale, 1);
+      expect(
+        details.destinationRect!.height,
+        lessThanOrEqualTo(details.layoutRect!.height + .5),
+      );
+      expect(
+        details.destinationRect!.width,
+        lessThanOrEqualTo(details.layoutRect!.width + .5),
+      );
+      expect(
+        details.destinationRect!.width / details.destinationRect!.height,
+        closeTo(480 / 2400, .001),
+      );
+      // 首帧完整可见；放大后向上拖动才是阅读而不是退出。
+      state.handleDoubleTap(
+        scale: state.imageGestureConfig!.initialScale * 2,
+        doubleTapPosition: viewport(tester).center,
+      );
+      await frames(tester);
+      final g = await tester.startGesture(viewport(tester).center);
+      await g.moveBy(const Offset(0, -180));
+      await tester.pump();
+      expect(alpha(tester), 1);
+      await g.up();
+      await frames(tester);
+      expect(c.active, isTrue);
+    },
+  );
   testWidgets(
     'a neighbor loads when exposed, and visited pages do not reload or flash',
     (tester) async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +24,30 @@ class _DeniedGallery implements ViewerGalleryWriter {
     writes++;
   }
 }
+
+class _PendingGallery implements ViewerGalleryWriter {
+  final access = Completer<bool>();
+  @override
+  Future<bool> hasAccess() async => false;
+  @override
+  Future<bool> requestAccess() => access.future;
+  @override
+  Future<void> putImage(String path) async {}
+}
+
+class _ThrowingGallery implements ViewerGalleryWriter {
+  @override
+  Future<bool> hasAccess() async => false;
+  @override
+  Future<bool> requestAccess() async => throw StateError('permission failed');
+  @override
+  Future<void> putImage(String path) async {}
+}
+
+Finder _supportScrollable() => find.descendant(
+  of: find.byKey(const ValueKey('settings-support-page')),
+  matching: find.byType(Scrollable),
+);
 
 Future<void> _open(WidgetTester tester, String key) async {
   final scroll = find.descendant(
@@ -138,23 +164,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       await _open(tester, 'support');
+      final entry = find.byKey(const ValueKey('settings-support-code-entry'));
+      expect(find.byKey(const ValueKey('settings-support-code')), findsNothing);
+      await tester.ensureVisible(entry);
+      await tester.pumpAndSettle();
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
       final code = find.byKey(const ValueKey('settings-support-code'));
-      await tester.ensureVisible(code);
-      await tester.pumpAndSettle();
-      await tester.tap(code);
-      await tester.pumpAndSettle();
-      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(code, findsOneWidget);
       expect(
-        (tester
-                    .widget<Image>(
-                      find.descendant(
-                        of: find.byType(InteractiveViewer),
-                        matching: find.byType(Image),
-                      ),
-                    )
-                    .image
-                as AssetImage)
-            .assetName,
+        (tester.widget<Image>(code).image as AssetImage).assetName,
         'assets/support/alipay-receive.jpg',
       );
       await tester.binding.handlePopRoute();
@@ -308,20 +327,20 @@ void main() {
         find.byKey(const ValueKey('settings-support-page')),
         findsOneWidget,
       );
-      expect(
-        find.byKey(const ValueKey('settings-support-code')),
-        findsOneWidget,
+      expect(find.byKey(const ValueKey('settings-support-code')), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('settings-support-code-entry')),
       );
+      await tester.pumpAndSettle();
       final image = tester.widget<Image>(
-        find.descendant(
-          of: find.byKey(const ValueKey('settings-support-code')),
-          matching: find.byType(Image),
-        ),
+        find.byKey(const ValueKey('settings-support-code')),
       );
       expect(
         (image.image as AssetImage).assetName,
         'assets/support/alipay-receive.jpg',
       );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
       for (final language in AppLanguage.values) {
         c.setLanguage(language);
         await tester.pumpAndSettle();
@@ -348,6 +367,229 @@ void main() {
       }
       await tester.pumpWidget(const SizedBox());
       c.dispose();
+    },
+  );
+  testWidgets('support page exposes card sections and a primary save action', (
+    tester,
+  ) async {
+    final c = AuthPresentationController();
+    await tester.pumpWidget(_app(c));
+    await tester.pumpAndSettle();
+    await _open(tester, 'support');
+    expect(
+      find.byKey(const ValueKey('settings-support-intro')),
+      findsOneWidget,
+    );
+    final codeCard = find.byKey(const ValueKey('settings-support-code-card'));
+    expect(codeCard, findsOneWidget);
+    expect(
+      find.descendant(
+        of: codeCard,
+        matching: find.byKey(const ValueKey('settings-support-code-entry')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-support-code')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('settings-support-code-entry')));
+    await tester.pumpAndSettle();
+    // 收款码受限最大宽度，宽屏上不被无限放大。
+    expect(
+      tester.getSize(find.byKey(const ValueKey('settings-support-code'))).width,
+      lessThanOrEqualTo(300),
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    final save = find.byKey(const ValueKey('settings-support-save'));
+    await tester.scrollUntilVisible(
+      save,
+      160,
+      scrollable: _supportScrollable(),
+    );
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-support-purpose-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-support-instructions')),
+      findsOneWidget,
+    );
+    final purpose = tester.widget<Text>(
+      find.byKey(const ValueKey('settings-support-purpose')),
+    );
+    expect(purpose.maxLines, isNull);
+    expect(purpose.overflow, isNull);
+    final button = tester.widget<FilledButton>(save);
+    expect(button.onPressed, isNotNull);
+    expect(
+      find.descendant(of: save, matching: find.text('保存收款码')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-support-status')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+  testWidgets(
+    'support save disables while busy and announces a denied result',
+    (tester) async {
+      final c = AuthPresentationController();
+      final gallery = _PendingGallery();
+      await tester.pumpWidget(
+        _app(
+          c,
+          settings: SettingsScreen(
+            onManageIdentity: () {},
+            onManageSecurity: () {},
+            onLogout: () {},
+            supportGalleryWriter: gallery,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _open(tester, 'support');
+      final save = find.byKey(const ValueKey('settings-support-save'));
+      await tester.scrollUntilVisible(
+        save,
+        160,
+        scrollable: _supportScrollable(),
+      );
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
+      await tester.pump();
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+      expect(find.text('保存中…'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('settings-support-status')),
+        findsNothing,
+      );
+      gallery.access.complete(false);
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+      expect(find.text('保存收款码'), findsOneWidget);
+      expect(find.text('保存中…'), findsNothing);
+      final status = find.byKey(const ValueKey('settings-support-status'));
+      expect(status, findsOneWidget);
+      expect(tester.widget<Semantics>(status).properties.liveRegion, isTrue);
+      expect(find.text('请允许访问相册后重试'), findsOneWidget);
+      expect(find.text('收款码已保存到相册'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
+  testWidgets('support save reports an unspecified failure without success', (
+    tester,
+  ) async {
+    final c = AuthPresentationController();
+    await tester.pumpWidget(
+      _app(
+        c,
+        settings: SettingsScreen(
+          onManageIdentity: () {},
+          onManageSecurity: () {},
+          onLogout: () {},
+          supportGalleryWriter: _ThrowingGallery(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _open(tester, 'support');
+    final save = find.byKey(const ValueKey('settings-support-save'));
+    await tester.scrollUntilVisible(
+      save,
+      160,
+      scrollable: _supportScrollable(),
+    );
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('暂时无法保存，请重试'), findsOneWidget);
+    expect(find.text('收款码已保存到相册'), findsNothing);
+    expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+    expect(
+      tester
+          .widget<Semantics>(
+            find.byKey(const ValueKey('settings-support-status')),
+          )
+          .properties
+          .liveRegion,
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
+  testWidgets(
+    'support layout stays scrollable on narrow large-text and landscape screens',
+    (tester) async {
+      final c = AuthPresentationController();
+      addTearDown(c.dispose);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      const scenarios = [
+        (Size(320, 740), 1.8),
+        (Size(740, 360), 1.3),
+        (Size(1000, 800), 1.0),
+      ];
+      for (final (size, scale) in scenarios) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(_app(c));
+        await tester.pumpAndSettle();
+        await _open(tester, 'support');
+        expect(
+          find.byKey(const ValueKey('settings-support-code-card')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('settings-support-code')),
+          findsNothing,
+        );
+        await tester.tap(
+          find.byKey(const ValueKey('settings-support-code-entry')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey('settings-support-code')))
+              .width,
+          lessThanOrEqualTo(300),
+          reason: '${size.width}x${size.height} @ $scale',
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: '${size.width}x${size.height} @ $scale',
+        );
+        final save = find.byKey(const ValueKey('settings-support-save'));
+        await tester.scrollUntilVisible(
+          save,
+          200,
+          scrollable: _supportScrollable(),
+        );
+        await tester.ensureVisible(save);
+        await tester.pumpAndSettle();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: '${size.width}x${size.height} @ $scale',
+        );
+        expect(save, findsOneWidget);
+        final purpose = tester.widget<Text>(
+          find.byKey(const ValueKey('settings-support-purpose')),
+        );
+        expect(purpose.maxLines, isNull);
+        expect(purpose.overflow, isNull);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+      }
+      await tester.pumpWidget(const SizedBox());
     },
   );
 }

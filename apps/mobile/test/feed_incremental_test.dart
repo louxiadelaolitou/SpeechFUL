@@ -15,6 +15,7 @@ class _Api extends feed.FeedTestApi implements IncrementalFeedApi {
   final requests = <({String? channel, String? older, String? refresh})>[];
   final pages = <FeedWindow>[];
   Completer<PostResponse<FeedWindow>>? pending;
+  PostFailure? failure;
   @override
   Future<PostResponse<FeedWindow>> timelineWindow({
     required String sessionToken,
@@ -24,6 +25,9 @@ class _Api extends feed.FeedTestApi implements IncrementalFeedApi {
   }) async {
     requests.add((channel: channelId, older: cursor, refresh: refreshCursor));
     if (pending != null) return pending!.future;
+    final failure = this.failure;
+    this.failure = null;
+    if (failure != null) throw failure;
     return feed.reply(pages.removeAt(0));
   }
 }
@@ -49,6 +53,26 @@ FeedWindow _page(
   nextCursor: older,
   refreshCursor: refresh,
   insertAfter: after == null ? null : _id(after),
+);
+
+/// Minimal-height posts: used to exercise a short appended page while the
+/// viewport is still scrollable.
+FeedWindow _shortPage(Iterable<int> ids, {String? older}) => FeedWindow(
+  items: [
+    for (final n in ids)
+      FeedPost(
+        postId: _id(n),
+        channelId: feed.channelId,
+        title: '',
+        body: '',
+        author: feed.author,
+        publishedAt: feed.at,
+        viewCount: 1,
+      ),
+  ],
+  nextCursor: older,
+  refreshCursor: null,
+  insertAfter: null,
 );
 FeedController _controller(_Api api) => FeedController(
   api: api,
@@ -107,9 +131,11 @@ void main() {
     }
     await tester.drag(list, const Offset(0, -20000));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('加载更多'));
-    await tester.tap(find.text('加载更多'));
-    await tester.pumpAndSettle();
+    expect(
+      api.requests.where((r) => r.older == 'old-1').length,
+      1,
+      reason: 'reaching the bottom auto-loads exactly one older page',
+    );
     expect(fixture.controller.homeFeed.timelineItems.map((p) => p.postId), [
       for (var n = 28; n >= 2; n--) _id(n),
     ]);
@@ -118,6 +144,178 @@ void main() {
     expect(fixture.controller.homeFeed.timelineCursor, isNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('bottom auto-load reports pending and end states once', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = _Api()
+      ..pages.add(_page([10, 9, 8, 7, 6, 5, 4, 3, 2, 1], older: 'older'));
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.homeFeed.timelineItems.length, 10);
+
+    api.pending = Completer<PostResponse<FeedWindow>>();
+    final list = find.byKey(const ValueKey('production-feed'));
+    await tester.drag(list, const Offset(0, -20000));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('正在加载'), findsOneWidget);
+    expect(find.byKey(const ValueKey('feed-more-retry')), findsNothing);
+    expect(api.requests.where((r) => r.older == 'older').length, 1);
+
+    api.pending!.complete(
+      feed.reply(
+        FeedWindow(
+          items: const [],
+          nextCursor: null,
+          refreshCursor: null,
+          insertAfter: null,
+        ),
+      ),
+    );
+    api.pending = null;
+    await tester.pumpAndSettle();
+    expect(find.text('正在加载'), findsNothing);
+    expect(find.text('已经到底'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a single-page timeline reports the end on first load', (
+    tester,
+  ) async {
+    final api = _Api()..pages.add(_page([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]));
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    // The first page is already the last page; no older request is needed.
+    expect(api.requests.length, 1);
+    expect(fixture.controller.homeFeed.timelineCursor, isNull);
+    await tester.drag(
+      find.byKey(const ValueKey('production-feed')),
+      const Offset(0, -20000),
+    );
+    await tester.pumpAndSettle();
+    expect(api.requests.length, 1);
+    expect(find.text('已经到底'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a short older page keeps loading without another drag', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 500));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = _Api()
+      ..pages.addAll([
+        _shortPage([10, 9, 8, 7, 6, 5, 4, 3, 2, 1], older: 'older-1'),
+        _shortPage([11], older: 'older-2'),
+        _shortPage([12]),
+      ]);
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    expect(api.requests.length, 1);
+
+    final list = find.byKey(const ValueKey('production-feed'));
+    await tester.drag(list, const Offset(0, -20000));
+    await tester.pumpAndSettle();
+    // 第二页只有一条短内容；追加后仍在触底阈值内，应自动继续下一页。
+    expect(api.requests.length, 3);
+    expect(api.requests.map((r) => r.older).whereType<String>(), [
+      'older-1',
+      'older-2',
+    ]);
+    expect(fixture.controller.homeFeed.timelineCursor, isNull);
+    expect(find.text('已经到底'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('load-more failure keeps posts and retries from the footer', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = _Api()
+      ..pages.addAll([
+        _page([10, 9, 8, 7, 6, 5, 4, 3, 2, 1], older: 'older'),
+        _page([20, 19, 18, 17, 16]),
+      ]);
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    final generation = fixture.controller.homeFeed.timelineGeneration;
+
+    api.failure = const PostFailure(kind: PostFailureKind.transport);
+    final list = find.byKey(const ValueKey('production-feed'));
+    await tester.drag(list, const Offset(0, -20000));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.homeFeed.timelineItems.length, 10);
+    expect(find.text('加载失败，请重试'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('feed-more-retry')));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.homeFeed.timelineItems.length, 15);
+    expect(fixture.controller.homeFeed.timelineCursor, isNull);
+    expect(fixture.controller.homeFeed.timelineError, isNull);
+    expect(fixture.controller.homeFeed.timelineGeneration, generation);
+    expect(find.text('加载失败，请重试'), findsNothing);
+    // The new rows push the footer below the viewport; scroll to it again.
+    await tester.drag(list, const Offset(0, -20000));
+    await tester.pumpAndSettle();
+    expect(find.text('已经到底'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a short first page fills without a scroll gesture', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = _Api()
+      ..pages.addAll([
+        _page([3, 2], older: 'older'),
+        _page([1]),
+      ]);
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    expect(fixture.controller.homeFeed.timelineItems.map((p) => p.postId), [
+      _id(3),
+      _id(2),
+      _id(1),
+    ]);
+    expect(api.requests.length, 2);
+    expect(api.requests.last.older, 'older');
+    expect(find.text('已经到底'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a cursor that never advances cannot loop the viewport fill', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = _Api()
+      ..pages.addAll([
+        _page([2, 1], older: 'same'),
+        _page(const [], older: 'same'),
+      ]);
+    final fixture = feed.FeedFixture(await IdentityTestFixture.create(), api);
+    addTearDown(fixture.dispose);
+    await tester.pumpWidget(feed.screen(fixture));
+    await tester.pumpAndSettle();
+    expect(api.requests.length, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   test('initial ten, incremental newest five and gap insertion preserve old cursor', () async {
     final api = _Api()
       ..pages.addAll([

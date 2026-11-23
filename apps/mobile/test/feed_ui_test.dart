@@ -775,7 +775,11 @@ void main() {
         f.api.calls.where((s) => s == 'feed:recommended:first:20'),
         hasLength(2),
       );
-      await tester.tap(find.text('加载更多'));
+      expect(find.text('加载更多'), findsNothing);
+      await f.controller.homeFeed.loadTimeline(
+        channelId: f.controller.homeFeed.timelineChannelId,
+        more: true,
+      );
       await tester.pumpAndSettle();
       expect(
         f.api.calls.lastWhere((s) => s.startsWith('feed:')),
@@ -800,15 +804,26 @@ void main() {
         const Offset(0, 280),
       );
       await tester.pumpAndSettle();
-      expect(
-        f.api.calls.lastWhere((s) => s.startsWith('feed:')),
+      // The refreshed first page is short, so the near-bottom fill continues
+      // into the older page before the manual load-more below.
+      final feedCalls = f.api.calls
+          .where((s) => s.startsWith('feed:'))
+          .toList();
+      expect(feedCalls.sublist(feedCalls.length - 2), [
         'feed:recommended:first:20',
-      );
+        'feed:recommended:older:20',
+      ]);
       expect(f.controller.timelineItems.map((p) => p.postId), [
         newestId,
         postId,
+        olderId,
+        oldestId,
       ]);
-      await tester.tap(find.text('加载更多'));
+      expect(find.text('加载更多'), findsNothing);
+      await f.controller.homeFeed.loadTimeline(
+        channelId: f.controller.homeFeed.timelineChannelId,
+        more: true,
+      );
       await tester.pumpAndSettle();
       expect(f.controller.timelineItems.map((p) => p.postId), [
         newestId,

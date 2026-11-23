@@ -382,6 +382,9 @@ void main() {
       await _phone(tester);
       final f = await feed.FeedFixture.create();
       addTearDown(f.dispose);
+      // Fill the viewport so the new bottom auto-load does not add a request
+      // before the pull-refresh assertions below.
+      _longFeed(f);
       f.api.cursor = 'saved-next-page';
       await tester.pumpWidget(_screen(f));
       await tester.pumpAndSettle();

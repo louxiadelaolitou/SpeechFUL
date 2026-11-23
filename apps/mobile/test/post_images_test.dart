@@ -244,6 +244,87 @@ void main() {
       access.dispose();
     },
   );
+  testWidgets(
+    'feed single card follows the original ratio; only bounded extremes hint',
+    (tester) async {
+      final authority = _Authority(), access = ValueNotifier(true);
+      PostImages mediaFor(Size size) => PostImages(
+        postId: 'post-a',
+        accessGranted: access,
+        images: [
+          PostImage(
+            thumbnail: ordinary,
+            pixelSize: size,
+            item: ViewerItem.provider(
+              id: 'ratio',
+              provider: ordinary,
+              pixelSize: size,
+              saveAllowed: false,
+            ),
+          ),
+        ],
+      );
+      Future<void> show(Size size, {double width = 320}) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: width,
+                  child: PostImagesSection(
+                    postId: 'post-a',
+                    expectedCount: 1,
+                    feedPreview: true,
+                    loadImages: (_) async => mediaFor(size),
+                    authority: authority,
+                    isCurrent: () => authority.current,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await frames(tester);
+      }
+
+      for (final size in [const Size(1600, 900), const Size(640, 480)]) {
+        await show(size);
+        final card = find.byKey(const ValueKey(('feed-image', 'ratio')));
+        final actual = tester.getSize(card);
+        expect(actual.width, 320);
+        expect(
+          actual.width / actual.height,
+          closeTo(size.width / size.height, .01),
+        );
+        expect(find.text('点击查看完整图片'), findsNothing);
+      }
+      // 宽屏上的常见 3:4 竖图完整展示，不裁切。
+      await show(const Size(900, 1200), width: 362);
+      final portrait = find.byKey(const ValueKey(('feed-image', 'ratio')));
+      expect(tester.getSize(portrait).height, closeTo(362 / .75, .1));
+      expect(find.text('点击查看完整图片'), findsNothing);
+      // 9:16 仍在 0.5–3.0 范围内：完整展示，不被最大高度裁切。
+      await show(const Size(900, 1600));
+      final phonePortrait = find.byKey(const ValueKey(('feed-image', 'ratio')));
+      expect(tester.getSize(phonePortrait).height, closeTo(320 / (9 / 16), .1));
+      expect(find.text('点击查看完整图片'), findsNothing);
+      await show(const Size(480, 2400));
+      final tall = find.byKey(const ValueKey(('feed-image', 'ratio')));
+      expect(tester.getSize(tall).height, 480);
+      expect(find.text('点击查看完整图片'), findsOneWidget);
+      // 裁切卡片不作为查看器首帧几何，直接渐显完整原比例。
+      await tester.tap(tall);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(HnuImageViewer), findsOneWidget);
+      expect(find.byKey(const ValueKey('viewer-route-fade')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      authority.dispose();
+      access.dispose();
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('layout-time expiry safely reloads once without stuck loading', (
     tester,
   ) async {

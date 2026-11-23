@@ -448,6 +448,7 @@ const communitySettingsTranslations = <String, (String, String, String)>{
   ),
   '没有更多回复': ('沒有更多回覆', 'No more replies', 'これ以上の返信はありません'),
   '没有更多评论': ('沒有更多評論', 'No more comments', 'これ以上のコメントはありません'),
+  '已经到底': ('已經到底', 'You have reached the end', '最後まで表示しました'),
   '浏览量暂不可用': ('瀏覽量暫時無法使用', 'Views unavailable', '閲覧数は現在利用できません'),
   '浏览量，{v0}': ('瀏覽量，{v0}', 'Views, {v0}', '閲覧数、{v0}'),
   '消息': ('訊息', 'Notifications', '通知'),
@@ -590,6 +591,11 @@ const communitySettingsTranslations = <String, (String, String, String)>{
   '账号注销': ('帳號註銷', 'Close account', 'アカウント削除'),
   '意见反馈': ('意見回饋', 'Feedback', 'ご意見'),
   '支持我们': ('支持我們', 'Support us', '支援する'),
+  '感谢你支持 SpeechFUL': (
+    '感謝你支持 SpeechFUL',
+    'Thank you for supporting SpeechFUL',
+    'SpeechFULを応援していただきありがとうございます',
+  ),
   '身份管理': ('身分管理', 'Manage identities', '名前の管理'),
   '账号与安全': ('帳號與安全', 'Account and security', 'アカウントとセキュリティ'),
   '联系方式': ('聯絡方式', 'Contact us', 'お問い合わせ'),
@@ -602,6 +608,7 @@ const communitySettingsTranslations = <String, (String, String, String)>{
     'コピーできませんでした。再試行してください。',
   ),
   '支付宝收款码': ('支付寶收款碼', 'Alipay payment code', 'Alipayの支払いコード'),
+  '点击查看收款码': ('點擊查看收款碼', 'View payment code', '支払いコードを見る'),
   '您的支持将全数用于开发与维护SpeechFUL项目': (
     '您的支持將全數用於開發與維護SpeechFUL專案',
     'Your support will be used entirely for the development and maintenance of the SpeechFUL project.',

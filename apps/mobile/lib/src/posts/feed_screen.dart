@@ -59,6 +59,9 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
+  /// 与帖子详情里的自动加载保持同一节奏。
+  static const _moreThreshold = 320.0;
+
   late final int _epoch;
   int _publication = 0;
   bool _published = false;
@@ -70,6 +73,13 @@ class _FeedScreenState extends State<FeedScreen> {
   CommentRuntime? _comments;
   final _hiddenHere = <String, String>{};
   int _timelineGeneration = 0;
+  String? _feedChannel;
+  bool _moreArmed = true;
+  bool _moreInFlight = false;
+  bool _moreFailed = false;
+  bool _viewportFillScheduled = false;
+  String? _viewportFillCursor;
+  int _viewportFillRuns = 0;
   bool _composeOpen = false;
   bool _searchOpen = false;
   bool _channelPickerOpen = false;
@@ -96,7 +106,9 @@ class _FeedScreenState extends State<FeedScreen> {
     super.initState();
     _epoch = c.authorityVersion;
     _publication = c.latestPublicationNotice?.sequence ?? 0;
+    _feedChannel = feed.timelineChannelId;
     c.addListener(_changed);
+    _scroll.addListener(_onScroll);
     // Starting a new route must not synchronously notify still-mounted sibling
     // routes during Navigator's build. Hide any prior timeline until this read.
     scheduleMicrotask(() async {
@@ -108,10 +120,19 @@ class _FeedScreenState extends State<FeedScreen> {
 
   void _changed() {
     if (!mounted) return;
+    if (feed.timelineChannelId != _feedChannel) {
+      _feedChannel = feed.timelineChannelId;
+      _moreInFlight = false;
+      _resetPagination();
+    }
     if (feed.timelineGeneration != _timelineGeneration) {
       _timelineGeneration = feed.timelineGeneration;
       _hiddenHere.clear();
+      _resetPagination();
     }
+    // A normal refresh owns its own error view; it must not leave a stale
+    // load-more failure pointing at the previous page.
+    if (feed.timelineLoading && !_moreInFlight) _moreFailed = false;
     final notice = c.latestPublicationNotice;
     if (current && notice != null && notice.sequence > _publication) {
       _publication = notice.sequence;
@@ -129,6 +150,102 @@ class _FeedScreenState extends State<FeedScreen> {
       }
     }
     setState(() {});
+    if (!feed.timelineLoading &&
+        feed.timelineCursor != null &&
+        feed.timelineItems.isNotEmpty) {
+      _scheduleViewportFill();
+    }
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter >= _moreThreshold) {
+      _moreArmed = true;
+      return;
+    }
+    if (!_moreArmed || !_canRequestMore()) return;
+    // 同一次接近底部只发一个请求；滚回阈值外再接近才会重新触发。
+    _moreArmed = false;
+    unawaited(_requestMore());
+  }
+
+  bool _canRequestMore({bool retry = false}) =>
+      mounted &&
+      current &&
+      !_starting &&
+      !_moreInFlight &&
+      !feed.timelineLoading &&
+      !feed.preferencesSaving &&
+      feed.timelineCursor != null &&
+      (retry || feed.timelineError == null);
+
+  Future<void> _requestMore({bool retry = false}) async {
+    if (!_canRequestMore(retry: retry)) return;
+    final channel = feed.timelineChannelId;
+    final generation = feed.timelineGeneration;
+    final count = feed.timelineItems.length;
+    setState(() {
+      _moreInFlight = true;
+      _moreFailed = false;
+    });
+    await feed.loadTimeline(channelId: channel, more: true);
+    if (!mounted) return;
+    final sameChannel = channel == feed.timelineChannelId;
+    final sameGeneration = generation == feed.timelineGeneration;
+    setState(() {
+      if (sameChannel) _moreInFlight = false;
+      if (sameChannel && sameGeneration && feed.timelineError != null) {
+        _moreFailed = true;
+      }
+    });
+    // A cursor-invalid recovery reloads the first page; its own generation
+    // change already reset the pagination state.
+    if (sameChannel &&
+        sameGeneration &&
+        feed.timelineError == null &&
+        feed.timelineItems.length > count) {
+      _scheduleViewportFill();
+    }
+  }
+
+  void _retryMore() {
+    if (!_canRequestMore(retry: true)) return;
+    _moreArmed = false;
+    unawaited(_requestMore(retry: true));
+  }
+
+  /// 首屏不足一屏、或追加内容后仍停在触底阈值内时没有新的滚动机会，
+  /// 布局完成后补一次检查。
+  void _scheduleViewportFill() {
+    if (_viewportFillScheduled) return;
+    _viewportFillScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _viewportFillScheduled = false;
+      if (!mounted || !_canRequestMore()) return;
+      if (!_scroll.hasClients) return;
+      final position = _scroll.position;
+      // 有足够可滚动余量时交给正常的滚动触发，避免首屏就提前请求下一页。
+      if (position.maxScrollExtent > 0 &&
+          position.extentAfter >= _moreThreshold) {
+        return;
+      }
+      final cursor = feed.timelineCursor;
+      // 同一个 cursor 只补载一次；否则服务端返回不足一屏且 cursor 不变的
+      // 异常页会让补载在每次通知后无限重试。
+      if (cursor == null || cursor == _viewportFillCursor) return;
+      if (_viewportFillRuns >= 5) return;
+      _viewportFillCursor = cursor;
+      _viewportFillRuns++;
+      _moreArmed = false;
+      unawaited(_requestMore());
+    });
+  }
+
+  void _resetPagination() {
+    _moreArmed = true;
+    _moreFailed = false;
+    _viewportFillCursor = null;
+    _viewportFillRuns = 0;
   }
 
   @override
@@ -136,6 +253,7 @@ class _FeedScreenState extends State<FeedScreen> {
     _comments?.removeListener(_commentsChanged);
     c.removeListener(_changed);
     _notice?.cancel();
+    _scroll.removeListener(_onScroll);
     _scroll.dispose();
     super.dispose();
   }
@@ -343,6 +461,72 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
+  /// 列表底部状态只描述分页；首屏错误仍由上方错误视图负责。
+  Widget _moreFooter(BuildContext context, List<FeedPost> posts) {
+    if (_starting || posts.isEmpty) return const SizedBox.shrink();
+    if (_moreInFlight) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 8),
+            Text(hhText(context, '正在加载')),
+          ],
+        ),
+      );
+    }
+    if (_moreFailed && feed.timelineError != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                hhText(context, '加载失败，请重试'),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: HhTelegramPalette.of(context).secondary,
+                ),
+              ),
+            ),
+            TextButton(
+              key: const ValueKey('feed-more-retry'),
+              onPressed: _retryMore,
+              child: Text(hhText(context, '重试')),
+            ),
+          ],
+        ),
+      );
+    }
+    // `timelineCursor == null` is the controller's end-of-feed contract; it
+    // also covers the first page already being the last page.
+    if (!feed.timelineLoading &&
+        !feed.preferencesSaving &&
+        feed.timelineCursor == null &&
+        feed.timelineError == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            hhText(context, '已经到底'),
+            style: TextStyle(
+              fontSize: 14,
+              color: HhTelegramPalette.of(context).secondary,
+            ),
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) => Theme(
     data: HhTelegramTheme.create(
@@ -433,7 +617,9 @@ class _FeedScreenState extends State<FeedScreen> {
                 children: [
                   if ((_starting || feed.timelineLoading) && posts.isEmpty)
                     const FeedLoadingPlaceholder(),
-                  if (!_starting && feed.timelineError != null)
+                  if (!_starting &&
+                      feed.timelineError != null &&
+                      (posts.isEmpty || !_moreFailed))
                     Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(
@@ -492,262 +678,225 @@ class _FeedScreenState extends State<FeedScreen> {
                               builder: (share, sharing) => PostRepostButton(
                                 controller: c,
                                 postId: post.postId,
-                                builder: (repost, reposted, unresolved) =>
-                                    PostFlatCard(
-                                      key: ValueKey('flat-post:${post.postId}'),
-                                      onOpen: () => _open(
+                                builder: (repost, reposted, unresolved) => PostFlatCard(
+                                  key: ValueKey('flat-post:${post.postId}'),
+                                  onOpen: () => _open(
+                                    context,
+                                    post.postId,
+                                    post.channelId,
+                                  ),
+                                  onMenu: () => _open(
+                                    context,
+                                    post.postId,
+                                    post.channelId,
+                                  ),
+                                  menuWidget: FeedCardMenu(
+                                    postId: post.postId,
+                                    tooltip: hhText(context, '帖子更多操作'),
+                                    shareLabel: hhText(
+                                      context,
+                                      sharing ? '正在准备分享…' : '分享',
+                                    ),
+                                    shareEnabled: share != null,
+                                    repostLabel: hhText(
+                                      context,
+                                      unresolved ? '重试核对' : '转帖',
+                                    ),
+                                    showRepost: c.supportsReposts,
+                                    repostEnabled: repost != null,
+                                    reposted: reposted,
+                                    notInterestedLabel: hhText(context, '不感兴趣'),
+                                    reportLabel: hhText(context, '举报'),
+                                    notInterestedEnabled:
+                                        c.supportsHiddenPosts &&
+                                        !c.hiddenPostBusy(post.postId),
+                                    reportEnabled:
+                                        GovernanceScope.maybeOf(context)
+                                            ?.available ==
+                                        true,
+                                    onSelected: (action) {
+                                      if (!current) return;
+                                      switch (action) {
+                                        case FeedCardMenuAction.share:
+                                          share?.call();
+                                        case FeedCardMenuAction.repost:
+                                          repost?.call();
+                                        case FeedCardMenuAction.notInterested:
+                                          unawaited(_changeHidden(post, true));
+                                        case FeedCardMenuAction.report:
+                                          _reportPost(context, post);
+                                      }
+                                    },
+                                  ),
+                                  author: localizedPostAuthor(
+                                    context,
+                                    post.author,
+                                  ),
+                                  elapsed: postDateLabel(
+                                    context,
+                                    post.publishedAt,
+                                  ),
+                                  avatar: DetailAvatar(
+                                    name: localizedPostAuthor(
+                                      context,
+                                      post.author,
+                                    ),
+                                    avatar: post.author.avatar,
+                                    radius: 15,
+                                  ),
+                                  onAuthor: () => unawaited(
+                                    DmScope.contact(context, post.postId),
+                                  ),
+                                  onAvatar: () =>
+                                      unawaited(_openAuthor(context, post)),
+                                  tags: post.tags.isEmpty
+                                      ? null
+                                      : PostTagChips(
+                                          tags: post.tags,
+                                          onTap: (tag) => unawaited(
+                                            openPostTag(
+                                              context,
+                                              controller: c,
+                                              tag: tag,
+                                              channels: widget.channels,
+                                              onAuthenticationRequired: widget
+                                                  .onAuthenticationRequired,
+                                              loadImages: widget.loadImages,
+                                            ),
+                                          ),
+                                        ),
+                                  title: post.title,
+                                  body: post.body,
+                                  bleedMedia: true,
+                                  media:
+                                      post.imageCount > 0 &&
+                                          widget.loadImages != null
+                                      ? PostImagesSection(
+                                          key:
+                                              c.postMediaRevision(
+                                                    post.postId,
+                                                  ) ==
+                                                  0
+                                              ? ValueKey(
+                                                  'feed-images:${post.postId}',
+                                                )
+                                              : ValueKey((
+                                                  post.postId,
+                                                  c.postMediaRevision(
+                                                    post.postId,
+                                                  ),
+                                                )),
+                                          postId: post.postId,
+                                          feedPreview: true,
+                                          feedPreviewInset: 20,
+                                          initialSizes:
+                                              post.imageSizes
+                                                  ?.map(
+                                                    (size) => Size(
+                                                      size.width.toDouble(),
+                                                      size.height.toDouble(),
+                                                    ),
+                                                  )
+                                                  .toList() ??
+                                              List.filled(
+                                                post.imageCount,
+                                                const Size(1, 1),
+                                              ),
+                                          expectedCount: post.imageCount,
+                                          loadImages: widget.loadImages!,
+                                          authority: c,
+                                          isCurrent: () =>
+                                              current &&
+                                              !c.isPostDeleted(post.postId),
+                                        )
+                                      : null,
+                                  actions: [
+                                    PostFlatAction(
+                                      key: ValueKey('like:${post.postId}'),
+                                      icon: c.interaction(post.postId).liked
+                                          ? Icons.favorite_rounded
+                                          : Icons.favorite_border_rounded,
+                                      on: c.interaction(post.postId).liked,
+                                      selectedColor: HhTelegramPalette.of(
+                                        context,
+                                      ).error,
+                                      label:
+                                          '${c.interaction(post.postId).likes ?? '—'}',
+                                      semanticsLabel: hhText(context, '点赞'),
+                                      onTap:
+                                          c
+                                                  .interaction(post.postId)
+                                                  .canChange &&
+                                              !sharing
+                                          ? () {
+                                              if (!current) return;
+                                              unawaited(
+                                                c.changeInteraction(
+                                                  post.postId,
+                                                  PostInteractionAction.like,
+                                                ),
+                                              );
+                                            }
+                                          : null,
+                                    ),
+                                    PostFlatAction(
+                                      key: ValueKey('bookmark:${post.postId}'),
+                                      icon: c.interaction(post.postId).favorited
+                                          ? Icons.bookmark_rounded
+                                          : Icons.bookmark_border_rounded,
+                                      on: c.interaction(post.postId).favorited,
+                                      label:
+                                          '${c.interaction(post.postId).value?.favoriteCount ?? '—'}',
+                                      semanticsLabel: hhText(context, '收藏'),
+                                      onTap:
+                                          c.interaction(post.postId).canChange
+                                          ? () {
+                                              if (!current) return;
+                                              unawaited(
+                                                c.changeInteraction(
+                                                  post.postId,
+                                                  PostInteractionAction
+                                                      .favorite,
+                                                ),
+                                              );
+                                            }
+                                          : null,
+                                    ),
+                                    PostFlatAction(
+                                      key: ValueKey('comment:${post.postId}'),
+                                      glyph: FeedActionIcon(
+                                        action: FeedAction.comment,
+                                        color: HhTelegramPalette.of(context)
+                                            .secondary,
+                                        size: 17,
+                                      ),
+                                      label:
+                                          c
+                                              .interaction(post.postId)
+                                              .value
+                                              ?.commentCount
+                                              .toString() ??
+                                          '—',
+                                      semanticsLabel: hhText(context, '评论'),
+                                      onTap: () => _open(
                                         context,
                                         post.postId,
                                         post.channelId,
                                       ),
-                                      onMenu: () => _open(
-                                        context,
-                                        post.postId,
-                                        post.channelId,
-                                      ),
-                                      menuWidget: FeedCardMenu(
-                                        postId: post.postId,
-                                        tooltip: hhText(context, '帖子更多操作'),
-                                        shareLabel: hhText(
+                                    ),
+                                    if (share != null)
+                                      PostFlatAction(
+                                        key: ValueKey('share:${post.postId}'),
+                                        icon: Icons.ios_share_rounded,
+                                        label: '',
+                                        semanticsLabel: hhText(
                                           context,
                                           sharing ? '正在准备分享…' : '分享',
                                         ),
-                                        shareEnabled: share != null,
-                                        repostLabel: hhText(
-                                          context,
-                                          unresolved ? '重试核对' : '转帖',
-                                        ),
-                                        showRepost: c.supportsReposts,
-                                        repostEnabled: repost != null,
-                                        reposted: reposted,
-                                        notInterestedLabel: hhText(
-                                          context,
-                                          '不感兴趣',
-                                        ),
-                                        reportLabel: hhText(context, '举报'),
-                                        notInterestedEnabled:
-                                            c.supportsHiddenPosts &&
-                                            !c.hiddenPostBusy(post.postId),
-                                        reportEnabled:
-                                            GovernanceScope.maybeOf(context)
-                                                ?.available ==
-                                            true,
-                                        onSelected: (action) {
-                                          if (!current) return;
-                                          switch (action) {
-                                            case FeedCardMenuAction.share:
-                                              share?.call();
-                                            case FeedCardMenuAction.repost:
-                                              repost?.call();
-                                            case FeedCardMenuAction
-                                                .notInterested:
-                                              unawaited(
-                                                _changeHidden(post, true),
-                                              );
-                                            case FeedCardMenuAction.report:
-                                              _reportPost(context, post);
-                                          }
-                                        },
+                                        onTap: sharing ? null : share,
                                       ),
-                                      author: localizedPostAuthor(
-                                        context,
-                                        post.author,
-                                      ),
-                                      elapsed: postDateLabel(
-                                        context,
-                                        post.publishedAt,
-                                      ),
-                                      avatar: DetailAvatar(
-                                        name: localizedPostAuthor(
-                                          context,
-                                          post.author,
-                                        ),
-                                        avatar: post.author.avatar,
-                                        radius: 15,
-                                      ),
-                                      onAuthor: () => unawaited(
-                                        DmScope.contact(context, post.postId),
-                                      ),
-                                      onAvatar: () => unawaited(
-                                        _openAuthor(context, post),
-                                      ),
-                                      tags: post.tags.isEmpty
-                                          ? null
-                                          : PostTagChips(
-                                              tags: post.tags,
-                                              onTap: (tag) => unawaited(
-                                                openPostTag(
-                                                  context,
-                                                  controller: c,
-                                                  tag: tag,
-                                                  channels: widget.channels,
-                                                  onAuthenticationRequired: widget
-                                                      .onAuthenticationRequired,
-                                                  loadImages: widget.loadImages,
-                                                ),
-                                              ),
-                                            ),
-                                      title: post.title,
-                                      body: post.body,
-                                      bleedMedia: true,
-                                      media:
-                                          post.imageCount > 0 &&
-                                              widget.loadImages != null
-                                          ? PostImagesSection(
-                                              key:
-                                                  c.postMediaRevision(
-                                                        post.postId,
-                                                      ) ==
-                                                      0
-                                                  ? ValueKey(
-                                                      'feed-images:${post.postId}',
-                                                    )
-                                                  : ValueKey((
-                                                      post.postId,
-                                                      c.postMediaRevision(
-                                                        post.postId,
-                                                      ),
-                                                    )),
-                                              postId: post.postId,
-                                              feedPreview: true,
-                                              feedPreviewInset: 20,
-                                              initialSizes:
-                                                  post.imageSizes
-                                                      ?.map(
-                                                        (size) => Size(
-                                                          size.width.toDouble(),
-                                                          size.height
-                                                              .toDouble(),
-                                                        ),
-                                                      )
-                                                      .toList() ??
-                                                  List.filled(
-                                                    post.imageCount,
-                                                    const Size(1, 1),
-                                                  ),
-                                              expectedCount: post.imageCount,
-                                              loadImages: widget.loadImages!,
-                                              authority: c,
-                                              isCurrent: () =>
-                                                  current &&
-                                                  !c.isPostDeleted(post.postId),
-                                            )
-                                          : null,
-                                      actions: [
-                                        PostFlatAction(
-                                          key: ValueKey('like:${post.postId}'),
-                                          icon:
-                                              c
-                                                      .interaction(post.postId)
-                                                      .liked
-                                                  ? Icons.favorite_rounded
-                                                  : Icons.favorite_border_rounded,
-                                          on: c.interaction(post.postId).liked,
-                                          selectedColor: HhTelegramPalette.of(
-                                            context,
-                                          ).error,
-                                          label:
-                                              '${c.interaction(post.postId).likes ?? '—'}',
-                                          semanticsLabel: hhText(
-                                            context,
-                                            '点赞',
-                                          ),
-                                          onTap:
-                                              c
-                                                      .interaction(post.postId)
-                                                      .canChange &&
-                                                  !sharing
-                                              ? () {
-                                                  if (!current) return;
-                                                  unawaited(
-                                                    c.changeInteraction(
-                                                      post.postId,
-                                                      PostInteractionAction
-                                                          .like,
-                                                    ),
-                                                  );
-                                                }
-                                              : null,
-                                        ),
-                                        PostFlatAction(
-                                          key: ValueKey(
-                                            'bookmark:${post.postId}',
-                                          ),
-                                          icon:
-                                              c
-                                                      .interaction(post.postId)
-                                                      .favorited
-                                                  ? Icons.bookmark_rounded
-                                                  : Icons.bookmark_border_rounded,
-                                          on:
-                                              c
-                                                  .interaction(post.postId)
-                                                  .favorited,
-                                          label:
-                                              '${c.interaction(post.postId).value?.favoriteCount ?? '—'}',
-                                          semanticsLabel: hhText(
-                                            context,
-                                            '收藏',
-                                          ),
-                                          onTap:
-                                              c
-                                                      .interaction(post.postId)
-                                                      .canChange
-                                              ? () {
-                                                  if (!current) return;
-                                                  unawaited(
-                                                    c.changeInteraction(
-                                                      post.postId,
-                                                      PostInteractionAction
-                                                          .favorite,
-                                                    ),
-                                                  );
-                                                }
-                                              : null,
-                                        ),
-                                        PostFlatAction(
-                                          key: ValueKey(
-                                            'comment:${post.postId}',
-                                          ),
-                                          glyph: FeedActionIcon(
-                                            action: FeedAction.comment,
-                                            color: HhTelegramPalette.of(
-                                              context,
-                                            ).secondary,
-                                            size: 17,
-                                          ),
-                                          label:
-                                              c
-                                                      .interaction(post.postId)
-                                                      .value
-                                                      ?.commentCount
-                                                      .toString() ??
-                                                  '—',
-                                          semanticsLabel: hhText(
-                                            context,
-                                            '评论',
-                                          ),
-                                          onTap: () => _open(
-                                            context,
-                                            post.postId,
-                                            post.channelId,
-                                          ),
-                                        ),
-                                        if (share != null)
-                                          PostFlatAction(
-                                            key: ValueKey(
-                                              'share:${post.postId}',
-                                            ),
-                                            icon: Icons.ios_share_rounded,
-                                            label: '',
-                                            semanticsLabel: hhText(
-                                              context,
-                                              sharing ? '正在准备分享…' : '分享',
-                                            ),
-                                            onTap: sharing ? null : share,
-                                          ),
-                                      ],
-                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             for (final notice in [
@@ -801,14 +950,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                       ),
                   ],
-                  if (feed.timelineCursor != null && !feed.timelineLoading)
-                    TextButton(
-                      onPressed: () => feed.loadTimeline(
-                        channelId: feed.timelineChannelId,
-                        more: true,
-                      ),
-                      child: Text(hhText(context, '加载更多')),
-                    ),
+                  _moreFooter(context, posts),
                 ],
               ),
               if (_published)
