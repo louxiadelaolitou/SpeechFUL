@@ -358,6 +358,8 @@ class PostController extends ChangeNotifier {
   final _retired = <String, Future<void>>{};
   final _activating = <String, Future<void>>{};
   int _feedRequest = 0;
+  int _personalProjectionEpoch = 0;
+  int get personalProjectionEpoch => _personalProjectionEpoch;
 
   /// Incremented whenever a committed account block changes what the current
   /// account may see. Screens that cache filtered pages compare it and drop
@@ -1028,8 +1030,13 @@ class PostController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshPersonalProjections() =>
-      _personal.refreshPersonalProjections();
+  Future<void> refreshPersonalProjections() async {
+    ++_personalProjectionEpoch;
+    _clearReposts();
+    _notify();
+    await _personal.refreshPersonalProjections();
+  }
+
   Future<PostDraftEditor?> editFailedTask(String taskId) =>
       _maintenance.editFailedTask(taskId);
   Future<void> cancelTask(String taskId) => _maintenance.cancelTask(taskId);

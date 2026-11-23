@@ -159,12 +159,52 @@ class GovernanceController extends ChangeNotifier {
       _token != null &&
       (sessions.isCurrentToken(_token!) || _token == restrictedAccess?.token);
   bool _inboxUnread = false;
+  bool _inboxUnreadRefreshing = false;
   bool get hasUnread => _inboxUnread || items.any((i) => i.unread);
 
   void updateInboxUnread(bool unread) {
     if (_inboxUnread == unread) return;
     _inboxUnread = unread;
     _notify();
+  }
+
+  Future<void> refreshInboxUnread() async {
+    if (!available || restricted || _inboxUnreadRefreshing) return;
+    _inboxUnreadRefreshing = true;
+    try {
+      final raw = await requestInbox(
+        'GET',
+        '/api/v1/notifications/unread-counts',
+      );
+      if (!available || raw == null) return;
+      final counts = PostJson.record(raw, {
+        'all',
+        'reply',
+        'like',
+        'system',
+        'identityUnread',
+      });
+      for (final category in ['all', 'reply', 'like', 'system']) {
+        PostJson.integer(counts, category, 0, 9007199254740991);
+      }
+      final identityUnread = counts['identityUnread'];
+      if (identityUnread is! Map<String, dynamic> ||
+          identityUnread.length > 3) {
+        throw const FormatException('Invalid identity unread counts');
+      }
+      var unread = (counts['system'] as int) > 0;
+      for (final value in identityUnread.values) {
+        if (value is! int || value < 0) {
+          throw const FormatException('Invalid identity unread');
+        }
+        unread = unread || value > 0;
+      }
+      if (available) updateInboxUnread(unread);
+    } on Object {
+      // Badge refresh is best-effort; the inbox surfaces actionable errors.
+    } finally {
+      _inboxUnreadRefreshing = false;
+    }
   }
 
   Future<Map<String, dynamic>?> requestInbox(

@@ -155,11 +155,14 @@ class FeedNavigation extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.collapseSpace = false,
+    this.messagesUnread = false,
+    this.directMessagesUnread = false,
   });
   final FeedChromeController controller;
   final AppDestination selected;
   final ValueChanged<AppDestination> onSelected;
   final bool collapseSpace;
+  final bool messagesUnread, directMessagesUnread;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -191,6 +194,8 @@ class FeedNavigation extends StatelessWidget {
               composeSlot: true,
               onCompose: visible ? controller.compose : null,
               composeTooltip: controller.tooltip,
+              messagesUnread: messagesUnread,
+              directMessagesUnread: directMessagesUnread,
             ),
           ),
         ),

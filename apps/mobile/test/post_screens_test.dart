@@ -48,6 +48,8 @@ class _WidgetPosts extends ChangeNotifier implements PostController {
   int version = 1;
   @override
   int get authorVisibilityEpoch => 0;
+  @override
+  int get personalProjectionEpoch => 0;
   String? failure, channel;
   List<PostCard> cards = [];
   PostPublicationNotice? publicationNotice;

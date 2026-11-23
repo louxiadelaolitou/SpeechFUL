@@ -1,4 +1,6 @@
 import 'dart:async';
+
+import 'package:hnuhole_mobile/src/design_system/detail_components.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 import 'package:hnuhole_mobile/src/design_system/motion.dart';
 import 'package:hnuhole_mobile/src/identity/identity_avatar.dart';
@@ -45,6 +47,72 @@ void expectProfileSelection(WidgetTester tester, int selected) {
 }
 
 void main() {
+  testWidgets(
+    'identity avatar updates refresh loaded liked and favorite cards',
+    (tester) async {
+      const firstAvatar = 'avatar-v1:33333333-3333-4333-8333-333333333333';
+      const nextAvatar = 'avatar-v1:44444444-4444-4444-8444-444444444444';
+      const collectionPostId = '66666666-6666-4666-8666-666666666666';
+      final f = HomeTestFixture();
+      PostCard item(String avatar) => PostCard(
+        postId: collectionPostId,
+        channelId: feed.channelId,
+        title: '头像应随身份更新',
+        author: PostAuthor(
+          state: PostAuthorState.active,
+          avatar: avatar,
+          nickname: '账号A的身份',
+        ),
+        publishedAt: feed.at,
+      );
+      f.identitiesApi.items = [
+        identityTestItem(name: '账号A的身份', avatar: firstAvatar),
+      ];
+      f.postApi.likedItems = [item(firstAvatar)];
+      f.postApi.favoriteItems = [item(firstAvatar)];
+      await tester.pumpWidget(await f.create());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+
+      Future<String> visibleAvatar(int tab) async {
+        final card = find.byKey(
+          ValueKey(('collection', tab, collectionPostId)),
+        );
+        final avatar = find.descendant(
+          of: card,
+          matching: find.byType(DetailAvatar),
+        );
+        return tester.widget<DetailAvatar>(avatar).avatar;
+      }
+
+      await tester.tap(profileTab(4));
+      await tester.pumpAndSettle();
+      expect(await visibleAvatar(4), firstAvatar);
+      await tester.tap(profileTab(3));
+      await tester.pumpAndSettle();
+      expect(await visibleAvatar(3), firstAvatar);
+      await tester.tap(profileTab(4));
+      await tester.pumpAndSettle();
+
+      f.identitiesApi.items = [
+        identityTestItem(name: '账号A的身份', avatar: nextAvatar),
+      ];
+      f.postApi.likedItems = [item(nextAvatar)];
+      f.postApi.favoriteItems = [item(nextAvatar)];
+      await f.posts.refreshPersonalProjections();
+      await tester.pumpAndSettle();
+      expect(await visibleAvatar(4), nextAvatar);
+
+      await tester.tap(profileTab(3));
+      await tester.pumpAndSettle();
+      expect(await visibleAvatar(3), nextAvatar);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets(
     'rapid personal categories keep real selection when navigation flags change',
     (tester) async {

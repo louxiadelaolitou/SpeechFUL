@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,10 +13,12 @@ class PrimaryTabs extends StatefulWidget {
     required this.window,
     required this.builders,
     required this.onSelected,
+    this.unread,
   });
   final (String?, int) window;
   final Map<AppDestination, WidgetBuilder> builders;
   final ValueChanged<AppDestination> onSelected;
+  final ValueListenable<HhNavigationUnread>? unread;
 
   @override
   State<PrimaryTabs> createState() => PrimaryTabsState();
@@ -101,14 +104,35 @@ class PrimaryTabsState extends State<PrimaryTabs> {
           ),
         ),
       ),
-      bottomNavigationBar: FeedNavigation(
-        controller: _chrome,
-        selected: _selected,
-        onSelected: widget.onSelected,
-        collapseSpace: true,
+      bottomNavigationBar: _navigation(
+        messagesUnread: widget.unread?.value.messages ?? false,
+        directMessagesUnread: widget.unread?.value.directMessages ?? false,
       ),
     ),
   );
+
+  Widget _navigation({
+    required bool messagesUnread,
+    required bool directMessagesUnread,
+  }) {
+    Widget navigation(bool messages, bool directMessages) => FeedNavigation(
+      controller: _chrome,
+      selected: _selected,
+      onSelected: widget.onSelected,
+      collapseSpace: true,
+      messagesUnread: messages,
+      directMessagesUnread: directMessages,
+    );
+    final unread = widget.unread;
+    if (unread == null) {
+      return navigation(messagesUnread, directMessagesUnread);
+    }
+    return ValueListenableBuilder<HhNavigationUnread>(
+      valueListenable: unread,
+      builder: (_, value, _) =>
+          navigation(value.messages, value.directMessages),
+    );
+  }
 }
 
 /// Scaffold's extendBody padding follows the sliding navigation every frame.

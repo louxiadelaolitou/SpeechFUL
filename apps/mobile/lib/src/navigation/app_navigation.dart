@@ -10,6 +10,13 @@ import 'feed_chrome.dart';
 
 enum AppDestination { home, messages, directMessages, personal }
 
+typedef HhNavigationUnread = ({bool messages, bool directMessages});
+
+const HhNavigationUnread hhNoNavigationUnread = (
+  messages: false,
+  directMessages: false,
+);
+
 /// Shared fixed root navigation. Notification and private-message destinations
 /// are independent; unread/receipt state is never changed by this widget.
 class HhAppNavigation extends StatelessWidget {
@@ -20,12 +27,15 @@ class HhAppNavigation extends StatelessWidget {
     this.composeSlot = false,
     this.onCompose,
     this.composeTooltip = '写帖子',
+    this.messagesUnread = false,
+    this.directMessagesUnread = false,
   });
   final AppDestination selected;
   final ValueChanged<AppDestination> onSelected;
   final bool composeSlot;
   final VoidCallback? onCompose;
   final String composeTooltip;
+  final bool messagesUnread, directMessagesUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +67,11 @@ class HhAppNavigation extends StatelessWidget {
                   child: _NavButton(
                     destination: destination,
                     selected: selected == destination,
+                    unread: switch (destination) {
+                      AppDestination.messages => messagesUnread,
+                      AppDestination.directMessages => directMessagesUnread,
+                      _ => false,
+                    },
                     onPressed: () {
                       if (selected != destination) onSelected(destination);
                     },
@@ -77,10 +92,12 @@ class _NavButton extends StatefulWidget {
   const _NavButton({
     required this.destination,
     required this.selected,
+    required this.unread,
     required this.onPressed,
   });
   final AppDestination destination;
   final bool selected;
+  final bool unread;
   final VoidCallback onPressed;
   @override
   State<_NavButton> createState() => _NavButtonState();
@@ -139,47 +156,72 @@ class _NavButtonState extends State<_NavButton>
     final p = HhTelegramPalette.of(context);
     final destination = widget.destination;
     final selected = widget.selected;
+    final label = switch (destination) {
+      AppDestination.home => hhText(context, '首页'),
+      AppDestination.messages => hhText(context, '消息'),
+      AppDestination.directMessages => hhText(context, '私信'),
+      AppDestination.personal => hhText(context, '我的'),
+    };
     return Semantics(
       selected: selected,
       child: HhPressFeedback(
         builder: (context, states) => IconButton(
           statesController: states,
           key: ValueKey('destination:${destination.name}'),
-          tooltip: switch (destination) {
-            AppDestination.home => hhText(context, '首页'),
-            AppDestination.messages => hhText(context, '消息'),
-            AppDestination.directMessages => hhText(context, '私信'),
-            AppDestination.personal => hhText(context, '我的'),
-          },
+          tooltip: widget.unread
+              ? hhText(context, '{v0}，有未读', args: {'v0': label})
+              : label,
           onPressed: _handleTap,
-          icon: AnimatedBuilder(
-            animation: _tap,
-            builder: (context, child) {
-              final motion = _motion(_tap.value);
-              return Transform.translate(
-                offset: Offset(0, motion.dy),
-                child: Transform.rotate(
-                  angle: motion.rotation,
-                  alignment: Alignment.center,
-                  child: Transform.scale(scale: motion.scale, child: child),
-                ),
-              );
-            },
-            child: HhAnimatedSelection(
-              selected: selected,
-              builder: (context, progress) => Transform.scale(
-                scale: 1 + .06 * progress,
-                child: CustomPaint(
-                  size: const Size(27, 27),
-                  painter: HhNavigationGlyph(
-                    destination,
-                    Color.lerp(p.ink, p.action, progress)!,
-                    selected,
-                    fillProgress: progress,
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedBuilder(
+                animation: _tap,
+                builder: (context, child) {
+                  final motion = _motion(_tap.value);
+                  return Transform.translate(
+                    offset: Offset(0, motion.dy),
+                    child: Transform.rotate(
+                      angle: motion.rotation,
+                      alignment: Alignment.center,
+                      child: Transform.scale(scale: motion.scale, child: child),
+                    ),
+                  );
+                },
+                child: HhAnimatedSelection(
+                  selected: selected,
+                  builder: (context, progress) => Transform.scale(
+                    scale: 1 + .06 * progress,
+                    child: CustomPaint(
+                      size: const Size(27, 27),
+                      painter: HhNavigationGlyph(
+                        destination,
+                        Color.lerp(p.ink, p.action, progress)!,
+                        selected,
+                        fillProgress: progress,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+              if (widget.unread)
+                Positioned(
+                  right: -1,
+                  top: -1,
+                  child: ExcludeSemantics(
+                    child: Container(
+                      key: ValueKey('navigation-unread:${destination.name}'),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: p.action,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: p.surface, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

@@ -546,6 +546,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
   String? _profileIdentityId;
   int _identityEpoch = 0;
   int _visibilityEpoch = 0;
+  int _projectionEpoch = 0;
   final _profileIdentityAnchor = GlobalKey();
   bool _identityMenuOpen = false;
   Route<dynamic>? _identityMenuRoute;
@@ -596,6 +597,30 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_authority.current || _tab != tab) return;
       if (tab == 1) unawaited(_loadReplies());
+      if (tab >= 3) unawaited(_loadCollection(tab));
+    });
+  }
+
+  /// Identity mutations can change author projections already embedded in
+  /// loaded subpages. Reload the visible identity-derived page after closing.
+  void personalProjectionsChanged() {
+    final epoch = widget.controller.personalProjectionEpoch;
+    if (epoch == _projectionEpoch) return;
+    _projectionEpoch = epoch;
+    _replies.clear();
+    _replyLoaded = _replyLoading = false;
+    _replyCursor = null;
+    _replyError = null;
+    _repostsOpened = false;
+    _collections.clear();
+    _collectionCursors.clear();
+    _collectionErrors.clear();
+    _collectionLoading.clear();
+    final tab = _tab;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_authority.current || _tab != tab) return;
+      if (tab == 1) unawaited(_loadReplies());
+      if (tab == 2) unawaited(_refreshReposts());
       if (tab >= 3) unawaited(_loadCollection(tab));
     });
   }
@@ -894,6 +919,7 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
   Future<void> _loadCollection(int tab, {bool more = false}) async {
     if (_collectionLoading.contains(tab) || !_authority.current) return;
     final visibilityEpoch = widget.controller.authorVisibilityEpoch;
+    final projectionEpoch = widget.controller.personalProjectionEpoch;
     setState(() {
       _collectionLoading.add(tab);
       _collectionErrors.remove(tab);
@@ -905,7 +931,8 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
       );
       if (!mounted ||
           !_authority.current ||
-          widget.controller.authorVisibilityEpoch != visibilityEpoch) {
+          widget.controller.authorVisibilityEpoch != visibilityEpoch ||
+          widget.controller.personalProjectionEpoch != projectionEpoch) {
         return;
       }
       await widget.controller.loadInteractions(
@@ -913,7 +940,8 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
       );
       if (!mounted ||
           !_authority.current ||
-          widget.controller.authorVisibilityEpoch != visibilityEpoch) {
+          widget.controller.authorVisibilityEpoch != visibilityEpoch ||
+          widget.controller.personalProjectionEpoch != projectionEpoch) {
         return;
       }
       setState(() {
@@ -928,12 +956,14 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     } catch (_) {
       if (mounted &&
           _authority.current &&
-          widget.controller.authorVisibilityEpoch == visibilityEpoch) {
+          widget.controller.authorVisibilityEpoch == visibilityEpoch &&
+          widget.controller.personalProjectionEpoch == projectionEpoch) {
         setState(() => _collectionErrors[tab] = '暂时无法读取，请重试');
       }
     } finally {
       if (mounted &&
-          widget.controller.authorVisibilityEpoch == visibilityEpoch) {
+          widget.controller.authorVisibilityEpoch == visibilityEpoch &&
+          widget.controller.personalProjectionEpoch == projectionEpoch) {
         setState(() => _collectionLoading.remove(tab));
       }
     }
@@ -1005,8 +1035,10 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     }
     final identityEpoch = _identityEpoch;
     final visibilityEpoch = widget.controller.authorVisibilityEpoch;
+    final projectionEpoch = widget.controller.personalProjectionEpoch;
     bool currentVisibility() =>
-        visibilityEpoch == widget.controller.authorVisibilityEpoch;
+        visibilityEpoch == widget.controller.authorVisibilityEpoch &&
+        projectionEpoch == widget.controller.personalProjectionEpoch;
     final runtime = CommentScope.maybeOf(context);
     if (runtime == null) {
       setState(() => _replyError = '回复服务暂不可用');

@@ -1508,6 +1508,7 @@ class _PersonalPostsScreenState extends State<PersonalPostsScreen>
     if (mounted) {
       profileIdentityChanged();
       authorVisibilityChanged();
+      personalProjectionsChanged();
       setState(() {});
     }
   }

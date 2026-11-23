@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hnuhole_mobile/main.dart' as app;
 import 'package:hnuhole_mobile/hnuhole_mobile.dart';
+import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 import 'package:hnuhole_mobile/src/navigation/app_navigation.dart';
 import 'package:hnuhole_mobile/src/navigation/primary_tabs.dart';
 import 'package:hnuhole_mobile/src/messaging/direct_messages_unavailable.dart';
@@ -11,6 +12,9 @@ import 'identity_test_support.dart';
 import 'login_home_test_support.dart';
 
 class _Notices implements GovernanceApi {
+  _Notices({this.unread = 0});
+
+  int unread;
   final calls = <String>[];
   @override
   Future<GovernanceResponse> request(
@@ -23,11 +27,11 @@ class _Notices implements GovernanceApi {
     calls.add('$method $path');
     if (path == '/api/v1/notifications/unread-counts') {
       return GovernanceResponse({
-        'all': 0,
-        'reply': 0,
-        'like': 0,
+        'all': unread,
+        'reply': unread,
+        'like': unread,
         'system': 0,
-        'identityUnread': <String, int>{},
+        'identityUnread': {identityTestId: unread},
       }, identityTestRenewed);
     }
     return GovernanceResponse({
@@ -38,6 +42,135 @@ class _Notices implements GovernanceApi {
 }
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'navigation shows unread dots without changing touch targets: $brightness',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 180);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: HhTelegramTheme.create(brightness),
+            home: Scaffold(
+              body: const SizedBox.expand(),
+              bottomNavigationBar: HhAppNavigation(
+                selected: AppDestination.home,
+                onSelected: (_) {},
+                messagesUnread: true,
+                directMessagesUnread: true,
+              ),
+            ),
+          ),
+        );
+        expect(
+          find.byKey(const ValueKey('navigation-unread:messages')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('navigation-unread:directMessages')),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('消息，有未读'), findsOneWidget);
+        expect(find.byTooltip('私信，有未读'), findsOneWidget);
+        for (final destination in AppDestination.values) {
+          final size = tester.getSize(
+            find.byKey(ValueKey('destination:${destination.name}')),
+          );
+          expect(size.width, greaterThanOrEqualTo(48));
+          expect(size.height, greaterThanOrEqualTo(48));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'primary tabs follows unread state without rebuilding tab pages',
+    (tester) async {
+      final unread = ValueNotifier<HhNavigationUnread>(hhNoNavigationUnread);
+      addTearDown(unread.dispose);
+      var homeBuilds = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PrimaryTabs(
+            window: ('account', 1),
+            unread: unread,
+            onSelected: (_) {},
+            builders: {
+              for (final destination in AppDestination.values)
+                destination: (_) {
+                  if (destination == AppDestination.home) homeBuilds++;
+                  return Text(destination.name);
+                },
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('navigation-unread:messages')),
+        findsNothing,
+      );
+      final initialBuilds = homeBuilds;
+      unread.value = (messages: true, directMessages: true);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('navigation-unread:messages')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('navigation-unread:directMessages')),
+        findsOneWidget,
+      );
+      expect(homeBuilds, initialBuilds);
+    },
+  );
+
+  testWidgets('root notification badge follows unread counts', (tester) async {
+    final fixture = HomeTestFixture();
+    final root = await fixture.create();
+    final notices = _Notices(unread: 2);
+    final governance = GovernanceController(
+      api: notices,
+      sessions: fixture.sessions,
+      authStore: fixture.store,
+      identitiesApi: fixture.identitiesApi,
+      pendingStore: GovernancePendingStore(IdentityTestVault()),
+    );
+    await tester.pumpWidget(
+      app.HnuholeApp(
+        directory: root.directory,
+        studentLetters: root.studentLetters,
+        repository: root.repository,
+        api: root.api,
+        sessions: root.sessions,
+        flows: root.flows,
+        management: root.management,
+        identities: root.identities,
+        store: root.store,
+        posts: root.posts,
+        postApi: root.postApi,
+        governance: governance,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('navigation-unread:messages')),
+      findsOneWidget,
+    );
+
+    notices.unread = 0;
+    await governance.refreshInboxUnread();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('navigation-unread:messages')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'same-session expiry renewal preserves tab widgets and revocation still closes them',
     (tester) async {

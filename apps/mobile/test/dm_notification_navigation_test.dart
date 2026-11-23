@@ -35,8 +35,10 @@ class _NavigationDm extends ChangeNotifier implements DmController {
     syncs++;
   }
 
-  void loaded() {
-    conversations = [p2.directory()];
+  void loaded({int unread = 0}) {
+    conversations = [
+      {...p2.directory(), 'unread': unread},
+    ];
     notifyListeners();
   }
 
@@ -118,6 +120,47 @@ void main() {
       await tester.pump();
     });
   }
+
+  testWidgets('direct-message unread conversation controls the root badge', (
+    tester,
+  ) async {
+    final f = HomeTestFixture(), c = _NavigationDm();
+    final original = await f.create();
+    final r = _Runtime(c);
+    r.identities = [const DmIdentity(id: p1.own, name: '本人身份')];
+    c.loaded(unread: 2);
+    await tester.pumpWidget(
+      app.HnuholeApp(
+        directory: original.directory,
+        studentLetters: original.studentLetters,
+        repository: original.repository,
+        api: original.api,
+        sessions: original.sessions,
+        flows: original.flows,
+        management: original.management,
+        identities: original.identities,
+        store: original.store,
+        posts: original.posts,
+        postApi: original.postApi,
+        dm: r,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('navigation-unread:directMessages')),
+      findsOneWidget,
+    );
+
+    c.loaded();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('navigation-unread:directMessages')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
 
   for (final matching in [true, false]) {
     testWidgets(
