@@ -119,6 +119,19 @@ jobs:
           "$RUNNER_TEMP/post-image-python/bin/python" -I -B services/api/media/validate_image.py --probe
           "$RUNNER_TEMP/post-image-python/bin/python" services/api/media/test_validator.py
           "$RUNNER_TEMP/post-image-python/bin/python" services/api/media/test_validator.py --fixtures "$RUNNER_TEMP/post-image-fixtures"
+      - name: Disposable thumbnail cache Redis
+        # Exact command/expiry semantics only; this container is not a capacity
+        # or eviction benchmark and never contains production bytes.
+        run: |
+          docker run -d --name post-thumbnail-cache -p 56391:6379 redis:7.4-alpine \
+            redis-server --requirepass ci-thumbnail-cache --maxmemory 64mb \
+            --maxmemory-policy allkeys-lfu --save "" --appendonly no
+      - name: Thumbnail cache command and expiry regression
+        working-directory: services/api
+        env:
+          THUMBNAIL_CACHE_TEST_ADDR: 127.0.0.1:56391
+          THUMBNAIL_CACHE_TEST_PASSWORD: ci-thumbnail-cache
+        run: go test -mod=readonly -count=1 -run TestCacheAgainstRealRedis ./internal/postthumbnailcache
       - name: Restricted-role schema and image lifecycle regression
         working-directory: services/api
         env:

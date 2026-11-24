@@ -84,7 +84,7 @@ func TestDMGooseFreshAndUpgradePostgres(t *testing.T) {
 			if err = run("up"); err != nil {
 				t.Fatal("0040 upgrade", err)
 			}
-			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 54 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 54 {
+			if count(t, pool, `SELECT count(*) FROM public.goose_db_version WHERE is_applied`) != 55 || count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 55 {
 				t.Fatal("migration chain incomplete")
 			}
 			if _, err = channels.NewService(channels.NewPostgresRepository(pool)).List(ctx); err != nil {
@@ -118,7 +118,7 @@ func TestDMGooseFreshAndUpgradePostgres(t *testing.T) {
 			if err = run("down-to", "49"); err == nil {
 				t.Fatal("destructive rollback accepted")
 			}
-			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 54 {
+			if count(t, pool, `SELECT max(version_id) FROM public.goose_db_version WHERE is_applied`) != 55 {
 				t.Fatal("failed Down changed ledger")
 			}
 		})

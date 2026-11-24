@@ -10,9 +10,11 @@ import (
 	"os"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postthumbnailcache"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
 
@@ -130,4 +132,139 @@ func TestThumbnailReusePerformancePostgres(t *testing.T) {
 			t.Errorf("round %d failed 60%% hard threshold: %.2f%%", r.Round, 100*r.Reduction)
 		}
 	}
+}
+
+// TestThumbnailRedisPerformancePostgres compares the same binary with only the
+// hot-cache attachment changed: A = PostgreSQL derivative reuse, B = Redis
+// hit. Real PostgreSQL and a disposable real Redis are required. Production
+// SLO/adoption thresholds remain product decisions, so this test reports
+// paired distributions instead of imposing an arbitrary reduction.
+func TestThumbnailRedisPerformancePostgres(t *testing.T) {
+	if os.Getenv("POST_THUMBNAIL_PERFORMANCE") != "1" {
+		t.Skip("explicit performance run required")
+	}
+	address := os.Getenv("THUMBNAIL_PERFORMANCE_REDIS_ADDR")
+	if address == "" {
+		t.Skip("THUMBNAIL_PERFORMANCE_REDIS_ADDR absent")
+	}
+	password := os.Getenv("THUMBNAIL_PERFORMANCE_REDIS_PASSWORD")
+	username := os.Getenv("THUMBNAIL_PERFORMANCE_REDIS_USERNAME")
+	if username == "" {
+		username = "default"
+	}
+	f := thumbnailFixture(t)
+	ctx := context.Background()
+	hot, err := postthumbnailcache.New(postthumbnailcache.Config{
+		Address: address, Username: username, PasswordFile: "unused-for-performance",
+		Namespace: "hnuhole:post-thumbnail:v1:dev:", TTLSeconds: 300,
+	}, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hot.Close()
+	if err = hot.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c, err := f.l.c.WithPostThumbnailRedisCache(ctx, hot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.l.c = c
+
+	imageData := image.NewRGBA(image.Rect(0, 0, 1024, 768))
+	rng := rand.New(rand.NewSource(515151))
+	for i := 0; i < len(imageData.Pix); i += 4 {
+		v := rng.Uint32()
+		imageData.Pix[i], imageData.Pix[i+1], imageData.Pix[i+2], imageData.Pix[i+3] = byte(v), byte(v>>8), byte(v>>16), 255
+	}
+	var encoded bytes.Buffer
+	if err = jpeg.Encode(&encoded, imageData, &jpeg.Options{Quality: 87}); err != nil {
+		t.Fatal(err)
+	}
+	data := encoded.Bytes()
+	m, err := f.l.c.postImages.validator.Inspect(ctx, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var identity uuid.UUID
+	if err = f.l.cp.QueryRow(ctx, `SELECT identity_id FROM c_posts.publication_tasks WHERE post_id=$1`, f.post).Scan(&identity); err != nil {
+		t.Fatal(err)
+	}
+	intent := postTestIntent(t, f.l, identity)
+	selection := postmedia.Selection{MediaID: uuid.NewString(), SHA256: m.SHA256, ByteLength: m.ByteLength, MIME: m.MIME, Width: m.Width, Height: m.Height}
+	intent.Images = []postmedia.Selection{selection}
+	accepted := postTestCommand(t, f.l, f.owner.SessionToken, postTestKey(t), intent)
+	grant := imageGrant(t, f.l, f.owner.SessionToken, accepted, selection.MediaID)
+	imageUpload(t, f.l, accepted, selection, grant, data)
+	postTestPublish(t, f.l)
+	response, err := f.l.c.ReadPostImages(ctx, f.viewer.SessionToken, accepted.PostID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.post, f.content = accepted.PostID, response.Value.(postmedia.Group).Images[0].ContentVersionID
+	expected := readThumbnail(t, f) // generates and persists the derivative
+	readThumbnail(t, f)             // bounded PG fallback fills Redis after commit
+	deadline := time.Now().Add(5 * time.Second)
+	for hot.Stats().FillsSet == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if hot.Stats().FillsSet == 0 {
+		t.Fatal("hot cache fill did not reach Redis")
+	}
+
+	measure := func(redis bool) int64 {
+		if redis {
+			f.l.c.postImages.thumbnails.redis = hot
+		} else {
+			f.l.c.postImages.thumbnails.redis = nil
+		}
+		samples := make([]int64, 0, 40)
+		for i := 0; i < 45; i++ {
+			traceCtx, _ := readtiming.Start(ctx)
+			started := readtiming.SampleClock()
+			r, e := f.l.c.ReadPostThumbnail(traceCtx, f.viewer.SessionToken, f.post, f.content)
+			end := readtiming.SampleClock()
+			elapsed, valid := readtiming.ElapsedClock(started, end)
+			if e != nil || !bytes.Equal(r.Value.(ImageBytes).Bytes, expected) {
+				t.Fatal("performance request failed or changed bytes", e)
+			}
+			if !valid {
+				t.Fatal("service clock invalid")
+			}
+			if i >= 5 {
+				samples = append(samples, elapsed)
+			}
+		}
+		sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+		return samples[37]
+	}
+	type round struct {
+		Round         int     `json:"round"`
+		PostgresP95NS int64   `json:"postgresP95NS"`
+		RedisP95NS    int64   `json:"redisP95NS"`
+		Difference    float64 `json:"difference"`
+	}
+	var rounds []round
+	for i := 0; i < 3; i++ {
+		var postgres, redis int64
+		if i%2 == 0 {
+			postgres, redis = measure(false), measure(true)
+		} else {
+			redis, postgres = measure(true), measure(false)
+		}
+		rounds = append(rounds, round{i + 1, postgres, redis, 1 - float64(redis)/float64(postgres)})
+	}
+	f.l.c.postImages.thumbnails.redis = hot
+	stats := hot.Stats()
+	report := struct {
+		Scenario    string  `json:"scenario"`
+		Seed        int     `json:"seed"`
+		SourceBytes int     `json:"sourceBytes"`
+		Rounds      []round `json:"rounds"`
+		Gets        uint64  `json:"gets"`
+		Hits        uint64  `json:"hits"`
+		Misses      uint64  `json:"misses"`
+	}{"prepared-thumbnail-postgres-vs-redis", 515151, len(data), rounds, stats.Gets, stats.Hits, stats.Misses}
+	raw, _ := json.Marshal(report)
+	t.Log("THUMBNAIL_REDIS_PERF", string(raw))
 }

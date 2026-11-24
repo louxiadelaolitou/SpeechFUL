@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postthumbnailcache"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
 )
 
@@ -120,6 +121,12 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 			var derivative postmedia.ThumbnailRecord
 			var storeDerivative bool
 			var selected *preparedPostMediaItem
+			var cacheHit bool
+			var cacheMeta storedThumbnailMeta
+			var fillReady bool
+			var fillKey string
+			var fillRecord postmedia.ThumbnailRecord
+			var fillDeadline time.Time
 			images := make([]postmedia.Image, len(snapshot.items))
 			for i := range snapshot.items {
 				item := &snapshot.items[i]
@@ -139,6 +146,19 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 					if !bytes.Equal(current.proof, snapshot.proof) {
 						return errReadConflict
 					}
+					if cacheHit {
+						// A Redis or bounded PG candidate is released only while the
+						// exact PG derivative identity used to key/validate it still
+						// exists. Capacity cleanup or replacement forces the existing
+						// bounded rebuild instead of freezing the session.
+						currentMeta, ok, e := readStoredThumbnailMetadata(ctx, tx, post, *selected, c.postImages.thumbnails.version)
+						if e != nil {
+							return ErrAuthorizationUnavailable
+						}
+						if !ok || currentMeta != cacheMeta {
+							return errReadConflict
+						}
+					}
 					return nil
 				},
 				Complete: func(finalTx pgx.Tx, _ uuid.UUID, final AuthorizationDecision, _ restriction) (any, error) {
@@ -149,6 +169,11 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 								if e := c.storePostThumbnail(ctx, finalTx, post, *selected, derivative, final.TrustedAt); e != nil {
 									return nil, e
 								}
+							}
+							if fillReady && c.postImages.thumbnails != nil && c.postImages.thumbnails.redis != nil {
+								// Anchor the absolute deadline to the authorization
+								// decision, not to the later queue handoff.
+								fillDeadline = final.TrustedAt.Add(c.postImages.thumbnails.redis.TTL())
 							}
 							mime = "image/webp"
 							return ImageBytes{Bytes: output, MIME: mime}, nil
@@ -176,12 +201,89 @@ func (c *Community) readPostMediaPrepared(ctx context.Context, bearer [32]byte, 
 			}
 			if thumbnail && c.postImages.thumbnails != nil {
 				cache := c.postImages.thumbnails
+				if cache.redis != nil {
+					meta, have, e := readStoredThumbnailMetadata(prepareCtx, tx, post, *selected, cache.version)
+					if e != nil {
+						return plan, ErrAuthorizationUnavailable
+					}
+					var key string
+					if have {
+						key, e = cache.redis.Key(postthumbnailcache.KeyParts{
+							PostID:         post,
+							ContentVersion: selected.ContentID,
+							Variant:        postmedia.ThumbnailVariant,
+							EncoderVersion: cache.version,
+							SourceBinding:  hex.EncodeToString(meta.binding[:]),
+							OutputDigest:   meta.digest,
+						})
+						if e != nil {
+							return plan, ErrAuthorizationUnavailable
+						}
+						cacheMeta = meta
+					} else {
+						cache.misses.Add(1)
+					}
+					plan.AfterPrepare = func(cpuCtx context.Context) error {
+						if !have {
+							// No PG row: never GET an output-digest key. Enter the
+							// existing bounded generation path, which rechecks PG.
+							readtiming.Span(cpuCtx, "thumbnail_miss")()
+							prepared, pe := c.preparePostThumbnail(cpuCtx, post, *selected)
+							if pe != nil {
+								return pe
+							}
+							derivative, storeDerivative = prepared.record, prepared.generated
+							output = derivative.Bytes
+							return nil
+						}
+						if record, ok := cache.redis.Get(cpuCtx, key, meta.width, meta.height, meta.byteLength, meta.digest); ok {
+							readtiming.Span(cpuCtx, "thumbnail_redis_hit")()
+							output = record.Bytes
+							cacheHit = true
+							return nil
+						}
+						// Redis missed, timed out or held a bad value. Read the
+						// existing PG row without entering a transform worker slot.
+						readtiming.Span(cpuCtx, "thumbnail_pg_fallback")()
+						record, ok, pe := readStoredThumbnailPayload(cpuCtx, c.pool, post, *selected, cache.version, meta)
+						if pe != nil {
+							return ErrAuthorizationUnavailable
+						}
+						if ok {
+							cache.hits.Add(1)
+							cache.payloadReads.Add(1)
+							cache.payloadBytes.Add(uint64(len(record.Bytes)))
+							output = record.Bytes
+							cacheHit = true
+							// Only a pre-existing, validated PG row may fill Redis
+							// after the attempt commits.
+							fillReady, fillKey, fillRecord = true, key, record
+							return nil
+						}
+						cache.misses.Add(1)
+						prepared, pe := c.preparePostThumbnail(cpuCtx, post, *selected)
+						if pe != nil {
+							return pe
+						}
+						derivative, storeDerivative = prepared.record, prepared.generated
+						output = derivative.Bytes
+						return nil
+					}
+					plan.AfterCommit = func() {
+						if fillReady && !fillDeadline.IsZero() {
+							cache.redis.Enqueue(fillKey, fillRecord, fillDeadline)
+						}
+					}
+					return plan, nil
+				}
 				cached, hit, e := readStoredThumbnail(prepareCtx, tx, post, *selected, cache.version)
 				if e != nil {
 					return plan, ErrAuthorizationUnavailable
 				}
 				if hit {
 					cache.hits.Add(1)
+					cache.payloadReads.Add(1)
+					cache.payloadBytes.Add(uint64(len(cached.Bytes)))
 				} else {
 					cache.misses.Add(1)
 				}

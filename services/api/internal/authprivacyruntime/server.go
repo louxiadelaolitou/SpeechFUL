@@ -24,6 +24,7 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/comments"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/commentsnapshot"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postthumbnailcache"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/ratelimit"
 	"net/netip"
 )
@@ -354,6 +355,7 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 	}
 	var runRankings func(context.Context)
 	var runThumbnails func(context.Context)
+	var runThumbnailCache func(context.Context)
 	if service == authprivacyhttp.CommunityService {
 		request, err := c.Key32(c.RequestKeyFile)
 		if err != nil {
@@ -451,6 +453,28 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 				if err != nil {
 					return err
 				}
+			}
+			if c.PostImages.ThumbnailRedis != nil {
+				password, e := c.Read(c.PostImages.ThumbnailRedis.PasswordFile, true, 1024)
+				if e != nil {
+					return e
+				}
+				hot, e := postthumbnailcache.New(*c.PostImages.ThumbnailRedis, strings.TrimSpace(string(password)))
+				if e != nil {
+					return errors.New("create post thumbnail redis cache failed")
+				}
+				// The probe proves address, credentials and the command ACL before
+				// the first request. A failed probe never starts a degraded runtime.
+				if e = hot.Check(ctx); e != nil {
+					_ = hot.Close()
+					return e
+				}
+				defer hot.Close()
+				community, err = community.WithPostThumbnailRedisCache(ctx, hot)
+				if err != nil {
+					return err
+				}
+				runThumbnailCache = community.RunPostThumbnailCacheMaintenance
 			}
 			runThumbnails = community.RunPostThumbnailMaintenance
 		}
@@ -665,6 +689,10 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 	if runThumbnails != nil {
 		wg.Add(1)
 		go func() { defer wg.Done(); runThumbnails(runCtx) }()
+	}
+	if runThumbnailCache != nil {
+		wg.Add(1)
+		go func() { defer wg.Done(); runThumbnailCache(runCtx) }()
 	}
 	slog.Info("development runtime listening", "service", service, "public", c.PublicListen, "internal", c.InternalListen, "worker_batch", workerConfig.BatchSize, "worker_concurrency", workerConfig.Concurrency, "worker_task_seconds", workerConfig.TaskTimeout.Seconds(), "receipt_lease_seconds", workerConfig.ReceiptLease.Seconds())
 	var result error

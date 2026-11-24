@@ -10,8 +10,15 @@
 
 这只是现有完整配置中的新增字段，不能替代用途密钥、Gate、数据库和Python路径等原配置。运行角色不能更改256MiB衍生payload预算；迁移所有者可按容量规划调整 `c_posts.thumbnail_storage.capacity_bytes`，不得低于当前 `used_bytes`。首次持久化也在最终授权事务内；并发／队列分别最多2／32，单个共享准备任务最多20秒。请求取消不取消其他等待者，私有结果仍须逐请求最终授权。
 
-默认按访问生成。确需提前生成一批已发布图片时，将帖子UUID每行一条写入本地清单，用已有合法会话通过受保护HTTPS接口预热：
+可选 Redis 热缓存默认关闭。先以前向 Goose 执行 `0055_thumbnail_cache_outbox.sql` 和更新后的授权脚本，再显式加入独立实例配置（字段与边界见 `internal/postthumbnailcache/config.go`）：
 
+```json
+{"posts":{"preparedMediaReads":true},"postImages":{"thumbnailReuse":true,"thumbnailRedis":{"address":"127.0.0.1:16382","username":"community_thumbnail_cache","passwordFile":"/private/post-thumbnail/password","namespace":"hnuhole:post-thumbnail:v1:dev:"}}}
+```
+
+该实例必须区别于共享准入与评论快照 Redis，使用 `allkeys-lfu`、无持久化，并只授予本命名空间的 `PING GETRANGE SET UNLINK`；样例见 `infra/postthumbnail/redis.example.conf`。PostgreSQL 仍是原图、衍生字节、版本、可见性与最终授权权威；删除事件由 `AFTER DELETE` outbox 驱动，worker 只删精确键，不使用 `KEYS`/全扫描。移除 `thumbnailRedis` 字段即回到纯 PostgreSQL 路径，outbox 继续保留并在缓存停用后退休陈旧事件。不要在要求“删除与 PostgreSQL 同事务抹除 Redis 字节”的场景开启；最大残留时间、容量预算与生产阈值仍待产品确认。实现与验证记录见[任务记录](../../docs/tasks/POST-THUMBNAIL-REDIS-20261123.md)。
+
+默认按访问生成。确需提前生成一批已发布图片时，将帖子UUID每行一条写入本地清单，用已有合法会话通过受保护HTTPS接口预热：
 ```sh
 chmod 600 /task-owned/session-token
 python3 -B tools/post-thumbnails/backfill.py \

@@ -22,6 +22,7 @@ import (
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacy"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/authprivacyhttp"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/commentsnapshot"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postthumbnailcache"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/ratelimit"
 	"net/netip"
 )
@@ -60,10 +61,11 @@ var errCommentSnapshotConfiguration = errors.New("invalid comment snapshot confi
 // PostImages enables private PostgreSQL storage, not a public file server.
 // Python must be a dedicated, dependency-pinned Linux validator environment.
 type PostImagesConfig struct {
-	PythonFile      string `json:"pythonFile"`
-	ValidatorFile   string `json:"validatorFile"`
-	ValidatorSHA256 string `json:"validatorSHA256"`
-	ThumbnailReuse  bool   `json:"thumbnailReuse,omitempty"`
+	PythonFile      string                     `json:"pythonFile"`
+	ValidatorFile   string                     `json:"validatorFile"`
+	ValidatorSHA256 string                     `json:"validatorSHA256"`
+	ThumbnailReuse  bool                       `json:"thumbnailReuse,omitempty"`
+	ThumbnailRedis  *postthumbnailcache.Config `json:"thumbnailRedis,omitempty"`
 }
 
 type SharedRateConfig struct {
@@ -208,6 +210,24 @@ func (c Config) Validate(service authprivacyhttp.Service) error {
 		}
 		if c.PostImages.ThumbnailReuse && !c.Posts.PreparedMediaReads {
 			return errors.New("thumbnail reuse requires preparedMediaReads")
+		}
+		if c.PostImages.ThumbnailRedis != nil {
+			if !c.PostImages.ThumbnailReuse {
+				return errors.New("thumbnail redis cache requires thumbnail reuse")
+			}
+			redis := c.PostImages.ThumbnailRedis
+			if e := redis.Validate(c.Environment); e != nil {
+				return errors.New("invalid post thumbnail redis configuration")
+			}
+			if c.SharedRateLimit != nil && redis.Address == c.SharedRateLimit.Policy.Address {
+				return errors.New("thumbnail cache requires a separate Redis instance from shared admission")
+			}
+			if c.Comments != nil && c.Comments.Snapshots != nil && c.Comments.Snapshots.ReadRedis && redis.Address == c.Comments.Snapshots.Redis.Address {
+				return errors.New("thumbnail cache requires a separate Redis instance from comment snapshots")
+			}
+			if _, e := c.Read(redis.PasswordFile, true, 1024); e != nil {
+				return errors.New("thumbnail cache credentials unavailable")
+			}
 		}
 	}
 	if c.Environment != "dev" || (service != authprivacyhttp.CommunityService && service != authprivacyhttp.VerifierService) {

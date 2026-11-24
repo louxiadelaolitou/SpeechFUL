@@ -122,23 +122,41 @@ func (c *Community) RunPostThumbnailMaintenance(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			step, cancel := context.WithTimeout(ctx, 10*time.Second)
-			removed, err := c.CleanupPostThumbnails(step, 128)
-			if err != nil {
-				slog.Warn("thumbnail maintenance unavailable")
-			} else {
-				var used, capacity int64
-				if c.pool.QueryRow(step, `SELECT used_bytes,capacity_bytes FROM c_posts.thumbnail_storage WHERE singleton_id=1`).Scan(&used, &capacity) == nil {
-					slog.Info("private thumbnail storage", "bytes", used, "capacity_bytes", capacity, "cleaned", removed)
-				}
-				if s, e := c.PostThumbnailStats(step); e == nil {
-					cache := c.postImages.thumbnails
-					slog.Info("private thumbnail reuse", "hits", s.Hits, "misses", s.Misses, "source_reads", s.SourceReads,
-						"source_bytes", s.SourceBytes, "transforms", s.Transforms, "shared", s.SharedWaiters,
-						"queued", len(cache.queue), "workers", len(cache.workers), "capacity_skips", s.CapacitySkips)
-				}
-			}
-			cancel()
+			c.postThumbnailMaintenancePass(ctx)
 		}
+	}
+}
+
+// postThumbnailMaintenancePass runs one bounded pass. Reuse may be disabled
+// while durable thumbnail storage is enabled, so only the optional in-memory
+// cache surface is conditionally available here.
+func (c *Community) postThumbnailMaintenancePass(ctx context.Context) {
+	step, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	removed, err := c.CleanupPostThumbnails(step, 128)
+	if err != nil {
+		slog.Warn("thumbnail maintenance unavailable")
+		return
+	}
+	var used, capacity int64
+	if c.pool.QueryRow(step, `SELECT used_bytes,capacity_bytes FROM c_posts.thumbnail_storage WHERE singleton_id=1`).Scan(&used, &capacity) == nil {
+		slog.Info("private thumbnail storage", "bytes", used, "capacity_bytes", capacity, "cleaned", removed)
+	}
+	cacheActive := false
+	if cache := c.postImages.thumbnails; cache != nil {
+		cacheActive = cache.redis != nil
+		if s, e := c.PostThumbnailStats(step); e == nil {
+			slog.Info("private thumbnail reuse", "hits", s.Hits, "misses", s.Misses, "source_reads", s.SourceReads,
+				"source_bytes", s.SourceBytes, "transforms", s.Transforms, "shared", s.SharedWaiters,
+				"payload_reads", s.PayloadReads, "payload_bytes", s.PayloadBytes,
+				"queued", len(cache.queue), "workers", len(cache.workers), "capacity_skips", s.CapacitySkips)
+		}
+	}
+	// Completed receipts expire quickly. Pending events survive while Redis is
+	// active; only a disabled cache abandons stale ones.
+	if n, e := c.retireThumbnailCacheEvents(step, cacheActive, 128); e != nil {
+		slog.Warn("thumbnail cache outbox maintenance failed")
+	} else if n > 0 {
+		slog.Info("thumbnail cache outbox retired", "events", n)
 	}
 }

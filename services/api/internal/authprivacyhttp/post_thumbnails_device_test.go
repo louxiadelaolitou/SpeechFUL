@@ -1,6 +1,7 @@
 package authprivacyhttp
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postmedia"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/postthumbnailcache"
 )
 
 // Opt-in bridge for an isolated Android rendering measurement. Only this test's
@@ -31,6 +33,30 @@ func serveThumbnailDeviceFixture(t *testing.T, s *e2eServices, v *postmedia.Proc
 	config, e := PublicTLSConfig(mobileLabCertificate(t))
 	if e != nil {
 		t.Fatal(e)
+	}
+	// Optional hot-cache attachment for the isolated device fixture. The
+	// client APK is unchanged; only /reuse serves Redis-backed derivatives.
+	var hot *postthumbnailcache.Cache
+	if address := os.Getenv("THUMBNAIL_DEVICE_REDIS_ADDR"); address != "" {
+		username := os.Getenv("THUMBNAIL_DEVICE_REDIS_USERNAME")
+		if username == "" {
+			username = "default"
+		}
+		hot, e = postthumbnailcache.New(postthumbnailcache.Config{
+			Address: address, Username: username, PasswordFile: "unused-for-device",
+			Namespace: "hnuhole:post-thumbnail:v1:device:", TTLSeconds: 300,
+		}, os.Getenv("THUMBNAIL_DEVICE_REDIS_PASSWORD"))
+		if e != nil {
+			t.Fatal("device Redis configuration", e)
+		}
+		defer hot.Close()
+		if e = hot.Check(context.Background()); e != nil {
+			t.Fatal("device Redis unavailable", e)
+		}
+		defer func() {
+			stats := hot.Stats()
+			t.Logf("DEVICE_REDIS_STATS gets=%d hits=%d misses=%d fills_set=%d", stats.Gets, stats.Hits, stats.Misses, stats.FillsSet)
+		}()
 	}
 	s.cPublic = e2eServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.RLock()
@@ -53,6 +79,9 @@ func serveThumbnailDeviceFixture(t *testing.T, s *e2eServices, v *postmedia.Proc
 		next, e := s.c.WithPostImages(r.Context(), v)
 		if e == nil && r.URL.Path == "/reuse" {
 			next, e = next.WithPostThumbnailReuse(r.Context())
+			if e == nil && hot != nil {
+				next, e = next.WithPostThumbnailRedisCache(r.Context(), hot)
+			}
 		}
 		if e != nil || (r.URL.Path != "/reuse" && r.URL.Path != "/baseline") {
 			w.WriteHeader(503)

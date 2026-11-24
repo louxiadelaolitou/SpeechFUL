@@ -17,3 +17,14 @@ DO $$ BEGIN
    FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
  END IF;
 END $$;
+
+-- Optional 0055 Redis deletion outbox. The SECURITY DEFINER trigger records
+-- erasures; the runtime may only claim, complete, retry and retire its queue.
+DO $$ BEGIN
+ IF to_regclass('c_posts.thumbnail_cache_outbox') IS NOT NULL THEN
+  REVOKE ALL ON c_posts.thumbnail_cache_outbox FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+  GRANT SELECT,UPDATE,DELETE ON c_posts.thumbnail_cache_outbox TO hnuhole_c_runtime;
+  REVOKE ALL ON FUNCTION c_posts.record_thumbnail_cache_erasure()
+   FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+ END IF;
+END $$;

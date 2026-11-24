@@ -93,6 +93,18 @@ UTF8("HNUHOLE/POST-MEDIA-COMMAND/V1") || 0x00 || 原文字命令完整帧
 - 私信每组最多九图；先执行首次联系只允许一条文字、对方回复后才开放图片，再固定身份对/组序/单项任务。部分成功项保留、失败项原位重试。待收投递副本必须保留到接收方真实本地持久确认，不能套用帖子 24 小时截止/公开读取或平台长期历史缓存。
 - 两模块均没有在本分支新增页面、数据库任务或 HTTP 路由；B07/B09 维持未实现。
 
+## 可选 Redis 热缓存（默认关闭，2026-11-23）
+
+在保留上述 PostgreSQL 权威路径的前提下，可显式开启一个可丢弃的 Redis 副本，仅缓存 `thumbnail-v1-640`。未配置时行为与先前完全相同；配置后每个请求仍先读 PostgreSQL 元数据、执行最终授权事务，并用该事务重新核对来源证明与衍生行身份。Redis 只保存已存在衍生行的字节，命中值必须同时通过长度、宽高、WebP 容器与 SHA-256 校验，否则按未命中回落到有界 PostgreSQL 读取或既有生成路径。
+
+- 使用独立 Redis 实例，`allkeys-lfu` 近似淘汰、无持久化；键含帖子/内容版本/编码器版本/来源绑定/输出摘要，绝对截止时间取自最终授权时间而非回填时间。
+- 回填仅在读取到已存在的 PostgreSQL 衍生行且本次授权事务成功提交后入队；失败、冲突或现场生成的结果不回填。`SET NX PXAT` 不覆盖已有值，队列与 Redis 故障只降级为冷缓存。
+- 衍生行删除通过 `0055_thumbnail_cache_outbox.sql` 的独立 `AFTER DELETE` 触发器在同一 PostgreSQL 事务写入 outbox；worker 用 `FOR UPDATE SKIP LOCKED` + 租约认领，事务外 `UNLINK` 精确键并按事件/租约确认，崩溃后可接管重试。禁止 `KEYS`/全量扫描。
+- 指标只含聚合计数（命中/未命中/超时/坏值、PostgreSQL 回填、原始读取、编码、回填丢弃/过期、删除积压与最老年龄），不以帖子、账号、键或令牌作标签。
+- 默认关闭；示例见 `infra/postthumbnail/redis.example.conf` 与运行时 `postImages.thumbnailRedis` 配置。迁移与授权脚本须由部署方显式执行，代码不自动升级或部署。
+
+产品待决：Redis 私有副本的最大逻辑残留时间、每实例资源预算、目标流量分配与开关阈值。若要求删除必须在 PostgreSQL 同一事务内同时抹除 Redis 字节，本方案不满足该要求，生产开关应保持关闭。删除与授权竞态下的迟到回填只可能留下受绝对截止时间约束、且后续请求在最终授权看到 PostgreSQL 变更后无法取得的旧字节；其可接受残留时长仍需按上述待决项确认。
+
 ## 独立复验与证据边界
 
 使用 `services/api/authlab/run-post-images-isolated.sh`；它只创建新的私有 socket PostgreSQL 集群、专属角色及空 C/V 测试库，不接收外部 DSN、不操作已有服务、ADB/手机/SDK。先自行准备专属 Python venv（仅 requirements.txt 小型 wheel），生成合成图片：

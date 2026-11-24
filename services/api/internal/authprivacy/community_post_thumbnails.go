@@ -18,9 +18,11 @@ import (
 type thumbnailReuse struct {
 	encoder                                                                      postmedia.ReusableThumbnailer
 	version                                                                      string
+	redis                                                                        thumbnailHotCache
 	group                                                                        singleflight.Group
 	workers, queue                                                               chan struct{}
 	hits, misses, reads, sourceBytes, transforms, shared, capacitySkips, cleaned atomic.Uint64
+	payloadReads, payloadBytes                                                   atomic.Uint64
 }
 
 // WithPostThumbnailReuse explicitly enables private persistent derivatives.
@@ -197,6 +199,7 @@ func (c *Community) storePostThumbnail(ctx context.Context, tx pgx.Tx, post stri
 // ThumbnailReuseStats contains only aggregate counters, no resource identifiers.
 type ThumbnailReuseStats struct {
 	Hits, Misses, SourceReads, SourceBytes, Transforms, SharedWaiters, CapacitySkips, CleanedRows uint64
+	PayloadReads, PayloadBytes                                                                    uint64
 	StoredBytes, CapacityBytes                                                                    int64
 }
 
@@ -209,6 +212,7 @@ func (c *Community) PostThumbnailStats(ctx context.Context) (ThumbnailReuseStats
 	s.Hits, s.Misses = cache.hits.Load(), cache.misses.Load()
 	s.SourceReads, s.SourceBytes, s.Transforms = cache.reads.Load(), cache.sourceBytes.Load(), cache.transforms.Load()
 	s.SharedWaiters, s.CapacitySkips, s.CleanedRows = cache.shared.Load(), cache.capacitySkips.Load(), cache.cleaned.Load()
+	s.PayloadReads, s.PayloadBytes = cache.payloadReads.Load(), cache.payloadBytes.Load()
 	err := c.pool.QueryRow(ctx, `SELECT used_bytes,capacity_bytes FROM c_posts.thumbnail_storage WHERE singleton_id=1`).Scan(&s.StoredBytes, &s.CapacityBytes)
 	return s, err
 }

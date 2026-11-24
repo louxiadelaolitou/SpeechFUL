@@ -32,6 +32,10 @@ type preparedReadPlan struct {
 	AfterPrepare func(context.Context) error
 	Revalidate   func(pgx.Tx, uuid.UUID, AuthorizationDecision, restriction) error
 	Complete     preparedReadAction
+	// AfterCommit runs once, outside the final transaction and authorization
+	// lock, only after this attempt durably committed a successful response.
+	// It must never block or change that response.
+	AfterCommit func()
 	// Release runs once per attempt, including success and panic. It must not
 	// clear an array that Complete has transferred to the successful response.
 	Release func()
@@ -190,6 +194,11 @@ func (c *Community) preparedReadAttempt(ctx context.Context, token [32]byte, sub
 			}
 			return plan.Complete(tx, a, d, m)
 		})
+	if e == nil && plan != nil && plan.AfterCommit != nil {
+		// withPostSessionAt returns only after SQL commit. The fill decision was
+		// captured before the transaction and cannot escape a failed attempt.
+		plan.AfterCommit()
+	}
 	if observe, ok := ctx.Value(preparedReadObserverKey{}).(func(time.Duration)); ok {
 		observe(time.Since(finalAt))
 	}
