@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/comments"
+	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 )
 
 func commentTextLab(t *testing.T) *lab {
@@ -248,6 +250,86 @@ func TestCommentTextFailureRetryAbandonPostgres(t *testing.T) {
 	}
 	if count(t, l.cp, `SELECT count(*) FROM c_comments.attempts WHERE task_id=$1 AND body IS NOT NULL`, in.TaskID) != 0 {
 		t.Fatal("abandoned payload retained")
+	}
+}
+
+type accountStateReadTracer struct{ calls int }
+
+func (q *accountStateReadTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, d pgx.TraceQueryStartData) context.Context {
+	if d.SQL == `SELECT state FROM c_auth.accounts WHERE account_id=$1` {
+		q.calls++
+	}
+	return ctx
+}
+func (*accountStateReadTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+// The final session check already read the locked account state, so command
+// execution and task detail must not read the same row again. The task detail
+// still distinguishes muted, retryable, target-deleted and published states.
+func TestCommentAccountStateReadReusePostgres(t *testing.T) {
+	l := commentTextLab(t)
+	owner := sessionTestAccount(t, l, "ct_state_reuse")
+	identity := identityChange(t, l.c, owner.SessionToken, "CREATE", uuid.Nil, "状态复用").IdentityID
+	post := commentTextPost(t, l, owner.SessionToken, identity)
+	hasAction := func(task OwnCommentTask, name string) bool {
+		for _, action := range task.AllowedActions {
+			if action == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	failed := comments.Intent{Operation: comments.Create, TaskID: uuid.NewString(), PostID: post, IdentityID: identity.String(), Body: "待重试"}
+	if r := commentTextSend(t, l, owner.SessionToken, postTestKey(t), failed); r.State != "ACCEPTED" {
+		t.Fatal(r)
+	}
+	end := time.Now().Add(2 * time.Second)
+	if e := l.c.ApplyAccountMute(context.Background(), owner.AccountID, 1, &end); e != nil {
+		t.Fatal(e)
+	}
+
+	tracer := &accountStateReadTracer{}
+	cfg := l.cp.Config()
+	cfg.ConnConfig.Tracer = tracer
+	pool, e := pgxpool.NewWithConfig(context.Background(), cfg)
+	if e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(pool.Close)
+	l.c.pool = pool
+
+	if muted := commentTextOwn(t, l, owner.SessionToken, failed.TaskID); muted.State != comments.Failed || hasAction(muted, "RETRY") {
+		t.Fatal("muted task offered retry", muted)
+	}
+	time.Sleep(time.Until(end) + 100*time.Millisecond)
+	if retryable := commentTextOwn(t, l, owner.SessionToken, failed.TaskID); retryable.State != comments.Failed || !hasAction(retryable, "RETRY") {
+		t.Fatal("retryable task lost its actions", retryable)
+	}
+
+	deletedPost := commentTextPost(t, l, owner.SessionToken, identity)
+	deleted := comments.Intent{Operation: comments.Create, TaskID: uuid.NewString(), PostID: deletedPost, IdentityID: identity.String(), Body: "目标将删除"}
+	if r := commentTextSend(t, l, owner.SessionToken, postTestKey(t), deleted); r.State != "ACCEPTED" {
+		t.Fatal(r)
+	}
+	postTestCommand(t, l, owner.SessionToken, postTestKey(t), posts.Intent{Operation: posts.DeletePost, PostID: deletedPost})
+	commentTextPublish(t, l)
+	if gone := commentTextOwn(t, l, owner.SessionToken, deleted.TaskID); gone.State != comments.Failed || hasAction(gone, "RETRY") {
+		t.Fatal("deleted target offered retry", gone)
+	}
+
+	publishedPost := commentTextPost(t, l, owner.SessionToken, identity)
+	published := comments.Intent{Operation: comments.Create, TaskID: uuid.NewString(), PostID: publishedPost, IdentityID: identity.String(), Body: "已发布"}
+	if r := commentTextSend(t, l, owner.SessionToken, postTestKey(t), published); r.State != "ACCEPTED" {
+		t.Fatal(r)
+	}
+	commentTextPublish(t, l)
+	if done := commentTextOwn(t, l, owner.SessionToken, published.TaskID); done.State != comments.Published || hasAction(done, "RETRY") {
+		t.Fatal("published task offered retry", done)
+	}
+
+	if tracer.calls != 0 {
+		t.Fatal("duplicate account state read", tracer.calls)
 	}
 }
 

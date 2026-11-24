@@ -375,13 +375,8 @@ func (c *Community) applyCommentIntent(ctx context.Context, tx pgx.Tx, a uuid.UU
 		}
 		return CommentReceipt{State: "APPLIED", Operation: in.Operation, TaskID: v.TaskID, AttemptVersion: v.AttemptVersion}, nil
 	}
-	var accountState string
-	if e = tx.QueryRow(ctx, `SELECT state FROM c_auth.accounts WHERE account_id=$1`, a).Scan(&accountState); e != nil {
-		return CommentReceipt{}, e
-	}
-	if accountState != "ACTIVE" {
-		return reject("ACCOUNT_CLOSING")
-	}
+	// withCommentSession locked this account row and session.validate required
+	// ACTIVE before the callback; only the mutable posting restriction remains.
 	if muted {
 		return reject("POSTING_RESTRICTED")
 	}
@@ -524,18 +519,14 @@ func (c *Community) GetOwnCommentTask(ctx context.Context, b [32]byte, id string
 			r.AllowedActions = append(r.AllowedActions, "ABANDON")
 		}
 		if v.CanRetry && !mutedAt(m, d.TrustedAt) {
-			var state string
-			if e = tx.QueryRow(ctx, `SELECT state FROM c_auth.accounts WHERE account_id=$1`, a).Scan(&state); e != nil {
+			// The final session check already required an ACTIVE account under
+			// this transaction's lock; only the target context remains to check.
+			e = checkCommentContext(ctx, tx, a, v.Binding)
+			var business *PostError
+			if e == nil {
+				r.AllowedActions = append([]string{"RETRY"}, r.AllowedActions...)
+			} else if !errors.As(e, &business) {
 				return nil, e
-			}
-			if state == "ACTIVE" {
-				e = checkCommentContext(ctx, tx, a, v.Binding)
-				var business *PostError
-				if e == nil {
-					r.AllowedActions = append([]string{"RETRY"}, r.AllowedActions...)
-				} else if !errors.As(e, &business) {
-					return nil, e
-				}
 			}
 		}
 		if v.State == comments.Published {
