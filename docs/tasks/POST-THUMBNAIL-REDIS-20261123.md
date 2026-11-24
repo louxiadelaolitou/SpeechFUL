@@ -8,7 +8,7 @@
 - 授权依据与边界：用户“阅读并完成任务”并指定《SpeechFUL 帖子缩略图 Redis 缓存实施方案（2026-11-23）》；2026-11-24 追加“提pr”“提完用/pr-review审一下，然后审完改了合并”，据此完成推送、PR #34、审查与修复并执行合并；未授权试用环境升级、生产部署或开启生产开关，本记录不产生方案外授权
 - 需求确认：以方案正文为实现契约；默认关闭，PostgreSQL 仍为原图、衍生字节、版本、可见性与最终授权权威。未决产品取舍：Redis 私有副本最大逻辑残留时间、每实例资源预算、目标流量分配、生产开关阈值；若要求删除与 PostgreSQL 同事务抹除 Redis 字节，本方案不满足，生产开关保持关闭。迁移因基线已有 `0054` 顺延为 `0055`
 - 更新日期：2026-11-25
-- 状态：实现 已完成（本地提交 `176b1f0`）；审查 已完成并修复（`aa031c1`、`c3d4212`、`d74c2fa`、`8e3eb28`）；验证 进行中（静态/单元/真实 Redis/迁移冒烟 PASS；真机同客户端复用 A/B PASS；Redis 服务方法 A/B PASS；真机 Redis 端到端 PASS；修复后单元/竞态/构建 PASS；一次性 PostgreSQL lab 的 schema 全量与缩略图/预媒体套件 PASS；本机完整 prerelease rehearsal 13/13 PASS；PR #34 最终 head CI 待复验）；合并 待 PR #34 checks 通过后执行；发布 未发布
+- 状态：实现 已完成（本地提交 `176b1f0`）；审查 已完成并修复（`aa031c1`、`c3d4212`、`d74c2fa`、`8e3eb28`）；验证 已完成：PR #34 head `5781539` 的 26 项 checks 中 25 项 success、`actual-process-acceptance` 按设计 skipped（含 `rehearsal`、`go-postgres`、`gate-postgres`、`search-postgres-100k`、`flutter-and-android`）；合并 已完成：PR #34 squash 合并为 `main` 的 `803df8e`；发布 未发布（未升级试用环境、未部署、生产开关保持关闭）
 
 ## 目标与范围
 
@@ -61,4 +61,4 @@
 - WSL2 实际发行版为 `Ubuntu-2404`，unix socket PostgreSQL 与 Go/Python fixture 已可用；此前“WSL2 不可用”的判断来自错误的发行版名，已由本轮消除。原生 Windows PostgreSQL 仍不满足 unix socket 隔离条件。
 - 待完成：执行 `services/api/authlab/run-post-images-isolated.sh` 的完整矩阵（真实 PostgreSQL/Redis/Python/HTTPS、双账号、替换/隐藏/删除、撤销/代次、提交 ACK 丢失、Redis 故障与删除竞态）。Redis 服务方法 A/B 已完成两组独立复跑；真机同客户端复用 A/B、真机 Redis 端到端已完成；REQ-004 正式“双版本完整比较”30% 验收仍待按该口径单独执行。
 - 产品待决：最大逻辑残留时间、每实例资源预算、目标流量分配、生产开关阈值；若要求删除与 PostgreSQL 同事务抹除 Redis 字节，则该场景不得开启，生产开关保持关闭。
-- 本地提交 `176b1f0`、`2e8bb2f`、`a25d8e6`、`f978be8`、`aa031c1`、`c3d4212`、`d74c2fa`、`8e3eb28` 已形成并推送至 `develop/codex/perf/post-thumbnail-redis`；PR #34 已创建并完成审查修复。`d74c2fa` 的 CI 中 `go-postgres`／`text-component`／`reliable-chat-sql`／`avatar-postgres-https` 已恢复通过；`gate-postgres`（sum.golang.org 校验网络错误）与 `flutter-and-android`（Maven 429）为外部瞬时失败，需重跑；`rehearsal` 的 `probe-lifecycle` 崩溃已由 `8e3eb28` 修复并在本机完整 rehearsal 复验。待新 head 的 CI 结论后合并且不部署，生产开关保持关闭。
+- 本地提交 `176b1f0`、`2e8bb2f`、`a25d8e6`、`f978be8`、`aa031c1`、`c3d4212`、`d74c2fa`、`8e3eb28`、`5781539` 已形成并推送至 `develop/codex/perf/post-thumbnail-redis`；PR #34 已创建、完成审查修复并 squash 合并到 `main`（合并提交 `803df8e`）。合并前最终 head `5781539` 的 26 项 checks：25 项 success，`actual-process-acceptance` 按设计 skipped；`rehearsal`、`go-postgres`、`gate-postgres`、`search-postgres-100k`、`flutter-and-android` 均通过。未部署，生产开关保持关闭。
