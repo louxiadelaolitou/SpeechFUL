@@ -361,49 +361,105 @@ class _DraftPhotoPreviewState extends State<_DraftPhotoPreview> {
 }
 
 class _PostImageUploadStatus extends StatelessWidget {
-  const _PostImageUploadStatus({required this.controller, required this.item});
+  const _PostImageUploadStatus({
+    required this.controller,
+    required this.item,
+    this.progressOverride,
+  });
   final PostController controller;
   final PersonalPostItem item;
+
+  /// 仅 `lib/dev` 模板用：直接给一段进度，跳过读取控制器内部状态。
+  final PostImageUploadProgress? progressOverride;
   @override
   Widget build(BuildContext context) {
-    final progress = controller.imageUploadProgress(item.id);
+    final p = HhTelegramPalette.of(context);
+    final progress = progressOverride ?? _uploadProgress(controller, item.id);
     final total = (item.local!.data['images'] as List).length;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        Text(
-          (progress?.message == null
-                  ? null
-                  : hhText(context, progress!.message!)) ??
-              (progress?.busy == true
-                  ? hhText(
-                      context,
-                      '图片上传：{v0}/{v1}',
-                      args: {'v0': progress!.completed, 'v1': progress.total},
-                    )
-                  : hhText(context, '图片上传状态会先与服务端核对。')),
-        ),
-        if (progress?.failed.isNotEmpty == true)
-          Text(
-            hhText(
-              context,
-              '待补传：{v0}',
-              args: {'v0': progress!.failed.map((i) => i + 1).join('、')},
+    final completed = progress?.completed ?? 0;
+    final failed = progress?.failed ?? const <int>{};
+    final message = progress?.message;
+    final ratio = total == 0 ? 0.0 : (completed / total).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: p.raised,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: p.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.cloud_upload_outlined,
+                size: 18,
+                color: progress?.busy == true ? p.accent : p.secondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  hhText(context, '图片上传'),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '$completed/$total',
+                style: TextStyle(fontSize: 12, color: p.secondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress?.busy == true ? null : ratio,
+              minHeight: 6,
+              backgroundColor: p.line,
+              color: p.accent,
             ),
           ),
-        if (progress?.busy != true)
-          OutlinedButton(
-            onPressed: () => controller.resumeImageUpload(item.id),
-            child: Text(
+          if (message != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              hhText(context, message),
+              style: TextStyle(fontSize: 12, height: 1.5, color: p.secondary),
+            ),
+          ],
+          if (failed.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
               hhText(
                 context,
-                '继续上传（{v0}/{v1}）',
-                args: {'v0': progress?.completed ?? 0, 'v1': total},
+                '待补传：{v0}',
+                args: {'v0': failed.map((i) => i + 1).join('、')},
+              ),
+              style: TextStyle(fontSize: 12, color: p.error),
+            ),
+          ],
+          if (progress?.busy != true) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => controller.resumeImageUpload(item.id),
+                icon: const Icon(Icons.upload_rounded, size: 16),
+                label: Text(
+                  hhText(
+                    context,
+                    '继续上传（{v0}/{v1}）',
+                    args: {'v0': completed, 'v1': total},
+                  ),
+                ),
               ),
             ),
-          ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 }

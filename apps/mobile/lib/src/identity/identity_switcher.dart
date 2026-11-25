@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../localization/app_localizations.dart';
 
+import '../design_system/motion.dart';
+import '../design_system/motion_routes.dart';
 import '../design_system/telegram_theme.dart';
 import '../messaging/direct_message_models.dart';
 import '../messaging/direct_message_composer.dart';
@@ -13,7 +15,8 @@ class IdentitySwitchItem {
   final int unread;
 }
 
-/// The existing DM control, shared without changing its geometry or colors.
+/// 身份胶囊：通知页、私信页与「我的」页共用同一实现，
+/// 保证几何尺寸、按压反馈、箭头旋转与昵称/头像切换动画一致。
 class HhIdentitySwitcher extends StatelessWidget {
   const HhIdentitySwitcher({
     super.key,
@@ -22,16 +25,19 @@ class HhIdentitySwitcher extends StatelessWidget {
     required this.onTap,
     this.menuOpen = false,
     this.otherUnread = false,
+    this.enabled = true,
     this.controlKey = const ValueKey('dm-inbox-identity'),
   });
   final DmIdentity identity;
   final GlobalKey anchor;
   final VoidCallback onTap;
-  final bool menuOpen, otherUnread;
+  final bool menuOpen, otherUnread, enabled;
   final Key controlKey;
+
   @override
   Widget build(BuildContext context) {
     final p = HhTelegramPalette.of(context);
+    final duration = HhMotion.duration(context, HhMotion.quick);
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 224, minHeight: 48),
       child: Tooltip(
@@ -40,12 +46,13 @@ class HhIdentitySwitcher extends StatelessWidget {
           label: hhText(context, '切换身份，当前{v0}', args: {'v0': identity.name}),
           button: true,
           excludeSemantics: true,
-          onTap: onTap,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: HhPressFeedback(
+            enabled: enabled,
+            builder: (context, states) => InkWell(
               key: controlKey,
-              onTap: onTap,
+              statesController: states,
+              onTap: enabled ? onTap : null,
               borderRadius: BorderRadius.circular(24),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
@@ -67,9 +74,8 @@ class HhIdentitySwitcher extends StatelessWidget {
                       children: [
                         AnimatedRotation(
                           turns: menuOpen ? 0.25 : 0,
-                          duration: (MediaQuery.disableAnimationsOf(context) || MediaQuery.accessibleNavigationOf(context))
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
+                          duration: duration,
+                          curve: HhMotion.curve,
                           child: Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
@@ -78,21 +84,61 @@ class HhIdentitySwitcher extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Flexible(
-                          child: Text(
-                            identity.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: p.ink,
+                          child: AnimatedSwitcher(
+                            duration: duration,
+                            switchInCurve: HhMotion.curve,
+                            switchOutCurve: HhMotion.curve,
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.centerRight,
+                              children: [
+                                ...previous,
+                                if (current != null) current,
+                              ],
+                            ),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position:
+                                        Tween<Offset>(
+                                          begin: const Offset(.12, 0),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                            child: Text(
+                              identity.name,
+                              key: ValueKey(identity.id),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: p.ink,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Badge(
-                          isLabelVisible: otherUnread,
-                          child: HhDmAvatar(identity: identity, size: 28),
+                        AnimatedSwitcher(
+                          duration: duration,
+                          switchInCurve: HhMotion.curve,
+                          switchOutCurve: HhMotion.curve,
+                          layoutBuilder: (current, previous) => Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              ...previous,
+                              if (current != null) current,
+                            ],
+                          ),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(opacity: animation, child: child),
+                          child: Badge(
+                            key: ValueKey(identity.id),
+                            isLabelVisible: otherUnread,
+                            child: HhDmAvatar(identity: identity, size: 28),
+                          ),
                         ),
                       ],
                     ),
@@ -141,13 +187,7 @@ Future<String?> showHhIdentityMenu({
       borderRadius: BorderRadius.circular(16),
       side: BorderSide(color: p.line),
     ),
-    popUpAnimationStyle: (MediaQuery.disableAnimationsOf(context) || MediaQuery.accessibleNavigationOf(context))
-        ? AnimationStyle.noAnimation
-        : const AnimationStyle(
-            duration: Duration(milliseconds: 180),
-            reverseDuration: Duration(milliseconds: 120),
-            curve: Curves.easeOutCubic,
-          ),
+    popUpAnimationStyle: HhMotionRoutes.popup(context),
     items: [
       PopupMenuItem<String>(
         enabled: false,

@@ -1126,7 +1126,7 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('明确未受理 CREATE 可恢复新草稿，UNKNOWN 仅核对与封印', (tester) async {
+  testWidgets('明确发布未通过 CREATE 可恢复新草稿，UNKNOWN 仅核对与封印', (tester) async {
     final c = _WidgetPosts()
       ..personal = [localItem('REJECTED')]
       ..restored = (editor()
@@ -1136,9 +1136,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('原操作标题'));
     await tester.pumpAndSettle();
-    expect(find.text('恢复为新草稿'), findsOneWidget);
-    expect(find.text('放弃未受理文字'), findsOneWidget);
-    await tester.tap(find.text('恢复为新草稿'));
+    expect(find.text('转为草稿'), findsOneWidget);
+    expect(find.text('删除未发出的文字'), findsOneWidget);
+    await tester.tap(find.text('转为草稿'));
     await tester.pumpAndSettle();
     expect(c.recoveries, 1);
     expect(find.text('原正文'), findsOneWidget);
@@ -1151,11 +1151,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('原操作标题'));
     await tester.pumpAndSettle();
-    expect(find.text('核对原操作'), findsOneWidget);
-    expect(find.text('停止尚未受理的原操作'), findsOneWidget);
-    expect(find.text('恢复为新草稿'), findsNothing);
-    expect(find.text('放弃未受理文字'), findsNothing);
-    expect(find.text('修改文字重试'), findsNothing);
+    expect(find.text('查看发布结果'), findsOneWidget);
+    expect(find.text('停止本次发布尝试'), findsOneWidget);
+    expect(find.text('转为草稿'), findsNothing);
+    expect(find.text('删除未发出的文字'), findsNothing);
+    expect(find.text('修改后重新发布'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     unknown.dispose();
   });
@@ -1193,22 +1193,22 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('原操作标题'));
     await tester.pumpAndSettle();
-    expect(find.text('核对原操作'), findsOneWidget);
-    expect(find.text('停止尚未受理的原操作'), findsOneWidget);
-    expect(find.text('修改文字重试'), findsNothing);
-    expect(find.text('删除失败入口'), findsNothing);
-    expect(find.text('取消本次发布'), findsNothing);
+    expect(find.text('查看发布结果'), findsOneWidget);
+    expect(find.text('停止本次发布尝试'), findsOneWidget);
+    expect(find.text('修改后重新发布'), findsNothing);
+    expect(find.text('删除失败记录'), findsNothing);
+    expect(find.text('取消发布'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     c.dispose();
   });
 
-  testWidgets('放弃未受理文字的确认在权限变化后停止执行', (tester) async {
+  testWidgets('删除未发出的文字的确认在权限变化后停止执行', (tester) async {
     final c = _WidgetPosts()..personal = [localItem('NOT_ACCEPTED')];
     await tester.pumpWidget(_app(personalPage(c)));
     await tester.pumpAndSettle();
     await tester.tap(find.text('原操作标题'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('放弃未受理文字'));
+    await tester.tap(find.text('删除未发出的文字'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('scoped-confirm-action')), findsOneWidget);
     c.loseAuthority();
@@ -1248,6 +1248,10 @@ void main() {
       ];
     await tester.pumpWidget(_app(personalPage(c)));
     await tester.pumpAndSettle();
+    // 多条未完成默认收成一叠，点开后才是完整卡片。
+    expect(find.text('共 3 条未完成'), findsOneWidget);
+    await tester.tap(find.text('展开'));
+    await tester.pumpAndSettle();
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('draft-one'))).dx,
       equals(tester.getTopLeft(find.byKey(const ValueKey('unknown-one'))).dx),
@@ -1259,7 +1263,7 @@ void main() {
       ),
     );
     expect(find.byIcon(Icons.error), findsNothing);
-    expect(find.text('结果未知'), findsOneWidget);
+    expect(find.text('结果待确认'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     c.dispose();

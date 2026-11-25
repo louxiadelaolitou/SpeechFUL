@@ -419,6 +419,9 @@ const messagingNotificationTranslations = <String, UiTranslation>{
   ),
   '通知记录': ('通知記錄', 'Notification history', '通知履歴'),
   '仅看未读': ('僅看未讀', 'Unread only', '未読のみ'),
+  '查看全部': ('查看全部', 'Show all', 'すべて表示'),
+  '仅看未读，已开启': ('僅看未讀，已開啟', 'Unread only is on', '未読のみ：オン'),
+  '查看全部，未开启': ('查看全部，未開啟', 'Showing all', 'すべて表示中'),
   '未读消息，都看完了': (
     '未讀訊息，都看完了',
     'You have read all unread notifications',

@@ -560,8 +560,12 @@ class _HnuholeAppState extends State<HnuholeApp>
   final _homeChannels = <String, String?>{};
   late final Listenable _postRouteChanges;
   bool _messagesRouteOpen = false;
-  late final ValueNotifier<HhNavigationUnread> _navigationUnread;
+  final ValueNotifier<HhNavigationUnread> _navigationUnread = ValueNotifier(
+    hhNoNavigationUnread,
+  );
+  final ValueNotifier<bool> _profileOtherUnread = ValueNotifier(false);
   int _notificationUnreadAuthority = -1;
+  String? _profileIdentityId;
   String? _dmInitialIdentity;
   int _dmInboxRevision = 0;
   bool _handlingDmTap = false;
@@ -655,6 +659,14 @@ class _HnuholeAppState extends State<HnuholeApp>
       _notificationUnreadAuthority = governance.authorityVersion;
       unawaited(governance.refreshInboxUnread());
     }
+    // 「我的」页胶囊红点按当前身份之外的未读计算，切身份后需要重新核对计数。
+    final identity = widget.posts.personalIdentity?.id;
+    if (_profileIdentityId != identity) {
+      _profileIdentityId = identity;
+      if (governance != null && governance.available) {
+        unawaited(governance.refreshInboxUnread());
+      }
+    }
     final conversations = widget.dm?.controller.conversations ?? const [];
     final next = (
       messages: widget.governance?.hasUnread == true,
@@ -664,6 +676,21 @@ class _HnuholeAppState extends State<HnuholeApp>
       }),
     );
     if (next != _navigationUnread.value) _navigationUnread.value = next;
+    final otherMessages = conversations.any((row) {
+      final unread = row['unread'];
+      return row['identityId'] != identity &&
+          unread is int &&
+          unread > 0 &&
+          row['hidden'] != true &&
+          row['deleted'] != true;
+    });
+    final otherNotices = (governance?.identityUnreadCounts ?? const <String, int>{})
+        .entries
+        .any((entry) => entry.key != identity && entry.value > 0);
+    final profileOther = otherMessages || otherNotices;
+    if (_profileOtherUnread.value != profileOther) {
+      _profileOtherUnread.value = profileOther;
+    }
   }
 
   void _selectPrimary(AppDestination destination) {
@@ -797,7 +824,6 @@ class _HnuholeAppState extends State<HnuholeApp>
     _sessionRouteChanged();
     _startAuthentication();
     widget.dm?.controller.addListener(_scheduleDmNotification);
-    _navigationUnread = ValueNotifier(hhNoNavigationUnread);
     widget.governance?.addListener(_syncNavigationUnread);
     widget.dm?.controller.addListener(_syncNavigationUnread);
     _syncNavigationUnread();
@@ -827,6 +853,7 @@ class _HnuholeAppState extends State<HnuholeApp>
     // Data/loading notifications can arrive while a different route builds.
     // Only a changed authority window invalidates the route's local state.
     _postWindow.value = (widget.posts.accountId, widget.posts.authorityVersion);
+    _syncNavigationUnread();
   }
 
   final _sessionRouteWindow = ValueNotifier((AuthStatus.starting, 0, false));
@@ -1300,6 +1327,7 @@ class _HnuholeAppState extends State<HnuholeApp>
       onOpenSettings: _openSettings,
       onEditIdentity: _editPersonalIdentity,
       onSetAvatar: _setPersonalAvatar,
+      otherIdentityUnread: _profileOtherUnread,
       onChooseChannel: () =>
           _primaryTabs.currentState?.select(AppDestination.home),
       onPublishedToChannel: (channelId) {
@@ -1333,6 +1361,7 @@ class _HnuholeAppState extends State<HnuholeApp>
     widget.governance?.removeListener(_syncNavigationUnread);
     widget.dm?.controller.removeListener(_syncNavigationUnread);
     _navigationUnread.dispose();
+    _profileOtherUnread.dispose();
     widget.dmNotifications?.dispose();
     widget.dm?.dispose();
     _authPresentation.removeListener(_syncNotificationLanguage);

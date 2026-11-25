@@ -1,4 +1,5 @@
 import '../localization/app_localizations.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import '../rate_limit_notice.dart';
 import '../design_system/detail_components.dart';
 import '../design_system/motion.dart';
@@ -24,6 +25,7 @@ import 'package:flutter/services.dart';
 
 import '../channels/channel.dart';
 import '../identity/identity_api.dart';
+import '../identity/identity_switcher.dart';
 import '../reports/report_screens.dart';
 import '../storage/post_store.dart';
 import 'post_controller.dart';
@@ -1472,6 +1474,7 @@ class PersonalPostsScreen extends StatefulWidget {
     this.onOpenSettings,
     this.onEditIdentity,
     this.onSetAvatar,
+    this.otherIdentityUnread,
   });
   final Widget? navigation;
   final bool showNavigation;
@@ -1485,6 +1488,9 @@ class PersonalPostsScreen extends StatefulWidget {
   final VoidCallback? onOpenSettings;
   final VoidCallback? onEditIdentity;
   final VoidCallback? onSetAvatar;
+
+  /// 其他身份有未读私信或未读通知时为 true，用于胶囊红点。
+  final ValueListenable<bool>? otherIdentityUnread;
   @override
   State<PersonalPostsScreen> createState() => _PersonalPostsScreenState();
 }
@@ -1577,7 +1583,7 @@ class _PersonalPostsScreenState extends State<PersonalPostsScreen>
       }
     } else {
       final publishedChannel = await Navigator.of(context).push<String>(
-        MaterialPageRoute<String>(
+        HhSlidePageRoute<String>(
           builder: (_) => _PostTaskScreen(
             controller: widget.controller,
             itemId: item.id,
@@ -1653,21 +1659,38 @@ class _PersonalPostsScreenState extends State<PersonalPostsScreen>
   );
 }
 
+/// 卡片只读取上传进度的展示值；不可用时隐藏进度，不影响卡片本身。
+PostImageUploadProgress? _uploadProgress(PostController? controller, String id) {
+  if (controller == null) return null;
+  try {
+    return controller.imageUploadProgress(id);
+  } on Object {
+    return null;
+  }
+}
+
 class _PersonalCard extends StatelessWidget {
   const _PersonalCard({
     super.key,
     required this.item,
     required this.channelName,
     required this.onOpen,
+    this.controller,
     this.onDeleteDraft,
     this.onDeleteTask,
+    this.uploadProgressOverride,
   });
   final PersonalPostItem item;
   final String channelName;
+  final PostController? controller;
   final VoidCallback onOpen;
   final VoidCallback? onDeleteDraft, onDeleteTask;
+
+  /// 仅 `lib/dev` 模板用：直接给一段上传进度；正式入口始终为 null。
+  final PostImageUploadProgress? uploadProgressOverride;
   @override
   Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
     final unknown = {
       'SUBMITTED',
       'UNKNOWN',
@@ -1675,6 +1698,9 @@ class _PersonalCard extends StatelessWidget {
     }.contains(item.state);
     final failed = !unknown && item.task?.state == PostTaskState.failed;
     final pending = !unknown && item.task?.state == PostTaskState.accepted;
+    final images = DraftPostImage.list(item.local?.data['images']);
+    final progress =
+        uploadProgressOverride ?? _uploadProgress(controller, item.id);
     final label = unknown
         ? hhText(context, _localPostState(item.state))
         : pending
@@ -1682,120 +1708,291 @@ class _PersonalCard extends StatelessWidget {
         : failed
         ? '发布未成功'
         : hhText(context, _localPostState(item.state));
+    final draft = item.isDraft || item.rateLimitedDraft;
     return Material(
-      color: pending || failed
-          ? HhTelegramPalette.of(context).raised
-          : HhTelegramPalette.of(context).surface,
-      borderRadius: BorderRadius.circular(8),
+      color: p.raised,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: p.line),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         onLongPress: onDeleteDraft ?? onDeleteTask,
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.title.isEmpty ? hhText(context, '未命名草稿') : item.title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  height: 1.4,
+              if (images.isNotEmpty) ...[
+                _PersonalCardCover(
+                  controller: controller,
+                  item: item,
+                  count: images.length,
                 ),
-              ),
-              const SizedBox(height: 16),
-              if (item.isDraft || item.rateLimitedDraft || failed) ...[
-                Row(
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: HhTelegramPalette.of(context).accent,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        hhText(context, '草稿'),
-                        style: TextStyle(
-                          color: HhTelegramPalette.of(context).onAccent,
-                          fontSize: 12,
+                    // 发布中时「查看进度」与标题同行，并和这行的箭头同色配对。
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title.isEmpty
+                                ? hhText(context, '未命名草稿')
+                                : item.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              height: 1.35,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (pending) ...[
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  hhText(context, '查看进度'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: p.accent,
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 16,
+                                  color: p.accent,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (failed) ...[
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.error,
-                        color: HhTelegramPalette.of(context).error,
-                        semanticLabel: hhText(context, '发布未成功'),
-                      ),
-                    ],
-                  ],
-                ),
-                if (failed)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      hhText(context, '发布未成功'),
-                      style: TextStyle(
-                        color: HhTelegramPalette.of(context).accent,
-                      ),
-                    ),
-                  ),
-              ] else if (pending)
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        semanticsLabel: hhText(context, '发布中'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
+                    const SizedBox(height: 8),
+                    if (pending)
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: p.accent,
+                              semanticsLabel: hhText(context, '发布中'),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              progress == null
+                                  ? label
+                                  : '$label ${progress.completed}/${progress.total}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: p.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (draft || failed)
+                      Row(
+                        children: [
+                          if (draft)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: p.accent,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                hhText(context, '草稿'),
+                                style: TextStyle(
+                                  color: p.onAccent,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          if (failed) ...[
+                            if (draft) const SizedBox(width: 8),
+                            Icon(
+                              Icons.error_outline,
+                              color: p.error,
+                              size: 15,
+                              semanticLabel: hhText(context, '发布失败'),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              hhText(context, '发布失败'),
+                              style: TextStyle(fontSize: 13, color: p.error),
+                            ),
+                          ],
+                        ],
+                      )
+                    else
+                      Text(
                         label,
-                        style: TextStyle(
-                          color: HhTelegramPalette.of(context).accent,
-                        ),
+                        style: TextStyle(fontSize: 13, color: p.secondary),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$channelName · ${postDateLabel(context, item.sortAt)}',
+                      style: TextStyle(
+                        color: p.secondary,
+                        fontSize: 12,
+                        height: 1.5,
                       ),
                     ),
                   ],
-                )
-              else
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: HhTelegramPalette.of(context).secondary,
-                  ),
-                ),
-              const SizedBox(height: 12),
-              Text(
-                '$channelName · ${postDateLabel(context, item.sortAt)}',
-                style: TextStyle(
-                  color: HhTelegramPalette.of(context).secondary,
-                  fontSize: 12,
-                  height: 1.5,
                 ),
               ),
               if (onDeleteDraft != null || onDeleteTask != null)
-                Align(
-                  alignment: Alignment.centerRight,
+                SizedBox(
+                  width: 32,
+                  height: 32,
                   child: IconButton(
+                    padding: EdgeInsets.zero,
                     tooltip: onDeleteDraft != null
                         ? hhText(context, '删除草稿')
-                        : hhText(context, '删除失败入口'),
+                        : hhText(context, '删除失败记录'),
                     onPressed: onDeleteDraft ?? onDeleteTask,
-                    icon: const Icon(Icons.delete_outline, size: 20),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                  ),
+                )
+              else if (!pending)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: p.secondary.withValues(alpha: .55),
                   ),
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 本地草稿/发布中卡片的首图缩略图：从本机媒体库读取，读不到时退回占位图。
+class _PersonalCardCover extends StatefulWidget {
+  const _PersonalCardCover({
+    required this.controller,
+    required this.item,
+    required this.count,
+  });
+  final PostController? controller;
+  final PersonalPostItem item;
+  final int count;
+  @override
+  State<_PersonalCardCover> createState() => _PersonalCardCoverState();
+}
+
+class _PersonalCardCoverState extends State<_PersonalCardCover> {
+  Future<Uint8List?>? _bytes;
+  @override
+  void initState() {
+    super.initState();
+    _bytes = _read();
+  }
+
+  @override
+  void didUpdateWidget(_PersonalCardCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.id != widget.item.id) _bytes = _read();
+  }
+
+  /// 只用于展示：读取失败或控制器不提供媒体时退回占位图，不影响卡片操作。
+  Future<Uint8List?> _read() async {
+    try {
+      return await widget.controller?.personalCoverBytes(widget.item);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: 56,
+        height: 56,
+        child: FutureBuilder<Uint8List?>(
+          future: _bytes,
+          builder: (context, snapshot) {
+            final bytes = snapshot.data;
+            if (bytes == null) {
+              return Container(
+                color: p.background,
+                child: Icon(
+                  Icons.image_outlined,
+                  size: 20,
+                  color: p.secondary,
+                ),
+              );
+            }
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.memory(
+                  bytes,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => Container(
+                    color: p.background,
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      size: 18,
+                      color: p.secondary,
+                    ),
+                  ),
+                ),
+                if (widget.count > 1)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: .55),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${widget.count}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1809,12 +2006,16 @@ class _PostTaskScreen extends StatefulWidget {
     required this.channelNames,
     required this.onManageIdentities,
     required this.onAuthenticationRequired,
+    this.devUploadProgress,
   });
   final PostController controller;
   final String itemId;
   final Map<String, String> channelNames;
   final Future<void> Function() onManageIdentities;
   final VoidCallback onAuthenticationRequired;
+
+  /// 仅 `lib/dev` 模板用：直接给一段上传进度；正式入口始终为 null。
+  final PostImageUploadProgress? devUploadProgress;
   @override
   State<_PostTaskScreen> createState() => _PostTaskScreenState();
 }
@@ -1883,9 +2084,9 @@ class _PostTaskScreenState extends State<_PostTaskScreen> {
     final confirmed = await _confirmScoped(
       context,
       widget.controller,
-      title: '放弃未受理文字',
-      message: '服务端已明确未受理原操作。放弃后删除本机文字，原操作的核对凭据仍保留。',
-      action: '放弃文字',
+      title: '删除未发出的文字',
+      message: '本次发布已被服务器拒绝。删除后本机不再保留这段文字，发布记录的核对凭据仍会保留。',
+      action: '删除文字',
     );
     if (!mounted || !_authority.current || confirmed != true) return;
     await widget.controller.discardUnaccepted(item.id);
@@ -1895,7 +2096,7 @@ class _PostTaskScreenState extends State<_PostTaskScreen> {
     final confirmed = await _confirmScoped(
       context,
       widget.controller,
-      title: '删除失败入口',
+      title: '删除失败记录',
       message: '删除后不会恢复到自己的帖子中。',
       action: '删除',
     );
@@ -1912,154 +2113,461 @@ class _PostTaskScreenState extends State<_PostTaskScreen> {
     return Theme(
       data: PostTheme.of(context),
       child: Builder(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text(hhText(context, '发布任务'))),
-          body: !_authority.current
-              ? _AccessClosed(onAuthenticate: widget.onAuthenticationRequired)
-              : item == null
-              ? _PageState(
-                  title: hhText(context, '此任务已从列表移除'),
-                  message: hhText(context, '返回自己的帖子查看当前结果。'),
-                )
-              : SafeArea(
-                  top: false,
-                  child: ListView(
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      Text(
-                        item.title,
-                        style: const TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        task == null || resultUnknown
-                            ? hhText(context, _localPostState(item.state))
-                            : switch (task.state) {
-                                PostTaskState.failed => hhText(context, '发布失败'),
-                                PostTaskState.accepted => hhText(
-                                  context,
-                                  '处理中',
+        builder: (context) {
+          final p = HhTelegramPalette.of(context);
+          final channel = item == null
+              ? hhText(context, '原分类')
+              : widget.channelNames[item.channelId] ??
+                    hhText(context, '原分类');
+          final statusTitle = item == null
+              ? ''
+              : task == null || resultUnknown
+              ? hhText(context, _localPostState(item.state))
+              : switch (task.state) {
+                  PostTaskState.failed => hhText(context, '发布失败'),
+                  PostTaskState.accepted => hhText(context, '发布中'),
+                  PostTaskState.published => hhText(context, '已发布'),
+                  PostTaskState.cancelled => hhText(context, '已取消'),
+                };
+          final failed =
+              item != null &&
+              !resultUnknown &&
+              task?.state == PostTaskState.failed;
+          final pending =
+              item != null &&
+              !resultUnknown &&
+              task?.state == PostTaskState.accepted;
+          final published =
+              task != null &&
+              !resultUnknown &&
+              task.state == PostTaskState.published;
+          final statusColor = failed
+              ? p.error
+              : pending || published
+              ? p.accent
+              : p.secondary;
+          final statusIcon = failed
+              ? Icons.error_outline_rounded
+              : pending
+              ? Icons.hourglass_bottom_rounded
+              : published
+              ? Icons.check_circle_outline_rounded
+              : Icons.info_outline_rounded;
+          final body =
+              task?.content?.body ?? (task == null ? item?.body ?? '' : '');
+          final state = item?.state;
+          final notice = state == 'RESULT_EXPIRED'
+              ? hhText(context, '已无法核对发布结果，请勿重复发布，先确认帖子是否已生成。')
+              : {'REJECTED', 'NOT_ACCEPTED'}.contains(state)
+              ? hhText(context, '本次发布已被服务器拒绝，未生成帖子。')
+              : hhText(context, '发布结果待确认：可能已发出，请先查看结果。');
+
+          return Scaffold(
+            appBar: AppBar(title: Text(hhText(context, '发布任务'))),
+            body: !_authority.current
+                ? _AccessClosed(onAuthenticate: widget.onAuthenticationRequired)
+                : item == null
+                ? _PageState(
+                    title: hhText(context, '此任务已从列表移除'),
+                    message: hhText(context, '返回自己的帖子查看当前结果。'),
+                  )
+                : SafeArea(
+                    top: false,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: p.raised,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: p.line),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: .12),
+                                  shape: BoxShape.circle,
                                 ),
-                                PostTaskState.published => hhText(
-                                  context,
-                                  '已发布',
+                                child: Icon(
+                                  statusIcon,
+                                  size: 20,
+                                  color: statusColor,
                                 ),
-                                PostTaskState.cancelled => hhText(
-                                  context,
-                                  '已取消',
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            statusTitle,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.3,
+                                              color: statusColor,
+                                            ),
+                                          ),
+                                        ),
+                                        if (pending) ...[
+                                          const SizedBox(width: 8),
+                                          SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: p.accent,
+                                              semanticsLabel: hhText(
+                                                context,
+                                                '发布中',
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '$channel · ${postDateLabel(context, item.sortAt)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: p.secondary,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              },
-                        style: TextStyle(
-                          color: HhTelegramPalette.of(context).secondary,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (task?.content != null)
-                        SelectableText(
-                          task!.content!.body,
-                          style: const TextStyle(fontSize: 17, height: 1.7),
-                        ),
-                      if (task == null && item.body.isNotEmpty)
-                        SelectableText(
-                          item.body,
-                          style: const TextStyle(fontSize: 17, height: 1.7),
-                        ),
-                      if (task == null || resultUnknown)
-                        Text(
-                          item.state == 'RESULT_EXPIRED'
-                              ? hhText(context, '原结果已无法完整核对，请停止重复发布。')
-                              : {
-                                  'REJECTED',
-                                  'NOT_ACCEPTED',
-                                }.contains(item.state)
-                              ? hhText(context, '服务端已明确拒绝原操作，未产生新发布效果。')
-                              : hhText(context, '原操作尚未得到权威结果，请先核对。'),
-                        ),
-                      const SizedBox(height: 24),
-                      FilledButton(
-                        onPressed: widget.controller.busy
-                            ? null
-                            : () => widget.controller.reconcile(item.id),
-                        child: Text(hhText(context, '核对原操作')),
-                      ),
-                      if (item.rateLimitedDraft) ...[
-                        RateLimitDraftNotice(
-                          remaining: () =>
-                              widget.controller.rateLimitedSeconds(item.id),
-                          onRetry: widget.controller.busy
-                              ? null
-                              : () =>
-                                    widget.controller.retryRateLimited(item.id),
-                        ),
-                      ],
-                      if ({'SUBMITTED', 'UNKNOWN'}.contains(item.state))
-                        TextButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () => widget.controller.seal(item.id),
-                          child: Text(hhText(context, '停止尚未受理的原操作')),
-                        ),
-                      if (task == null &&
-                          {'REJECTED', 'NOT_ACCEPTED'}.contains(item.state) &&
-                          item.local?.intents.lastOrNull?.operation ==
-                              'CREATE' &&
-                          item.local?.data['abandoned'] != true) ...[
-                        OutlinedButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () => _recover(item),
-                          child: Text(hhText(context, '恢复为新草稿')),
-                        ),
-                        TextButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () => _discardUnaccepted(item),
-                          child: Text(hhText(context, '放弃未受理文字')),
-                        ),
-                      ],
-                      if (!resultUnknown && task?.canCancel == true)
-                        OutlinedButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () =>
-                                    widget.controller.cancelTask(task!.taskId),
-                          child: Text(hhText(context, '取消本次发布')),
-                        ),
-                      if (!resultUnknown &&
-                          item.local?.data['images'] is List &&
-                          (item.local!.data['images'] as List).isNotEmpty &&
-                          item.state == 'ACCEPTED')
-                        _PostImageUploadStatus(
-                          controller: widget.controller,
-                          item: item,
-                        ),
-                      if (!resultUnknown && task?.canRetry == true)
-                        OutlinedButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () => _retry(task!),
-                          child: Text(hhText(context, '修改文字重试')),
-                        ),
-                      if (!resultUnknown && task?.canHide == true)
-                        TextButton(
-                          onPressed: widget.controller.busy
-                              ? null
-                              : () => _hide(task!),
-                          child: Text(hhText(context, '删除失败入口')),
-                        ),
-                      if (widget.controller.errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(
-                            hhText(context, widget.controller.errorMessage!),
+                              ),
+                            ],
                           ),
                         ),
-                    ],
+                        if (item.title.isNotEmpty || body.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                            decoration: BoxDecoration(
+                              color: p.raised,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: p.line),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.title.isEmpty
+                                      ? hhText(context, '未命名草稿')
+                                      : item.title,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                if (body.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  SelectableText(
+                                    body,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      height: 1.7,
+                                    ),
+                                    textAlign: TextAlign.start,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (task == null || resultUnknown) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: p.background,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: p.line),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 16,
+                                  color: p.secondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    notice,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      height: 1.6,
+                                      color: p.secondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (item.rateLimitedDraft) ...[
+                          const SizedBox(height: 12),
+                          RateLimitDraftNotice(
+                            remaining: () =>
+                                widget.controller.rateLimitedSeconds(item.id),
+                            onRetry: widget.controller.busy
+                                ? null
+                                : () =>
+                                      widget.controller.retryRateLimited(item.id),
+                          ),
+                        ],
+                        if (!resultUnknown &&
+                            item.local?.data['images'] is List &&
+                            (item.local!.data['images'] as List).isNotEmpty &&
+                            item.state == 'ACCEPTED') ...[
+                          const SizedBox(height: 16),
+                          _PostImageUploadStatus(
+                            controller: widget.controller,
+                            item: item,
+                            progressOverride: widget.devUploadProgress,
+                          ),
+                        ],
+                        // 主操作也收进「可选操作」，统一入口、统一风格。
+                        ..._otherActions(
+                          context,
+                          item: item,
+                          task: task,
+                          resultUnknown: resultUnknown,
+                        ),
+                        if (widget.controller.errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: p.error.withValues(alpha: .08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: p.error.withValues(alpha: .35),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline_rounded,
+                                    size: 16,
+                                    color: p.error,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      hhText(
+                                        context,
+                                        widget.controller.errorMessage!,
+                                      ),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.5,
+                                        color: p.error,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 次要动作统一收进「可选操作」分组，条件与可用性保持原样。
+  List<Widget> _otherActions(
+    BuildContext context, {
+    required PersonalPostItem item,
+    required PostTask? task,
+    required bool resultUnknown,
+  }) {
+    final p = HhTelegramPalette.of(context);
+    final busy = widget.controller.busy;
+    final tiles = <Widget>[];
+    void add({
+      required IconData icon,
+      required String label,
+      required VoidCallback action,
+      bool destructive = false,
+      bool accent = false,
+    }) {
+      tiles.add(
+        _TaskActionTile(
+          icon: icon,
+          label: label,
+          destructive: destructive,
+          accent: accent,
+          onTap: busy ? null : action,
+        ),
+      );
+    }
+
+    // 主操作（原「核对原操作」）排在第一行，与其余动作同一风格，仅用强调色区分。
+    add(
+      icon: Icons.fact_check_outlined,
+      label: '查看发布结果',
+      accent: true,
+      action: () => widget.controller.reconcile(item.id),
+    );
+
+    if ({'SUBMITTED', 'UNKNOWN'}.contains(item.state)) {
+      add(
+        icon: Icons.pause_circle_outline_rounded,
+        label: '停止本次发布尝试',
+        action: () => widget.controller.seal(item.id),
+      );
+    }
+    if (task == null &&
+        {'REJECTED', 'NOT_ACCEPTED'}.contains(item.state) &&
+        item.local?.intents.lastOrNull?.operation == 'CREATE' &&
+        item.local?.data['abandoned'] != true) {
+      add(
+        icon: Icons.restore_rounded,
+        label: '转为草稿',
+        action: () => _recover(item),
+      );
+      add(
+        icon: Icons.delete_sweep_outlined,
+        label: '删除未发出的文字',
+        destructive: true,
+        action: () => _discardUnaccepted(item),
+      );
+    }
+    if (!resultUnknown && task?.canCancel == true) {
+      add(
+        icon: Icons.cancel_outlined,
+        label: '取消发布',
+        action: () => widget.controller.cancelTask(task!.taskId),
+      );
+    }
+    if (!resultUnknown && task?.canRetry == true) {
+      add(
+        icon: Icons.edit_outlined,
+        label: '修改后重新发布',
+        action: () => _retry(task!),
+      );
+    }
+    if (!resultUnknown && task?.canHide == true) {
+      add(
+        icon: Icons.delete_outline_rounded,
+        label: '删除失败记录',
+        destructive: true,
+        action: () => _hide(task!),
+      );
+    }
+    if (tiles.isEmpty) return const [];
+    return [
+      const SizedBox(height: 20),
+      Text(
+        hhText(context, '可选操作'),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: p.secondary,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Material(
+        color: p.raised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: p.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < tiles.length; i++) ...[
+              if (i > 0)
+                Divider(height: .5, thickness: .5, color: p.line, indent: 14),
+              tiles[i],
+            ],
+          ],
+        ),
+      ),
+    ];
+  }
+}
+
+/// 「可选操作」分组里的一行动作。
+class _TaskActionTile extends StatelessWidget {
+  const _TaskActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+    this.accent = false,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool destructive;
+  final bool accent;
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    final enabled = onTap != null;
+    final color = !enabled
+        ? p.secondary.withValues(alpha: .45)
+        : destructive
+        ? p.error
+        : accent
+        ? p.accent
+        : p.ink;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: enabled ? .12 : .06),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hhText(context, label),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: accent ? FontWeight.w600 : FontWeight.w500,
+                  color: color,
                 ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: color.withValues(alpha: enabled ? .8 : .45),
+            ),
+          ],
         ),
       ),
     );
@@ -3835,13 +4343,51 @@ String postDateLabel(BuildContext context, DateTime date) {
 }
 
 String _localPostState(String state) => switch (state) {
-  'REJECTED' || 'NOT_ACCEPTED' => '未受理',
-  'RESULT_EXPIRED' => '原结果无法完整核对',
+  'REJECTED' || 'NOT_ACCEPTED' => '发布未通过',
+  'RESULT_EXPIRED' => '已无法核对结果',
   'ACCEPTED' => '发布中',
-  'FAILED' => '发布未成功',
+  'FAILED' => '发布失败',
   'CANCELLED' => '已取消',
   'PUBLISHED' => '已发布',
   'DRAFT' => '草稿',
   'RATE_LIMITED' => '草稿 · 等待后手动重试',
-  _ => '结果未知',
+  _ => '结果待确认',
 };
+
+/// 「我的」页紧凑堆叠行用：把本地状态映射成与卡片一致的对外文案。
+String hhPersonalPostStateText(BuildContext context, String state) =>
+    hhText(context, _localPostState(state));
+
+/// 仅供 `lib/dev` 手动测试模板调用：直接渲染真实的「发布中」卡片。
+/// 不参与任何正式入口，也不改变列表、路由或发布逻辑。
+Widget hhDevPersonalPostCard({
+  required PersonalPostItem item,
+  required PostController controller,
+  String channelName = '搭子',
+  VoidCallback? onOpen,
+  VoidCallback? onDelete,
+  PostImageUploadProgress? uploadProgress,
+}) => _PersonalCard(
+  item: item,
+  channelName: channelName,
+  controller: controller,
+  onOpen: onOpen ?? () {},
+  onDeleteDraft: item.isDraft ? onDelete : null,
+  onDeleteTask: item.task?.canHide == true ? onDelete : null,
+  uploadProgressOverride: uploadProgress,
+);
+
+/// 仅供 `lib/dev` 手动测试模板调用：直接打开真实的发布任务页。
+Widget hhDevPostTaskPage({
+  required PostController controller,
+  required String itemId,
+  required Map<String, String> channelNames,
+  PostImageUploadProgress? uploadProgress,
+}) => _PostTaskScreen(
+  controller: controller,
+  itemId: itemId,
+  channelNames: channelNames,
+  onManageIdentities: () async {},
+  onAuthenticationRequired: () {},
+  devUploadProgress: uploadProgress,
+);

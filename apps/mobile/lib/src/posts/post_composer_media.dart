@@ -175,6 +175,28 @@ extension PostComposerMedia on PostController {
   }
 
   PostImageUploadProgress? imageUploadProgress(String id) => _imageProgress[id];
+
+  /// 「我的」列表里草稿/发布中卡片的本地首图。只读本机媒体，不触发上传；
+  /// 图片未落地或读取失败时返回 null，由卡片显示占位图。
+  Future<Uint8List?> personalCoverBytes(PersonalPostItem item) async {
+    final images = DraftPostImage.list(item.local?.data['images']);
+    if (images.isEmpty) return null;
+    final image = images.first;
+    final selection = image.selection;
+    if (selection == null) return null;
+    try {
+      final a = await _authority(storage: true);
+      final bytes = await a.store!.readMedia(
+        image.blobId,
+        selection.byteLength,
+        selection.sha256,
+      );
+      if (!_current(a)) return null;
+      return bytes;
+    } on Object {
+      return null;
+    }
+  }
   Future<void> resumeImageUpload(String id, {bool automatic = false}) async {
     _PostAuthority? a;
     String? key;

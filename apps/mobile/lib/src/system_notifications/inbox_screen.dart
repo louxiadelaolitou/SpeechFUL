@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../design_system/motion.dart';
 import '../design_system/telegram_theme.dart';
 import '../identity/identity_switcher.dart';
 import '../localization/app_localizations.dart';
@@ -248,6 +249,7 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
     identityUnread
       ..clear()
       ..addAll(parsed);
+    c.updateIdentityUnread(parsed);
     c.updateInboxUnread(
       (m['system'] as int) > 0 || parsed.values.any((n) => n > 0),
     );
@@ -530,8 +532,9 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                     style: TextStyle(fontSize: 13, color: p.secondary),
                   ),
                 ),
-                TextButton(
-                  onPressed: () {
+                _UnreadOnlyToggle(
+                  active: onlyUnread,
+                  onTap: () {
                     epoch++;
                     loading.clear();
                     requests.clear();
@@ -540,32 +543,6 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                     setState(() => onlyUnread = !onlyUnread);
                     unawaited(load(category));
                   },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: Checkbox(
-                          value: onlyUnread,
-                          onChanged: (_) {
-                            epoch++;
-                            loading.clear();
-                            requests.clear();
-                            items.clear();
-                            next.clear();
-                            setState(() => onlyUnread = !onlyUnread);
-                            unawaited(load(category));
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        hhText(context, '仅看未读'),
-                        style: TextStyle(fontSize: 11, color: p.secondary),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -709,16 +686,7 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          time(n.createdAt),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: p.secondary),
-                        ),
-                      ),
                       if (n.unread) ...[
-                        const SizedBox(width: 7),
                         Container(
                           width: 6,
                           height: 6,
@@ -727,7 +695,15 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                             shape: BoxShape.circle,
                           ),
                         ),
+                        const SizedBox(width: 7),
                       ],
+                      // 时间固定贴右侧，避免被名字或未读点挤压后位置漂移。
+                      Text(
+                        time(n.createdAt),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: p.secondary),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -865,6 +841,72 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 「仅看未读 / 查看全部」两态切换。只显示当前状态，不再是复选框：
+/// 未筛选时显示「查看全部」，开启筛选后高亮显示「仅看未读」。
+class _UnreadOnlyToggle extends StatelessWidget {
+  const _UnreadOnlyToggle({required this.active, required this.onTap});
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    final label = active
+        ? hhText(context, '仅看未读')
+        : hhText(context, '查看全部');
+    return Semantics(
+      button: true,
+      toggled: active,
+      label: active
+          ? hhText(context, '仅看未读，已开启')
+          : hhText(context, '查看全部，未开启'),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const ValueKey('notification-unread-filter'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: HhMotion.duration(context, HhMotion.quick),
+            curve: HhMotion.curve,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: active
+                  ? p.accent.withValues(alpha: .12)
+                  : Colors.transparent,
+              border: Border.all(
+                color: active
+                    ? p.accent.withValues(alpha: .5)
+                    : p.line,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  active ? Icons.filter_alt : Icons.filter_alt_outlined,
+                  size: 15,
+                  color: active ? p.accent : p.secondary,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: active ? p.accent : p.secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

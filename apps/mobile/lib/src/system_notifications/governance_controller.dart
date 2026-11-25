@@ -162,6 +162,17 @@ class GovernanceController extends ChangeNotifier {
   bool _inboxUnreadRefreshing = false;
   bool get hasUnread => _inboxUnread || items.any((i) => i.unread);
 
+  /// 每个身份各自的通知未读数；供通知页红点与「我的」页胶囊红点共用。
+  final Map<String, int> identityUnreadCounts = {};
+
+  void updateIdentityUnread(Map<String, int> counts) {
+    if (mapEquals(identityUnreadCounts, counts)) return;
+    identityUnreadCounts
+      ..clear()
+      ..addAll(counts);
+    _notify();
+  }
+
   void updateInboxUnread(bool unread) {
     if (_inboxUnread == unread) return;
     _inboxUnread = unread;
@@ -193,13 +204,18 @@ class GovernanceController extends ChangeNotifier {
         throw const FormatException('Invalid identity unread counts');
       }
       var unread = (counts['system'] as int) > 0;
-      for (final value in identityUnread.values) {
-        if (value is! int || value < 0) {
+      final parsed = <String, int>{};
+      for (final entry in identityUnread.entries) {
+        if (entry.value is! int || (entry.value as int) < 0) {
           throw const FormatException('Invalid identity unread');
         }
-        unread = unread || value > 0;
+        parsed[entry.key] = entry.value as int;
+        unread = unread || (entry.value as int) > 0;
       }
-      if (available) updateInboxUnread(unread);
+      if (available) {
+        updateIdentityUnread(parsed);
+        updateInboxUnread(unread);
+      }
     } on Object {
       // Badge refresh is best-effort; the inbox surfaces actionable errors.
     } finally {
@@ -269,6 +285,7 @@ class GovernanceController extends ChangeNotifier {
     identities = [];
     items = [];
     _inboxUnread = false;
+    identityUnreadCounts.clear();
     selectedIdentityId = nextBefore = error = null;
     pending = null;
     lastPendingSubmitted = null;

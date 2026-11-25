@@ -829,80 +829,24 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
 
   Widget _profileIdentityChip(String name) {
     final c = widget.controller;
-    final p = HhTelegramPalette.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 224, minHeight: 48),
-      child: Tooltip(
-        message: hhText(context, '切换身份'),
-        child: Semantics(
-          label: hhText(context, '切换身份，当前{v0}', args: {'v0': name}),
-          button: true,
-          excludeSemantics: true,
-          onTap: _chooseIdentity,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              key: const ValueKey('personal-profile'),
-              onTap: c.personalIdentities.isEmpty ? null : _chooseIdentity,
-              borderRadius: BorderRadius.circular(24),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Material(
-                  key: _profileIdentityAnchor,
-                  color: p.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: p.line),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedRotation(
-                          turns: _identityMenuOpen ? .25 : 0,
-                          duration: HhMotion.duration(context, HhMotion.quick),
-                          child: Icon(
-                            Icons.chevron_right_rounded,
-                            size: 20,
-                            color: p.secondary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: p.ink,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        HhDmAvatar(
-                          identity: DmIdentity(
-                            id: c.personalIdentity?.id ?? '',
-                            name: name,
-                            avatar: c.personalIdentity?.avatar ?? 'default-v1',
-                          ),
-                          size: 28,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+    Widget chip(bool otherUnread) => HhIdentitySwitcher(
+      identity: DmIdentity(
+        id: c.personalIdentity?.id ?? '',
+        name: name,
+        avatar: c.personalIdentity?.avatar ?? 'default-v1',
       ),
+      anchor: _profileIdentityAnchor,
+      controlKey: const ValueKey('personal-profile'),
+      menuOpen: _identityMenuOpen,
+      enabled: c.personalIdentities.isNotEmpty,
+      otherUnread: otherUnread,
+      onTap: _chooseIdentity,
+    );
+    final listenable = widget.otherIdentityUnread;
+    if (listenable == null) return chip(false);
+    return ValueListenableBuilder<bool>(
+      valueListenable: listenable,
+      builder: (context, value, _) => chip(value),
     );
   }
 
@@ -1133,6 +1077,23 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
     }
   }
 
+  Widget _pendingCard(PostController c, PersonalPostItem item) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+    child: _PersonalCard(
+      key: ValueKey(item.id),
+      item: item,
+      controller: c,
+      channelName: widget.channelNames[item.channelId] ?? '原分类',
+      onOpen: () => _open(item),
+      onDeleteDraft: item.isDraft ? () => _deleteDraft(item) : null,
+      onDeleteTask:
+          item.task?.canHide == true &&
+              !{'SUBMITTED', 'UNKNOWN', 'RESULT_EXPIRED'}.contains(item.state)
+          ? () => _deleteFailedTask(item)
+          : null,
+    ),
+  );
+
   Widget _profileContent() {
     final c = widget.controller;
     final name =
@@ -1163,6 +1124,9 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
         return result == 0 ? b.sortAt.compareTo(a.sortAt) : result;
       });
     }
+    // 未完成/未发布优先，多条时先合成一叠；展开后最多先给三张，其余按需再展开。
+    final pendingItems = items.where((e) => e.post == null).toList();
+    final publishedItems = items.where((e) => e.post != null).toList();
     return RefreshIndicator(
       onRefresh: () async {
         if (_tab == 2) {
@@ -1277,41 +1241,26 @@ mixin _PersonalProfile on State<PersonalPostsScreen> {
                                 : _chooseChannel,
                           ),
                         ),
+                      if (pendingItems.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: _PendingSection(
+                            items: pendingItems,
+                            channelNames: widget.channelNames,
+                            cardBuilder: (item) => _pendingCard(c, item),
+                            onOpen: _open,
+                          ),
+                        ),
                       SliverList.builder(
-                        itemCount: items.length,
+                        itemCount: publishedItems.length,
                         itemBuilder: (context, index) {
-                          final item = items[index];
-                          return item.post != null
-                              ? _ProfilePost(
-                                  key: ValueKey(item.id),
-                                  post: item.post!,
-                                  controller: c,
-                                  loadImages: widget.loadImages,
-                                  onOpen: () => _open(item),
-                                )
-                              : Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: _PersonalCard(
-                                    key: ValueKey(item.id),
-                                    item: item,
-                                    channelName:
-                                        widget.channelNames[item.channelId] ??
-                                        '原分类',
-                                    onOpen: () => _open(item),
-                                    onDeleteDraft: item.isDraft
-                                        ? () => _deleteDraft(item)
-                                        : null,
-                                    onDeleteTask:
-                                        item.task?.canHide == true &&
-                                            !{
-                                              'SUBMITTED',
-                                              'UNKNOWN',
-                                              'RESULT_EXPIRED',
-                                            }.contains(item.state)
-                                        ? () => _deleteFailedTask(item)
-                                        : null,
-                                  ),
-                                );
+                          final item = publishedItems[index];
+                          return _ProfilePost(
+                            key: ValueKey(item.id),
+                            post: item.post!,
+                            controller: c,
+                            loadImages: widget.loadImages,
+                            onOpen: () => _open(item),
+                          );
                         },
                       ),
                       if (items.isNotEmpty)
@@ -2444,6 +2393,254 @@ class RenderSliverTransform extends RenderSliver
           context.paintChild(child, offset);
         }
       },
+    );
+  }
+}
+
+/// 未完成、未发布帖子的收起态：多行紧凑摘要收在同一个容器里，每行可直接点开，底部按钮展开。
+class _UnfinishedStack extends StatelessWidget {
+  const _UnfinishedStack({
+    required this.items,
+    required this.channelNames,
+    required this.onExpand,
+    required this.onOpen,
+  });
+  final List<PersonalPostItem> items;
+  final Map<String, String> channelNames;
+  final VoidCallback onExpand;
+  final void Function(PersonalPostItem) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    // 收起时只露最近三条，避免一屏全是同一类卡片。
+    final preview = items.take(3).toList();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      child: Material(
+        color: p.raised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: p.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < preview.length; i++) ...[
+              if (i > 0)
+                Divider(height: .5, thickness: .5, color: p.line, indent: 56),
+              _UnfinishedRow(
+                item: preview[i],
+                channelName: channelNames[preview[i].channelId] ?? '原分类',
+                onTap: () => onOpen(preview[i]),
+              ),
+            ],
+            Divider(height: .5, thickness: .5, color: p.line),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+              child: Row(
+                children: [
+                  Text(
+                    hhText(
+                      context,
+                      '共 {count} 条未完成',
+                      args: {'count': items.length},
+                    ),
+                    style: TextStyle(fontSize: 12, color: p.secondary),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: onExpand,
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.expand_more_rounded, size: 18),
+                    label: Text(hhText(context, '展开')),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 未完成帖子区：收起时露出最近三条摘要，展开时完整列出全部卡片。
+///
+/// 高度伸缩由显式 [AnimationController] 驱动，并设置 `AnimationBehavior.preserve`，
+/// 避免被系统「移除动画 / 动画时长倍率为 0」或无障碍服务降级成瞬间切换。
+class _PendingSection extends StatefulWidget {
+  const _PendingSection({
+    required this.items,
+    required this.channelNames,
+    required this.cardBuilder,
+    required this.onOpen,
+  });
+
+  final List<PersonalPostItem> items;
+  final Map<String, String> channelNames;
+  final Widget Function(PersonalPostItem) cardBuilder;
+  final void Function(PersonalPostItem) onOpen;
+
+  @override
+  State<_PendingSection> createState() => _PendingSectionState();
+}
+
+class _PendingSectionState extends State<_PendingSection> {
+  bool _expanded = false;
+
+  void _toggle({required bool expand}) {
+    if (_expanded == expand) return;
+    setState(() => _expanded = expand);
+  }
+
+  Widget _buildContent(BuildContext context) {
+    if (_expanded) {
+      return Column(
+        children: [
+          for (final item in widget.items) widget.cardBuilder(item),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: () => _toggle(expand: false),
+                icon: const Icon(Icons.expand_less_rounded, size: 18),
+                label: Text(hhText(context, '收起')),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return _UnfinishedStack(
+      items: widget.items,
+      channelNames: widget.channelNames,
+      onExpand: () => _toggle(expand: true),
+      onOpen: widget.onOpen,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.length <= 1) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: widget.cardBuilder(widget.items.first),
+      );
+    }
+    // 直接用「旧高度 → 新高度」一次性插值：展开时容器只往下长，下方内容被顺势推下去，
+    // 不会先收一下再长回来。系统若开了「移除动画」，这里显式关掉，保证过渡仍然可见。
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(disableAnimations: false),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.hardEdge,
+        child: _buildContent(context),
+      ),
+    );
+  }
+}
+
+/// 一叠里的一行摘要：点这一行直接进入对应的帖子/发布任务，底部按钮才展开全部。
+class _UnfinishedRow extends StatelessWidget {
+  const _UnfinishedRow({
+    required this.item,
+    required this.channelName,
+    required this.onTap,
+  });
+  final PersonalPostItem item;
+  final String channelName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HhTelegramPalette.of(context);
+    final state = item.state;
+    final accent = state == 'ACCEPTED';
+    final failed = state == 'FAILED';
+    final color = failed
+        ? p.error
+        : accent
+        ? p.accent
+        : p.secondary;
+    final icon = failed
+        ? Icons.error_outline_rounded
+        : accent
+        ? Icons.hourglass_bottom_rounded
+        : item.isDraft || item.rateLimitedDraft
+        ? Icons.edit_note_rounded
+        : Icons.help_outline_rounded;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 9, 12, 9),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title.isEmpty
+                        ? hhText(context, '未命名草稿')
+                        : item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$channelName · ${postDateLabel(context, item.sortAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: p.secondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 收起态只显示状态主词，括号里的细节留给展开后的卡片。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text(
+                hhPersonalPostStateText(context, state).split('·').first.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: color),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 16, color: p.secondary),
+          ],
+        ),
+      ),
     );
   }
 }
