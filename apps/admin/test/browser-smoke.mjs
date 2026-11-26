@@ -18,12 +18,12 @@ const token = encodeBytes(new Uint8Array(32).fill(13));
 const stamp = '2026-10-18T04:30:00Z';
 const hostile = '<img src=x onerror="window.evidenceExecuted=true">';
 const raster = { mime: 'image/png', base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5mQAAAAASUVORK5CYII=' };
-let role = 'REVIEWER', state = 'PENDING', version = 1, appealState = 'PENDING', revoked = false;
+let role = 'REVIEWER', state = 'PENDING', version = 1, appealState = 'PENDING', revoked = false, auditFailures = 1;
 let reportPageFailures = 1, releaseLateReport, markLateReportStarted;
 const lateReportStarted = new Promise(resolveStarted => { markLateReportStarted = resolveStarted; });
 const commands = [], errors = [], requests = [];
-const record = () => ({ id: caseId, number: 'R202610180001', postId: '40000000-0000-4000-8000-000000000001', platformNumber: '000125', reason: 'HARASSMENT', state, version, createdAt: stamp, outcome: state === 'ENDED' ? 'MUTE' : null, explanation: '已核查证据。', evidence: { title: '校园讨论中的违规内容', body: hostile, images: [raster] }, reports: [{ reason: 'HARASSMENT', description: '说明仅用于核查本案。', images: [], createdAt: stamp }], nextReportsCursor: 'opaque-report+2|a', sanctions: [] });
-const profiles = new Map([2, 3].map(n => { const id = `10000000-0000-4000-8000-00000000000${n}`; return [id, { ...record(), id, number: `R20261018000${n}`, state: 'PENDING', version: 1, nextReportsCursor: n === 2 ? 'late-report' : null }]; }));
+const record = () => ({ id: caseId, number: '202610180001', postId: '40000000-0000-4000-8000-000000000001', platformNumber: '000125', reason: 'HARASSMENT', state, version, createdAt: stamp, outcome: state === 'ENDED' ? 'MUTE' : null, explanation: '已核查证据。', evidence: { title: '校园讨论中的违规内容', body: hostile, images: [raster] }, reports: [{ reason: 'HARASSMENT', description: '说明仅用于核查本案。', images: [], createdAt: stamp }], nextReportsCursor: 'opaque-report+2|a', sanctions: [] });
+const profiles = new Map([2, 3].map(n => { const id = `10000000-0000-4000-8000-00000000000${n}`; return [id, { ...record(), id, number: `20261018000${n}`, state: n === 2 ? 'PROCESSING' : 'PENDING', version: 1, nextReportsCursor: n === 2 ? 'late-report' : null }]; }));
 const appeal = () => ({ id: appealId, caseId, sanctionId, state: appealState, ordinal: 1, version: 1, reason: appealState === 'ACCEPTED' ? '核查新材料后撤销对应处罚。' : '', platformNumber: '000125', action: 'MUTE', originalActorNumber: '000999', createdAt: stamp, materials: [{ description: '请结合原帖重新核查。', createdAt: stamp, images: [] }], nextMaterialsCursor: 'appeal-material+2' });
 const sanctions = () => [{ id: sanctionId, action: 'MUTE', reason: '已确认违规。', actorNumber: '000999', startsAt: stamp, endsAt: '2026-10-21T04:30:00Z', revokedAt: revoked ? stamp : null }];
 let server, browser;
@@ -47,7 +47,10 @@ try {
       if (url.pathname === '/api/v1/moderation/me') { respond({ role, platformNumber: '000123', email: 'PRIVATE-EMAIL', otherIdentities: ['PRIVATE-OTHER-MASK'] }); return; }
       if (url.pathname === '/api/v1/moderation/cases') {
         if (url.searchParams.has('before')) { queuePageReads++; queuePageStarted(); await queuePageGate; }
-        respond(url.searchParams.has('before') ? { items: [...profiles.values()] } : { items: [record()], nextBefore: `${stamp}|${caseId}` }); return;
+        const stateFilter = url.searchParams.get('state') ?? '', numberFilter = url.searchParams.get('number') ?? '';
+        const filtered = [record(), ...profiles.values()].filter(item => (!stateFilter || item.state === stateFilter) && (!numberFilter || item.number === numberFilter));
+        if (numberFilter) { respond({ items: filtered, nextBefore: null }); return; }
+        respond(url.searchParams.has('before') ? { items: filtered.filter(item => item.id !== caseId), nextBefore: null } : { items: filtered.slice(0, 1), nextBefore: filtered.length ? `${stamp}|${caseId}` : null }); return;
       }
       if (url.pathname === `/api/v1/moderation/cases/${caseId}`) { respond(record()); return; }
       if (url.pathname === `/api/v1/moderation/cases/${caseId}/reports`) {
@@ -72,7 +75,7 @@ try {
         respond(url.searchParams.has('number') ? { items: [account] } : url.searchParams.has('before') ? { items: [{ ...account, platformNumber: '000127', sanctions: [] }] } : { items: [account, { ...account, platformNumber: '000126', sanctions: [] }], nextBefore: '000126' }); return;
       }
       if (url.pathname.endsWith('/revoke')) { revoked = true; commands.push(payload); respond(sanctions()[0]); return; }
-      if (url.pathname === '/api/v1/moderation/audit') { respond({ items: [{ actorNumber: '000999', targetNumber: '000125', action: 'MUTE', reason: '已核查材料。', createdAt: stamp, caseId }] }); return; }
+      if (url.pathname === '/api/v1/moderation/audit') { if (auditFailures-- > 0) { respond({}, 503); return; } respond({ items: [{ actorNumber: '000999', targetNumber: '000125', action: 'MUTE', reason: '已核查材料。', createdAt: stamp, caseId }] }); return; }
       if (url.pathname.startsWith('/api/v1/moderation/roles/')) { commands.push(payload); respond({ platformNumber: url.pathname.split('/').at(-1), role: payload.role }); return; }
       respond({}, 404);
     } catch { res.writeHead(500); res.end(); }
@@ -86,8 +89,22 @@ try {
   page.on('request', request => requests.push(request.url()));
   await page.goto(`${origin}/admin`);
   await page.getByLabel('用户名', { exact: true }).fill('reviewer_test'); await page.getByLabel('密码', { exact: true }).fill('synthetic fixture password'); await page.getByRole('button', { name: '登录', exact: true }).click();
-  await page.getByRole('button', { name: /工单 R202610180001/ }).click();
+  const pendingFilter = page.getByRole('button', { name: '待处理', exact: true });
+  await pendingFilter.waitFor();
+  assert.equal(await pendingFilter.getAttribute('aria-pressed'), 'true');
+  await page.getByRole('button', { name: '处理中', exact: true }).click();
+  await page.getByRole('button', { name: /工单 202610180002/ }).waitFor();
+  await pendingFilter.click();
+  await page.getByRole('button', { name: /工单 202610180001/ }).waitFor();
+  const numberSearch = page.getByLabel('工单编号', { exact: true });
+  await numberSearch.fill('202610180003'); await page.getByRole('button', { name: '查找', exact: true }).click();
+  await page.getByRole('button', { name: /工单 202610180003/ }).waitFor();
+  await page.getByRole('button', { name: '清除', exact: true }).click();
+  await page.getByRole('button', { name: /工单 202610180001/ }).click();
   await page.getByRole('heading', { name: '举报时的内容' }).waitFor();
+  await page.screenshot({ path: join(root, 'reviewer-workspace.png'), fullPage: false });
+  await page.getByRole('button', { name: '重新加载操作记录', exact: true }).click();
+  await page.getByText(/账号禁言 · 操作人 000999/).waitFor();
   assert.equal(await page.locator('.body').textContent(), hostile); assert.equal(await page.locator('img[onerror]').count(), 0);
   assert.equal(await page.getByRole('button', { name: '权限管理', exact: true }).count(), 0);
   assert.equal(await page.getByLabel('处理措施', { exact: true }).locator('option[value="BAN"]').count(), 0);
@@ -102,21 +119,23 @@ try {
   const materialText = await page.locator('.detail').innerText(); assert.ok(materialText.indexOf('说明仅用于核查本案。') < materialText.indexOf('第二份举报材料')); assert.ok(materialText.indexOf('第二份举报材料') < materialText.indexOf('第三份举报材料'));
   await page.getByRole('button', { name: '开始处理', exact: true }).click(); await page.getByText('已进入处理状态。', { exact: true }).waitFor();
   await page.getByLabel('处理措施', { exact: true }).selectOption('MUTE');
-  await page.getByText(/考虑现有处罚/).waitFor(); await page.getByLabel('处理原因', { exact: true }).fill('根据本案证据作出三天禁言。');
+  await page.getByText(/考虑现有处罚/).waitFor(); await page.getByText('下架本案内容，并禁言账号 3 天。', { exact: true }).waitFor(); await page.getByLabel('处理原因', { exact: true }).fill('根据本案证据作出三天禁言。');
   await page.screenshot({ path: join(root, 'reviewer-case.png'), fullPage: true });
   await page.getByRole('button', { name: '确认处理', exact: true }).click(); await page.getByText('案件已处理。', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '全部', exact: true }).click();
   await page.getByRole('button', { name: '加载更早记录', exact: true }).evaluate(button => { button.click(); button.click(); });
   await queuePageReady;
   await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   assert.equal(queuePageReads, 1); releaseQueuePage();
-  await page.getByRole('button', { name: /工单 R202610180002/ }).waitFor();
+  await page.getByRole('button', { name: /工单 202610180002/ }).waitFor();
   assert.equal(await page.locator('.queue-item[data-record]').count(), 3);
-  await page.getByRole('button', { name: /工单 R202610180002/ }).click(); await page.getByRole('button', { name: '加载后续材料', exact: true }).click(); await lateReportStarted;
-  await page.getByRole('button', { name: /工单 R202610180003/ }).click(); await page.getByRole('heading', { name: '工单 R202610180003', exact: true }).waitFor();
+  await page.getByRole('button', { name: /工单 202610180001/ }).focus(); await page.keyboard.press('ArrowDown'); await page.getByRole('heading', { name: '工单 202610180002', exact: true }).waitFor();
+  await page.getByRole('button', { name: '加载后续材料', exact: true }).click(); await lateReportStarted;
+  await page.getByRole('button', { name: /工单 202610180003/ }).click(); await page.getByRole('heading', { name: '工单 202610180003', exact: true }).waitFor();
   const lateResponse = page.waitForResponse(response => response.url().endsWith('/reports?cursor=late-report')); releaseLateReport(); await (await lateResponse).finished();
   await page.evaluate(() => new Promise(resolveFrame => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))));
   assert.equal(await page.getByText('迟到材料不应串入另一案件。', { exact: true }).count(), 0);
-  for (const [number, action] of [['R202610180002', 'RESET_NICKNAME'], ['R202610180003', 'RESET_AVATAR']]) {
+  for (const [number, action] of [['202610180002', 'RESET_NICKNAME'], ['202610180003', 'RESET_AVATAR']]) {
     await page.getByRole('button', { name: new RegExp(`工单 ${number}`) }).click(); await page.getByLabel('处理措施', { exact: true }).selectOption(action);
     assert.equal(await page.getByLabel('本次期限', { exact: true }).isVisible(), false);
     await page.getByLabel('处理原因', { exact: true }).fill('仅重置本案身份的违规资料。'); await page.getByRole('button', { name: '确认处理', exact: true }).click(); await page.getByText('案件已处理。', { exact: true }).waitFor();
@@ -130,21 +149,26 @@ try {
   await page.getByLabel('撤销原因', { exact: true }).fill('独立核查后撤销。'); await page.getByRole('button', { name: '撤销此项处罚', exact: true }).click(); await page.getByText('已撤销此项处罚，其他有效处罚继续执行。', { exact: true }).waitFor();
   await page.getByRole('button', { name: '退出', exact: true }).click(); await page.getByRole('heading', { name: '进入审核工作台' }).waitFor();
   await page.getByLabel('用户名', { exact: true }).fill('admin_test'); await page.getByLabel('密码', { exact: true }).fill('synthetic fixture password'); await page.getByRole('button', { name: '登录', exact: true }).click();
-  await page.getByRole('button', { name: /工单 R202610180001/ }).click(); await page.getByLabel('处理措施', { exact: true }).selectOption('BAN'); await page.getByLabel('本次期限', { exact: true }).selectOption('0');
+  await page.getByRole('button', { name: /工单 202610180001/ }).click(); await page.getByLabel('处理措施', { exact: true }).selectOption('BAN'); await page.getByLabel('本次期限', { exact: true }).selectOption('0');
   await page.getByText(/永久，须经授权解除/).waitFor(); await page.getByLabel('处理原因', { exact: true }).fill('管理员依据核查结果处理。');
   await page.screenshot({ path: join(root, 'admin-case.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: join(root, 'admin-narrow-case.png'), fullPage: true });
+  assert.equal(await page.locator('html').evaluate(node => node.scrollWidth <= window.innerWidth), true);
   await page.getByRole('button', { name: '权限管理', exact: true }).click(); await page.getByLabel('目标平台编号', { exact: true }).fill('000126'); await page.getByLabel('变更原因', { exact: true }).fill('授权专用审核账号。'); await page.getByRole('button', { name: '保存权限变更', exact: true }).click(); await page.getByText('已更新账号 000126 的管理权限。', { exact: true }).waitFor();
-  await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: join(root, 'admin-narrow.png'), fullPage: true });
+  await page.screenshot({ path: join(root, 'admin-narrow.png'), fullPage: true });
   assert.equal(await page.locator('html').evaluate(node => node.scrollWidth <= window.innerWidth), true);
   assert.equal(commands.some(c => c.action === 'MUTE' && c.days === 3), true); assert.equal(commands.some(c => c.accept === true), true); assert.equal(commands.some(c => c.role === 'REVIEWER'), true);
   assert.equal(commands.some(c => c.action === 'RESET_NICKNAME' && c.days === 0), true); assert.equal(commands.some(c => c.action === 'RESET_AVATAR' && c.days === 0), true);
   assert.equal(requests.some(url => url.includes('/moderation/appeals?') && new URL(url).searchParams.get('before') === `${stamp}|${appealId}`), true);
   assert.equal(requests.some(url => url.includes('/moderation/accounts?') && new URL(url).searchParams.get('before') === '000126'), true);
+  assert.equal(requests.some(url => url.includes('/moderation/cases?') && new URL(url).searchParams.get('state') === 'PENDING'), true);
+  assert.equal(requests.some(url => url.includes('/moderation/cases?') && new URL(url).searchParams.get('state') === 'PROCESSING'), true);
+  assert.equal(requests.some(url => url.includes('/moderation/cases?') && new URL(url).searchParams.get('number') === '202610180003'), true);
   assert.equal(requests.filter(url => url.includes(`/cases/${caseId}/reports?`) && new URL(url).searchParams.get('cursor') === 'opaque-report+2|a').length, 2);
   assert.equal(requests.some(url => url.includes(`/appeals/${appealId}/materials?`) && new URL(url).searchParams.get('cursor') === 'appeal-material+2'), true);
   assert.equal(commands.every(c => typeof c.commandId === 'string'), true); assert.equal(requests.every(url => url.startsWith(origin)), true); assert.deepEqual(errors, []);
   await page.getByRole('button', { name: '退出', exact: true }).click();
-  console.log(JSON.stringify({ result: 'PASS_SYNTHETIC_HTTPS_UI', commands: commands.length, noExternalRequests: true, pageErrors: errors.length, screenshots: ['reviewer-case.png', 'appeals-queue.png', 'accounts-list.png', 'admin-case.png', 'admin-narrow.png'] }));
+  console.log(JSON.stringify({ result: 'PASS_SYNTHETIC_HTTPS_UI', commands: commands.length, noExternalRequests: true, pageErrors: errors.length, screenshots: ['reviewer-workspace.png', 'reviewer-case.png', 'appeals-queue.png', 'accounts-list.png', 'admin-case.png', 'admin-narrow-case.png', 'admin-narrow.png'] }));
 } finally {
   await browser?.close(); await new Promise(resolveClose => server ? server.close(resolveClose) : resolveClose());
   const checked = resolve(temporary); if (!checked.startsWith(root + '\\') && !checked.startsWith(root + '/')) throw new Error('Temporary TLS cleanup escaped the test root.');

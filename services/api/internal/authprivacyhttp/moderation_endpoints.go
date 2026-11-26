@@ -26,6 +26,7 @@ type ModerationBackend interface {
 	GetAppealRequest(context.Context, [32]byte, string, string, bool) (authprivacy.PostResponse, error)
 	SubmitAppeal(context.Context, [32]byte, string, string, moderation.Material, bool) (authprivacy.PostResponse, error)
 	ReadModeration(context.Context, [32]byte, string, string, string, string, int) (authprivacy.PostResponse, error)
+	ReadModerationCases(context.Context, [32]byte, string, string, string, int) (authprivacy.PostResponse, error)
 	ExecuteModeration(context.Context, [32]byte, string, string, moderation.Decision) (authprivacy.PostResponse, error)
 	ReadModerationMaterials(context.Context, [32]byte, string, string, string, bool) (authprivacy.PostResponse, error)
 }
@@ -159,6 +160,27 @@ func allowsModerationQuery(r *http.Request) bool {
 	route, e := parseModerationRoute(r.URL.Path)
 	return e == nil && (route.list && r.Method == "GET" || (route.kind == "notification" && r.Method == "GET") || (route.kind == "read" && r.Method == "POST"))
 }
+
+func moderationQueryFields(kind string) map[string]bool {
+	switch kind {
+	case "self-materials", "admin-materials", "admin-reports":
+		return map[string]bool{"cursor": true}
+	case "notifications":
+		return map[string]bool{"identityId": true, "before": true, "limit": true}
+	case "notification", "read":
+		return map[string]bool{"identityId": true}
+	case "admin-cases":
+		return map[string]bool{"state": true, "number": true, "before": true, "limit": true}
+	case "admin-appeals":
+		return map[string]bool{"before": true, "limit": true}
+	case "admin-accounts":
+		return map[string]bool{"number": true, "before": true, "limit": true}
+	case "admin-audit":
+		return map[string]bool{"caseId": true}
+	}
+	return map[string]bool{}
+}
+
 func moderationObject(r *http.Request, required, optional []string) (map[string]any, error) {
 	rawType, e := singleHeader(r.Header, "Content-Type")
 	if e != nil {
@@ -323,21 +345,7 @@ func (b *boundary) communityModeration(w http.ResponseWriter, r *http.Request, b
 		b.moderationFailure(w, errMalformed)
 		return
 	}
-	allowed := map[string]bool{}
-	switch route.kind {
-	case "self-materials", "admin-materials", "admin-reports":
-		allowed = map[string]bool{"cursor": true}
-	case "notifications":
-		allowed = map[string]bool{"identityId": true, "before": true, "limit": true}
-	case "notification", "read":
-		allowed = map[string]bool{"identityId": true}
-	case "admin-cases", "admin-appeals":
-		allowed = map[string]bool{"before": true, "limit": true}
-	case "admin-accounts":
-		allowed = map[string]bool{"number": true, "before": true, "limit": true}
-	case "admin-audit":
-		allowed = map[string]bool{"caseId": true}
-	}
+	allowed := moderationQueryFields(route.kind)
 	for k, v := range values {
 		if !allowed[k] || len(v) != 1 || v[0] == "" {
 			b.moderationFailure(w, errMalformed)
@@ -378,6 +386,8 @@ func (b *boundary) communityModeration(w http.ResponseWriter, r *http.Request, b
 			response, e = backend.ReadAppeal(r.Context(), bearer, route.id)
 		case "appeal-request":
 			response, e = backend.GetAppealRequest(r.Context(), bearer, route.parent, route.request, route.appendMaterial)
+		case "admin-cases":
+			response, e = backend.ReadModerationCases(r.Context(), bearer, values.Get("state"), values.Get("number"), values.Get("before"), limit)
 		default:
 			kind := strings.TrimPrefix(route.kind, "admin-")
 			id := route.id

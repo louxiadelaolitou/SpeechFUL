@@ -290,6 +290,57 @@ func moderationDecision(t *testing.T, l *lab, s SessionCreateResult, caseID, act
 	}
 	return r.Value.(moderation.Case)
 }
+func TestModerationCaseListFiltersPostgres(t *testing.T) {
+	l := moderationLab(t)
+	ctx := context.Background()
+	reviewer := moderationActor(t, l, "mod_filter_reviewer", "REVIEWER")
+	reporter := moderationActor(t, l, "mod_filter_reporter", "")
+	firstPost := moderationPost(t, l, "mod_filter_owner_a")
+	secondPost := moderationPost(t, l, "mod_filter_owner_b")
+	_, first := moderationReport(t, l, reporter, nil, firstPost.post, "PRIVACY")
+	_, second := moderationReport(t, l, reporter, nil, secondPost.post, "OTHER")
+
+	detail, e := l.c.ReadModeration(ctx, reviewer.SessionToken, "case", first.CaseID, "", "", 50)
+	if e != nil {
+		t.Fatal(e)
+	}
+	firstCase := detail.Value.(moderation.Case)
+	if _, e = l.c.ExecuteModeration(ctx, reviewer.SessionToken, "claim", first.CaseID, moderation.Decision{CommandID: uuid.NewString(), ExpectedVersion: firstCase.Version}); e != nil {
+		t.Fatal(e)
+	}
+	detail, e = l.c.ReadModeration(ctx, reviewer.SessionToken, "case", second.CaseID, "", "", 50)
+	if e != nil {
+		t.Fatal(e)
+	}
+	secondCase := detail.Value.(moderation.Case)
+
+	list := func(state, number string) []moderation.Case {
+		t.Helper()
+		response, e := l.c.ReadModerationCases(ctx, reviewer.SessionToken, state, number, "", 50)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return response.Value.(map[string]any)["items"].([]moderation.Case)
+	}
+	if items := list("PENDING", ""); len(items) != 1 || items[0].ID != second.CaseID {
+		t.Fatalf("pending filter returned %+v", items)
+	}
+	if items := list("PROCESSING", ""); len(items) != 1 || items[0].ID != first.CaseID {
+		t.Fatalf("processing filter returned %+v", items)
+	}
+	if items := list("", secondCase.Number); len(items) != 1 || items[0].ID != second.CaseID {
+		t.Fatalf("number filter returned %+v", items)
+	}
+	if items := list("", ""); len(items) != 2 {
+		t.Fatalf("unfiltered list returned %d cases", len(items))
+	}
+	if _, e := l.c.ReadModerationCases(ctx, reviewer.SessionToken, "OPEN", "", "", 50); !errors.Is(e, moderation.ErrInvalid) {
+		t.Fatal("invalid state accepted", e)
+	}
+	if _, e := l.c.ReadModerationCases(ctx, reviewer.SessionToken, "", "00"+secondCase.Number, "", 50); !errors.Is(e, moderation.ErrInvalid) {
+		t.Fatal("non-canonical number accepted", e)
+	}
+}
 func TestModerationReportsOriginalResultAndPrivacyPostgres(t *testing.T) {
 	l := moderationLab(t)
 	ctx := context.Background()
