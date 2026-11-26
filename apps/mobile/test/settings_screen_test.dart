@@ -85,6 +85,91 @@ Widget _app(AuthPresentationController c, {SettingsScreen? settings}) =>
     );
 
 void main() {
+  testWidgets('about page shows the approved copy in all four languages', (
+    tester,
+  ) async {
+    final c = AuthPresentationController();
+    addTearDown(c.dispose);
+    await tester.pumpWidget(_app(c));
+    await tester.pumpAndSettle();
+    await _open(tester, 'about');
+
+    for (final language in AppLanguage.values) {
+      c.setLanguage(language);
+      await tester.pumpAndSettle();
+      final expected = switch (language) {
+        AppLanguage.simplifiedChinese => (
+          version: '版本v2.0.0',
+          intro: '面向海南大学校内人员的匿名社区，让世界多一些爱与真诚。',
+          features: '在这里，你可以按校园分类浏览、搜索和分享帖子，发布文字或图文内容，并通过回复、点赞、通知和私信参与交流。',
+          identities: '每个账号可以拥有多个长期发言身份。公开内容只展示你选择的身份，账号资料及不同身份之间的关联不会公开展示。',
+          disclaimer: 'SpeechFUL 为独立开发的校园社区项目，与海南大学不存在官方隶属、认可或授权关系。',
+        ),
+        AppLanguage.traditionalChinese => (
+          version: '版本v2.0.0',
+          intro: '面向海南大學校內人員的匿名社群，讓世界多一些愛與真誠。',
+          features: '在這裡，你可以依校園分類瀏覽、搜尋和分享貼文，發布文字或圖文內容，並透過回覆、按讚、通知和私訊參與交流。',
+          identities: '每個帳號可以擁有多個長期發言身分。公開內容只顯示你選擇的身分，帳號資料及不同身分之間的關聯不會公開顯示。',
+          disclaimer: 'SpeechFUL 為獨立開發的校園社群專案，與海南大學不存在官方隸屬、認可或授權關係。',
+        ),
+        AppLanguage.english => (
+          version: 'Version v2.0.0',
+          intro: 'An anonymous campus community for Hainan University members, bringing a little more love and sincerity to the world.',
+          features: 'Browse, search and share posts by campus category, publish text or photo posts, and connect through replies, likes, notifications and direct messages.',
+          identities: 'Each account can hold multiple long-term speaking identities. Public content only shows the identity you choose, and account details or links between identities are never shown publicly.',
+          disclaimer: 'SpeechFUL is an independently developed campus community project and is not officially affiliated with, endorsed by, or authorized by Hainan University.',
+        ),
+        AppLanguage.japanese => (
+          version: 'バージョンv2.0.0',
+          intro: '海南大学の学内関係者向けの匿名コミュニティです。世界にもう少し愛と誠実さを。',
+          features: 'キャンパス分類ごとに投稿を閲覧・検索・共有でき、テキストや画像を投稿したり、返信・いいね・通知・ダイレクトメッセージで交流できます。',
+          identities: '1つのアカウントで複数の長期的な発言アイデンティティを持てます。公開コンテンツには選択したアイデンティティのみが表示され、アカウント情報やアイデンティティ間の関連は公開されません。',
+          disclaimer:
+              'SpeechFUL は独立開発のキャンパスコミュニティプロジェクトであり、海南大学との公式な提携、承認、許諾関係はありません。',
+        ),
+      };
+
+      expect(find.text(expected.version), findsOneWidget);
+      expect(find.text(expected.intro), findsOneWidget);
+      expect(find.text(expected.features), findsOneWidget);
+      expect(find.text(expected.identities), findsOneWidget);
+      expect(find.text(expected.disclaimer), findsOneWidget);
+    }
+  });
+
+  testWidgets(
+    'about page scrolls at narrow large-text sizes without overflow',
+    (tester) async {
+      final c = AuthPresentationController();
+      addTearDown(c.dispose);
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      tester.view.physicalSize = const Size(320, 360);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.8;
+
+      await tester.pumpWidget(_app(c));
+      await tester.pumpAndSettle();
+      await _open(tester, 'about');
+
+      final page = find.byKey(const ValueKey('settings-about-page'));
+      expect(page, findsOneWidget);
+      final scrollable = find.descendant(
+        of: page,
+        matching: find.byType(Scrollable),
+      );
+      final disclaimer = find.byKey(
+        const ValueKey('settings-about-disclaimer'),
+      );
+      await tester.scrollUntilVisible(disclaimer, 120, scrollable: scrollable);
+      await tester.pumpAndSettle();
+
+      expect(disclaimer, findsOneWidget);
+      expect(tester.getBottomLeft(disclaimer).dy, lessThanOrEqualTo(360));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'settings press cancellation and keyboard activation keep one route',
     (tester) async {

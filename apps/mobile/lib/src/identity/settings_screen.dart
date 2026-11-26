@@ -322,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'about',
                     Icons.info_outline_rounded,
                     '关于 SpeechFUL',
-                    value: 'v1.0',
+                    value: 'v2.0.0',
                     open: () => _open(const _AboutSettings()),
                   ),
                 ],
@@ -1064,48 +1064,93 @@ class _AboutSettings extends StatelessWidget {
     final p = HhTelegramPalette.of(context);
     return _SettingsPage(
       title: '关于 SpeechFUL',
-      child: Padding(
+      child: ListView(
+        key: const ValueKey('settings-about-page'),
         padding: const EdgeInsets.all(20),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: p.line),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SpeechFUL',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: p.ink,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: p.line),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SpeechFUL',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: p.ink,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  hhText(context, '版本 v1.0'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: p.ink.withValues(alpha: .88),
+                  const SizedBox(height: 8),
+                  Text(
+                    hhText(context, '版本v2.0.0'),
+                    key: const ValueKey('settings-about-version'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: p.ink.withValues(alpha: .88),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  hhText(context, '一个以发言身份为核心的校园社区。'),
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.75,
-                    color: p.secondary,
+                  const SizedBox(height: 16),
+                  Text(
+                    hhText(context, '面向海南大学校内人员的匿名社区，让世界多一些爱与真诚。'),
+                    key: const ValueKey('settings-about-intro'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.75,
+                      color: p.ink.withValues(alpha: .88),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Text(
+                    hhText(
+                      context,
+                      '在这里，你可以按校园分类浏览、搜索和分享帖子，发布文字或图文内容，并通过回复、点赞、通知和私信参与交流。',
+                    ),
+                    key: const ValueKey('settings-about-features'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.75,
+                      color: p.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    hhText(
+                      context,
+                      '每个账号可以拥有多个长期发言身份。公开内容只展示你选择的身份，账号资料及不同身份之间的关联不会公开展示。',
+                    ),
+                    key: const ValueKey('settings-about-identities'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.75,
+                      color: p.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    hhText(
+                      context,
+                      'SpeechFUL 为独立开发的校园社区项目，与海南大学不存在官方隶属、认可或授权关系。',
+                    ),
+                    key: const ValueKey('settings-about-disclaimer'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.75,
+                      color: p.secondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
