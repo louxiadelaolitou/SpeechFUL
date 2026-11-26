@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:hnuhole_mobile/src/design_system/motion.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 
 import 'dart:io';
@@ -1248,10 +1249,26 @@ void main() {
       ];
     await tester.pumpWidget(_app(personalPage(c)));
     await tester.pumpAndSettle();
-    // 多条未完成默认收成一叠，点开后才是完整卡片。
+    // 多条未完成默认收成一叠；展开与收起共用同一填充按钮和按压动画。
     expect(find.text('共 3 条未完成'), findsOneWidget);
-    await tester.tap(find.text('展开'));
+    final expand = find.byKey(const ValueKey('profile-pending-expand'));
+    expect(tester.widget<TextButton>(expand), isNotNull);
+    final gesture = await tester.startGesture(tester.getCenter(expand));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pump();
+    await tester.pump(HhMotion.pressIn);
+    final press = tester.widget<ScaleTransition>(
+      find
+          .ancestor(of: expand, matching: find.byType(ScaleTransition))
+          .first,
+    );
+    expect(press.scale.value, lessThan(1));
+    await gesture.up();
     await tester.pumpAndSettle();
+    final collapse = find.byKey(const ValueKey('profile-pending-collapse'));
+    expect(collapse, findsOneWidget);
+    expect(tester.widget<TextButton>(collapse), isNotNull);
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('draft-one'))).dx,
       equals(tester.getTopLeft(find.byKey(const ValueKey('unknown-one'))).dx),
@@ -1264,6 +1281,13 @@ void main() {
     );
     expect(find.byIcon(Icons.error), findsNothing);
     expect(find.text('结果待确认'), findsOneWidget);
+    await tester.tap(collapse);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('profile-pending-expand')),
+      findsOneWidget,
+    );
+    expect(find.text('共 3 条未完成'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     c.dispose();

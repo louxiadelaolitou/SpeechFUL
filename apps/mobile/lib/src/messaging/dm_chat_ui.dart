@@ -189,11 +189,7 @@ extension _ChatPhotoUi on _DmChatRouteState {
         selected.add(image);
       } catch (_) {
         if (mounted && c.scope == expected) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(hhText(context, '部分图片无法保存或超过格式/大小限制，请重选或移除')),
-            ),
-          );
+          showHhFeedback(context, '部分图片无法保存或超过格式/大小限制，请重选或移除');
         }
       }
     }

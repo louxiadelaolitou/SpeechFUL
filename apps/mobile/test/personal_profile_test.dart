@@ -4,6 +4,7 @@ import 'package:hnuhole_mobile/src/design_system/detail_components.dart';
 import 'package:hnuhole_mobile/src/design_system/telegram_theme.dart';
 import 'package:hnuhole_mobile/src/design_system/motion.dart';
 import 'package:hnuhole_mobile/src/identity/identity_avatar.dart';
+import 'package:hnuhole_mobile/src/posts/post_interactions_api.dart';
 
 import 'identity_test_support.dart';
 
@@ -662,6 +663,76 @@ void main() {
   );
 
   testWidgets(
+    'profile tabs reuse loaded card detail and interactions when switched back',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = _CachePostsApi();
+      final f = HomeTestFixture(api: api);
+      final p1 = feed.post(
+        id: '44444444-4444-4444-8444-444444444441',
+        title: '缓存帖一',
+      );
+      final p2 = feed.post(
+        id: '44444444-4444-4444-8444-444444444442',
+        title: '缓存帖二',
+      );
+      final favorite = feed.post(
+        id: '44444444-4444-4444-8444-444444444443',
+        title: '缓存收藏',
+      );
+      api.items = [p1, p2, favorite];
+      api.ownItems = [
+        OwnPostCard(post: p1, serverSortAt: p1.publishedAt),
+        OwnPostCard(post: p2, serverSortAt: p2.publishedAt),
+      ];
+      api.favoriteItems = [favorite];
+      await tester.pumpWidget(await f.create());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('destination:personal')));
+      await tester.pumpAndSettle();
+      expect(find.text('缓存帖一'), findsOneWidget);
+
+      int detailReads() =>
+          api.calls.where((call) => call.startsWith('detail:')).length;
+      final details = detailReads();
+      final interactions = api.interactionReads.length;
+
+      // 切到空页签再切回：卡片重建，但详情和互动直接复用首屏结果。
+      await tester.tap(profileTab(3));
+      await tester.pumpAndSettle();
+      await tester.tap(profileTab(0));
+      await tester.pumpAndSettle();
+      expect(find.text('缓存帖一'), findsOneWidget);
+      expect(detailReads(), details);
+      expect(api.interactionReads.length, interactions);
+
+      // 收藏页首次加载一次；离开再回来不应重复请求详情或互动。
+      await tester.tap(profileTab(4));
+      await tester.pumpAndSettle();
+      expect(find.text('缓存收藏'), findsOneWidget);
+      final favoriteDetails = detailReads();
+      final favoriteInteractions = api.interactionReads.length;
+      expect(favoriteInteractions, greaterThan(interactions));
+
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(profileTab(3));
+        await tester.pumpAndSettle();
+        await tester.tap(profileTab(4));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('缓存收藏'), findsOneWidget);
+      expect(detailReads(), favoriteDetails);
+      expect(api.interactionReads.length, favoriteInteractions);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'switching tabs keeps the same deep scroll position (no jump to the top)',
     (tester) async {
       tester.view.physicalSize = const Size(393, 852);
@@ -722,4 +793,69 @@ class _OwnPostApi extends PersonalRepostsApi {
   }) async => response(
     PostCapabilities(postId: postId, canDelete: true, canEdit: true),
   );
+}
+
+/// 记录互动读取次数，用来验证切回页签时不再重复读取。
+class _CachePostsApi extends HomeTestPostsApi implements PostInteractionsApi {
+  final interactionReads = <String>[];
+
+  PostInteractions _state(String postId) => PostInteractions(
+    postId: postId,
+    likeCount: 1,
+    favoriteCount: 1,
+    commentCount: 0,
+    likedByMe: false,
+    favoritedByMe: true,
+  );
+
+  @override
+  Future<PostResponse<List<PostInteractions>>> interactions({
+    required String sessionToken,
+    required List<String> postIds,
+  }) async {
+    interactionReads.addAll(postIds);
+    return feed.reply([for (final id in postIds) _state(id)]);
+  }
+
+  @override
+  Future<PostResponse<PostInteractions>> postInteractions({
+    required String sessionToken,
+    required String postId,
+  }) async {
+    interactionReads.add(postId);
+    return feed.reply(_state(postId));
+  }
+
+  @override
+  Future<PostResponse<PostInteractions>> setPostLike({
+    required String sessionToken,
+    required String postId,
+    required bool liked,
+    required String version,
+  }) async => feed.reply(_state(postId));
+
+  @override
+  Future<PostResponse<PostInteractions>> setPostFavorite({
+    required String sessionToken,
+    required String postId,
+    required bool favorited,
+    required String version,
+  }) async => feed.reply(_state(postId));
+
+  @override
+  Future<PostResponse<PostCapabilities>> capabilities({
+    required String sessionToken,
+    required String postId,
+  }) async {
+    if (!ownItems.any((item) => item.post.postId == postId)) {
+      throw const PostFailure(
+        kind: PostFailureKind.rejected,
+        code: 'POST_NOT_FOUND',
+        statusCode: 404,
+      );
+    }
+    return feed.reply(
+      PostCapabilities(postId: postId, canDelete: true, canEdit: true),
+    );
+  }
 }

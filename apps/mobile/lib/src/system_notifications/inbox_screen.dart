@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../design_system/motion.dart';
+import '../design_system/feedback.dart';
 import '../design_system/telegram_theme.dart';
 import '../identity/identity_switcher.dart';
 import '../localization/app_localizations.dart';
@@ -342,9 +343,7 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
       }
     } on Object {
       if (mounted && current(ticket, owner, identity)) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(hhText(context, '暂时无法打开，请重试'))));
+        showHhFeedback(context, '暂时无法打开，请重试');
       }
     }
   }
@@ -857,15 +856,11 @@ class _UnreadOnlyToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = HhTelegramPalette.of(context);
-    final label = active
-        ? hhText(context, '仅看未读')
-        : hhText(context, '查看全部');
+    final label = active ? hhText(context, '仅看未读') : hhText(context, '查看全部');
     return Semantics(
       button: true,
       toggled: active,
-      label: active
-          ? hhText(context, '仅看未读，已开启')
-          : hhText(context, '查看全部，未开启'),
+      label: active ? hhText(context, '仅看未读，已开启') : hhText(context, '查看全部，未开启'),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -882,9 +877,7 @@ class _UnreadOnlyToggle extends StatelessWidget {
                   ? p.accent.withValues(alpha: .12)
                   : Colors.transparent,
               border: Border.all(
-                color: active
-                    ? p.accent.withValues(alpha: .5)
-                    : p.line,
+                color: active ? p.accent.withValues(alpha: .5) : p.line,
               ),
             ),
             child: Row(

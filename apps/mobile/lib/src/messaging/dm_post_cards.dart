@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import '../posts/post_api.dart';
 import 'dm_controller.dart';
 import 'dm_runtime.dart';
@@ -179,8 +180,7 @@ Future<void> sharePostInDm(BuildContext context, String postId) async {
   if (runtime == null ||
       !runtime.controller.available ||
       !runtime.controller.chatEnabled) {
-    ScaffoldMessenger.maybeOf(context)
-        ?.showSnackBar(SnackBar(content: Text(hhText(context, '暂时无法加载私信'))));
+    showHhFeedback(context, '暂时无法加载私信');
     return;
   }
   await showModalBottomSheet<void>(
@@ -301,8 +301,7 @@ class _PostRecipientPickerState extends State<_PostRecipientPicker> {
         'failed' => '发送失败，请在私信中查看并重试',
         _ => '已保存待发送，请在私信中查看结果',
       };
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(hhText(context, text))));
+      showHhFeedback(context, text);
       Navigator.pop(context);
     } catch (_) {
       if (current) {

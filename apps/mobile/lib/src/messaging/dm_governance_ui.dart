@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../design_system/telegram_theme.dart';
 import '../identity/identity_avatar.dart';
 import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import '../reports/report_screens.dart';
 import '../system_notifications/notification_models.dart';
 import 'dm_controller.dart';
@@ -42,8 +43,7 @@ Future<void> showDmBlock(
     await controller.setBlocked(row['identityId'], row['id'], !blocked);
   } catch (_) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(hhText(context, '操作未保存，请重试'))));
+      showHhFeedback(context, '操作未保存，请重试');
     }
   }
 }

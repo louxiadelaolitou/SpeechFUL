@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../design_system/telegram_theme.dart';
+import '../design_system/feedback.dart';
 import 'post_controller.dart';
 import 'post_reposts_api.dart';
 import 'post_images.dart';
@@ -223,9 +224,7 @@ class _PostRepostButtonState extends State<PostRepostButton> {
       );
     } catch (_) {
       if (mounted && current) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(hhText(context, '身份读取失败，请重试。'))));
+        showHhFeedback(context, '身份读取失败，请重试。');
       }
     } finally {
       if (mounted) setState(() => opening = false);

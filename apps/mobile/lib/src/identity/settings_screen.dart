@@ -7,6 +7,7 @@ import 'package:hnuhole_image_viewer/image_viewer.dart';
 import '../auth/auth_presentation.dart';
 import '../auth/auth_session_controller.dart';
 import '../design_system/telegram_theme.dart';
+import '../design_system/feedback.dart';
 import '../design_system/motion.dart';
 import '../localization/app_localizations.dart';
 
@@ -1288,9 +1289,7 @@ class _FeedbackSettings extends StatelessWidget {
                 message = '复制失败，请重试';
               }
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(hhText(context, message))),
-                );
+                showHhFeedback(context, message);
               }
             },
           ),

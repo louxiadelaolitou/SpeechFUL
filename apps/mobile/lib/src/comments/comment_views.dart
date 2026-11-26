@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:hnuhole_image_viewer/image_viewer.dart';
 
 import '../design_system/detail_components.dart';
+import '../design_system/feedback.dart';
 import '../posts/x_feed.dart';
 import '../identity/identity_api.dart';
 import '../identity/identity_management_screen.dart';
@@ -1330,9 +1331,7 @@ class _CommentPostPaneState extends State<CommentPostPane> {
             );
           } catch (_) {
             if (current && mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(hhText(context, '图片读取失败，请重试'))),
-              );
+              showHhFeedback(context, '图片读取失败，请重试');
             }
             // Keep the durable rejected command and its media lease intact.
             return;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import '../posts/post_photo_picker.dart';
 import '../media/album_photo_picker.dart';
 import '../system_notifications/governance_controller.dart';
@@ -270,8 +271,7 @@ class _MaterialEvidenceFormState extends State<MaterialEvidenceForm> {
   void _finish(bool submitted) {
     if (!mounted || !_current) return;
     if (submitted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(hhText(context, '已提交'))));
+      showHhFeedback(context, '已提交');
     }
     setState(() => _leaving = true);
     Navigator.pop(context, submitted);

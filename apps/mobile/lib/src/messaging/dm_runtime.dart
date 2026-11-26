@@ -12,6 +12,7 @@ import '../identity/active_identity_controller.dart';
 import '../identity/identity_api.dart';
 import '../identity/identity_management_controller.dart';
 import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import '../posts/post_photo_picker.dart';
 import '../media/album_photo_picker.dart';
 import '../reports/report_screens.dart';
@@ -273,9 +274,7 @@ class DmScope extends InheritedWidget {
       );
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(hhText(context, '暂时无法联系，请稍后重试'))),
-        );
+        showHhFeedback(context, '暂时无法联系，请稍后重试');
       }
     }
   }

@@ -13,6 +13,7 @@ import 'src/comments/comment_journal.dart';
 import 'src/development/app_transport.dart';
 import 'src/navigation/primary_tabs.dart';
 import 'src/design_system/motion.dart';
+import 'src/design_system/feedback.dart';
 import 'src/localization/app_localizations.dart';
 import 'src/auth/device_management_controller.dart';
 import 'src/auth/device_management_screen.dart';
@@ -462,8 +463,7 @@ class _HnuholeAppState extends State<HnuholeApp>
     if (_postLinks.invalidLink) {
       _postLinks.invalidLink = false;
       final context = navigator.context;
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(hhText(context, '分享链接无效'))));
+      showHhFeedback(context, '分享链接无效');
     }
     final link = _postLinks.pending;
     if (link == null) return;

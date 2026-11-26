@@ -2,6 +2,7 @@ import '../localization/app_localizations.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import '../rate_limit_notice.dart';
 import '../design_system/detail_components.dart';
+import '../design_system/feedback.dart';
 import '../design_system/motion.dart';
 import '../design_system/motion_routes.dart';
 import 'x_feed.dart';
@@ -2829,8 +2830,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (outcome.isEmpty && post != null) {
       widget.controller.refreshEditedPost(post);
     } else if (outcome.isNotEmpty) {
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(outcome)));
+      showHhFeedback(context, outcome);
     }
   }
 
@@ -2985,157 +2985,151 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   GestureDetector(
                     onTap: () => _openAuthorProfile(post),
-                child: DetailAvatar(
-                  name: localizedPostAuthor(context, post.author),
-                  avatar: post.author.avatar,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InkWell(
-                      onTap: post.author.inactiveMessage == null
-                          ? () => unawaited(
-                              DmScope.contact(context, widget.postId),
-                            )
-                          : () {
-                              if (!_authority.current) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    hhText(
-                                      context,
-                                      post.author.inactiveMessage!,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                      child: Text(
-                        localizedPostAuthor(context, post.author),
-                        style: detailType(context, 17, weight: FontWeight.w500),
-                      ),
+                    child: DetailAvatar(
+                      name: localizedPostAuthor(context, post.author),
+                      avatar: post.author.avatar,
                     ),
-                    if (widget.channelName != null) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        widget.channelName!,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InkWell(
+                          onTap: post.author.inactiveMessage == null
+                              ? () => unawaited(
+                                  DmScope.contact(context, widget.postId),
+                                )
+                              : () {
+                                  if (!_authority.current) return;
+                                  showHhFeedback(
+                                    context,
+                                    post.author.inactiveMessage!,
+                                  );
+                                },
+                          child: Text(
+                            localizedPostAuthor(context, post.author),
+                            style: detailType(context, 17, weight: FontWeight.w500),
+                          ),
+                        ),
+                        if (widget.channelName != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            widget.channelName!,
+                            style: detailType(
+                              context,
+                              14,
+                              color: HhTelegramPalette.of(context).secondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  _postMenu(),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text(
+                post.title,
+                style: detailType(context, 18, weight: FontWeight.w500),
+              ),
+              const SizedBox(height: 9),
+              SelectableText(
+                key: _bodyKey,
+                post.body,
+                style: detailType(context, 16, height: 1.5),
+              ),
+              if (post.tags.isNotEmpty)
+                PostTagChips(
+                  tags: post.tags,
+                  onTap: (tag) => unawaited(
+                    openPostTag(
+                      context,
+                      controller: widget.controller,
+                      tag: tag,
+                      channels: widget.controller.postTagChannels,
+                      onAuthenticationRequired:
+                          widget.onAuthenticationRequired ??
+                          () => Navigator.of(context).pop(),
+                      loadImages: widget.loadImages,
+                    ),
+                  ),
+                ),
+              if (widget.loadImages case final loader? when post.imageCount > 0)
+                PostImagesSection(
+                  key: ValueKey((post.postId, post.editedAt)),
+                  postId: post.postId,
+                  expectedCount: post.imageCount,
+                  loadImages: loader,
+                  authority: widget.controller,
+                  isCurrent: () =>
+                      _authority.current &&
+                      !_deleted &&
+                      !widget.controller.isPostDeleted(widget.postId),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(top: 18, bottom: 6),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${postDateLabel(context, post.publishedAt)} · ',
                         style: detailType(
                           context,
-                          14,
+                          13.5,
+                          color: HhTelegramPalette.of(context).secondary,
+                        ),
+                      ),
+                      if (post.editedAt case final at?)
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: InkWell(
+                            onTap: () => showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('最后修改时间'),
+                                content: Text(
+                                  '${MaterialLocalizations.of(context).formatFullDate(at.toLocal())} ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(at.toLocal()), alwaysUse24HourFormat: true)}',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('关闭'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(
+                                '已编辑',
+                                style: detailType(
+                                  context,
+                                  13.5,
+                              color: HhTelegramPalette.of(context).secondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      TextSpan(
+                        text:
+                            '${(widget.controller.supportsFeed ? widget.controller.postViewCount(widget.postId) : null) ?? '—'}',
+                    style: detailType(context, 13.5, weight: FontWeight.w500),
+                      ),
+                      TextSpan(
+                        text: hhText(context, ' 次浏览'),
+                        style: detailType(
+                          context,
+                          13.5,
                           color: HhTelegramPalette.of(context).secondary,
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-              _postMenu(),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            post.title,
-            style: detailType(context, 18, weight: FontWeight.w500),
-          ),
-          const SizedBox(height: 9),
-          SelectableText(
-            key: _bodyKey,
-            post.body,
-            style: detailType(context, 16, height: 1.5),
-          ),
-          if (post.tags.isNotEmpty)
-            PostTagChips(
-              tags: post.tags,
-              onTap: (tag) => unawaited(
-                openPostTag(
-                  context,
-                  controller: widget.controller,
-                  tag: tag,
-                  channels: widget.controller.postTagChannels,
-                  onAuthenticationRequired:
-                      widget.onAuthenticationRequired ??
-                      () => Navigator.of(context).pop(),
-                  loadImages: widget.loadImages,
-                ),
-              ),
-            ),
-          if (widget.loadImages case final loader? when post.imageCount > 0)
-            PostImagesSection(
-              key: ValueKey((post.postId, post.editedAt)),
-              postId: post.postId,
-              expectedCount: post.imageCount,
-              loadImages: loader,
-              authority: widget.controller,
-              isCurrent: () =>
-                  _authority.current &&
-                  !_deleted &&
-                  !widget.controller.isPostDeleted(widget.postId),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(top: 18, bottom: 6),
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${postDateLabel(context, post.publishedAt)} · ',
-                    style: detailType(
-                      context,
-                      13.5,
-                      color: HhTelegramPalette.of(context).secondary,
-                    ),
-                  ),
-                  if (post.editedAt case final at?)
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.middle,
-                      child: InkWell(
-                        onTap: () => showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('最后修改时间'),
-                            content: Text(
-                              '${MaterialLocalizations.of(context).formatFullDate(at.toLocal())} ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(at.toLocal()), alwaysUse24HourFormat: true)}',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('关闭'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(
-                            '已编辑',
-                            style: detailType(
-                              context,
-                              13.5,
-                              color: HhTelegramPalette.of(context).secondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  TextSpan(
-                    text:
-                        '${(widget.controller.supportsFeed ? widget.controller.postViewCount(widget.postId) : null) ?? '—'}',
-                    style: detailType(context, 13.5, weight: FontWeight.w500),
-                  ),
-                  TextSpan(
-                    text: hhText(context, ' 次浏览'),
-                    style: detailType(
-                      context,
-                      13.5,
-                      color: HhTelegramPalette.of(context).secondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
               if (_deleteError != null) Text(hhText(context, _deleteError!)),
             ],
           ),
@@ -3339,9 +3333,7 @@ class _AuthorWidget extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     onTap: author.inactiveMessage == null
         ? null
-        : () => ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(hhText(context, author.inactiveMessage!))),
-          ),
+        : () => showHhFeedback(context, author.inactiveMessage!),
     child: ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 48),
       child: Row(
@@ -3699,21 +3691,15 @@ class _AuthorProfileScreenState extends State<AuthorProfileScreen> {
     final blocked = await widget.controller.blockAuthor(widget.postId);
     if (!mounted || !_authority.current) return;
     setState(() => _blocking = false);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     if (!blocked) {
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(
-            hhText(
-              context,
-              widget.controller.authorBlockError ?? '暂时无法拉黑，请重试。',
-            ),
-          ),
-        ),
+      showHhFeedback(
+        context,
+        widget.controller.authorBlockError ?? '暂时无法拉黑，请重试。',
       );
       return;
     }
-    messenger?.showSnackBar(SnackBar(content: Text(hhText(context, '已拉黑'))));
+    // 先提示再退栈：统一反馈挂在根 messenger 上，跨页行为一致。
+    showHhFeedback(context, '已拉黑');
     Navigator.of(context).popUntil((route) => route.isFirst);
     unawaited(widget.controller.reloadVisibleFeeds());
   }

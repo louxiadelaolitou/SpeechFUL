@@ -3,6 +3,7 @@ import '../localization/app_localizations.dart';
 import 'dart:async';
 
 import '../design_system/detail_components.dart';
+import '../design_system/feedback.dart';
 
 import '../messaging/dm_runtime.dart';
 
@@ -442,8 +443,8 @@ class _FeedScreenState extends State<FeedScreen> {
         }
       });
     } else if (c.hiddenPostError case final message?) {
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(hhText(context, message))));
+      // 「不感兴趣」失败的统一轻量提示入口（2 秒自动关闭、叉号、左右滑动）。
+      showHhFeedback(context, message);
     }
   }
 

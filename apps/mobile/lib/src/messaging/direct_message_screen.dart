@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../design_system/telegram_theme.dart';
 import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import 'direct_message_bubble.dart';
 import 'direct_message_chrome.dart';
 import 'direct_message_composer.dart';
@@ -123,8 +124,7 @@ class _HhDirectMessageScreenState extends State<HhDirectMessageScreen> {
 
   void _notice(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(hhText(context, text))));
+    showHhFeedback(context, text);
   }
 
   Future<void> _identity() async {

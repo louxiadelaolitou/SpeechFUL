@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../design_system/telegram_theme.dart';
+import '../design_system/feedback.dart';
 import '../localization/app_localizations.dart';
 import '../media/album_photo_picker.dart';
 
@@ -13,25 +14,10 @@ const _cropRadiusFraction = .34;
 
 enum _CropAction { chooseAnother }
 
-/// 头像流程的短暂失败提示：3 秒自动消失，可点「关闭」立即关闭。
-/// 先清掉残留旧通知，避免排队叠加造成“不消失”的观感。
+/// 头像流程的短暂失败提示，走应用统一轻量反馈：
+/// 2 秒自动消失、叉号关闭、左右滑动移除，连续触发不排队叠加。
 void notifyAvatarBlocked(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.of(context);
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(
-    SnackBar(
-      content: Text(hhText(context, message)),
-      duration: const Duration(seconds: 3),
-      behavior: SnackBarBehavior.floating,
-      // 本 SDK（3.50 预览版）中带 action 的 SnackBar persist 默认 true，
-      // 定时器到点也不会消失；显式关闭以恢复自动消失。
-      persist: false,
-      action: SnackBarAction(
-        label: hhText(context, '关闭'),
-        onPressed: () => messenger.hideCurrentSnackBar(),
-      ),
-    ),
-  );
+  showHhFeedback(context, message);
 }
 
 /// 头像选择与圆形裁切流程：

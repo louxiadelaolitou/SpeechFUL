@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../design_system/motion_routes.dart';
+import '../design_system/feedback.dart';
 import '../design_system/telegram_theme.dart';
 import '../identity/identity_avatar.dart';
 import '../localization/app_localizations.dart';
@@ -86,15 +87,9 @@ class _DmBlacklistScreenState extends State<DmBlacklistScreen> {
       setState(() => _removing = true);
       final removed = await _posts.unblockAuthor(item.blockId);
       if (!mounted || !_current) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hhText(
-              context,
-              removed ? '已解除拉黑' : _posts.authorBlockError ?? '操作未保存，请重试',
-            ),
-          ),
-        ),
+      showHhFeedback(
+        context,
+        removed ? '已解除拉黑' : _posts.authorBlockError ?? '操作未保存，请重试',
       );
       if (!removed) return;
       setState(() {

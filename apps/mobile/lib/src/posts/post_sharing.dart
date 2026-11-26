@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../localization/app_localizations.dart';
+import '../design_system/feedback.dart';
 import 'post_api.dart';
 import 'post_controller.dart';
 import '../messaging/dm_post_cards.dart';
@@ -60,8 +60,7 @@ class _PostShareActionState extends State<PostShareAction> {
       final message = error is PostFailure && error.code == 'POST_NOT_FOUND'
           ? '原帖已不可用'
           : '暂时无法分享，请重试。';
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text(hhText(context, message))));
+      showHhFeedback(context, message);
     } finally {
       widget.controller.endSharingPost(widget.postId, _version);
     }

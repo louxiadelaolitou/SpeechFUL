@@ -3,6 +3,33 @@ part of 'post_controller.dart';
 extension HiddenPostController on PostController {
   bool get supportsHiddenPosts => _api is HiddenPostApi;
 
+  /// 帖子归属只作为“不感兴趣”的写入边界：调用能力接口，200 表示当前账号
+  /// 发布过该帖（含本账号其他身份），404 表示不是自己的帖子，其余失败用
+  /// null 表示无法核对，调用方应先停止写入而不是猜测。
+  Future<bool?> _hiddenPostOwnedByAccount(
+    _PostAuthority a,
+    String id,
+  ) async {
+    try {
+      await _accept(
+        a,
+        await _api.capabilities(sessionToken: a.token, postId: id),
+      );
+      return true;
+    } catch (error) {
+      if (error is _StalePostAuthority) return null;
+      if (error is PostFailure && error.statusCode == 404) return false;
+      if (error is PostFailure &&
+          {
+            PostFailureKind.unauthorized,
+            PostFailureKind.unavailable,
+          }.contains(error.kind)) {
+        _failure(error, a);
+      }
+      return null;
+    }
+  }
+
   void _invalidateHiddenTimelineRead() {
     // An older in-flight page must not overwrite a newly committed preference.
     homeFeed.invalidatePendingRead(notify: false);
@@ -38,6 +65,18 @@ extension HiddenPostController on PostController {
       authority = await _authority();
       final a = authority;
       if (epoch != _epoch || !_current(a)) return null;
+      if (desired) {
+        final owned = await _hiddenPostOwnedByAccount(a, id);
+        if (epoch != _epoch || !_current(a)) return null;
+        if (owned != false) {
+          // 自己的帖子不能被“不感兴趣”隐藏；归属无法核对时也先停下，
+          // 避免把错误状态写到当前账号。
+          hiddenPostError = owned == true
+              ? '不能对自己发布的帖子设置不感兴趣。'
+              : '暂时无法核对帖子归属，请重试。';
+          return null;
+        }
+      }
       if (expected == null) {
         final read = await api.hiddenPost(sessionToken: a.token, postId: id);
         final state = await _accept(a, read);

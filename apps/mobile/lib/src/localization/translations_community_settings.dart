@@ -905,6 +905,16 @@ const communitySettingsTranslations = <String, (String, String, String)>{
     'Cannot check your content. Retry.',
     '自分の内容を確認できません。再試行してください。',
   ),
+  '暂时无法核对帖子归属，请重试。': (
+    '暫時無法覈對貼文歸屬，請重試。',
+    'Cannot verify post ownership. Retry.',
+    '投稿の所有権を確認できません。再試行してください。',
+  ),
+  '不能对自己发布的帖子设置不感兴趣。': (
+    '不能對自己發佈的貼文設定不感興趣。',
+    'You cannot mark your own post as not interested.',
+    '自分の投稿を「興味なし」に設定できません。',
+  ),
   '暂时无法核对结果，原操作已保留，请稍后核对。': (
     '暫時無法覈對結果，原操作已保留，請稍後覈對。',
     'Cannot check the result. The original operation is kept. Check later.',

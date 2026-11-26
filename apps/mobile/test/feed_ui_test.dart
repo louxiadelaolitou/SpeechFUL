@@ -59,6 +59,8 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
   int views = 1261;
   final hiddenPosts = <String>{};
   final hiddenVersions = <String, int>{};
+  final ownedPosts = <String>{};
+  final capabilityReads = <String>[];
   bool hiddenCommitTimeout = false;
   PostFailure? hiddenWriteFailure;
   final authorBlocks = <BlockedAuthor>[];
@@ -303,8 +305,17 @@ class FeedTestApi implements PostApi, FeedApi, HiddenPostApi, AuthorBlockApi {
   Future<PostResponse<PostCapabilities>> capabilities({
     required String sessionToken,
     required String postId,
-  }) async =>
-      reply(PostCapabilities(postId: postId, canDelete: false, canEdit: false));
+  }) async {
+    capabilityReads.add(postId);
+    if (!ownedPosts.contains(postId)) {
+      throw const PostFailure(
+        kind: PostFailureKind.rejected,
+        code: 'POST_NOT_FOUND',
+        statusCode: 404,
+      );
+    }
+    return reply(PostCapabilities(postId: postId, canDelete: false, canEdit: false));
+  }
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw StateError('Unexpected post operation ${invocation.memberName}');
@@ -572,6 +583,8 @@ void main() {
   ) async {
     final f = await FeedFixture.create();
     addTearDown(f.dispose);
+    final blocked = f.controller.homeFeed.blockedChannelIds.toSet();
+    final identity = f.controller.activeIdentity?.selectedId;
     await tester.pumpWidget(screen(f));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('menu:$postId')));
@@ -582,6 +595,8 @@ void main() {
     await tester.tap(find.text('不感兴趣'));
     await tester.pumpAndSettle();
     expect(f.api.hiddenPosts, contains(postId));
+    expect(f.controller.homeFeed.blockedChannelIds, blocked);
+    expect(f.controller.activeIdentity?.selectedId, identity);
     expect(find.text('今天的校园'), findsNothing);
     expect(
       find.byKey(const ValueKey('hidden-placeholder:$postId')),
@@ -590,6 +605,36 @@ void main() {
     await tester.tap(find.text('撤销'));
     await tester.pumpAndSettle();
     expect(f.api.hiddenPosts, isNot(contains(postId)));
+    expect(find.text('今天的校园'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('hidden-placeholder:$postId')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('not interested never marks your own post or other account state', (
+    tester,
+  ) async {
+    final f = await FeedFixture.create();
+    addTearDown(f.dispose);
+    f.api.ownedPosts.add(postId);
+    final blocked = f.controller.homeFeed.blockedChannelIds.toSet();
+    final identity = f.controller.activeIdentity?.selectedId;
+    await tester.pumpWidget(screen(f));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('menu:$postId')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('不感兴趣'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(f.api.capabilityReads, contains(postId));
+    expect(f.api.hiddenPosts, isEmpty);
+    expect(f.api.calls.where((c) => c.startsWith('hidden-read:')), isEmpty);
+    expect(f.api.calls.where((c) => c.startsWith('hidden-write:')), isEmpty);
+    expect(f.controller.homeFeed.blockedChannelIds, blocked);
+    expect(f.controller.activeIdentity?.selectedId, identity);
+    expect(find.text('不能对自己发布的帖子设置不感兴趣。'), findsOneWidget);
     expect(find.text('今天的校园'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('hidden-placeholder:$postId')),
