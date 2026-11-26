@@ -113,6 +113,57 @@ void main() {
     },
   );
   testWidgets(
+    'Chinese IME composition remains editable for the closure phrase',
+    (tester) async {
+      final f = SecuritySettingsFixture();
+      await f.start();
+      await _open(tester, f);
+      final phrase = find.byKey(const ValueKey('closure-confirmation-phrase'));
+      expect(
+        tester.widget<TextField>(phrase).enableSuggestions,
+        isTrue,
+        reason: 'Android Chinese IMEs need suggestions enabled for composing.',
+      );
+      await tester.ensureVisible(phrase);
+      await tester.tap(phrase);
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '确定',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+      final controller = tester.widget<TextField>(phrase).controller!;
+      expect(controller.value.text, '确定');
+      expect(controller.value.composing, const TextRange(start: 0, end: 2));
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: accountClosureConfirmationPhrase,
+          selection: TextSelection.collapsed(
+            offset: accountClosureConfirmationPhrase.length,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(controller.value.text, accountClosureConfirmationPhrase);
+      expect(controller.value.composing.isCollapsed, isTrue);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('closure-start-confirmation')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      f.dispose();
+    },
+  );
+  testWidgets(
     'only exact phrase enables red button; dialog requires password; cancel sends nothing',
     (tester) async {
       final f = SecuritySettingsFixture();

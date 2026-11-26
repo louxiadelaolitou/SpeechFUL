@@ -286,7 +286,7 @@ class _AccountClosureScreenState extends State<AccountClosureScreen>
                     controller: _phrase,
                     enabled: !_busy,
                     autocorrect: false,
-                    enableSuggestions: false,
+                    enableSuggestions: true,
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       labelText: hhText(context, '确认短语'),
