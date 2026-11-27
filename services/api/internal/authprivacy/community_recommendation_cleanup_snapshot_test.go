@@ -220,6 +220,35 @@ func TestRecommendationCleanupCooperativeDeadlinePostgres(t *testing.T) {
 	}
 }
 
+type slowCleanupSnapshotGate struct {
+	AuthorizationGate
+	delay time.Duration
+}
+
+func (g *slowCleanupSnapshotGate) Snapshot(ctx context.Context) (AuthorizationDecision, error) {
+	time.Sleep(g.delay)
+	return g.AuthorizationGate.Snapshot(ctx)
+}
+
+func TestRecommendationCleanupPreflightDoesNotConsumeBudgetPostgres(t *testing.T) {
+	p := newRecommendationPG(t, 100)
+	ctx := context.Background()
+	a := sessionTestAccount(t, p.l, "cleanup_slow_preflight")
+	page := p.start(t, a, p.request(t, a))
+	for offset := 10; offset < 100; offset += 10 {
+		p.read(t, a, page.RoundID, offset)
+	}
+	advanceClosureClock(t, p.control, p.control.clock.now().Add(6*time.Minute))
+	service := *p.service
+	service.gate = &slowCleanupSnapshotGate{AuthorizationGate: p.service.gate, delay: 2100 * time.Millisecond}
+	if n, err := service.CleanRecommendation(ctx, 32); err != nil || n != 31 {
+		t.Fatal("slow preflight consumed the cleanup budget", n, err)
+	}
+	if count(t, p.l.cp, `SELECT count(*) FROM c_recommendation.history WHERE account_id=$1`, a.AccountID) != 69 {
+		t.Fatal("slow preflight left cleanup without progress")
+	}
+}
+
 func TestRecommendationCleanupPreservesPlannerSettingPostgres(t *testing.T) {
 	for _, prior := range []string{"on", "off"} {
 		t.Run(prior, func(t *testing.T) {

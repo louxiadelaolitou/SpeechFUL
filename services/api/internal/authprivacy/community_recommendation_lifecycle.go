@@ -60,7 +60,6 @@ func (c *Community) CleanRecommendation(ctx context.Context, maxRows int) (int, 
 	if maxRows < 16 || maxRows > 32768 {
 		return 0, ErrIntentInvalid
 	}
-	deadline := time.Now().Add(2 * time.Second)
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -73,12 +72,19 @@ func (c *Community) CleanRecommendation(ctx context.Context, maxRows int) (int, 
 	if err != nil {
 		return 0, err
 	}
+	// The cooperative budget covers cleanup work, not preflight. A slow Gate
+	// snapshot (for example under a restrictive planner setting) must not
+	// consume the pass before its first bounded group can run.
+	deadline := time.Now().Add(2 * time.Second)
 	total, changed := 0, 0
 	for examined := 0; examined < maxRows && changed < maxRows; examined++ {
 		if err := ctx.Err(); err != nil {
 			return total, err
 		}
-		if !time.Now().Before(deadline) {
+		// Always attempt one group when a candidate exists so a pass makes
+		// progress even if preflight or candidate selection was slow; later
+		// groups still yield cooperatively at the cutoff.
+		if examined > 0 && !time.Now().Before(deadline) {
 			break
 		}
 		object, err := c.nextRecommendationCleanup(ctx, d.TrustedAt)
@@ -88,7 +94,7 @@ func (c *Community) CleanRecommendation(ctx context.Context, maxRows int) (int, 
 		if err != nil {
 			return total, err
 		}
-		if !time.Now().Before(deadline) {
+		if examined > 0 && !time.Now().Before(deadline) {
 			break
 		}
 		// A pass may drive several short transactions. Bound each group as
