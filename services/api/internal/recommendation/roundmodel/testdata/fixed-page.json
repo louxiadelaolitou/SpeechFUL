@@ -1,0 +1,13 @@
+{
+  "Name": "fixed-20-slot-round-with-no-refill-and-retry-shrink",
+  "Count": 20,
+  "FirstMissing": [1, 7],
+  "RetryMissing": [3],
+  "FirstSlots": [0, 2, 3, 4, 5, 6, 8, 9],
+  "RetrySlots": [0, 2, 3, 5, 6, 8, 9],
+  "AfterFeedbackSlots": [0, 3, 5, 6, 8, 9],
+  "Next": 10,
+  "FeedbackSlots": [0, 2],
+  "FeedbackUnavailable": [2],
+  "ExposureIDs": [1]
+}

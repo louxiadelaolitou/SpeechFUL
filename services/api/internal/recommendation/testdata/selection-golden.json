@@ -1,0 +1,28 @@
+{
+  "description": "Synthetic single-source shortage: soft quotas and diversity may relax; ordered IDs remain unique.",
+  "input": {
+    "Now": "2026-10-25T08:00:00Z",
+    "Seed": 29,
+    "Channels": ["a", "b"],
+    "Candidates": [
+      {"ID":"a","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":12,"Eligible":true},
+      {"ID":"b","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":11,"Eligible":true},
+      {"ID":"c","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":10,"Eligible":true},
+      {"ID":"d","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":9,"Eligible":true},
+      {"ID":"e","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":8,"Eligible":true},
+      {"ID":"f","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":7,"Eligible":true},
+      {"ID":"g","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":6,"Eligible":true},
+      {"ID":"h","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":5,"Eligible":true},
+      {"ID":"i","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":4,"Eligible":true},
+      {"ID":"j","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":3,"Eligible":true},
+      {"ID":"k","Channel":"a","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":2,"Eligible":true},
+      {"ID":"l","Channel":"b","PublishedAt":"2026-10-25T08:00:00Z","Ordinal":1,"Eligible":true}
+    ],
+    "Pools": [["l","j","h","f","d","b","k","i","g","e","c","a"],[],[],[]]
+  },
+  "expectedIDs": ["a","b","c","d","e","f","g","h","i","j"],
+  "expectedSources": [10,0,0,0],
+  "expectedRelaxations": ["strict","strict","strict","strict","strict","strict","strict","strict","diversity_relaxed","diversity_relaxed"],
+  "expectedFeatures": {"Freshness":1,"Interest":0.5,"Heat":0,"Participants":0,"Score":0.6},
+  "expectedHasMoreWithinInput": true
+}
