@@ -2,7 +2,6 @@
 
 这里只保留近期任务入口。实现、验证、合并与发布分别以对应任务记录和固定提交为准；旧仓库的 PR、Actions 与 Release 页面在仓库删除后可能无法访问。
 
-- [审核工作台值班队列完善](tasks/MODERATION-WORKBENCH-20261126.md)
 - [未读角标与个人页头像同步](tasks/UNREAD-AVATAR-REFRESH-01.md)
 - [作者主页视觉与阅读层级优化](tasks/AUTHOR-PROFILE-REFRESH-01.md)
 - [发帖编辑页工具区、表情与帖子类型切换](tasks/POST-COMPOSER-UI-01.md)

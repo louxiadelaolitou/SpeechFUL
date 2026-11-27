@@ -491,29 +491,11 @@ paths:
     get:
       operationId: listModerationCases
       summary: List report cases
-      description: Ordinary authorized management role. Optional state and exact numeric work-order number filters
-        are applied before descending creation-time and case-UUID pagination. Pass nextBefore unchanged; this is a
-        server-owned cursor. Lists omit evidence and reporter identity.
+      description: Ordinary authorized management role. Descending creation time and case UUID. Pass nextBefore
+        unchanged; this is a server-owned cursor. Lists omit evidence and reporter identity.
       security:
       - bearerAuth: []
       parameters:
-      - name: state
-        in: query
-        required: false
-        schema:
-          type: string
-          enum:
-          - PENDING
-          - PROCESSING
-          - ENDED
-        description: Optional exact case state. Omit to list every state.
-      - name: number
-        in: query
-        required: false
-        schema:
-          type: string
-          pattern: ^[1-9][0-9]{0,18}$
-        description: Optional exact numeric work-order number without leading zeros.
       - name: before
         in: query
         required: false

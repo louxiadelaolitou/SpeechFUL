@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 
@@ -195,35 +194,6 @@ func notifyReporters(ctx context.Context, tx pgx.Tx, caseID, kind, state, title,
 
 // ReadModeration emits explicit DTOs. It never serializes an internal account row.
 func (c *Community) ReadModeration(ctx context.Context, bearer [32]byte, kind, id, number, before string, limit int) (PostResponse, error) {
-	return c.readModeration(ctx, bearer, kind, id, "", number, before, limit)
-}
-
-// ReadModerationCases applies server-owned list filters before cursor pagination.
-func (c *Community) ReadModerationCases(ctx context.Context, bearer [32]byte, state, number, before string, limit int) (PostResponse, error) {
-	return c.readModeration(ctx, bearer, "cases", "", state, number, before, limit)
-}
-
-func moderationCaseFilter(state, number string) (any, any, error) {
-	var stateFilter, numberFilter any
-	if state != "" {
-		switch state {
-		case "PENDING", "PROCESSING", "ENDED":
-			stateFilter = state
-		default:
-			return nil, nil, moderation.ErrInvalid
-		}
-	}
-	if number != "" {
-		parsed, e := strconv.ParseInt(number, 10, 64)
-		if e != nil || parsed < 1 || strconv.FormatInt(parsed, 10) != number {
-			return nil, nil, moderation.ErrInvalid
-		}
-		numberFilter = parsed
-	}
-	return stateFilter, numberFilter, nil
-}
-
-func (c *Community) readModeration(ctx context.Context, bearer [32]byte, kind, id, state, number, before string, limit int) (PostResponse, error) {
 	if !c.ModerationEnabled() {
 		return PostResponse{}, ErrAuthorizationUnavailable
 	}
@@ -235,14 +205,6 @@ func (c *Community) readModeration(ctx context.Context, bearer [32]byte, kind, i
 	}
 	if limit < 1 || limit > 50 {
 		return PostResponse{}, moderation.ErrInvalid
-	}
-	var stateFilter, numberFilter any
-	if kind == "cases" {
-		var e error
-		stateFilter, numberFilter, e = moderationCaseFilter(state, number)
-		if e != nil {
-			return PostResponse{}, e
-		}
 	}
 	var role string
 	return c.withModerationAccountsSession(ctx, bearer, uuid.Nil, func(tx pgx.Tx, actor uuid.UUID) error {
@@ -281,7 +243,7 @@ func (c *Community) readModeration(ctx context.Context, bearer [32]byte, kind, i
 				cutoff = at
 				cutoffID = parts[1]
 			}
-			rows, e := tx.Query(ctx, `SELECT `+caseFields+` FROM c_moderation.cases c JOIN c_moderation.platform_numbers n ON n.account_id=c.target_account_id WHERE ($1::text IS NULL OR c.state=$1) AND ($2::bigint IS NULL OR c.number=$2) AND ($3::timestamptz IS NULL OR (c.created_at,c.case_id)<($3,$4::uuid)) ORDER BY c.created_at DESC,c.case_id DESC LIMIT $5`, stateFilter, numberFilter, cutoff, cutoffID, limit+1)
+			rows, e := tx.Query(ctx, `SELECT `+caseFields+` FROM c_moderation.cases c JOIN c_moderation.platform_numbers n ON n.account_id=c.target_account_id WHERE ($1::timestamptz IS NULL OR (c.created_at,c.case_id)<($1,$2::uuid)) ORDER BY c.created_at DESC,c.case_id DESC LIMIT $3`, cutoff, cutoffID, limit+1)
 			if e != nil {
 				return nil, e
 			}
