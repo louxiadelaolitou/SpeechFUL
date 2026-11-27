@@ -1,9 +1,11 @@
-import { caseActions, canRevoke, canReviewAppeal, createClient, dateText, imageSource, label, platformNumber, recoveryEstimate, requireUUID } from './core.mjs';
+import { caseActions, caseListQuery, canRevoke, canReviewAppeal, createClient, dateText, decisionSummary, imageSource, label, platformNumber, recoveryEstimate, requireUUID } from './core.mjs';
 
 const content = document.getElementById('content');
 const sessionBox = document.getElementById('session');
 const notice = document.getElementById('notice');
 let me = null, page = 'cases', viewVersion = 0, inputNumber = 0;
+const queueFilters = { cases: { state: 'PENDING', number: '' } };
+function resetQueueFilters() { queueFilters.cases = { state: 'PENDING', number: '' }; }
 const client = createClient({ onExpired: () => { me = null; viewVersion++; renderLogin(); } });
 
 function el(tag, text, className) {
@@ -15,6 +17,24 @@ function el(tag, text, className) {
 function add(parent, ...children) { parent.append(...children.filter(Boolean)); return parent; }
 function button(text, action, className) {
   const node = el('button', text, className); node.type = 'button'; node.addEventListener('click', action); return node;
+}
+const ICONS = Object.freeze({
+  search: [['circle', { cx: '11', cy: '11', r: '8' }], ['path', { d: 'm21 21-4.3-4.3' }]],
+  refresh: [['path', { d: 'M21 12a9 9 0 1 1-2.64-6.36' }], ['path', { d: 'M21 3v6h-6' }]],
+  logout: [['path', { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }], ['polyline', { points: '16 17 21 12 16 7' }], ['line', { x1: '21', x2: '9', y1: '12', y2: '12' }]],
+});
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false'); svg.setAttribute('class', 'button-icon');
+  for (const [tag, attributes] of ICONS[name]) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+    svg.append(node);
+  }
+  return svg;
+}
+function iconButton(text, action, iconName, className = '') {
+  const node = button('', action, className); node.append(icon(iconName), el('span', text)); node.setAttribute('aria-label', text); return node;
 }
 function announce(message = '', error = false) {
   notice.textContent = message; notice.className = error ? 'notice error' : 'notice'; notice.hidden = !message;
@@ -33,7 +53,7 @@ function select(options) {
   const node = el('select'); for (const [value, text] of options) { const option = el('option', text); option.value = value; node.append(option); } return node;
 }
 function reasonInput() { const node = el('textarea'); node.required = true; node.maxLength = 500; return node; }
-function status(value) { return el('span', label(value), `status${['ENDED', 'ACCEPTED', 'REJECTED'].includes(value) ? ' ended' : ''}`); }
+function status(value) { return el('span', label(value), `status status-${String(value ?? 'unknown').toLowerCase()}`); }
 function section(title) { return add(el('section', null, 'section'), el('h2', title)); }
 function materialImages(parent, images, prefix) {
   if (!Array.isArray(images) || !images.length) return;
@@ -114,15 +134,16 @@ function renderLogin() {
   if (!secure) { submit.disabled = true; box.append(el('p', '请通过本站 HTTPS 地址打开工作台。', 'warning')); }
   watchForm(form, async () => {
     const current = ++viewVersion;
-    try { const identity = await client.login(username.value, password.value); if (current !== viewVersion) return; me = identity; password.value = ''; page = 'cases'; announce(); renderWorkbench(); }
+    try { const identity = await client.login(username.value, password.value); if (current !== viewVersion) return; me = identity; password.value = ''; page = 'cases'; resetQueueFilters(); announce(); renderWorkbench(); }
     finally { password.value = ''; }
   }); content.replaceChildren(box);
 }
 function renderWorkbench() {
   viewVersion++;
-  sessionBox.replaceChildren(el('span', `${label(me.role)} ${platformNumber(me.platformNumber)}`), button('退出', logout));
+  sessionBox.replaceChildren(el('span', `${label(me.role)} ${platformNumber(me.platformNumber)}`, 'session-identity'), iconButton('退出', logout, 'logout', 'compact'));
   const names = { cases: '举报案件', appeals: '申诉复核', accounts: '账号与处罚', roles: '权限管理' };
-  const heading = add(el('div', null, 'heading'), add(el('div'), el('h1', names[page]), el('p', '依据授权证据作出处理，每次操作均保留记录。', 'muted')));
+  const descriptions = { cases: '按状态和工单定位待办，核查授权证据后作出处理。', appeals: '只列出待复核申诉，原处理人不能复核自己的处罚。', accounts: '按平台编号查看账号状态、违规次数与独立处罚记录。', roles: '仅管理员可授予、调整或撤销管理权限。' };
+  const heading = add(el('div', null, 'heading page-heading'), add(el('div'), el('h1', names[page]), el('p', descriptions[page], 'muted')));
   const tabs = el('nav', null, 'tabs'); tabs.setAttribute('aria-label', '审核工作区');
   for (const [key, text] of Object.entries(names)) {
     if (key === 'roles' && me.role !== 'ADMIN') continue;
@@ -136,11 +157,60 @@ function renderQueue(parent, kind) {
   const current = viewVersion;
   const workspace = el('div', null, 'workspace'); const queue = el('aside', null, 'queue');
   const list = el('div', null, 'queue-list'); const detail = el('article', null, 'detail');
-  detail.append(el('p', kind === 'cases' ? '从左侧选择案件，核查举报时的内容和材料。' : '从左侧选择申诉，核对原处罚及本次材料。', 'empty'));
-  const refresh = button('刷新', () => load(false));
-  add(queue, add(el('div', null, 'queue-head'), el('h2', kind === 'cases' ? '案件列表' : '待复核申诉'), refresh), list);
+  const progress = el('p', null, 'queue-progress'); progress.setAttribute('aria-live', 'polite'); progress.setAttribute('aria-atomic', 'true');
+  const filter = kind === 'cases' ? queueFilters.cases : null;
+  const none = () => detail.replaceChildren(el('p', kind === 'cases' ? '从左侧选择案件，核查举报时的内容和材料。' : '从左侧选择申诉，核对原处罚及本次材料。', 'empty'));
+  none();
+  const refresh = iconButton('刷新', () => { void load(false); }, 'refresh', 'compact');
+  const tools = el('div', null, 'queue-tools');
+  let numberSearch = null;
+  let updateFilterControls = () => {};
+  if (kind === 'cases') {
+    const states = [['PENDING', '待处理'], ['PROCESSING', '处理中'], ['ENDED', '已结束'], ['', '全部']];
+    const segmented = el('div', null, 'segmented'); segmented.setAttribute('role', 'group'); segmented.setAttribute('aria-label', '案件状态筛选');
+    for (const [value, text] of states) {
+      const option = button(text, () => {
+        if (filter.state === value) return;
+        filter.state = value; selected = null; none(); updateFilterControls(); void load(false);
+      }, filter.state === value ? 'current' : '');
+      option.dataset.state = value; option.setAttribute('aria-pressed', String(filter.state === value)); segmented.append(option);
+    }
+    updateFilterControls = () => {
+      for (const child of segmented.querySelectorAll('button[data-state]')) {
+        const active = child.dataset.state === filter.state;
+        child.classList.toggle('current', active); child.setAttribute('aria-pressed', String(active));
+      }
+    };
+    const search = el('form', null, 'queue-search');
+    numberSearch = input(); numberSearch.inputMode = 'numeric'; numberSearch.autocomplete = 'off'; numberSearch.pattern = '[1-9][0-9]{0,18}'; numberSearch.maxLength = 19; numberSearch.value = filter.number;
+    const submit = iconButton('查找', () => {}, 'search', 'primary compact'); submit.type = 'submit';
+    const clearSearch = button('清除', () => { filter.number = ''; numberSearch.value = ''; clearSearch.hidden = true; selected = null; none(); void load(false); }, 'compact');
+    clearSearch.hidden = !filter.number;
+    add(search, field('工单编号', numberSearch, '输入完整数字工单号，精确查找服务端记录。'), submit, clearSearch);
+    watchForm(search, async () => {
+      filter.number = numberSearch.value.trim(); clearSearch.hidden = !filter.number; selected = null; none(); await load(false);
+    });
+    add(tools, segmented, search);
+  }
+  add(queue, add(el('div', null, 'queue-head'), el('h2', kind === 'cases' ? '案件队列' : '待复核申诉'), refresh), tools, list, progress);
   add(workspace, queue, detail); parent.append(workspace);
-  let nextBefore = null, items = [], selected = null, requestVersion = 0, loading = false;
+  let nextBefore = null, items = [], selected = null, requestVersion = 0, loadVersion = 0, loading = false;
+  const scopeText = () => kind === 'cases' ? `${filter.state ? label(filter.state) : '全部状态'}${filter.number ? ` · 工单 ${filter.number}` : ''}` : '待复核申诉';
+  function updateProgress(note = '') {
+    progress.classList.remove('error');
+    progress.textContent = `${kind === 'cases' ? `${scopeText()} · ` : ''}已加载 ${items.length} 项${nextBefore ? '，还有更早记录' : ''}${note ? `。${note}` : '。'}`;
+  }
+  list.addEventListener('keydown', event => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const row = event.target.closest?.('button[data-record]');
+    if (!row) return;
+    const rows = [...list.querySelectorAll('button[data-record]')];
+    const index = rows.indexOf(row);
+    if (index < 0 || !rows.length) return;
+    const next = event.key === 'Home' ? rows[0] : event.key === 'End' ? rows.at(-1) : rows[Math.min(rows.length - 1, Math.max(0, index + (event.key === 'ArrowDown' ? 1 : -1)))];
+    if (!next) return;
+    event.preventDefault(); next.focus(); next.click();
+  });
   async function choose(item) {
     selected = item.id; const version = ++requestVersion;
     for (const row of list.querySelectorAll('button[data-record]')) row.setAttribute('aria-pressed', String(row.dataset.record === selected));
@@ -153,36 +223,68 @@ function renderQueue(parent, kind) {
         if (kind === 'appeals' && record.state !== 'PENDING') { row.remove(); items = items.filter(value => value.id !== record.id); }
         else row.querySelector('.status')?.replaceWith(status(record.state));
       }
+      if (kind === 'cases' && filter.state && record.state !== filter.state) {
+        for (const row of list.querySelectorAll('button[data-record]')) if (row.dataset.record === record.id) row.remove();
+        items = items.filter(value => value.id !== record.id);
+        updateProgress('当前案件已不在此筛选范围，详情继续保留');
+        const context = add(el('div', null, 'queue-context'),
+          el('strong', '当前案件已不在该筛选中'),
+          el('p', `工单 ${record.number} 现为“${label(record.state)}”，右侧详情继续保留。`)
+        );
+        const viewState = button(`查看${label(record.state)}`, async () => {
+          filter.state = record.state; selected = record.id; updateFilterControls();
+          await load(false);
+        }, 'compact');
+        context.append(viewState); list.append(context);
+      } else updateProgress();
       if (kind === 'appeals' && !items.length && !nextBefore) list.replaceChildren(el('p', '暂无待复核申诉。', 'empty'));
       const isCurrent = () => current === viewVersion && version === requestVersion;
       if (kind === 'cases') renderCase(detail, record, () => choose(item), current, isCurrent); else renderAppeal(detail, record, () => choose(item), current, isCurrent);
     } catch (error) { if (current === viewVersion && version === requestVersion) { detail.replaceChildren(el('p', '材料未加载，不能提交处理。', 'empty')); showError(error); } }
   }
   async function load(append) {
-    if (loading || current !== viewVersion) return;
+    if (current !== viewVersion || append && loading) return;
+    const attempt = ++loadVersion;
     loading = true;
     refresh.disabled = true;
+    list.setAttribute('aria-busy', 'true');
+    progress.textContent = '正在读取服务端记录。';
+    progress.classList.remove('error');
     if (!append) { list.replaceChildren(el('p', '正在加载…', 'busy')); items = []; nextBefore = null; }
     try {
-      const query = new URLSearchParams({ limit: '50' }); if (append && nextBefore) query.set('before', nextBefore);
+      const query = kind === 'cases' ? caseListQuery({ state: filter.state, number: filter.number, before: append ? nextBefore : '' }) : new URLSearchParams({ limit: '50', ...(append && nextBefore ? { before: nextBefore } : {}) });
       const data = await client.request(`/api/v1/moderation/${kind}?${query}`);
-      if (current !== viewVersion) return;
+      if (current !== viewVersion || attempt !== loadVersion) return;
       items.push(...(Array.isArray(data.items) ? data.items : [])); nextBefore = data.nextBefore ?? null;
       list.replaceChildren();
-      if (!items.length) list.append(el('p', kind === 'cases' ? '暂无举报案件。收到举报后会显示在这里。' : '暂无待复核申诉。', 'empty'));
+      if (!items.length) {
+        const message = kind === 'cases' ? filter.number ? `未找到工单 ${filter.number}。` : filter.state === 'PENDING' ? '暂无待处理案件。' : filter.state === 'PROCESSING' ? '暂无处理中案件。' : filter.state === 'ENDED' ? '暂无已结束案件。' : '暂无案件记录。' : '暂无待复核申诉。';
+        const empty = el('div', null, 'queue-empty'); empty.append(el('p', message, 'empty'));
+        if (kind === 'cases' && filter.number) empty.append(button('清除搜索', () => { filter.number = ''; numberSearch.value = ''; none(); void load(false); }, 'compact'));
+        list.append(empty);
+      }
       for (const item of items) {
-        const row = button('', () => choose(item), 'queue-item'); row.dataset.record = item.id; row.setAttribute('aria-pressed', String(item.id === selected));
-        add(row, status(item.state), el('strong', kind === 'cases' ? `工单 ${item.number ?? '待核对'}` : `申诉 ${item.ordinal ?? 1}/3`), el('div', kind === 'cases' ? label(item.reason) : `${label(item.action)} · ${platformNumber(item.platformNumber)}`, 'meta'), el('div', dateText(item.createdAt), 'meta')); list.append(row);
+        const row = button('', () => { void choose(item); }, 'queue-item'); row.dataset.record = item.id; row.dataset.state = item.state ?? ''; row.setAttribute('aria-pressed', String(item.id === selected));
+        const top = add(el('div', null, 'queue-row-top'), status(item.state), el('span', kind === 'cases' ? `工单 ${item.number ?? '待核对'}` : `申诉 ${item.ordinal ?? 1}/3`, 'queue-ticket'));
+        add(row, top, el('strong', kind === 'cases' ? label(item.reason) : `${label(item.action)} · ${platformNumber(item.platformNumber)}`), el('div', kind === 'cases' ? `目标账号 ${platformNumber(item.platformNumber)}` : dateText(item.createdAt), 'meta'), el('div', kind === 'cases' ? dateText(item.createdAt) : '', 'meta')); list.append(row);
       }
       if (nextBefore) list.append(button('加载更早记录', () => load(true), 'pager'));
-    } catch (error) { if (current === viewVersion) { list.replaceChildren(button('加载失败，点击重试', () => load(false), 'pager')); showError(error); } }
-    finally { loading = false; refresh.disabled = false; }
+      updateProgress();
+    } catch (error) {
+      if (current === viewVersion && attempt === loadVersion) {
+        list.replaceChildren(button('加载失败，点击重试', () => load(false), 'pager'));
+        progress.textContent = '读取失败，可点击下方按钮重试。';
+        progress.classList.add('error');
+        showError(error);
+      }
+    }
+    finally { if (attempt === loadVersion) { loading = false; refresh.disabled = false; list.setAttribute('aria-busy', 'false'); } }
   }
   void load(false);
 }
 function renderCase(parent, record, reload, current, isCurrent = () => current === viewVersion && parent.isConnected) {
   parent.replaceChildren();
-  const header = add(el('div', null, 'heading'), add(el('div'), el('h2', `工单 ${record.number ?? '待核对'}`), el('p', `目标账号 ${platformNumber(record.platformNumber)} · ${dateText(record.createdAt)}`, 'meta')), status(record.state));
+  const header = add(el('div', null, 'heading'), add(el('div'), el('h2', `工单 ${record.number ?? '待核对'}`), el('p', `目标账号 ${platformNumber(record.platformNumber)} · ${label(record.reason)} · ${dateText(record.createdAt)}`, 'meta')), status(record.state));
   parent.append(header);
   const evidence = section(record.conversationId ? '私信授权证据' : record.commentId ? '举报时的评论／回复' : '举报时的内容');
   const snapshot = add(el('div', null, 'evidence'), el('h3', record.evidence?.title ?? '帖子'));
@@ -215,7 +317,9 @@ function renderCase(parent, record, reload, current, isCurrent = () => current =
     const action = select(caseActions(record, me.role));
     const days = select([['1', '1 天'], ['3', '3 天'], ['7', '7 天'], ['30', '30 天']]); days.value = '3';
     const period = field('本次期限', days); const why = reasonInput();
-    const estimate = el('p', null, 'helper'); const effect = el('p', null, 'warning');
+    const estimate = el('p', null, 'helper');
+    const preview = add(el('div', null, 'action-preview'), el('span', '本次将执行', 'preview-label'), el('strong', '', 'preview-value'));
+    const effect = el('p', null, 'warning');
     const submit = el('button', '确认处理', 'primary'); submit.type = 'submit';
     let sanctions = record.sanctions ?? [];
     let estimateReady = false;
@@ -224,15 +328,16 @@ function renderCase(parent, record, reload, current, isCurrent = () => current =
       if (action.value === 'BAN' && ![...days.options].some(o => o.value === '0')) { const forever = el('option', '永久'); forever.value = '0'; days.append(forever); }
       if (action.value !== 'BAN') { if (days.value === '0') days.value = '3'; [...days.options].find(o => o.value === '0')?.remove(); }
       const profile = ['RESET_NICKNAME', 'RESET_AVATAR'].includes(action.value);
-      effect.hidden = !timed && !profile;
-      effect.textContent = record.conversationId ? (action.value === 'BAN' ? '封禁后保留处罚通知与申诉入口，其余社区功能暂停。已授权证据独立保存，对方本地记录不会被远程删除。' : '禁言对账号全部身份生效。已授权证据独立保存，对方本地记录不会被远程删除。') : profile ? '只重置本案身份的对应违规资料并通知本人，不删除身份、不变更内容归属。本人可立即修正为合规资料。' : action.value === 'BAN' ? `封禁后保留处罚通知与申诉入口，其余社区功能暂停；本案${record.commentId ? '评论' : '帖子'}同时下架。` : `禁言对账号全部身份生效，暂停发帖、评论、编辑、私信和点赞；本案${record.commentId ? '评论' : '帖子'}同时下架。`;
+      preview.querySelector('.preview-value').textContent = decisionSummary(record, action.value, Number(days.value));
+      effect.hidden = action.value === 'DISMISS';
+      effect.textContent = record.conversationId ? (action.value === 'BAN' ? '封禁后保留处罚通知与申诉入口，其余社区功能暂停。已授权证据独立保存，对方本地记录不会被远程删除。' : action.value === 'MUTE' ? '禁言对账号全部身份生效。已授权证据独立保存，对方本地记录不会被远程删除。' : '只重置本案身份的对应违规资料并通知本人，不删除身份、不变更内容归属。') : profile ? '只重置本案身份的对应违规资料并通知本人，不删除身份、不变更内容归属。本人可立即修正为合规资料。' : action.value === 'BAN' ? `封禁后保留处罚通知与申诉入口，其余社区功能暂停；本案${record.commentId ? '评论' : '帖子'}同时下架。` : action.value === 'MUTE' ? `禁言对账号全部身份生效，暂停发帖、评论、编辑、私信和点赞；本案${record.commentId ? '评论' : '帖子'}同时下架。` : action.value === 'TAKEDOWN' ? '下架后作者不能修改重审，可通过申诉请求复核。' : '';
       estimate.hidden = !timed;
       const result = recoveryEstimate(sanctions, action.value, Number(days.value));
       estimate.textContent = estimateReady ? `考虑现有处罚：社区访问预计恢复 ${result.community}；发言权限预计恢复 ${result.speaking}。以服务端实际提交时刻为准，各项处罚独立计时。` : '正在核对现有处罚，核对完成前不能提交账号处罚。';
       submit.disabled = timed && !estimateReady;
     }
     action.addEventListener('change', update); days.addEventListener('change', update);
-    add(form, field('处理措施', action), period, effect, estimate, field('处理原因', why, '说明事实与处理依据。结果将发送给相关用户，不能包含举报人信息。'), submit);
+    add(form, field('处理措施', action), period, preview, effect, estimate, field('处理原因', why, '说明事实与处理依据。结果将发送给相关用户，不能包含举报人信息。'), submit);
     watchForm(form, async () => {
       if (['MUTE', 'BAN'].includes(action.value) && !estimateReady) throw new Error('请先核对现有处罚。');
       if (!why.value.trim()) { why.focus(); throw new Error('请填写处理原因。'); }
@@ -245,17 +350,24 @@ function renderCase(parent, record, reload, current, isCurrent = () => current =
       if (!account) throw new Error('未取得目标账号的处罚记录。'); sanctions = account.sanctions ?? []; estimateReady = true; update();
     }).catch(() => { if (current === viewVersion && parent.contains(form)) { estimate.textContent = '无法核对现有处罚，请重新加载案件后再提交账号处罚。'; estimateReady = false; } });
   }
-  const audit = section('操作记录'); audit.append(el('p', '正在加载…', 'muted')); parent.append(audit);
+  const audit = section('操作记录'); audit.setAttribute('aria-busy', 'true'); audit.append(el('p', '正在加载…', 'muted')); parent.append(audit);
   void loadAudit(audit, record.id, current);
 }
 async function loadAudit(parent, caseId, current) {
+  parent.setAttribute('aria-busy', 'true');
   try {
     const data = await client.request(`/api/v1/moderation/audit?caseId=${requireUUID(caseId)}`);
     if (current !== viewVersion || !parent.isConnected) return;
     parent.replaceChildren(el('h2', '操作记录'));
     for (const event of data.items ?? []) parent.append(add(el('div', null, 'audit'), el('strong', `${label(event.action)} · 操作人 ${platformNumber(event.actorNumber)}`), el('p', event.reason ?? ''), el('p', `${dateText(event.createdAt)} · 目标 ${platformNumber(event.targetNumber)}`, 'meta')));
     if (!data.items?.length) parent.append(el('p', '暂无操作记录。', 'muted'));
-  } catch { if (current === viewVersion && parent.isConnected) parent.append(el('p', '操作记录暂未加载，可重新选择本案重试。', 'muted')); }
+  } catch {
+    if (current === viewVersion && parent.isConnected) {
+      parent.replaceChildren(el('h2', '操作记录'), el('p', '操作记录暂未加载，不影响当前证据核对。', 'muted'), button('重新加载操作记录', () => { void loadAudit(parent, caseId, current); }, 'compact'));
+    }
+  } finally {
+    if (parent.isConnected) parent.setAttribute('aria-busy', 'false');
+  }
 }
 function renderAppeal(parent, appeal, reload, current, isCurrent = () => current === viewVersion && parent.isConnected) {
   parent.replaceChildren(add(el('div', null, 'heading'), add(el('div'), el('h2', `申诉 ${appeal.ordinal ?? 1}/3`), el('p', `目标账号 ${platformNumber(appeal.platformNumber)} · ${label(appeal.action)}`, 'meta')), status(appeal.state)));
@@ -327,7 +439,23 @@ function renderRoles(parent) {
   const form = el('form', null, 'inline-form'); const number = input(); number.inputMode = 'numeric'; number.pattern = '[0-9]{6}'; number.maxLength = 6; number.required = true;
   const role = select([['REVIEWER', '审核员'], ['ADMIN', '管理员'], ['NONE', '撤销管理权限']]); const why = reasonInput(); const submit = el('button', '保存权限变更', 'primary'); submit.type = 'submit';
   add(form, field('目标平台编号', number), field('管理角色', role), field('变更原因', why), el('p', '审核员负责案件、下架及限时禁言；管理员额外负责封禁、解封和权限管理。', 'helper'), submit);
-  watchForm(form, async () => { if (!why.value.trim()) throw new Error('请填写变更原因。'); await client.command(`/api/v1/moderation/roles/${number.value}`, { role: role.value, reason: why.value.trim() }, 'PUT'); if (current === viewVersion) { announce(`已更新账号 ${number.value} 的管理权限。`); if (number.value === me.platformNumber) { const identity = await client.request('/api/v1/moderation/me'); me = { role: identity.role, platformNumber: identity.platformNumber }; if (!['ADMIN', 'REVIEWER'].includes(me.role)) await logout(); else renderWorkbench(); } } }); parent.append(form);
+  watchForm(form, async () => {
+    if (!why.value.trim()) throw new Error('请填写变更原因。');
+    await client.command(`/api/v1/moderation/roles/${number.value}`, { role: role.value, reason: why.value.trim() }, 'PUT');
+    if (current !== viewVersion) return;
+    announce(`已更新账号 ${number.value} 的管理权限。`);
+    if (number.value !== me.platformNumber) return;
+    const identity = await client.request('/api/v1/moderation/me');
+    if (current !== viewVersion) return;
+    me = { role: identity.role, platformNumber: identity.platformNumber };
+    if (!['ADMIN', 'REVIEWER'].includes(me.role)) {
+      await logout();
+      return;
+    }
+    if (me.role !== 'ADMIN') page = 'cases';
+    renderWorkbench();
+  });
+  parent.append(form);
 }
 
 renderLogin();

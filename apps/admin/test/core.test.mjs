@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, webcrypto } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { caseActions, APIError, canRevoke, canReviewAppeal, createClient, decodeToken, encodeBytes, imageSource, platformNumber, recoveryEstimate, revokeSecret } from '../core.mjs';
+import { caseActions, caseListQuery, APIError, canRevoke, canReviewAppeal, createClient, decodeToken, decisionSummary, encodeBytes, imageSource, platformNumber, recoveryEstimate, revokeSecret } from '../core.mjs';
 
 const token = encodeBytes(new Uint8Array(32).fill(13));
 const me = { role: 'REVIEWER', platformNumber: '000123' };
@@ -169,6 +169,12 @@ test('rendering and assets forbid HTML injection, persistent credentials, third 
   assert.match(css, /focus-visible/); assert.match(html, /aria-live="polite"/);
 });
 
+test('admin styling keeps thick side accents out and exposes mobile control sizing', async () => {
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /border-(?:left|right|top):\s*(?:[2-9]|[1-9]\d)px/);
+  assert.match(css, /@media\(max-width:850px\)[\s\S]*?button,[\s\S]*?min-height:44px/);
+});
+
 test('transport cannot target another origin', async () => {
   const { client } = authenticated(); await client.login('reviewer', 'phrase');
   await assert.rejects(client.request('https://external.invalid/api/v1/me'), /请求地址无效/);
@@ -181,4 +187,13 @@ test('private message cases expose only actions supported by independent authori
   assert.deepEqual(caseActions({ conversationId: 'private' }, 'ADMIN').map(x => x[0]), ['DISMISS', 'MUTE', 'BAN']);
   assert(caseActions({}, 'REVIEWER').some(x => x[0] === 'TAKEDOWN'));
   assert(!caseActions({ conversationId: 'private' }, 'ADMIN').some(x => /下架/.test(x[1])));
+});
+
+test('case list filters stay server-owned and action summaries match the submitted decision', () => {
+  assert.equal(caseListQuery({ state: 'PENDING', number: '42', before: '2026|case', limit: 50 }).toString(), 'limit=50&state=PENDING&number=42&before=2026%7Ccase');
+  assert.equal(caseListQuery().toString(), 'limit=50');
+  assert.equal(decisionSummary({}, 'DISMISS', 0), '结束案件，不作出账号或内容处罚。');
+  assert.equal(decisionSummary({}, 'MUTE', 3), '下架本案内容，并禁言账号 3 天。');
+  assert.equal(decisionSummary({ conversationId: 'dm' }, 'BAN', 0), '永久封禁账号。');
+  assert.equal(decisionSummary({}, 'RESET_NICKNAME', 0), '只重置本案身份的违规昵称。');
 });

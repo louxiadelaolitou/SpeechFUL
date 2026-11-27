@@ -32,6 +32,15 @@ func TestModerationStrictRoutesAndMaterials(t *testing.T) {
 	if !allowsModerationQuery(r) {
 		t.Fatal("read identity selection rejected by boundary")
 	}
+	cases := moderationQueryFields("admin-cases")
+	for _, field := range []string{"state", "number", "before", "limit"} {
+		if !cases[field] {
+			t.Fatalf("case list filter %q rejected", field)
+		}
+	}
+	if moderationQueryFields("admin-appeals")["state"] || moderationQueryFields("admin-accounts")["state"] {
+		t.Fatal("case-only filters leaked into another management list")
+	}
 }
 func TestModerationUIOnlyPublishesFourFiles(t *testing.T) {
 	dir := t.TempDir()

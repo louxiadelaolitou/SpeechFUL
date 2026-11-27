@@ -11,6 +11,26 @@ export const platformNumber = value => /^\d{6}$/.test(value ?? '') ? value : '�
 export const validUUID = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 export function requireUUID(value) { if (!validUUID(value)) throw new Error('资源编号无效，请重新加载。'); return value; }
 export function dateText(value) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.valueOf()) ? '时间待核对' : date.toLocaleString('zh-CN', { hour12: false }); }
+export function caseListQuery({ state = '', number = '', before = '', limit = 50 } = {}) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (state) query.set('state', state);
+  if (number) query.set('number', number);
+  if (before) query.set('before', before);
+  return query;
+}
+export function decisionSummary(record, action, days) {
+  const period = Number(days) === 0 ? '永久' : `${Number(days)} 天`;
+  const content = record.conversationId ? '' : '下架本案内容';
+  switch (action) {
+    case 'DISMISS': return '结束案件，不作出账号或内容处罚。';
+    case 'TAKEDOWN': return '下架本案内容，不附加账号处罚。';
+    case 'RESET_NICKNAME': return '只重置本案身份的违规昵称。';
+    case 'RESET_AVATAR': return '只重置本案身份的违规头像。';
+    case 'MUTE': return content ? `${content}，并禁言账号 ${period}。` : `禁言账号 ${period}。`;
+    case 'BAN': return content ? `${content}，并${Number(days) === 0 ? '永久封禁账号' : `封禁账号 ${period}`}。` : `${Number(days) === 0 ? '永久封禁账号' : `封禁账号 ${period}`}。`;
+    default: return '请选择处理措施。';
+  }
+}
 export function imageSource(value) {
   if (!value || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(value.mime) || typeof value.base64 !== 'string' || value.base64.length > 16 * 1024 * 1024 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value.base64) || !value.base64.length) return null;
   return `data:${value.mime};base64,${value.base64}`;
