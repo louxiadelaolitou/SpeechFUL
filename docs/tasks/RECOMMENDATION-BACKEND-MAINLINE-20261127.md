@@ -3,16 +3,16 @@
 - 模式：常规
 - 负责人／状态维护人：当前 Session
 - 执行 Session（指挥模式）：无
-- 分支／Worktree／PR：`codex/feat/recommendation-backend-mainline`；`E:/speechful-recommendation-backend`；基线 `develop/main@f6b2419e666ccf73035bb2e4cf769a77cfeeb49c`；未推送，PR 未创建
+- 分支／Worktree／PR：`codex/feat/recommendation-backend-mainline`；`E:/speechful-recommendation-backend`；基线 `develop/main@0ff400bf1676cc2d716224abdd282661f5ca9d5f`（任务开始时为 `f6b2419e666ccf73035bb2e4cf769a77cfeeb49c`，推送前 rebase 到最新 main）；草稿 PR [#45](https://github.com/zewbby/SpeechFUL-Develop/pull/45)
 - 本轮规则版本（指挥模式）：不适用
-- 授权依据与边界：用户 2026-11-27 指令：使用交接包 `speechful-recommendation-backend-handoff-20261127.zip`，拉取最新远端 main 并从它创建独立功能分支；按包内 README 检查并应用 `recommendation-backend-mainline.patch`，处理冲突时以当前主线为准并重核 Goose 迁移编号；复用 #43 已合入的排序、去重、轮次模型和编解码，接通 PostgreSQL、候选召回、推荐上下文、建轮／翻页／反馈 API 和运行时；推荐默认关闭并保留 C Gate、会话绑定、共享限流、到限拒绝和未知写处理；保留首页续页预览／补读与时间序 Feed 行为；在一次性 PostgreSQL 环境做功能回归；正式验收留项目服务器并在 PR 标为待验。未授权合并 main、部署或修改正式数据库；`legacy-reference/` 仅供查阅。
+- 授权依据与边界：用户 2026-11-27 指令：使用交接包 `speechful-recommendation-backend-handoff-20261127.zip`，拉取最新远端 main 并从它创建独立功能分支；按包内 README 检查并应用 `recommendation-backend-mainline.patch`，处理冲突时以当前主线为准并重核 Goose 迁移编号；复用 #43 已合入的排序、去重、轮次模型和编解码，接通 PostgreSQL、候选召回、推荐上下文、建轮／翻页／反馈 API 和运行时；推荐默认关闭并保留 C Gate、会话绑定、共享限流、到限拒绝和未知写处理；保留首页续页预览／补读与时间序 Feed 行为；在一次性 PostgreSQL 环境做功能回归；正式验收留项目服务器并在 PR 标为待验。用户 2026-11-28 指示“推送pr”，据此推送独立分支并创建草稿 PR。未授权合并 main、部署或修改正式数据库；`legacy-reference/` 仅供查阅。
 - 需求确认：无未决取舍。频道上限按主线频道目录改为 10；候选召回与普通 Feed 一致地过滤账号隐藏、审核隐藏、屏蔽、拉黑和已擦除内容；推荐默认关闭，只有显式配置、容量画像、传输密钥和 C-only 服务同时满足才可启用。
-- 更新日期：2026-11-27
+- 更新日期：2026-11-28
 - 状态：实现 已完成；验证 PASS（本地一次性环境与适用 CI；正式服务器验收 NOT_RUN）；合并 未合并；发布 未发布
 
 ## 目标与范围
 
-- 在 `develop/main@f6b2419` 上接入交接包的推荐后端：PostgreSQL 状态与清理、候选召回、推荐上下文、建轮／翻页／反馈 HTTP API、运行时装配，以及 Goose 迁移 0056–0058。
+- 在 `develop/main@0ff400b`（任务开始时为 `f6b2419`）上接入交接包的推荐后端：PostgreSQL 状态与清理、候选召回、推荐上下文、建轮／翻页／反馈 HTTP API、运行时装配，以及 Goose 迁移 0056–0058。
 - 复用 #43 已合入的 `Select`、`roundmodel`、AES-GCM `transport` 与合成输入，不重新实现排序、去重、轮次模型或编解码。
 - 迁移链编号对齐当前主线（原链止于 55），支持空库安装与从 55 升级到 58；0056–0058 只允许前向修复，失败的部分降级不得改变账本或配额。
 - 修复交接补丁的 7 频道上限，使推荐轮次与主线 10 频道目录一致；单频道、部分屏蔽、全部屏蔽、作者拉黑、账号隐藏和审核隐藏均按当前 Feed 语义生效。
@@ -43,7 +43,7 @@
 
 | 项目 | 被测版本／环境 | 结果与证据 |
 | --- | --- | --- |
-| 实现 | 基线 `f6b2419e666ccf73035bb2e4cf769a77cfeeb49c`；实现提交 `a74dcdd3cfa1e971261e79eb536f4ca94473188e`（55 个文件，6212 行新增、58 行删除） | 交接补丁 46 个路径纳入后，补齐 10 频道、账号隐藏过滤、续页回退测试、OpenAPI、迁移 0058 前向降级和迁移版本断言。`legacy-reference/` 未纳入。 |
+| 实现 | 基线 `0ff400bf1676cc2d716224abdd282661f5ca9d5f`（任务开始时 `f6b2419e666ccf73035bb2e4cf769a77cfeeb49c`）；实现提交 `13684fc7b5bc1c1a99d29a26aec4e9185be5ed79`（55 个文件，6212 行新增、58 行删除） | 交接补丁 46 个路径纳入后，补齐 10 频道、账号隐藏过滤、续页回退测试、OpenAPI、迁移 0058 前向降级和迁移版本断言。`legacy-reference/` 未纳入。推送前 rebase 到最新 `main`；上游两个提交仅改管理台界面与审核任务文档，Go 后端无差异。 |
 | 补丁检查与迁移编号 | 基于 `768e8ef` 的补丁对 `f6b2419` 检查 | `git apply --check --index` 未直接通过，报 `community_feed_prepared.go: patch does not apply`；按 README 的冲突路径以当前主线为准解决后应用，Goose 编号重核为 0056–0058，链最大版本 58。 |
 | 正式 Goose 安装／升级 | PostgreSQL 16.15；一次性 Unix socket；受限运行角色 `hnuhole_c_runtime`；Goose v3.22.1 | PASS：`TestRecommendationFormalGooseEmptyInstallAndMainlineUpgradePostgres` 的 `empty_install` 与 `mainline_55_to_58` 均通过；默认关闭、0058 上限、运行角色 schema 契约与既有账号保留均核对。 |
 | 推荐功能回归 | 同一一次性 PostgreSQL；真实 HTTPS；`AUTHLAB_ALLOW_SCHEMA_RESET=1`、`FEED_RECOMMENDATION_OWNED=1` | PASS：`go test -count=1 -v -timeout 30m -run 'TestRecommendation' ./internal/authprivacy`，40 个顶层测试全部 PASS、0 FAIL、0 SKIP，151.652s。覆盖上下文→建轮→同意图重试复用→翻页→反馈、曝光 SQL 落库、10 频道、单频道、部分／全部屏蔽、作者拉黑、账号与审核隐藏、跨账号凭证 409、Gate 冻结不提交、会话撤销／替换／关闭、到限拒绝、TTL 与清理积压。 |
@@ -57,4 +57,4 @@
 
 ## 阻碍与下一步
 
-本地实现、一次性 PostgreSQL／HTTPS 回归、续页回退、静态检查、适用 race、OpenAPI 与 Feed CI 已完成。正式服务器容量与 72 小时保留验收仍待项目服务器执行，不能由本地结果替代。分支尚未推送、PR 未创建：本任务没有新的明确推送授权，按仓库规则待用户确认后再推独立分支并开草稿 PR；合并 main、部署和正式数据库操作均未授权。
+本地实现、一次性 PostgreSQL／HTTPS 回归、续页回退、静态检查、适用 race、OpenAPI 与 Feed CI 已完成。分支已按用户 2026-11-28 授权推送，并创建草稿 PR [#45](https://github.com/zewbby/SpeechFUL-Develop/pull/45)。正式服务器容量与 72 小时保留验收仍待项目服务器执行，不能由本地结果替代；合并 main、部署和正式数据库操作均未授权。
