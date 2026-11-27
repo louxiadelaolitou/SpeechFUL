@@ -1,6 +1,8 @@
 import '../channels/channel.dart';
 import 'post_api.dart';
 import 'post_models.dart';
+import 'post_interactions_api.dart';
+import 'post_media_api.dart';
 import 'post_protocol.dart';
 import 'post_tags.dart';
 
@@ -193,20 +195,21 @@ abstract interface class IncrementalFeedApi {
 class FeedWindow {
   FeedWindow({
     required List<FeedPost> items,
+    this.previews,
     required this.nextCursor,
     required this.refreshCursor,
     required this.insertAfter,
   }) : items = List.unmodifiable(items);
   final List<FeedPost> items;
+  final FeedPreviewPage? previews;
   final String? nextCursor, refreshCursor, insertAfter;
 
-  factory FeedWindow.fromJson(Object? raw) {
-    final m = PostJson.record(raw, {
-      'items',
-      'nextCursor',
-      'refreshCursor',
-      'insertAfter',
-    });
+  factory FeedWindow.fromJson(Object? raw, {bool allowPreviews = false}) {
+    final m = PostJson.record(
+      raw,
+      {'items', 'nextCursor', 'refreshCursor', 'insertAfter'},
+      optional: {if (allowPreviews) 'previews'},
+    );
     final items = m['items'];
     if (items is! List ||
         items.length > 10 ||
@@ -221,11 +224,53 @@ class FeedWindow {
     }
     return FeedWindow(
       items: posts,
+      previews: m.containsKey('previews')
+          ? FeedPreviewPage.fromJson(m['previews'], posts)
+          : null,
       nextCursor: PostProtocol.cursor(m['nextCursor'] as String?),
       refreshCursor: PostProtocol.cursor(m['refreshCursor'] as String?),
       insertAfter: m['insertAfter'] == null
           ? null
           : PostProtocol.resourceId(m['insertAfter'] as String),
     );
+  }
+}
+
+class FeedPreviewPage {
+  const FeedPreviewPage(this.items, this.imageManifests);
+  final List<PostInteractions> items;
+  final Map<String, PostMediaManifest> imageManifests;
+
+  factory FeedPreviewPage.fromJson(Object? raw, List<FeedPost> posts) {
+    final data = PostJson.record(raw, {'items', 'imageManifests'});
+    final items = data['items'];
+    final manifests = data['imageManifests'];
+    final imagePosts = posts
+        .where((post) => post.imageCount > 0)
+        .take(3)
+        .toList();
+    if (items is! List ||
+        items.length != posts.length ||
+        manifests is! List ||
+        manifests.length != imagePosts.length) {
+      throw const FormatException('Invalid feed previews');
+    }
+    final values = items.map(PostInteractions.fromJson).toList();
+    for (var i = 0; i < values.length; i++) {
+      if (values[i].postId != posts[i].postId) {
+        throw const FormatException('Mismatched feed interactions');
+      }
+    }
+    final images = <String, PostMediaManifest>{};
+    for (var i = 0; i < manifests.length; i++) {
+      final id = imagePosts[i].postId;
+      final group = PostMediaManifest.fromJson(manifests[i], id);
+      if (group.images.isEmpty ||
+          group.images.any((image) => image.preview.exactLength)) {
+        throw const FormatException('Invalid feed thumbnail manifest');
+      }
+      images[id] = group;
+    }
+    return FeedPreviewPage(values, images);
   }
 }

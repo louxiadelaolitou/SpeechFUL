@@ -406,6 +406,9 @@ func (b *boundary) preflight(w http.ResponseWriter, r *http.Request) {
 		allowed["authorization"] = true
 	} else {
 		allowed["authorization"] = true
+		if method == http.MethodGet && r.URL.Path == "/api/v1/feed" {
+			allowed["x-feed-continuation-extras"] = true
+		}
 		if method == http.MethodGet && (r.URL.Path == "/api/v1/feed" || isPostImagePath(r.URL.Path)) {
 			allowed["x-post-preview"] = true
 		}

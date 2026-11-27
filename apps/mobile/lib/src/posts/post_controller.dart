@@ -117,10 +117,88 @@ class _PostPublicationContext implements PostPublicationContext {
 }
 
 /// Adapts the shared session owner to the feed's narrow read boundary.
-class _FeedReadSession implements feed.FeedReadSession {
+class _FeedReadSession implements feed.FeedPreviewReadSession {
   _FeedReadSession(this._owner, this._authority);
   final PostController _owner;
   final _PostAuthority _authority;
+
+  PostResponse<FeedWindow>? _windowResponse;
+  late final Stopwatch _elapsed;
+  late final int _visibility;
+  late final Map<String, int> _revisions, _mediaRevisions;
+  late final Set<String> _busy;
+
+  @override
+  Future<FeedWindow> requestWindow(
+    Future<PostResponse<FeedWindow>> Function(String) send,
+  ) async {
+    _visibility = _owner.authorVisibilityEpoch;
+    _revisions = {
+      for (final e in _owner._interactions.entries) e.key: e.value.revision,
+    };
+    _busy = {
+      for (final e in _owner._interactions.entries)
+        if (e.value.unresolved || e.value.loading) e.key,
+    };
+    _mediaRevisions = Map.of(_owner._postMediaRevisions);
+    _elapsed = Stopwatch()..start();
+    final response = await send(_authority.token);
+    final page = await _owner._accept(_authority, response);
+    _windowResponse = response;
+    return page;
+  }
+
+  @override
+  bool applyWindowPreviews(FeedWindow window) {
+    final response = _windowResponse;
+    _windowResponse = null;
+    final previews = window.previews;
+    if (response == null ||
+        !identical(response.value, window) ||
+        previews == null ||
+        !isCurrent ||
+        _visibility != _owner.authorVisibilityEpoch) {
+      return false;
+    }
+    for (final item in previews.items) {
+      final id = item.postId;
+      final entry = _owner._interactions[id];
+      if (_owner.isPostDeleted(id) ||
+          _busy.contains(id) ||
+          entry?.unresolved == true ||
+          entry?.loading == true ||
+          (entry?.revision ?? 0) != (_revisions[id] ?? 0) ||
+          _owner.postMediaRevision(id) != (_mediaRevisions[id] ?? 0)) {
+        return false;
+      }
+    }
+    // No await between checking versions and installing already-authorized data.
+    for (final value in previews.items) {
+      final entry = _owner.interaction(value.postId);
+      entry.revision++;
+      entry.value = value;
+      entry.refreshPending = false;
+      entry.readError = null;
+    }
+    _owner._feedImages.removeWhere((_, ticket) => ticket.expired);
+    for (final e in previews.imageManifests.entries) {
+      final ticket = _FeedImageTicket(
+        _authority.epoch,
+        _visibility,
+        _owner.postMediaRevision(e.key),
+        _elapsed,
+      );
+      ticket.response = PostResponse(
+        value: e.value,
+        serverTime: response.serverTime,
+        sessionExpiresAt: response.sessionExpiresAt,
+        requestId: response.requestId,
+        statusCode: response.statusCode,
+      );
+      _owner._feedImages[e.key] = ticket;
+    }
+    return true;
+  }
 
   @override
   bool get isCurrent => _owner._current(_authority);
@@ -365,6 +443,23 @@ class PostController extends ChangeNotifier {
   /// account may see. Screens that cache filtered pages compare it and drop
   /// cards loaded under an older visibility window.
   int authorVisibilityEpoch = 0;
+  final _feedImages = <String, _FeedImageTicket>{};
+
+  ({PostResponse<PostMediaManifest> response, Stopwatch elapsed})?
+  takeFeedImage(String id) {
+    final ticket = _feedImages.remove(id);
+    if (ticket == null ||
+        ticket.expired ||
+        !available ||
+        ticket.epoch != _epoch ||
+        ticket.visibility != authorVisibilityEpoch ||
+        ticket.mediaRevision != postMediaRevision(id) ||
+        isPostDeleted(id)) {
+      return null;
+    }
+    return (response: ticket.response!, elapsed: ticket.elapsed);
+  }
+
   int _publicationSequence = 0;
   PostPublicationNotice? _latestPublicationNotice;
   String? currentChannelId, feedCursor, feedError, errorMessage;
@@ -425,6 +520,7 @@ class PostController extends ChangeNotifier {
     final epoch = ++_epoch;
     _clearReposts();
     _interactions.clear();
+    _feedImages.clear();
     _hiddenWrites.clear();
     _hiddenUncertainVersions.clear();
     hiddenPostError = null;

@@ -91,8 +91,10 @@ class PostMediaRepository {
     }
     cached?.revokeIfStale();
     final future = _manifests.putIfAbsent(key, () async {
-      final elapsed = _stopwatch()..start();
-      final response = await posts.loadImageManifest(postId);
+      final preview = posts.takeFeedImage(postId);
+      final elapsed = preview?.elapsed ?? (_stopwatch()..start());
+      final response =
+          preview?.response ?? await posts.loadImageManifest(postId);
       final manifest = response.value;
       final lifetime = manifest.accessValidUntil.difference(
         response.serverTime,

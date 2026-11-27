@@ -44,3 +44,53 @@ func TestFeedHTTPIncrementalInputsAndResponses(t *testing.T) {
 		t.Fatal("missing refresh cursor accepted")
 	}
 }
+
+func TestFeedContinuationPreviewNegotiation(t *testing.T) {
+	backend, handler := newPostHTTP(t, httpTestLimits())
+	backend.value = posts.IncrementalFeedPage{Items: []posts.FeedPost{}}
+	const feed = "/api/v1/feed?paging=incremental-v1"
+	for _, tc := range []struct {
+		name, path, preview string
+		extras              []string
+		status              int
+	}{
+		{"continuation", feed + "&cursor=YQ", "thumbnail-v1", []string{"previews-v1"}, 200},
+		{"old client", feed + "&cursor=YQ", "thumbnail-v1", nil, 200},
+		{"initial", feed, "thumbnail-v1", []string{"previews-v1"}, 400},
+		{"refresh", feed + "&refreshCursor=YQ", "thumbnail-v1", []string{"previews-v1"}, 400},
+		{"legacy", "/api/v1/feed?cursor=YQ", "thumbnail-v1", []string{"previews-v1"}, 400},
+		{"no thumbnail opt-in", feed + "&cursor=YQ", "", []string{"previews-v1"}, 400},
+		{"duplicates", feed + "&cursor=YQ", "thumbnail-v1", []string{"previews-v1", "previews-v1"}, 400},
+		{"unsupported value", feed + "&cursor=YQ", "thumbnail-v1", []string{"other"}, 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := postHTTPHeaders(false)
+			if tc.preview != "" {
+				h.Set("X-Post-Preview", tc.preview)
+			}
+			for _, extra := range tc.extras {
+				h.Add("X-Feed-Continuation-Extras", extra)
+			}
+			calls := backend.calls
+			w := postHTTPRequest(handler, http.MethodGet, tc.path, "", h)
+			if w.Code != tc.status {
+				t.Fatalf("status %d, want %d: %s", w.Code, tc.status, w.Body.String())
+			}
+			if tc.status == 200 {
+				if backend.calls != calls+1 || backend.query.WindowPreviews != (len(tc.extras) == 1) {
+					t.Fatal("continuation preview intent was routed incorrectly")
+				}
+			} else if backend.calls != calls {
+				t.Fatal("malformed negotiation reached the backend")
+			}
+		})
+	}
+	preflight := http.Header{
+		"Origin":                         {"https://client.example"},
+		"Access-Control-Request-Method":  {"GET"},
+		"Access-Control-Request-Headers": {"authorization, x-post-preview, x-feed-continuation-extras"},
+	}
+	if w := postHTTPRequest(handler, http.MethodOptions, "/api/v1/feed", "", preflight); w.Code != 204 {
+		t.Fatal("continuation preflight rejected", w.Code)
+	}
+}

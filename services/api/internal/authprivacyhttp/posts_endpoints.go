@@ -49,6 +49,7 @@ type postRoute struct {
 	preview          bool
 	incremental      bool
 	windowDirection  string
+	windowPreviews   bool
 	limit            int
 	version          int32
 	ids              []string
@@ -387,6 +388,15 @@ func (b *boundary) communityPostsPublic(w http.ResponseWriter, r *http.Request, 
 			query.ImageSizes = route.preview
 			route.id = query.ID
 		}
+		if hasHeader(r.Header, "X-Feed-Continuation-Extras") {
+			extras, e := singleHeader(r.Header, "X-Feed-Continuation-Extras")
+			if e != nil || extras != "previews-v1" || route.kind != authprivacy.PostFeed || !route.preview || route.windowDirection != "older" {
+				b.postBad(w, errMalformed)
+				return
+			}
+			query.WindowPreviews, route.windowPreviews = true, true
+		}
+
 		var response authprivacy.PostResponse
 		if route.command {
 			response, err = backend.GetPostCommand(r.Context(), bearer, route.id)
@@ -824,6 +834,9 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 		return
 	}
 	value, err := strictPostValue(response.Value, route)
+	if window, ok := response.Value.(authprivacy.FeedWindowPreviews); ok {
+		value, err = strictContinuationPreviews(window, response, route)
+	}
 	if err != nil {
 		b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
 		return

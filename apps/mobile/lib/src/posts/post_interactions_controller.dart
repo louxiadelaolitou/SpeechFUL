@@ -32,6 +32,25 @@ class PostInteractionState {
       : value!.likeCount + (liked != value!.likedByMe ? (liked ? 1 : -1) : 0);
 }
 
+class _FeedImageTicket {
+  _FeedImageTicket(
+    this.epoch,
+    this.visibility,
+    this.mediaRevision, [
+    Stopwatch? clock,
+  ]) : elapsed = clock ?? (Stopwatch()..start());
+  final int epoch, visibility, mediaRevision;
+  final Stopwatch elapsed;
+  PostResponse<PostMediaManifest>? response;
+
+  bool get expired {
+    final current = response;
+    return current != null &&
+        current.value.accessValidUntil.difference(current.serverTime) <=
+            elapsed.elapsed;
+  }
+}
+
 extension PostInteractionsController on PostController {
   PostInteractionsApi get _interactionsApi => _api as PostInteractionsApi;
   PostInteractionState interaction(String id) =>

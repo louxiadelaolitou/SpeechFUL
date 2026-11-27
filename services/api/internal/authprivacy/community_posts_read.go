@@ -37,6 +37,7 @@ type PostQuery struct {
 	ID, Cursor       string
 	IdentityID       string
 	Limit            int
+	WindowPreviews   bool
 	ImageSizes       bool
 	EditCapabilities bool
 	Incremental      bool

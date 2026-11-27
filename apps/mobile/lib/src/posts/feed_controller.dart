@@ -14,6 +14,13 @@ abstract interface class FeedReadSession {
   void reportFailure(Object error);
 }
 
+abstract interface class FeedPreviewReadSession implements FeedReadSession {
+  Future<FeedWindow> requestWindow(
+    Future<PostResponse<FeedWindow>> Function(String token) send,
+  );
+  bool applyWindowPreviews(FeedWindow window);
+}
+
 /// Owns home timeline state, pagination, preferences and observed view counts.
 /// Publication, storage, sessions and shared interactions have separate owners.
 class FeedController extends ChangeNotifier {
@@ -288,14 +295,16 @@ class FeedController extends ChangeNotifier {
       FeedWindow? window;
       final PostsPage<FeedPost> page;
       if (_api case final IncrementalFeedApi incremental) {
-        final received = await a.request(
-          (token) => incremental.timelineWindow(
-            sessionToken: token,
-            channelId: channelId,
-            cursor: cursor,
-            refreshCursor: refreshing ? _timelineRefreshCursor : null,
-          ),
-        );
+        Future<PostResponse<FeedWindow>> send(String token) =>
+            incremental.timelineWindow(
+              sessionToken: token,
+              channelId: channelId,
+              cursor: cursor,
+              refreshCursor: refreshing ? _timelineRefreshCursor : null,
+            );
+        final received = more && a is FeedPreviewReadSession
+            ? await a.requestWindow(send)
+            : await a.request(send);
         window = received;
         page = PostsPage(
           items: received.items,
@@ -356,10 +365,15 @@ class FeedController extends ChangeNotifier {
       }
       _timelineLoaded = true;
       if (!more && !refreshing) _timelineGeneration++;
+      final inline =
+          more &&
+          window != null &&
+          a is FeedPreviewReadSession &&
+          a.applyWindowPreviews(window);
       _notify();
-      final found = await _loadInteractions(
-        page.items.map((p) => p.postId).toList(),
-      );
+      final found =
+          inline ||
+          await _loadInteractions(page.items.map((p) => p.postId).toList());
       if (!found &&
           recoverMissingInteractions &&
           a.isCurrent &&

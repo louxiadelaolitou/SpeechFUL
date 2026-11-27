@@ -603,15 +603,31 @@ void main() {
         'limit': '10',
       });
       endpoint.respond = (r) => _json(r, 200, page());
-      await api.timelineWindow(
+      final bare = await api.timelineWindow(
         sessionToken: _token,
         cursor: first.value.nextCursor,
       );
+      expect(bare.value.previews, isNull);
+      expect(endpoint.requests.last.headers['x-feed-continuation-extras'], [
+        'previews-v1',
+      ]);
       expect(endpoint.requests.last.uri.queryParameters, {
         'paging': 'incremental-v1',
         'limit': '5',
         'cursor': 'opaque_cursor',
       });
+      endpoint.respond = (r) => _json(r, 200, {
+        ...page(),
+        'previews': {
+          'items': [interaction()],
+          'imageManifests': [],
+        },
+      });
+      final packed = await api.timelineWindow(
+        sessionToken: _token,
+        cursor: first.value.nextCursor,
+      );
+      expect(packed.value.previews!.items.single.likedByMe, isTrue);
       endpoint.respond = (r) => _json(r, 200, page(refresh: 'next_refresh'));
       await api.timelineWindow(
         sessionToken: _token,

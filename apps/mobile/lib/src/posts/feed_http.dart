@@ -15,7 +15,10 @@ extension _FeedHttp on HttpPostApi {
       sessionToken,
       'GET',
       '/api/v1/feed',
-      headers: const {'X-Post-Preview': 'thumbnail-v1'},
+      headers: {
+        'X-Post-Preview': 'thumbnail-v1',
+        if (cursor != null) 'X-Feed-Continuation-Extras': 'previews-v1',
+      },
       query: {
         ...HttpPostApi._pageQuery(cursor, limit),
         'paging': 'incremental-v1',
@@ -25,7 +28,7 @@ extension _FeedHttp on HttpPostApi {
       },
       maxResponseBytes: 24 * 1024 * 1024,
       decode: (raw) {
-        final page = FeedWindow.fromJson(raw);
+        final page = FeedWindow.fromJson(raw, allowPreviews: cursor != null);
         if (page.items.length > limit ||
             channelId != null &&
                 page.items.any((p) => p.channelId != channelId) ||

@@ -263,14 +263,7 @@ func (b *boundary) communityPostImages(w http.ResponseWriter, r *http.Request, b
 			return
 		}
 		if thumbnailer, ok := backend.(PostImageThumbnailBackend); preview && ok && thumbnailer.PostImageThumbnailsEnabled() {
-			// Copy the slice: response validation must not mutate backend state.
-			v.Images = append([]postmedia.Image{}, v.Images...)
-			for i := range v.Images {
-				v.Images[i].Thumbnail = postmedia.Source{
-					Path: "/api/v1/posts/" + route.id + "/images/" + v.Images[i].ContentVersionID + "/thumbnail",
-					MIME: "image/webp", MaxByteLength: postmedia.MaxThumbnailBytes,
-				}
-			}
+			v = withThumbnailSources(v)
 		}
 		encoded, e = json.Marshal(v)
 	case "uploads":
@@ -321,6 +314,18 @@ func (b *boundary) communityPostImages(w http.ResponseWriter, r *http.Request, b
 	}
 	w.WriteHeader(200)
 	_, _ = w.Write(encoded)
+}
+
+func withThumbnailSources(group postmedia.Group) postmedia.Group {
+	group.Images = append([]postmedia.Image{}, group.Images...)
+	for i := range group.Images {
+		image := &group.Images[i]
+		image.Thumbnail = postmedia.Source{
+			Path: "/api/v1/posts/" + group.PostID + "/images/" + image.ContentVersionID + "/thumbnail",
+			MIME: "image/webp", MaxByteLength: postmedia.MaxThumbnailBytes,
+		}
+	}
+	return group
 }
 
 func validImageGroup(v postmedia.Group, post string, at, expires time.Time) bool {

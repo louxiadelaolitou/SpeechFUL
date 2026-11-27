@@ -252,6 +252,10 @@ paths:
         Account-hidden posts are excluded before LIMIT. Reading/exposing the
         feed never increments views.
       parameters:
+        - name: X-Feed-Continuation-Extras
+          in: header
+          schema: {type: string, enum: [previews-v1]}
+          description: Optional for an incremental-v1 continuation with cursor and thumbnail-v1. Returns previews for this page when available. If previews are absent, use the existing interaction and manifest reads.
         - name: paging
           in: query
           schema: {type: string, enum: [incremental-v1]}
@@ -568,6 +572,22 @@ components:
           type: array
           maxItems: 10
           items: {$ref: '#/components/schemas/FeedPost'}
+        previews:
+          type: object
+          description: Negotiated on nonempty continuations. The server may omit the field when optional metadata is unavailable. Fetching the bytes requires a fresh authorization for each selected thumbnail.
+          additionalProperties: false
+          required: [items, imageManifests]
+          properties:
+            items:
+              type: array
+              minItems: 1
+              maxItems: 10
+              items: {$ref: '#/components/schemas/PostInteractions'}
+            imageManifests:
+              type: array
+              maxItems: 3
+              description: The first image-bearing posts in page order, up to three.
+              items: {$ref: '#/components/schemas/FeedImageManifest'}
         nextCursor:
           type: string
           nullable: true
@@ -582,6 +602,49 @@ components:
           format: uuid
           nullable: true
           description: Public post insertion anchor for a pending refresh gap. Null prepends the batch. No private ordinal or identity selector is exposed.
+    FeedImageManifest:
+      type: object
+      additionalProperties: false
+      required: [postId, images, accessValidUntil]
+      properties:
+        postId: { $ref: '#/components/schemas/ResourceID' }
+        accessValidUntil: { $ref: '#/components/schemas/UTCDateTime' }
+        images:
+          type: array
+          maxItems: 9
+          items: { $ref: '#/components/schemas/FeedPreviewImage' }
+    FeedPreviewImage:
+      type: object
+      additionalProperties: false
+      required: [mediaId, contentVersionId, position, width, height, pixelWidth, pixelHeight, frames, animated, saveAllowed, thumbnail, full, original]
+      properties:
+        mediaId: { $ref: '#/components/schemas/ResourceID' }
+        contentVersionId: { $ref: '#/components/schemas/ResourceID' }
+        position: { type: integer, minimum: 0, maximum: 8 }
+        width: &pixelDimension { type: integer, minimum: 1, maximum: 16384 }
+        height: *pixelDimension
+        pixelWidth: *pixelDimension
+        pixelHeight: *pixelDimension
+        frames: { type: integer, minimum: 1, maximum: 120 }
+        animated: { type: boolean }
+        saveAllowed: { type: boolean, enum: [true] }
+        thumbnail:
+          type: object
+          additionalProperties: false
+          required: [path, mimeType, maxByteLength]
+          properties:
+            path: { type: string, pattern: '^/api/v1/posts/[0-9a-f-]{36}/images/[0-9a-f-]{36}/thumbnail$' }
+            mimeType: { type: string, enum: [image/webp] }
+            maxByteLength: { type: integer, minimum: 1, maximum: 524288 }
+        full: &originalImageSource
+          type: object
+          additionalProperties: false
+          required: [path, mimeType, byteLength]
+          properties:
+            path: { type: string, pattern: '^/api/v1/posts/[0-9a-f-]{36}/images/[0-9a-f-]{36}/original$' }
+            mimeType: { type: string, enum: [image/jpeg, image/png, image/gif, image/webp] }
+            byteLength: { type: integer, minimum: 1, maximum: 10485760 }
+        original: *originalImageSource
     FeedPage:
       type: object
       additionalProperties: false

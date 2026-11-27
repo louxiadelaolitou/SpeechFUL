@@ -3,6 +3,7 @@ package authprivacy
 import (
 	"bytes"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -76,7 +77,7 @@ func (p *feedReadProof) revalidate(ctx context.Context, tx pgx.Tx, a uuid.UUID) 
 func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q PostQuery) (PostResponse, error) {
 	ctx = readtiming.Phase(ctx, "feed")
 	q.deferViewCounts = c.posts.batchListReads
-	return c.withPreparedReadPlan(ctx, bearer, postError("SERVICE_UNAVAILABLE", 503), func(prepareCtx context.Context, tx pgx.Tx, s readSubject) (*preparedReadPlan, error) {
+	response, err := c.withPreparedReadPlan(ctx, bearer, postError("SERVICE_UNAVAILABLE", 503), func(prepareCtx context.Context, tx pgx.Tx, s readSubject) (*preparedReadPlan, error) {
 		proof := &feedReadProof{channel: q.ID, initial: q.Cursor == ""}
 		var position posts.CursorPosition
 		capture := func(p posts.CursorPosition, ids []string) { position = p; proof.ids = append([]string{}, ids...) }
@@ -185,6 +186,9 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 					for i := range page.Items {
 						page.Items[i].ViewCount = views[page.Items[i].PostID]
 					}
+					if q.WindowPreviews && q.Cursor != "" && len(ids) > 0 && c.PostImageThumbnailsEnabled() {
+						return c.continuationPreviews(ctx, tx, a, d.TrustedAt, page, ids)
+					}
 					return page, nil
 				case posts.CrossChannelFeedPage:
 					page.NextCursor = cursor
@@ -214,6 +218,17 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 		}
 		return plan, pending
 	})
+	if window, ok := response.Value.(FeedWindowPreviews); err == nil && ok {
+		for i := range window.Previews.ImageManifests {
+			group := &window.Previews.ImageManifests[i]
+			until, _ := time.Parse(time.RFC3339Nano, group.AccessValidUntil)
+			if until.After(response.ExpiresAt) {
+				group.AccessValidUntil = response.ExpiresAt.UTC().Format(time.RFC3339Nano)
+			}
+		}
+		response.Value = window
+	}
+	return response, err
 }
 
 // Mutable display counters do not invalidate candidate order or public body
