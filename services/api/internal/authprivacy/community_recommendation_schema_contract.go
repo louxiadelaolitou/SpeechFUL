@@ -47,6 +47,26 @@ func checkRecommendationStructure(ctx context.Context, pool *pgxpool.Pool) error
 				checks = copy
 			}
 		}
+		if table == "pages" {
+			// pg_dump prints this CHECK without the redundant inner parentheses
+			// and pg_restore parses that text into a flat AND list. PG16 keeps
+			// the parse-time shape, so an untouched schema would otherwise be
+			// rejected after backup/restore. Accept exactly that spelling; an
+			// altered bound still fails the exact-set comparison below.
+			flat := "CHECK (((consumed >= 0) AND (consumed <= 1023) AND ((consumed & (~ delivered)) = 0)))"
+			var restored bool
+			if pool.QueryRow(ctx, `SELECT COALESCE((SELECT regexp_replace(pg_get_constraintdef(oid),'[[:space:]]','','g')=regexp_replace($1,'[[:space:]]','','g') FROM pg_constraint WHERE conrelid='c_recommendation.pages'::regclass AND conname='pages_check'),false)`, flat).Scan(&restored) != nil {
+				return errPostSchema
+			}
+			if restored {
+				copy := make(map[string]string, len(checks))
+				for name, definition := range checks {
+					copy[name] = definition
+				}
+				copy["pages_check"] = flat
+				checks = copy
+			}
+		}
 		names, definitions := []string{}, []string{}
 		for name, definition := range checks {
 			names = append(names, name)

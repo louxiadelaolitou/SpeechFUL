@@ -353,6 +353,30 @@ func TestRecommendationB4aMissingAndWrongStructuresPostgres(t *testing.T) {
 	}
 }
 
+func TestRecommendationPagesCheckAcceptsDumpRestoreSpellingPostgres(t *testing.T) {
+	p := newRecommendationPG(t, 0)
+	ctx := context.Background()
+	if err := checkRecommendationSchema(ctx, p.runtime, true); err != nil {
+		t.Fatal("fresh migration schema rejected", err)
+	}
+	// pg_dump drops the redundant inner parentheses and pg_restore keeps the
+	// flattened AND list. A restored cluster is semantically identical, so the
+	// contract must accept that spelling while still rejecting altered bounds.
+	flat := `CHECK (((consumed >= 0) AND (consumed <= 1023) AND ((consumed & (~ delivered)) = 0)))`
+	if _, err := p.l.cp.Exec(ctx, `ALTER TABLE c_recommendation.pages DROP CONSTRAINT pages_check; ALTER TABLE c_recommendation.pages ADD CONSTRAINT pages_check `+flat); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkRecommendationSchema(ctx, p.runtime, true); err != nil {
+		t.Fatal("dump/restore spelling rejected", err)
+	}
+	if _, err := p.l.cp.Exec(ctx, `ALTER TABLE c_recommendation.pages DROP CONSTRAINT pages_check; ALTER TABLE c_recommendation.pages ADD CONSTRAINT pages_check CHECK ((consumed >= 0) AND (consumed <= 2047) AND ((consumed & (~ delivered)) = 0))`); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkRecommendationSchema(ctx, p.runtime, true); err == nil {
+		t.Fatal("altered pages budget accepted")
+	}
+}
+
 func TestRecommendationB4aProfileChangeCannotStrandPromisesPostgres(t *testing.T) {
 	p := newRecommendationPG(t, 2)
 	ctx := context.Background()
