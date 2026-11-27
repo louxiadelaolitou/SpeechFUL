@@ -56,6 +56,19 @@ func TestFeedContinuationPreviewsPostgres(t *testing.T) {
 		t.Fatal("continuation did not return the current image selection", groups)
 	}
 
+	// Without a thumbnailer the same continuation must fall back to the older
+	// plain page instead of failing or fabricating previews.
+	plain := *f.l.c
+	plain.postImages = nil
+	response, err := plain.ReadPosts(ctx, f.viewer.SessionToken, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, ok := response.Value.(posts.IncrementalFeedPage)
+	if !ok || len(page.Items) != 2 || page.Items[0].PostID != textPost || page.Items[1].PostID != f.post {
+		t.Fatal("continuation without thumbnails did not use the plain read", response.Value)
+	}
+
 	preparedReadPool(t, f.l, func(attempt int) {
 		if attempt == 1 {
 			mustExec(t, f.l.cp, "UPDATE c_posts.posts SET moderation_hidden=true WHERE post_id=$1", f.post)

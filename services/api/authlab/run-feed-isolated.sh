@@ -57,6 +57,7 @@ CREATE ROLE hnuhole_c_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE ROLE hnuhole_c_recovery NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE ROLE hnuhole_business NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE DATABASE hnuhole_c OWNER hnuhole_c;
+REVOKE TEMP ON DATABASE hnuhole_c FROM PUBLIC;
 CREATE DATABASE hnuhole_v OWNER hnuhole_v;
 CREATE DATABASE hnuhole_feed_fresh OWNER hnuhole_c;
 CREATE DATABASE hnuhole_feed_upgrade OWNER hnuhole_c;
@@ -78,6 +79,9 @@ GRANT CONNECT ON DATABASE hnuhole_v TO hnuhole_v;
 GRANT CONNECT ON DATABASE hnuhole_feed_fresh,hnuhole_feed_upgrade,hnuhole_feed_interactions,hnuhole_feed_versions TO hnuhole_c;
 SQL
 export PGPORT="$feed_port"
+mkdir "$feed_dir/recommendation-evidence"
+export FEED_RECOMMENDATION_OWNED=1 HNUB3B_EVIDENCE_DIR="$feed_dir/recommendation-evidence"
+export HNULIMIT_GOOSE="$FEED_GOOSE"
 AUTHLAB_RUNTIME_TAG="hnuhole_authlab_feed_$(date -u +%Y%m%d%H%M%S)"
 AUTHLAB_C_DSN="postgresql://hnuhole_c@/hnuhole_c?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
 AUTHLAB_V_DSN="postgresql://hnuhole_v@/hnuhole_v?host=$feed_dir/socket&application_name=$AUTHLAB_RUNTIME_TAG&sslmode=disable"
@@ -103,4 +107,4 @@ case "${FEED_TEST_RACE:-1}" in
   *) echo 'FEED_TEST_RACE must be 0 or 1' >&2; exit 2 ;;
 esac
 go test $feed_race_flag -timeout "${FEED_TEST_TIMEOUT:-10m}" -count=1 -p 1 ./internal/authprivacy ./internal/authprivacyhttp ./internal/authprivacyruntime ./internal/rankings \
-    -run "${FEED_TEST_PATTERN:-^(TestFeed|TestRealHTTPSFeed(Views|Interactions|Rankings)|TestRealHTTPSPostSearchHistoryPostgres|TestRealHTTPSPostShare|TestRealHTTPSPostTags|TestPostSchema|TestPostAtomic|TestPostCeiling|TestPostGate|TestPostFormalClosure|TestRealHTTPSPost(Acceptance|Stops)|TestModerationLifecycleCommonCStartup|TestCommentText(Transactions|FailureRetryAbandon|FrozenGate|RuntimeAndSQLGuards|UnavailablePost|ClosureCleanupWithFeatureDisabled|HTTPS|NullableBoundary)|TestCommentBusiness(MediaDeleteLikesNotices|HTTPS))}" -v
+    -run "${FEED_TEST_PATTERN:-^(TestFeed|TestRecommendation|TestRealHTTPSFeed(Views|Interactions|Rankings)|TestRealHTTPSPostSearchHistoryPostgres|TestRealHTTPSPostShare|TestRealHTTPSPostTags|TestPostSchema|TestPostAtomic|TestPostCeiling|TestPostGate|TestPostFormalClosure|TestRealHTTPSPost(Acceptance|Stops)|TestModerationLifecycleCommonCStartup|TestCommentText(Transactions|FailureRetryAbandon|FrozenGate|RuntimeAndSQLGuards|UnavailablePost|ClosureCleanupWithFeatureDisabled|HTTPS|NullableBoundary)|TestCommentBusiness(MediaDeleteLikesNotices|HTTPS))}" -v

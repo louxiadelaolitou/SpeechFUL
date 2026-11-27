@@ -1,0 +1,63 @@
+package authprivacy
+
+// Finite PG16 CHECK definitions used by the recommendation state contract.
+var recommendationRequiredChecks = map[string]map[string]string{
+	"accounts": {
+		"accounts_epoch_check":    "CHECK ((epoch >= 0))",
+		"accounts_revision_check": "CHECK ((revision > 0))",
+	},
+	"control": {
+		"control_baseline_file_bytes_check": "CHECK ((baseline_file_bytes >= 0))",
+		"control_check":                     "CHECK (((live_rows + reserved_rows) <= max_rows))",
+		"control_check1":                    "CHECK (((live_bytes + reserved_bytes) <= max_bytes))",
+		"control_check2":                    "CHECK (((live_units + reserved_units) <= max_units))",
+		"control_growth_bytes_check":        "CHECK (((growth_bytes >= 8192) AND (growth_bytes <= 1048576)))",
+		"control_live_bytes_check":          "CHECK ((live_bytes >= 0))",
+		"control_live_rows_check":           "CHECK ((live_rows >= 0))",
+		"control_live_units_check":          "CHECK ((live_units >= 0))",
+		"control_max_bytes_check":           "CHECK (((max_bytes >= 4096) AND (max_bytes <= 268435456)))",
+		"control_max_file_bytes_check":      "CHECK (((max_file_bytes >= 1048576) AND (max_file_bytes <= 1073741824)))",
+		"control_max_rows_check":            "CHECK (((max_rows >= 1) AND (max_rows <= 65536)))",
+		"control_max_units_check":           "CHECK (((max_units >= 1) AND (max_units <= 262144)))",
+		"control_profile_hash_check":        "CHECK (((profile_hash IS NULL) OR (octet_length(profile_hash) = 32)))",
+		"control_reserved_bytes_check":      "CHECK ((reserved_bytes >= 0))",
+		"control_reserved_rows_check":       "CHECK ((reserved_rows >= 0))",
+		"control_reserved_units_check":      "CHECK ((reserved_units >= 0))",
+		"control_reserved_writes_check":     "CHECK ((reserved_writes >= 0))",
+		"control_security_epoch_check":      "CHECK ((security_epoch >= 0))",
+		"control_singleton_id_check":        "CHECK ((singleton_id = 1))",
+		"control_version_check":             "CHECK ((version = 1))",
+		"control_write_debt_bytes_check":    "CHECK ((write_debt_bytes >= 0))",
+	},
+	"history": {
+		"history_check":  "CHECK (((delivery_at IS NULL) = (delivery_until IS NULL)))",
+		"history_check1": "CHECK (((delivery_until IS NULL) OR ((delivery_until > delivery_at) AND (delivery_until <= (delivery_at + '00:05:00'::interval)))))",
+		"history_check2": "CHECK (((delivery_until IS NOT NULL) OR (exposure_until IS NOT NULL)))",
+	},
+	"intents": {
+		"intents_check":            "CHECK (((retain_until > accept_until) AND (retain_until <= (accept_until + '00:05:00'::interval))))",
+		"intents_key_digest_check": "CHECK ((octet_length(key_digest) = 32))",
+	},
+	"pages": {
+		"pages_check":            "CHECK ((((consumed >= 0) AND (consumed <= 1023)) AND ((consumed & (~ delivered)) = 0)))",
+		"pages_check1":           "CHECK (((first_at IS NOT NULL) OR ((delivered = 0) AND (omitted = 0) AND (consumed = 0))))",
+		"pages_delivered_check":  "CHECK (((delivered >= 0) AND (delivered <= 1023)))",
+		"pages_omitted_check":    "CHECK (((omitted >= 0) AND (omitted <= 1023)))",
+		"pages_page_index_check": "CHECK (((page_index >= 0) AND (page_index <= 9)))",
+	},
+	"rounds": {
+		"rounds_binding_check":       "CHECK (((octet_length(binding) >= 1) AND (octet_length(binding) <= 1024)))",
+		"rounds_check":               "CHECK ((c_recommendation.unique_ids(future_rows) AND (future_rows <@ ids)))",
+		"rounds_check1":              "CHECK ((c_recommendation.unique_ids(future_exposures) AND (future_exposures <@ ids)))",
+		"rounds_check2":              "CHECK ((last_at >= created_at))",
+		"rounds_check3":              "CHECK (((expires_at > created_at) AND (expires_at <= (created_at + '00:30:00'::interval))))",
+		"rounds_check4":              "CHECK (((feedback_until > expires_at) AND (feedback_until <= (expires_at + '00:10:00'::interval))))",
+		"rounds_check5":              "CHECK ((last_at <= feedback_until))",
+		"rounds_config_hash_check":   "CHECK ((octet_length(config_hash) = 32))",
+		"rounds_future_writes_check": "CHECK (((future_writes >= 0) AND (future_writes <= 2048)))",
+		"rounds_ids_check":           "CHECK (c_recommendation.unique_ids(ids))",
+		"rounds_policy_check":        "CHECK (((octet_length(policy) >= 1) AND (octet_length(policy) <= 512)))",
+		"rounds_revision_check":      "CHECK ((revision > 0))",
+		"rounds_seed_check":          "CHECK ((octet_length(seed) = 8))",
+	},
+}

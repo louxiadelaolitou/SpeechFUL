@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"errors"
+	rw "github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/recommendation/transport"
 	"math"
 	"time"
 
@@ -37,6 +38,7 @@ type postServices struct {
 	batchListReads             bool
 }
 type PostResponse struct {
+	Recommendation        *rw.Capability `json:"-"`
 	Value                 any
 	ExpiresAt, ServerTime time.Time
 	InteractionVersion    string

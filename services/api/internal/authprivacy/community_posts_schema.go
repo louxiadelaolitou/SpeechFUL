@@ -50,6 +50,9 @@ func CheckModerationLifecycleSchema(ctx context.Context, pool *pgxpool.Pool) err
 	if err := checkPostInteractionSchema(ctx, pool, false); err != nil {
 		return err
 	}
+	if err := checkRecommendationSchema(ctx, pool, false); err != nil {
+		return err
+	}
 	var runtime bool
 	if err := pool.QueryRow(ctx, `SELECT current_user='hnuhole_c_runtime'`).Scan(&runtime); err != nil {
 		return errPostSchema

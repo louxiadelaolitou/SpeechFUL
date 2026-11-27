@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: HnuHole chronological feed and account preferences
-  version: 0.4.0
+  version: 0.5.0
   description: >-
     FEED-BACKEND-01, HEAT-07. Uses the existing independent C HTTPS origin,
     current Bearer and final Safety Gate transaction. No account or identity
@@ -10,6 +10,12 @@ info:
     noncanonical UUIDs and unrelated Idempotency-Key headers are rejected.
     All responses have no-store and an independent X-Request-ID. Only committed
     success carries Session-Expires-At and Server-Time. No visitor list exists.
+    Recommendation is default off. When configured, the normal/prepared feed
+    returns an opaque context only in response headers after final authorization;
+    the existing feed JSON body, cursor and refresh behavior are unchanged.
+    The three recommendation POST endpoints bind that context and use encrypted
+    cursors/receipts. They never accept account, identity, limit or offset
+    selectors, and capacity refusal returns 429 without committing a round.
 servers:
   - url: /
 security:
@@ -244,7 +250,14 @@ paths:
         enter that traversal. Visibility and account blocking are applied before
         LIMIT, including the extra lookahead row. Optional channelId selects one
         channel and still respects blocking; an entirely blocked scope returns
-        items=[] and nextCursor=null. No recommendation or heat score is used.
+        items=[] and nextCursor=null. The chronological response is still the
+        only Feed ordering; no heat score is used. When recommendation is
+        configured, the same committed 200 response may additionally carry
+        Recommendation-Version and Recommendation-Available. Only an available
+        context carries Recommendation-Context, Recommendation-Issued-At and
+        Recommendation-Create-Before; Availability=false carries no context.
+        The JSON body is unchanged in both normal and prepared Feed paths, so
+        existing clients keep their exact items/nextCursor/refresh semantics.
         The opaque encrypted cursor binds account, endpoint scope, channel,
         limit and preference revision, expires after 30 minutes, and is never
         an access capability. A changed preference, expired or mismatched
@@ -292,6 +305,11 @@ paths:
             Cache-Control: { $ref: '#/components/headers/NoStore' }
             Session-Expires-At: { $ref: '#/components/headers/SessionExpiresAt' }
             Server-Time: { $ref: '#/components/headers/ServerTime' }
+            Recommendation-Version: { $ref: '#/components/headers/RecommendationVersion' }
+            Recommendation-Available: { $ref: '#/components/headers/RecommendationAvailable' }
+            Recommendation-Context: { $ref: '#/components/headers/RecommendationContext' }
+            Recommendation-Issued-At: { $ref: '#/components/headers/RecommendationIssuedAt' }
+            Recommendation-Create-Before: { $ref: '#/components/headers/RecommendationCreateBefore' }
           content:
             application/json:
               schema:
@@ -302,6 +320,130 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/feed/recommendation/start:
+    post:
+      operationId: startRecommendationRound
+      summary: Create or replay one bounded recommendation round
+      description: >-
+        Requires the Recommendation-Context issued by a committed normal or
+        prepared Feed response. The context is opaque, bound to the account,
+        session, account/security epochs, filter revision, channel scope and
+        policy, and expires after the advertised create-before instant. version
+        must be 1. nonce is the caller's canonical lowercase UUID idempotency
+        key: retrying the same intent and context returns the original committed
+        round, page and TTLs, even after a lost response. A changed createdAt or
+        a reused round with a different intent does not create a second round.
+        channelId is optional and must match the context scope. At most one
+        fixed-order page of ten items is returned initially; the server may omit
+        unavailable slots but never refills them in the same round. Capacity or
+        rate refusal returns 429 RATE_LIMITED and commits no round. Expired or
+        stale scope returns 409; malformed or foreign tokens return 400. Final
+        Gate authorization still applies; a frozen Gate returns 503.
+      requestBody:
+        required: true
+        x-max-bytes: 16384
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationStartRequest' }
+      responses:
+        '200':
+          description: Committed round page, including fixed cursor and feedback receipt
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestID' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Session-Expires-At: { $ref: '#/components/headers/SessionExpiresAt' }
+            Server-Time: { $ref: '#/components/headers/ServerTime' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationPage' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/feed/recommendation/page:
+    post:
+      operationId: readRecommendationPage
+      summary: Read the next fixed page of the same recommendation round
+      description: >-
+        cursor is the opaque nextCursor from this round's previous response,
+        bound to the same account/session/scope and to the frozen round order.
+        Pages are ten items; the round manifests at most 100 items, and no
+        offset, limit or account selector is accepted. A slot whose post became
+        hidden, deleted or inaccessible is omitted and never backfilled. The
+        cursor never acts as an access capability and expires with the round.
+        Cross-account, cross-round, cross-kind or malformed tokens return 400;
+        an expired or revoked scope returns 409. Final Gate authorization and
+        shared rate limiting still apply.
+      requestBody:
+        required: true
+        x-max-bytes: 16384
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationPageRequest' }
+      responses:
+        '200':
+          description: Committed page in the frozen round order
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestID' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Session-Expires-At: { $ref: '#/components/headers/SessionExpiresAt' }
+            Server-Time: { $ref: '#/components/headers/ServerTime' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationPage' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/feed/recommendation/feedback:
+    post:
+      operationId: recordRecommendationFeedback
+      summary: Record delivered exposures for the current round
+      description: >-
+        receipt is the opaque feedbackReceipt from this round. postIds must be
+        a unique array of at most ten canonical UUIDs that were actually
+        delivered on a committed page of the same round; empty is a valid ACK
+        for an empty page. Partial feedback is accepted but never extends the
+        original 72-hour exposure boundary, and replaying the same batch is
+        idempotent. Hidden, deleted or inaccessible posts are acknowledged
+        without crediting exposure. Response bodies are exactly accepted=true.
+        An undelivered batch, duplicate ID, foreign receipt or cross-account
+        credential returns 400; expiry/scope change returns 409. A failed
+        transaction returns 503 and commits no private credit. This endpoint
+        records exposure only and does not change public view counts.
+      requestBody:
+        required: true
+        x-max-bytes: 16384
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendationFeedbackRequest' }
+      responses:
+        '200':
+          description: Committed feedback acknowledgement
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestID' }
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Session-Expires-At: { $ref: '#/components/headers/SessionExpiresAt' }
+            Server-Time: { $ref: '#/components/headers/ServerTime' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecommendationACK' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Error' }
   /api/v1/me/feed-preferences:
@@ -438,6 +580,30 @@ components:
     ServerTime:
       required: true
       schema: { $ref: '#/components/schemas/UTCDateTime' }
+    RecommendationVersion:
+      required: false
+      description: Present only when the recommendation runtime is configured for this Community deployment. Version 1.
+      schema: { type: string, enum: ['1'] }
+    RecommendationAvailable:
+      required: false
+      description: Present with Recommendation-Version. True only when a usable context was issued after final authorization and admission is open; false carries no Context, Issued-At or Create-Before.
+      schema: { type: boolean }
+    RecommendationContext:
+      required: false
+      description: Opaque encrypted capability, at most 2048 unpadded base64url characters. Never present when Available is false. Send it unchanged to the start endpoint; do not parse, log or treat it as an authorization bearer token.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 2048
+        pattern: '^[A-Za-z0-9_-]+$'
+    RecommendationIssuedAt:
+      required: false
+      description: Trusted server issue instant for Recommendation-Context.
+      schema: { $ref: '#/components/schemas/UTCDateTime' }
+    RecommendationCreateBefore:
+      required: false
+      description: Last trusted instant at which the start endpoint accepts this context; exactly ten minutes after Recommendation-Issued-At.
+      schema: { $ref: '#/components/schemas/UTCDateTime' }
     RetryAfter:
       required: true
       schema: { type: integer, minimum: 1, maximum: 86400 }
@@ -532,6 +698,86 @@ components:
             state: { type: string, enum: [DELETED, ACCOUNT_CLOSED] }
             shortCode: { type: string, pattern: '^[A-Z2-7]{12}$' }
             avatar: { type: string, enum: [inactive-v1] }
+    RecommendationStartRequest:
+      type: object
+      additionalProperties: false
+      required: [version, nonce, createdAt, context]
+      properties:
+        version: { type: integer, enum: [1] }
+        nonce:
+          allOf: [{ $ref: '#/components/schemas/ResourceID' }]
+          description: Caller-chosen canonical lowercase UUID idempotency key, not an account or round selector.
+        createdAt:
+          allOf: [{ $ref: '#/components/schemas/UTCDateTime' }]
+          description: Canonical UTC RFC3339Nano intent instant; must be within the advertised context window. No local offset form.
+        channelId:
+          allOf: [{ $ref: '#/components/schemas/ResourceID' }]
+          description: Optional single-channel scope; must equal the scope bound into the context.
+        context:
+          $ref: '#/components/schemas/RecommendationContext'
+    RecommendationPageRequest:
+      type: object
+      additionalProperties: false
+      required: [cursor]
+      properties:
+        cursor:
+          allOf: [{ $ref: '#/components/schemas/RecommendationToken' }]
+          description: Opaque nextCursor from the same recommendation round.
+    RecommendationFeedbackRequest:
+      type: object
+      additionalProperties: false
+      required: [receipt, postIds]
+      properties:
+        receipt:
+          allOf: [{ $ref: '#/components/schemas/RecommendationToken' }]
+          description: Opaque feedbackReceipt from the same recommendation round.
+        postIds:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/ResourceID' }
+          description: Canonical lowercase UUIDs actually delivered on a committed page of this round; empty is valid only for an empty page.
+    RecommendationPage:
+      type: object
+      additionalProperties: false
+      required: [version, items, nextCursor, feedbackReceipt, expiresAt, feedbackUntil]
+      properties:
+        version: { type: integer, enum: [1] }
+        items:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/FeedPost' }
+          description: Fixed round order. Unavailable slots are omitted, never refilled. Items use the existing FeedPost shape; imageSizes may be present for layout prefetch but this response is not the chronological feed body.
+        nextCursor:
+          type: string
+          nullable: true
+          maxLength: 1024
+          pattern: '^[A-Za-z0-9_-]+$'
+          description: Present when a later fixed page exists; null terminates the round.
+        feedbackReceipt:
+          type: string
+          nullable: true
+          maxLength: 1024
+          pattern: '^[A-Za-z0-9_-]+$'
+          description: Null when the round or feedback window has no deliverable exposure; otherwise send it unchanged with delivered postIds before feedbackUntil.
+        expiresAt: { $ref: '#/components/schemas/UTCDateTime' }
+        feedbackUntil: { $ref: '#/components/schemas/UTCDateTime' }
+    RecommendationACK:
+      type: object
+      additionalProperties: false
+      required: [accepted]
+      properties:
+        accepted: { type: boolean, enum: [true] }
+    RecommendationContext:
+      type: string
+      minLength: 1
+      maxLength: 2048
+      pattern: '^[A-Za-z0-9_-]+$'
+    RecommendationToken:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      pattern: '^[A-Za-z0-9_-]+$'
     FeedPost:
       type: object
       additionalProperties: false
@@ -690,7 +936,7 @@ components:
           properties:
             code:
               type: string
-              enum: [MALFORMED_REQUEST, AUTHENTICATION_FAILED, SESSION_INVALID, session_replaced, AUTHORIZATION_UNAVAILABLE, SERVICE_UNAVAILABLE, RANKINGS_UNAVAILABLE, RATE_LIMITED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, CURSOR_INVALID, POST_CHANNEL_UNAVAILABLE, POST_NOT_FOUND, INTERACTION_VERSION_CONFLICT]
+              enum: [MALFORMED_REQUEST, AUTHENTICATION_FAILED, SESSION_INVALID, session_replaced, AUTHORIZATION_UNAVAILABLE, SERVICE_UNAVAILABLE, RANKINGS_UNAVAILABLE, RATE_LIMITED, PAYLOAD_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE, CURSOR_INVALID, RECOMMENDATION_TOKEN_INVALID, RECOMMENDATION_EXPIRED, RECOMMENDATION_SCOPE_CHANGED, POST_CHANNEL_UNAVAILABLE, POST_NOT_FOUND, INTERACTION_VERSION_CONFLICT]
             message: { type: string, minLength: 1, maxLength: 256 }
   responses:
     HiddenPost:

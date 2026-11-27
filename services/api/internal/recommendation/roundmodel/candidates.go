@@ -39,7 +39,7 @@ func SelectorConfigDigest(c recommendation.Config) (Digest, error) {
 }
 
 func ValidateCandidates(q CandidateQuery, s CandidateSnapshot) error {
-	if !validTime(q.At) || !validTime(s.Input.Now) || !q.Binding.valid() || len(q.Channels) < 1 || len(q.Channels) > 7 || len(s.Input.Channels) != len(q.Channels) || !q.At.Equal(s.Input.Now) || q.Seed != s.Input.Seed ||
+	if !validTime(q.At) || !validTime(s.Input.Now) || !q.Binding.valid() || len(q.Channels) < 1 || len(q.Channels) > MaxChannels || len(s.Input.Channels) != len(q.Channels) || !q.At.Equal(s.Input.Now) || q.Seed != s.Input.Seed ||
 		len(s.Input.Candidates) > 400 || len(s.Input.Signals) > 1024 || len(s.Input.State.RoundSelected) != 0 || len(s.Input.State.Delivered) > MaxDeliveryHistory || len(s.Input.State.Exposed) > MaxExposureHistory {
 		return ErrInvalid
 	}

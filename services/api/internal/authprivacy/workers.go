@@ -104,6 +104,9 @@ func NewCommunityWorker(c *Community, config WorkerConfig, sign Signer, receive 
 	if c.sharedRate != nil {
 		tasks = append(tasks, durableTask{"shared_admission_cleanup", c.CleanupSharedAdmissions})
 	}
+	if c.recommendation != nil && c.recommendation.installed {
+		tasks = append(tasks, durableTask{"recommendation_cleanup", c.CleanRecommendation})
+	}
 	return &DurableWorker{config: config, tasks: tasks, observe: observe}, nil
 }
 
@@ -144,14 +147,18 @@ func (w *DurableWorker) RunOnce(ctx context.Context) error {
 				}
 				started := time.Now()
 				taskCtx, cancel := context.WithTimeout(ctx, w.config.TaskTimeout)
-				count, err := task.run(taskCtx, w.config.BatchSize)
+				limit := w.config.BatchSize
+				if task.name == "recommendation_cleanup" {
+					limit = min(limit*2048, 32768)
+				}
+				count, err := task.run(taskCtx, limit)
 				cancel()
 				lock.Lock()
 				if err != nil {
 					failures = append(failures, fmt.Errorf("%s: %w", task.name, err))
 				}
 				if w.observe != nil {
-					w.observe(WorkerObservation{Name: task.name, Processed: count, Duration: time.Since(started), Failed: err != nil, BatchLimit: w.config.BatchSize})
+					w.observe(WorkerObservation{Name: task.name, Processed: count, Duration: time.Since(started), Failed: err != nil, BatchLimit: limit})
 				}
 				lock.Unlock()
 			}

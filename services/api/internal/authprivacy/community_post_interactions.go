@@ -127,7 +127,7 @@ func (c *Community) SetPostInteractionConditional(ctx context.Context, bearer [3
 		if expected != "" && !hmac.Equal([]byte(expected), []byte(current)) {
 			return nil, postError("INTERACTION_VERSION_CONFLICT", 412)
 		}
-		if err := writePostInteraction(ctx, tx, account, id, kind, enabled, final.TrustedAt); err != nil {
+		if err := c.writeRecommendationLikeOrLegacy(ctx, tx, account, id, kind, enabled, final.TrustedAt); err != nil {
 			return nil, err
 		}
 		version, err := uuid.NewRandom()

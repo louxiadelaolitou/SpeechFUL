@@ -195,7 +195,7 @@ func (b *boundary) sharedEntry(w http.ResponseWriter, r *http.Request) bool {
 		}
 	}
 	control := sharedControl(r)
-	if b.service == CommunityService && b.shared.Resolver != nil && (r.Method == http.MethodGet || control) {
+	if b.service == CommunityService && b.shared.Resolver != nil && (r.Method == http.MethodGet || control || recommendationOperation(r.URL.Path) != "") {
 		bearer, e := sessionCapability(r.Header, "Bearer")
 		if e == nil {
 			subject, e = b.shared.Resolver.ResolveSharedSubject(r.Context(), bearer)

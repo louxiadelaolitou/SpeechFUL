@@ -22,6 +22,7 @@ import (
 )
 
 type Community struct {
+	recommendation    *recommendationServices
 	recoveryPaused    bool
 	sharedRate        *communityRate
 	pool              *pgxpool.Pool

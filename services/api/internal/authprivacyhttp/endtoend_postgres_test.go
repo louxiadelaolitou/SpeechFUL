@@ -172,7 +172,7 @@ func e2ePool(t *testing.T, role string) *pgxpool.Pool {
 		if _, err = tx.Exec(context.Background(), `DROP SCHEMA IF EXISTS c_moderation CASCADE`); err != nil {
 			t.Fatal(err)
 		}
-		if _, err = tx.Exec(context.Background(), `DROP SCHEMA IF EXISTS c_posts CASCADE`); err != nil {
+		if _, err = tx.Exec(context.Background(), `DROP SCHEMA IF EXISTS c_recommendation,c_posts CASCADE`); err != nil {
 			t.Fatal(err)
 		}
 		if _, err = tx.Exec(context.Background(), `DROP TABLE IF EXISTS public.identity_avatar_assets, public.identity_change_receipts, public.identity_account_state, public.community_identities, public.sessions, public.channels, public.goose_db_version CASCADE`); err != nil {

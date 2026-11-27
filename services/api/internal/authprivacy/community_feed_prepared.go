@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/posts"
 	"github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/readtiming"
+	rw "github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/recommendation/transport"
 )
 
 // A feed proof covers the complete channel ranges and the viewer's filtering,
@@ -77,6 +78,7 @@ func (p *feedReadProof) revalidate(ctx context.Context, tx pgx.Tx, a uuid.UUID) 
 func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q PostQuery) (PostResponse, error) {
 	ctx = readtiming.Phase(ctx, "feed")
 	q.deferViewCounts = c.posts.batchListReads
+	var capability *rw.Capability
 	response, err := c.withPreparedReadPlan(ctx, bearer, postError("SERVICE_UNAVAILABLE", 503), func(prepareCtx context.Context, tx pgx.Tx, s readSubject) (*preparedReadPlan, error) {
 		proof := &feedReadProof{channel: q.ID, initial: q.Cursor == ""}
 		var position posts.CursorPosition
@@ -141,6 +143,13 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 				return nil
 			},
 			Complete: func(tx pgx.Tx, a uuid.UUID, d AuthorizationDecision, _ restriction) (any, error) {
+				if q.Kind == PostFeed {
+					var e error
+					capability, e = c.recommendationFeedCapability(ctx, tx, a, bearer, d, q.ID)
+					if e != nil {
+						return nil, e
+					}
+				}
 				if q.Cursor == "" {
 					position.ExpiresAt = d.TrustedAt.Add(posts.CursorTTL)
 				}
@@ -218,6 +227,9 @@ func (c *Community) readPreparedFeed(ctx context.Context, bearer [32]byte, q Pos
 		}
 		return plan, pending
 	})
+	if err == nil {
+		response.Recommendation = capability
+	}
 	if window, ok := response.Value.(FeedWindowPreviews); err == nil && ok {
 		for i := range window.Previews.ImageManifests {
 			group := &window.Previews.ImageManifests[i]

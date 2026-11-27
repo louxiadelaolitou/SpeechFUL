@@ -3,6 +3,7 @@ package authprivacy
 import (
 	"context"
 	"errors"
+	rw "github.com/zhubaozhenshuai666-lang/HnuHole/services/api/internal/recommendation/transport"
 	"time"
 
 	"github.com/google/uuid"
@@ -132,7 +133,8 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 	if c.PostsEnabled() && c.posts.preparedFeedReads && c.nativePreparedReads() && (query.Kind == PostFeed || query.Kind == PostChannelFeed) {
 		return c.readPreparedFeed(ctx, bearer, query)
 	}
-	return c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, mute restriction) (any, error) {
+	var capability *rw.Capability
+	response, err := c.withPostSession(ctx, bearer, func(tx pgx.Tx, account uuid.UUID, final AuthorizationDecision, mute restriction) (any, error) {
 		if query.IdentityID != "" {
 			var owned bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM public.community_identities WHERE identity_id=$1 AND account_id=$2 AND deleted_at IS NULL)`, query.IdentityID, account).Scan(&owned); err != nil {
@@ -202,10 +204,18 @@ func (c *Community) ReadPosts(ctx context.Context, bearer [32]byte, query PostQu
 			authorQuery.IdentityID = identity
 			return c.listPublicPosts(ctx, tx, account, authorQuery, final.TrustedAt)
 		case PostChannelFeed, PostOwnList, PostFeed, PostLikedList, PostFavoriteList:
-			return c.listPublicPosts(ctx, tx, account, query, final.TrustedAt)
+			value, e := c.listPublicPosts(ctx, tx, account, query, final.TrustedAt)
+			if e == nil && query.Kind == PostFeed {
+				capability, e = c.recommendationFeedCapability(ctx, tx, account, bearer, final, query.ID)
+			}
+			return value, e
 		}
 		return nil, posts.ErrInvalidIntent
 	})
+	if err == nil {
+		response.Recommendation = capability
+	}
+	return response, err
 }
 
 func readPostComposerContext(ctx context.Context, tx pgx.Tx, account uuid.UUID) (posts.ComposerContext, error) {

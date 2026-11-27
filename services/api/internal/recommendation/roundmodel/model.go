@@ -16,6 +16,7 @@ const (
 	Version            = 1
 	PageSize           = 10
 	MaxIDs             = 100
+	MaxChannels        = 10
 	MaxDeliveryHistory = 1024
 	MaxExposureHistory = 2048
 	MaxHistory         = MaxExposureHistory

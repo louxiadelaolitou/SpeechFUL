@@ -133,12 +133,16 @@ func publicListVisibleAuthorSQL(viewer string) string {
 }
 
 func (c *Community) publicListProjection(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, ids []string, q PostQuery, proof *feedReadProof) ([]publicListRow, error) {
+	return readPublicListProjection(ctx, tx, viewer, ids, q, proof, c.posts.batchListReads, false)
+}
+
+func readPublicListProjection(ctx context.Context, tx pgx.Tx, viewer uuid.UUID, ids []string, q PostQuery, proof *feedReadProof, batchRead, allowMissing bool) ([]publicListRow, error) {
 	defer readtiming.Span(ctx, "list_projection")()
 	result := make([]publicListRow, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
-	if !c.posts.batchListReads {
+	if !batchRead {
 		for _, id := range ids {
 			item, ordinal, e := readPublicPost(ctx, tx, viewer, id)
 			if e != nil {
@@ -236,7 +240,7 @@ func (c *Community) publicListProjection(ctx context.Context, tx pgx.Tx, viewer 
 		if e != nil {
 			return nil, e
 		}
-		if len(result) != len(ids) {
+		if !allowMissing && len(result) != len(ids) {
 			return nil, pgx.ErrNoRows
 		}
 	}

@@ -57,7 +57,7 @@ func ExperimentalConfig() Config {
 		Version: "b1-experiment-v1", PageSize: 10,
 		Quotas: [SourceCount]int{4, 3, 2, 1}, Weights: [3]float64{0.45, 0.30, 0.25},
 		MaxPerSource: 100, MaxCandidates: 400, MaxRoundIDs: 400,
-		MaxHistoryIDs: 2048, MaxChannels: 7, MaxSignals: 1024,
+		MaxHistoryIDs: 2048, MaxChannels: 10, MaxSignals: 1024,
 		MaxEventsPerCandidate: 64, MaxInteractionEvents: 4096,
 		MaxPerChannel: 4, MaxPerAuthor: 2,
 		FreshnessHalfLife: 24 * time.Hour, InterestHalfLife: 7 * 24 * time.Hour,

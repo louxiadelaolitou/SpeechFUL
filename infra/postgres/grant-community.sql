@@ -310,3 +310,21 @@ DO $$ BEGIN
    FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
  END IF;
 END $$;
+
+-- 0056+: recommendation state and its invoker accounting triggers.
+DO $$ BEGIN
+ IF to_regnamespace('c_recommendation') IS NOT NULL THEN
+  REVOKE ALL ON SCHEMA c_recommendation FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+  REVOKE ALL ON ALL TABLES IN SCHEMA c_recommendation FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+  REVOKE ALL ON ALL FUNCTIONS IN SCHEMA c_recommendation FROM PUBLIC,hnuhole_c_runtime,hnuhole_c_recovery,hnuhole_business;
+  GRANT USAGE ON SCHEMA c_recommendation TO hnuhole_c_runtime;
+  GRANT SELECT ON ALL TABLES IN SCHEMA c_recommendation TO hnuhole_c_runtime;
+  GRANT INSERT,DELETE ON c_recommendation.accounts,c_recommendation.rounds,c_recommendation.pages,c_recommendation.intents,c_recommendation.history TO hnuhole_c_runtime;
+  GRANT UPDATE(live_rows,live_bytes,live_units,reserved_rows,reserved_bytes,reserved_units,write_debt_bytes,reserved_writes) ON c_recommendation.control TO hnuhole_c_runtime;
+  GRANT UPDATE(epoch,disabled,revision,last_at) ON c_recommendation.accounts TO hnuhole_c_runtime;
+  GRANT UPDATE(future_rows,future_exposures,future_writes,revision,last_at) ON c_recommendation.rounds TO hnuhole_c_runtime;
+  GRANT UPDATE(first_at,delivered,omitted,consumed) ON c_recommendation.pages TO hnuhole_c_runtime;
+  GRANT UPDATE(delivery_at,delivery_until,exposure_until) ON c_recommendation.history TO hnuhole_c_runtime;
+  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA c_recommendation TO hnuhole_c_runtime;
+ END IF;
+END $$;

@@ -61,7 +61,14 @@ func connectLab(t *testing.T, role, dsn string) *pgxpool.Pool {
 }
 
 func newLab(t *testing.T) *lab {
+	return newLabThrough(t, 0)
+}
+
+func newLabThrough(t *testing.T, version int) *lab {
 	t.Helper()
+	if version != 0 && (version != 55 && version != 56 || os.Getenv("HNULIMIT_FORMAL_GOOSE") != "1") {
+		t.Fatal("recommendation upgrade requires the formal fixture")
+	}
 	cDSN, vDSN := os.Getenv("AUTHLAB_C_DSN"), os.Getenv("AUTHLAB_V_DSN")
 	if cDSN == "" && vDSN == "" {
 		t.Skip("real PostgreSQL lab DSNs absent; integration tests not executed")
@@ -100,6 +107,9 @@ func newLab(t *testing.T) *lab {
 			t.Fatal(err)
 		}
 		if spec.schema == "c_auth" {
+			if _, err = tx.Exec(context.Background(), `DROP SCHEMA IF EXISTS c_recommendation CASCADE`); err != nil {
+				t.Fatal(err)
+			}
 			if _, err = tx.Exec(context.Background(), `DROP SCHEMA IF EXISTS c_inbox CASCADE`); err != nil {
 				t.Fatal(err)
 			}
@@ -131,7 +141,14 @@ func newLab(t *testing.T) *lab {
 			if err = tx.Commit(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			sharedRunGoose(t, filepath.Join("..", "..", spec.dir), spec.pool.Config().ConnString())
+			dir, dsn := filepath.Join("..", "..", spec.dir), spec.pool.Config().ConnString()
+			if spec.schema == "c_auth" && version != 0 {
+				if err = sharedGooseCommand(t, dir, dsn, "up-to", fmt.Sprint(version)); err != nil {
+					t.Fatal("owned recommendation baseline migration failed")
+				}
+			} else {
+				sharedRunGoose(t, dir, dsn)
+			}
 			continue
 		}
 		for _, file := range files {
@@ -864,16 +881,20 @@ func TestPostgresIsolatedSlice(t *testing.T) {
 // and schema reset above. DSNs stay in the child environment, never diagnostics.
 func sharedRunGoose(t *testing.T, dir, dsn string) {
 	t.Helper()
+	if sharedGooseCommand(t, dir, dsn, "up") != nil {
+		t.Fatal("owned actual Goose migration failed")
+	}
+}
+
+func sharedGooseCommand(t *testing.T, dir, dsn string, commandArgs ...string) error {
+	t.Helper()
 	binary := os.Getenv("HNULIMIT_GOOSE")
 	if binary == "" {
 		binary = "goose"
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	command := exec.CommandContext(ctx, binary, "-dir", dir, "up")
+	command := exec.CommandContext(ctx, binary, append([]string{"-dir", dir}, commandArgs...)...)
 	command.Env = append(os.Environ(), "GOOSE_DRIVER=postgres", "GOOSE_DBSTRING="+dsn)
-	if output, err := command.CombinedOutput(); err != nil {
-		_ = output
-		t.Fatal("owned actual Goose migration failed")
-	}
+	return command.Run()
 }

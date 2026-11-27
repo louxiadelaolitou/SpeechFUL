@@ -73,6 +73,21 @@ BEGIN
           IF party='v' AND relation.nspname='v_auth' AND relation.relname IN ('captcha_challenges','captcha_proofs') THEN
             allowed := privilege IN ('SELECT','INSERT','DELETE');
           END IF;
+          IF party='c' AND relation.nspname='c_recommendation' THEN
+            allowed := privilege='SELECT' AND relation.relname IN ('control','accounts','rounds','pages','intents','history');
+            allowed := allowed OR (privilege IN ('INSERT','DELETE') AND relation.relname IN ('accounts','rounds','pages','intents','history'));
+            IF privilege='UPDATE' AND relation.relname IN ('control','accounts','rounds','pages','history') THEN
+              allowed := NOT has_table_privilege(audit_role,relation.oid,'UPDATE')
+                AND NOT EXISTS(SELECT 1 FROM pg_attribute a WHERE a.attrelid=relation.oid AND a.attnum>0 AND NOT a.attisdropped
+                  AND NOT(a.attname=ANY(CASE relation.relname
+                    WHEN 'control' THEN ARRAY['live_rows','live_bytes','live_units','reserved_rows','reserved_bytes','reserved_units','write_debt_bytes','reserved_writes']
+                    WHEN 'accounts' THEN ARRAY['epoch','disabled','revision','last_at']
+                    WHEN 'rounds' THEN ARRAY['future_rows','future_exposures','future_writes','revision','last_at']
+                    WHEN 'pages' THEN ARRAY['first_at','delivered','omitted','consumed']
+                    ELSE ARRAY['delivery_at','delivery_until','exposure_until'] END))
+                  AND has_column_privilege(audit_role,relation.oid,a.attname,'UPDATE'));
+            END IF;
+          END IF;
           IF relation.nspname='public' THEN
             allowed := privilege='SELECT' AND relation.relname='goose_db_version';
             IF party='c' THEN

@@ -383,6 +383,10 @@ func Run(ctx context.Context, c Config, service authprivacyhttp.Service) error {
 				return err
 			}
 		}
+		community, err = c.installRecommendation(ctx, community)
+		if err != nil {
+			return err
+		}
 		if c.Comments != nil {
 			// Run validates the required snapshot configuration before opening
 			// any database or listener. Omission must never select legacy PG.

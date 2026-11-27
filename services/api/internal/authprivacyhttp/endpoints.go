@@ -84,6 +84,7 @@ type ChannelBackend interface {
 }
 
 type CommunityOptions struct {
+	Recommendations RecommendationBackend
 	// PublicOrigin is the configured C HTTPS origin, never a request Host header.
 	// Empty keeps link generation/resolution disabled for older embedders.
 	PublicOrigin     string
@@ -165,6 +166,9 @@ func NewCommunityEndpoints(options CommunityOptions) (*Endpoints, error) {
 	if options.Posts == nil {
 		options.Posts, _ = options.Backend.(PostBackend)
 	}
+	if options.Recommendations == nil {
+		options.Recommendations, _ = options.Backend.(RecommendationBackend)
+	}
 	if options.Comments == nil {
 		options.Comments, _ = options.Backend.(CommentBackend)
 	}
@@ -189,6 +193,10 @@ func NewCommunityEndpoints(options CommunityOptions) (*Endpoints, error) {
 	foreground, _ := options.Posts.(rankingForeground)
 	return &Endpoints{
 		Public: b.wrap(false, func(w http.ResponseWriter, r *http.Request) {
+			if isRecommendationPath(r.URL.Path) {
+				b.communityRecommendations(w, r, options.Recommendations)
+				return
+			}
 			if isPostShareLanding(r.URL.Path) {
 				b.servePostShareLanding(w, r)
 				return
@@ -354,6 +362,9 @@ func (b *boundary) wrap(internal bool, next http.HandlerFunc) http.Handler {
 				}
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Expose-Headers", "Session-Expires-At, Server-Time, X-Request-ID, Retry-After")
+				if b.service == CommunityService && r.URL.Path == "/api/v1/feed" {
+					w.Header().Set("Access-Control-Expose-Headers", "Session-Expires-At, Server-Time, X-Request-ID, Retry-After, "+recommendationExposeHeaders)
+				}
 				if route, e := parsePostRoute(r.URL.Path); b.service == CommunityService && e == nil && isPostInteractionKind(route.kind) && route.kind != authprivacy.PostInteractionBatch {
 					w.Header().Set("Access-Control-Expose-Headers", "Session-Expires-At, Server-Time, X-Request-ID, Retry-After, Interaction-Version")
 				}
@@ -443,6 +454,9 @@ func (b *boundary) preflight(w http.ResponseWriter, r *http.Request) {
 }
 
 func publicMethodAllowed(service Service, path, method string) bool {
+	if service == CommunityService && isRecommendationPath(path) {
+		return recommendationOperation(path) != "" && method == http.MethodPost
+	}
 	if service == CommunityService && isInboxPath(path) {
 		kind, _, allowed := inboxRoute(path)
 		return kind != "" && method == allowed

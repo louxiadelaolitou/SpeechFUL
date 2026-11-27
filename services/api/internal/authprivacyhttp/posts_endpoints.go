@@ -744,6 +744,9 @@ func (b *boundary) postBad(w http.ResponseWriter, err error) {
 }
 
 func (b *boundary) postFail(w http.ResponseWriter, status int, code string, retry int) {
+	for _, header := range []string{"Recommendation-Version", "Recommendation-Available", "Recommendation-Context", "Recommendation-Issued-At", "Recommendation-Create-Before"} {
+		w.Header().Del(header)
+	}
 	w.Header().Del("Session-Expires-At")
 	w.Header().Del("Server-Time")
 	if status == 429 && retry > 86400 {
@@ -897,6 +900,12 @@ func (b *boundary) writePostResponse(w http.ResponseWriter, response authprivacy
 			return
 		}
 		w.Header().Set("Post-Edited-At", utc(at))
+	}
+	if response.Recommendation != nil {
+		if route.kind != authprivacy.PostFeed || writeRecommendationHeaders(w, response.Recommendation) != nil {
+			b.postFail(w, 503, "SERVICE_UNAVAILABLE", 0)
+			return
+		}
 	}
 	w.Header().Set("Session-Expires-At", utc(response.ExpiresAt))
 	w.Header().Set("Server-Time", utc(response.ServerTime))
